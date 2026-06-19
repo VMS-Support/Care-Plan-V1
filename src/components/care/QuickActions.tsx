@@ -1,0 +1,67 @@
+import { Link } from "@tanstack/react-router";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  NotebookPen, HeartPulse, Stethoscope, CheckSquare, AlertTriangle,
+  UserCheck, UsersRound, Plane,
+} from "lucide-react";
+import { useCare } from "@/lib/care/store";
+import { can } from "@/lib/care/permissions";
+
+type Action = {
+  kind: "note" | "intervention" | "assessment" | "task" | "incident" | "mdt" | "visitor" | "outing";
+  label: string; icon: any; perm: Parameters<typeof can>[1];
+};
+
+const ACTIONS: Action[] = [
+  { kind: "note", label: "Daily Note", icon: NotebookPen, perm: "note.create" },
+  { kind: "intervention", label: "Intervention", icon: HeartPulse, perm: "intervention.create" },
+  { kind: "assessment", label: "Assessment", icon: Stethoscope, perm: "assessment.view" },
+  { kind: "task", label: "Task", icon: CheckSquare, perm: "task.create" },
+  { kind: "incident", label: "Incident", icon: AlertTriangle, perm: "incident.create" },
+  { kind: "mdt", label: "MDT Note", icon: UserCheck, perm: "mdt.create" },
+  { kind: "visitor", label: "Visitor Record", icon: UsersRound, perm: "visitor.create" },
+  { kind: "outing", label: "Resident Outing", icon: Plane, perm: "outing.create" },
+];
+
+export function QuickActions({ residentId }: { residentId: string }) {
+  const { currentRole } = useCare();
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Quick Actions</CardTitle>
+        <p className="text-xs text-muted-foreground">Resident auto-linked — no need to re-select.</p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {ACTIONS.map(a => {
+            const allowed = can(currentRole, a.perm);
+            const cls = `flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors ${
+              allowed ? "hover:bg-accent hover:border-accent" : "opacity-40 pointer-events-none"
+            }`;
+            if (a.kind === "assessment") {
+              // Open the Resident Assessment Centre, not a creation form
+              return (
+                <Link key={a.kind} to="/residents/$id/assessments" params={{ id: residentId }} className={cls}>
+                  <a.icon className="h-5 w-5 text-primary" />
+                  <span className="text-center">{a.label}</span>
+                </Link>
+              );
+            }
+            return (
+              <Link
+                key={a.kind}
+                to="/residents/$id/record"
+                params={{ id: residentId }}
+                search={{ kind: a.kind } as any}
+                className={cls}
+              >
+                <a.icon className="h-5 w-5 text-primary" />
+                <span className="text-center">{a.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
