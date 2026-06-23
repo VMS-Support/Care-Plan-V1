@@ -13,6 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/layout/AppShell";
 
+const publicAsset = (name: string) => `${import.meta.env.BASE_URL}${name}`.replace(/\/+/g, "/");
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -78,20 +80,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "CarePath Pro is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "CarePath Pro is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
+      { title: "NuCare" },
+      { name: "description", content: "NuCare is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
+      { name: "author", content: "NuCare" },
+      { property: "og:title", content: "NuCare" },
+      { property: "og:description", content: "NuCare is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "CarePath Pro is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/953b5851-3227-486e-8b55-9995a752b71b/id-preview-50b113a8--e7726030-83e8-4705-ab4e-5ff98a6bc611.lovable.app-1781530825553.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/953b5851-3227-486e-8b55-9995a752b71b/id-preview-50b113a8--e7726030-83e8-4705-ab4e-5ff98a6bc611.lovable.app-1781530825553.png" },
+      { name: "twitter:title", content: "NuCare" },
+      { name: "twitter:description", content: "NuCare is a healthcare-grade system for managing resident care plans and daily activities in care facilities." },
+      { property: "og:image", content: publicAsset("nucare-logo.png") },
+      { name: "twitter:image", content: publicAsset("nucare-logo.png") },
     ],
     links: [
+      { rel: "icon", type: "image/png", href: publicAsset("favicon.png") },
+      { rel: "apple-touch-icon", href: publicAsset("nucare-logo.png") },
       {
         rel: "stylesheet",
         href: appCss,

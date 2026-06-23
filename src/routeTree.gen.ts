@@ -12,11 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VitalsRouteImport } from './routes/vitals'
 import { Route as VisitorsRouteImport } from './routes/visitors'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as RisksRouteImport } from './routes/risks'
 import { Route as ResidentsRouteImport } from './routes/residents'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OutingsRouteImport } from './routes/outings'
-import { Route as ObservationsRouteImport } from './routes/observations'
+import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MdtNotesRouteImport } from './routes/mdt-notes'
 import { Route as InterventionsRouteImport } from './routes/interventions'
 import { Route as IncidentsRouteImport } from './routes/incidents'
@@ -33,18 +34,14 @@ import { Route as ResidentsIndexRouteImport } from './routes/residents.index'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
-import { Route as ObservationsAuditRouteImport } from './routes/observations.audit'
-import { Route as ObservationsKindRouteImport } from './routes/observations.$kind'
 import { Route as InspectionResidentIdRouteImport } from './routes/inspection.$residentId'
 import { Route as ChartsResidentIdRouteImport } from './routes/charts.$residentId'
 import { Route as CarePlansIdRouteImport } from './routes/care-plans.$id'
 import { Route as AssessmentsReassessmentRouteImport } from './routes/assessments.reassessment'
 import { Route as AssessmentsAssessmentIdRouteImport } from './routes/assessments.$assessmentId'
-import { Route as ResidentsIdVitalsRouteImport } from './routes/residents.$id.vitals'
 import { Route as ResidentsIdTimelineRouteImport } from './routes/residents.$id.timeline'
 import { Route as ResidentsIdRecordRouteImport } from './routes/residents.$id.record'
 import { Route as ResidentsIdQualityOfLifeRouteImport } from './routes/residents.$id.quality-of-life'
-import { Route as ResidentsIdObservationsRouteImport } from './routes/residents.$id.observations'
 import { Route as ResidentsIdCarePlanRouteImport } from './routes/residents.$id.care-plan'
 import { Route as ResidentsIdAssessmentsRouteImport } from './routes/residents.$id.assessments'
 import { Route as AssessmentsNewResidentIdRouteImport } from './routes/assessments.new.$residentId'
@@ -62,6 +59,11 @@ const VisitorsRoute = VisitorsRouteImport.update({
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RisksRoute = RisksRouteImport.update({
+  id: '/risks',
+  path: '/risks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResidentsRoute = ResidentsRouteImport.update({
@@ -84,9 +86,9 @@ const OutingsRoute = OutingsRouteImport.update({
   path: '/outings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ObservationsRoute = ObservationsRouteImport.update({
-  id: '/observations',
-  path: '/observations',
+const OperationsRoute = OperationsRouteImport.update({
+  id: '/operations',
+  path: '/operations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MdtNotesRoute = MdtNotesRouteImport.update({
@@ -169,16 +171,6 @@ const ResidentsIdRoute = ResidentsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ResidentsRoute,
 } as any)
-const ObservationsAuditRoute = ObservationsAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => ObservationsRoute,
-} as any)
-const ObservationsKindRoute = ObservationsKindRouteImport.update({
-  id: '/$kind',
-  path: '/$kind',
-  getParentRoute: () => ObservationsRoute,
-} as any)
 const InspectionResidentIdRoute = InspectionResidentIdRouteImport.update({
   id: '/inspection/$residentId',
   path: '/inspection/$residentId',
@@ -204,11 +196,6 @@ const AssessmentsAssessmentIdRoute = AssessmentsAssessmentIdRouteImport.update({
   path: '/$assessmentId',
   getParentRoute: () => AssessmentsRoute,
 } as any)
-const ResidentsIdVitalsRoute = ResidentsIdVitalsRouteImport.update({
-  id: '/vitals',
-  path: '/vitals',
-  getParentRoute: () => ResidentsIdRoute,
-} as any)
 const ResidentsIdTimelineRoute = ResidentsIdTimelineRouteImport.update({
   id: '/timeline',
   path: '/timeline',
@@ -225,11 +212,6 @@ const ResidentsIdQualityOfLifeRoute =
     path: '/quality-of-life',
     getParentRoute: () => ResidentsIdRoute,
   } as any)
-const ResidentsIdObservationsRoute = ResidentsIdObservationsRouteImport.update({
-  id: '/observations',
-  path: '/observations',
-  getParentRoute: () => ResidentsIdRoute,
-} as any)
 const ResidentsIdCarePlanRoute = ResidentsIdCarePlanRouteImport.update({
   id: '/care-plan',
   path: '/care-plan',
@@ -260,11 +242,12 @@ export interface FileRoutesByFullPath {
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
   '/mdt-notes': typeof MdtNotesRoute
-  '/observations': typeof ObservationsRouteWithChildren
+  '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
   '/residents': typeof ResidentsRouteWithChildren
+  '/risks': typeof RisksRoute
   '/tasks': typeof TasksRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
@@ -273,8 +256,6 @@ export interface FileRoutesByFullPath {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
-  '/observations/$kind': typeof ObservationsKindRoute
-  '/observations/audit': typeof ObservationsAuditRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments/': typeof AssessmentsIndexRoute
@@ -282,11 +263,9 @@ export interface FileRoutesByFullPath {
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
-  '/residents/$id/observations': typeof ResidentsIdObservationsRoute
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
-  '/residents/$id/vitals': typeof ResidentsIdVitalsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -300,10 +279,11 @@ export interface FileRoutesByTo {
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
   '/mdt-notes': typeof MdtNotesRoute
-  '/observations': typeof ObservationsRouteWithChildren
+  '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
+  '/risks': typeof RisksRoute
   '/tasks': typeof TasksRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
@@ -312,8 +292,6 @@ export interface FileRoutesByTo {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
-  '/observations/$kind': typeof ObservationsKindRoute
-  '/observations/audit': typeof ObservationsAuditRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments': typeof AssessmentsIndexRoute
@@ -321,11 +299,9 @@ export interface FileRoutesByTo {
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
-  '/residents/$id/observations': typeof ResidentsIdObservationsRoute
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
-  '/residents/$id/vitals': typeof ResidentsIdVitalsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -341,11 +317,12 @@ export interface FileRoutesById {
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
   '/mdt-notes': typeof MdtNotesRoute
-  '/observations': typeof ObservationsRouteWithChildren
+  '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
   '/reports': typeof ReportsRoute
   '/residents': typeof ResidentsRouteWithChildren
+  '/risks': typeof RisksRoute
   '/tasks': typeof TasksRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
@@ -354,8 +331,6 @@ export interface FileRoutesById {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
-  '/observations/$kind': typeof ObservationsKindRoute
-  '/observations/audit': typeof ObservationsAuditRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments/': typeof AssessmentsIndexRoute
@@ -363,11 +338,9 @@ export interface FileRoutesById {
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
-  '/residents/$id/observations': typeof ResidentsIdObservationsRoute
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
-  '/residents/$id/vitals': typeof ResidentsIdVitalsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -384,11 +357,12 @@ export interface FileRouteTypes {
     | '/incidents'
     | '/interventions'
     | '/mdt-notes'
-    | '/observations'
+    | '/operations'
     | '/outings'
     | '/profile'
     | '/reports'
     | '/residents'
+    | '/risks'
     | '/tasks'
     | '/visitors'
     | '/vitals'
@@ -397,8 +371,6 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
-    | '/observations/$kind'
-    | '/observations/audit'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments/'
@@ -406,11 +378,9 @@ export interface FileRouteTypes {
     | '/assessments/new/$residentId'
     | '/residents/$id/assessments'
     | '/residents/$id/care-plan'
-    | '/residents/$id/observations'
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
-    | '/residents/$id/vitals'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -424,10 +394,11 @@ export interface FileRouteTypes {
     | '/incidents'
     | '/interventions'
     | '/mdt-notes'
-    | '/observations'
+    | '/operations'
     | '/outings'
     | '/profile'
     | '/reports'
+    | '/risks'
     | '/tasks'
     | '/visitors'
     | '/vitals'
@@ -436,8 +407,6 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
-    | '/observations/$kind'
-    | '/observations/audit'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments'
@@ -445,11 +414,9 @@ export interface FileRouteTypes {
     | '/assessments/new/$residentId'
     | '/residents/$id/assessments'
     | '/residents/$id/care-plan'
-    | '/residents/$id/observations'
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
-    | '/residents/$id/vitals'
   id:
     | '__root__'
     | '/'
@@ -464,11 +431,12 @@ export interface FileRouteTypes {
     | '/incidents'
     | '/interventions'
     | '/mdt-notes'
-    | '/observations'
+    | '/operations'
     | '/outings'
     | '/profile'
     | '/reports'
     | '/residents'
+    | '/risks'
     | '/tasks'
     | '/visitors'
     | '/vitals'
@@ -477,8 +445,6 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
-    | '/observations/$kind'
-    | '/observations/audit'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments/'
@@ -486,11 +452,9 @@ export interface FileRouteTypes {
     | '/assessments/new/$residentId'
     | '/residents/$id/assessments'
     | '/residents/$id/care-plan'
-    | '/residents/$id/observations'
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
-    | '/residents/$id/vitals'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -506,11 +470,12 @@ export interface RootRouteChildren {
   IncidentsRoute: typeof IncidentsRoute
   InterventionsRoute: typeof InterventionsRoute
   MdtNotesRoute: typeof MdtNotesRoute
-  ObservationsRoute: typeof ObservationsRouteWithChildren
+  OperationsRoute: typeof OperationsRoute
   OutingsRoute: typeof OutingsRoute
   ProfileRoute: typeof ProfileRoute
   ReportsRoute: typeof ReportsRoute
   ResidentsRoute: typeof ResidentsRouteWithChildren
+  RisksRoute: typeof RisksRoute
   TasksRoute: typeof TasksRoute
   VisitorsRoute: typeof VisitorsRoute
   VitalsRoute: typeof VitalsRouteWithChildren
@@ -541,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TasksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/risks': {
+      id: '/risks'
+      path: '/risks'
+      fullPath: '/risks'
+      preLoaderRoute: typeof RisksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/residents': {
       id: '/residents'
       path: '/residents'
@@ -569,11 +541,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/observations': {
-      id: '/observations'
-      path: '/observations'
-      fullPath: '/observations'
-      preLoaderRoute: typeof ObservationsRouteImport
+    '/operations': {
+      id: '/operations'
+      path: '/operations'
+      fullPath: '/operations'
+      preLoaderRoute: typeof OperationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mdt-notes': {
@@ -688,20 +660,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResidentsIdRouteImport
       parentRoute: typeof ResidentsRoute
     }
-    '/observations/audit': {
-      id: '/observations/audit'
-      path: '/audit'
-      fullPath: '/observations/audit'
-      preLoaderRoute: typeof ObservationsAuditRouteImport
-      parentRoute: typeof ObservationsRoute
-    }
-    '/observations/$kind': {
-      id: '/observations/$kind'
-      path: '/$kind'
-      fullPath: '/observations/$kind'
-      preLoaderRoute: typeof ObservationsKindRouteImport
-      parentRoute: typeof ObservationsRoute
-    }
     '/inspection/$residentId': {
       id: '/inspection/$residentId'
       path: '/inspection/$residentId'
@@ -737,13 +695,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssessmentsAssessmentIdRouteImport
       parentRoute: typeof AssessmentsRoute
     }
-    '/residents/$id/vitals': {
-      id: '/residents/$id/vitals'
-      path: '/vitals'
-      fullPath: '/residents/$id/vitals'
-      preLoaderRoute: typeof ResidentsIdVitalsRouteImport
-      parentRoute: typeof ResidentsIdRoute
-    }
     '/residents/$id/timeline': {
       id: '/residents/$id/timeline'
       path: '/timeline'
@@ -763,13 +714,6 @@ declare module '@tanstack/react-router' {
       path: '/quality-of-life'
       fullPath: '/residents/$id/quality-of-life'
       preLoaderRoute: typeof ResidentsIdQualityOfLifeRouteImport
-      parentRoute: typeof ResidentsIdRoute
-    }
-    '/residents/$id/observations': {
-      id: '/residents/$id/observations'
-      path: '/observations'
-      fullPath: '/residents/$id/observations'
-      preLoaderRoute: typeof ResidentsIdObservationsRouteImport
       parentRoute: typeof ResidentsIdRoute
     }
     '/residents/$id/care-plan': {
@@ -826,38 +770,20 @@ const CarePlansRouteWithChildren = CarePlansRoute._addFileChildren(
   CarePlansRouteChildren,
 )
 
-interface ObservationsRouteChildren {
-  ObservationsKindRoute: typeof ObservationsKindRoute
-  ObservationsAuditRoute: typeof ObservationsAuditRoute
-}
-
-const ObservationsRouteChildren: ObservationsRouteChildren = {
-  ObservationsKindRoute: ObservationsKindRoute,
-  ObservationsAuditRoute: ObservationsAuditRoute,
-}
-
-const ObservationsRouteWithChildren = ObservationsRoute._addFileChildren(
-  ObservationsRouteChildren,
-)
-
 interface ResidentsIdRouteChildren {
   ResidentsIdAssessmentsRoute: typeof ResidentsIdAssessmentsRoute
   ResidentsIdCarePlanRoute: typeof ResidentsIdCarePlanRoute
-  ResidentsIdObservationsRoute: typeof ResidentsIdObservationsRoute
   ResidentsIdQualityOfLifeRoute: typeof ResidentsIdQualityOfLifeRoute
   ResidentsIdRecordRoute: typeof ResidentsIdRecordRoute
   ResidentsIdTimelineRoute: typeof ResidentsIdTimelineRoute
-  ResidentsIdVitalsRoute: typeof ResidentsIdVitalsRoute
 }
 
 const ResidentsIdRouteChildren: ResidentsIdRouteChildren = {
   ResidentsIdAssessmentsRoute: ResidentsIdAssessmentsRoute,
   ResidentsIdCarePlanRoute: ResidentsIdCarePlanRoute,
-  ResidentsIdObservationsRoute: ResidentsIdObservationsRoute,
   ResidentsIdQualityOfLifeRoute: ResidentsIdQualityOfLifeRoute,
   ResidentsIdRecordRoute: ResidentsIdRecordRoute,
   ResidentsIdTimelineRoute: ResidentsIdTimelineRoute,
-  ResidentsIdVitalsRoute: ResidentsIdVitalsRoute,
 }
 
 const ResidentsIdRouteWithChildren = ResidentsIdRoute._addFileChildren(
@@ -902,11 +828,12 @@ const rootRouteChildren: RootRouteChildren = {
   IncidentsRoute: IncidentsRoute,
   InterventionsRoute: InterventionsRoute,
   MdtNotesRoute: MdtNotesRoute,
-  ObservationsRoute: ObservationsRouteWithChildren,
+  OperationsRoute: OperationsRoute,
   OutingsRoute: OutingsRoute,
   ProfileRoute: ProfileRoute,
   ReportsRoute: ReportsRoute,
   ResidentsRoute: ResidentsRouteWithChildren,
+  RisksRoute: RisksRoute,
   TasksRoute: TasksRoute,
   VisitorsRoute: VisitorsRoute,
   VitalsRoute: VitalsRouteWithChildren,
@@ -916,3 +843,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

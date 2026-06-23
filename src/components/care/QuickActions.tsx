@@ -1,15 +1,23 @@
-import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  NotebookPen, HeartPulse, Stethoscope, CheckSquare, AlertTriangle,
-  UserCheck, UsersRound, Plane,
+  NotebookPen,
+  HeartPulse,
+  Stethoscope,
+  CheckSquare,
+  AlertTriangle,
+  UserCheck,
+  UsersRound,
+  Plane,
 } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
 
 type Action = {
   kind: "note" | "intervention" | "assessment" | "task" | "incident" | "mdt" | "visitor" | "outing";
-  label: string; icon: any; perm: Parameters<typeof can>[1];
+  label: string;
+  icon: any;
+  perm: Parameters<typeof can>[1];
 };
 
 const ACTIONS: Action[] = [
@@ -23,41 +31,36 @@ const ACTIONS: Action[] = [
   { kind: "outing", label: "Resident Outing", icon: Plane, perm: "outing.create" },
 ];
 
-export function QuickActions({ residentId }: { residentId: string }) {
+interface Props {
+  residentId: string;
+  onOpenModal: (kind: Action["kind"]) => void;
+}
+
+export function QuickActions({ residentId, onOpenModal }: Props) {
   const { currentRole } = useCare();
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Quick Actions</CardTitle>
-        <p className="text-xs text-muted-foreground">Resident auto-linked — no need to re-select.</p>
+        <p className="text-xs text-muted-foreground">
+          Resident auto-linked — no need to re-select.
+        </p>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {ACTIONS.map(a => {
+          {ACTIONS.map((a) => {
             const allowed = can(currentRole, a.perm);
-            const cls = `flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors ${
-              allowed ? "hover:bg-accent hover:border-accent" : "opacity-40 pointer-events-none"
-            }`;
-            if (a.kind === "assessment") {
-              // Open the Resident Assessment Centre, not a creation form
-              return (
-                <Link key={a.kind} to="/residents/$id/assessments" params={{ id: residentId }} className={cls}>
-                  <a.icon className="h-5 w-5 text-primary" />
-                  <span className="text-center">{a.label}</span>
-                </Link>
-              );
-            }
             return (
-              <Link
+              <Button
                 key={a.kind}
-                to="/residents/$id/record"
-                params={{ id: residentId }}
-                search={{ kind: a.kind } as any}
-                className={cls}
+                variant="outline"
+                disabled={!allowed}
+                onClick={() => onOpenModal(a.kind)}
+                className="h-auto flex flex-col items-center gap-1.5 rounded-lg p-3"
               >
                 <a.icon className="h-5 w-5 text-primary" />
-                <span className="text-center">{a.label}</span>
-              </Link>
+                <span className="text-center text-xs">{a.label}</span>
+              </Button>
             );
           })}
         </div>

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCare, age } from "@/lib/care/store";
+import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +104,13 @@ function ResidentsList() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(r => {
-          const rAlerts = alerts.filter(a => a.residentId === r.id && !a.acknowledged);
+          const rAlerts = alerts.filter(
+            (a) =>
+              a.residentId === r.id &&
+              isActionRequiredAlert(a) &&
+              !a.acknowledged &&
+              !a.resolvedAt,
+          );
           const highest = assessments.filter(a => a.residentId === r.id && a.status !== "deleted")
             .sort((a, b) => b.date.localeCompare(a.date))[0];
           return (

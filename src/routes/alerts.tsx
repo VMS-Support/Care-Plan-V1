@@ -4,10 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ClinicalChangesQueue } from "@/components/care/ClinicalChangesQueue";
 
 export const Route = createFileRoute("/alerts")({
   head: () => ({ meta: [{ title: "Alerts — CarePath" }] }),
-  component: AlertsPage,
+  component: ClinicalChangesQueue,
 });
 
 function AlertsPage() {

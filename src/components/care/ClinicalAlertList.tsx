@@ -9,6 +9,7 @@ import { AlertTriangle, Check, X, MessageSquarePlus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
 import type { ClinicalAlert } from "@/lib/care/types";
+import { isActionableClinicalAlert } from "@/lib/care/alerts";
 
 function severityCls(s: ClinicalAlert["severity"]) {
   if (s === "critical") return "border-destructive/40 text-destructive bg-destructive/5";
@@ -41,7 +42,12 @@ function EscalationDialog({ alertId }: { alertId: string }) {
 export function ClinicalAlertList({ residentId, alerts: alertsOverride }: { residentId?: string; alerts?: ClinicalAlert[] }) {
   const { clinicalAlerts, acknowledgeClinicalAlert, dismissClinicalAlert, currentRole } = useCare();
   const all = alertsOverride ?? clinicalAlerts;
-  const items = all.filter(a => !a.dismissedAt && (!residentId || a.residentId === residentId));
+  const items = all.filter(
+    (a) =>
+      isActionableClinicalAlert(a) &&
+      !a.dismissedAt &&
+      (!residentId || a.residentId === residentId),
+  );
   const canEscalate = can(currentRole, "vital.escalate");
 
   if (items.length === 0) {

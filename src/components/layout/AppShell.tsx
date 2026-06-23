@@ -1,9 +1,25 @@
 import { Link, useRouterState, Outlet } from "@tanstack/react-router";
 import { CareProvider, useCare } from "@/lib/care/store";
 import {
-  LayoutDashboard, Users, ClipboardList, HeartPulse, NotebookPen,
-  AlertTriangle, BarChart3, CheckSquare, Activity, Stethoscope, Search,
-  ShieldAlert, UserCheck, History, UsersRound, Plane, ShieldCheck, LibraryBig, Eye,
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  HeartPulse,
+  NotebookPen,
+  AlertTriangle,
+  BarChart3,
+  CheckSquare,
+  Stethoscope,
+  Search,
+  ShieldAlert,
+  UserCheck,
+  History,
+  UsersRound,
+  Plane,
+  ShieldCheck,
+  LibraryBig,
+  Building2,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -19,45 +35,100 @@ type NavItem = { to: any; label: string; icon: any; exact?: boolean; perm?: (r: 
 
 const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/residents", label: "Residents", icon: Users, perm: r => can(r, "resident.view") },
-  { to: "/assessments", label: "Assessments", icon: Stethoscope, perm: r => can(r, "assessment.view") },
-  { to: "/observations", label: "Observations", icon: Eye, perm: r => can(r, "observation.view") },
-  { to: "/vitals", label: "Vital Signs (Legacy)", icon: HeartPulse, perm: r => can(r, "vital.view") },
-  { to: "/care-plans", label: "Care Plans", icon: ClipboardList, perm: r => can(r, "careplan.view") },
-  { to: "/care-plan-templates", label: "Care Templates", icon: LibraryBig, perm: r => can(r, "careplan.create") },
-  { to: "/compliance", label: "Compliance", icon: ShieldCheck, perm: r => can(r, "compliance.view") },
+  {
+    to: "/operations",
+    label: "Operations",
+    icon: Building2,
+    perm: (r) => can(r, "ops.edit") || can(r, "ops.edit_own"),
+  },
+  { to: "/residents", label: "Residents", icon: Users, perm: (r) => can(r, "resident.view") },
+  {
+    to: "/assessments",
+    label: "Assessments",
+    icon: Stethoscope,
+    perm: (r) => can(r, "assessment.view"),
+  },
+  {
+    to: "/vitals",
+    label: "Vitals",
+    icon: HeartPulse,
+    perm: (r) => r === "cnm" || r === "don",
+  },
+  {
+    to: "/care-plans",
+    label: "Care Plans",
+    icon: ClipboardList,
+    perm: (r) => can(r, "careplan.view"),
+  },
+  {
+    to: "/care-plan-templates",
+    label: "Care Templates",
+    icon: LibraryBig,
+    perm: (r) => can(r, "careplan.create"),
+  },
+  {
+    to: "/compliance",
+    label: "Compliance",
+    icon: ShieldCheck,
+    perm: (r) => can(r, "compliance.view"),
+  },
   { to: "/daily-notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/interventions", label: "Interventions", icon: HeartPulse },
   { to: "/handovers", label: "Handovers", icon: UserCheck },
-  { to: "/incidents", label: "Incidents", icon: ShieldAlert, perm: r => can(r, "incident.view") || can(r, "incident.create") },
-  { to: "/mdt-notes", label: "MDT Notes", icon: UserCheck, perm: r => can(r, "mdt.create") || can(r, "clinical.view") },
+  {
+    to: "/incidents",
+    label: "Incidents",
+    icon: ShieldAlert,
+    perm: (r) => can(r, "incident.view") || can(r, "incident.create"),
+  },
+  {
+    to: "/mdt-notes",
+    label: "MDT Notes",
+    icon: UserCheck,
+    perm: (r) => can(r, "mdt.create") || can(r, "clinical.view"),
+  },
   { to: "/visitors", label: "Visitors", icon: UsersRound },
   { to: "/outings", label: "Outings", icon: Plane },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { to: "/risks", label: "Risks", icon: Gauge },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
-  { to: "/reports", label: "Reports", icon: BarChart3, perm: r => can(r, "report.view") },
-  { to: "/audit-logs", label: "Audit Logs", icon: History, perm: r => can(r, "audit.view") },
+  { to: "/reports", label: "Reports", icon: BarChart3, perm: (r) => can(r, "report.view") },
+  { to: "/audit-logs", label: "Audit Logs", icon: History, perm: (r) => can(r, "audit.view") },
 ];
 
 function SidebarInner() {
-  const pathname = useRouterState({ select: s => s.location.pathname });
-  const { alerts, currentRole } = useCare();
-  const openAlerts = alerts.filter(a => !a.acknowledged).length;
-  const visible = nav.filter(i => !i.perm || i.perm(currentRole));
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { tasks, currentRole } = useCare();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
+  ).length;
+  const dueTodayTasks = tasks.filter(
+    (t) =>
+      t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) === todayKey,
+  ).length;
+  const tasksAttentionCount = overdueTasks + dueTodayTasks;
+  const tasksBadgeClass =
+    overdueTasks > 0
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-warning/20 text-warning-foreground";
+  const visible = nav.filter((i) => !i.perm || i.perm(currentRole));
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="flex items-center gap-2 px-5 py-5 border-b border-sidebar-border">
-        <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
-          <Activity className="h-5 w-5 text-sidebar-primary-foreground" />
-        </div>
+        <img
+          src={`${import.meta.env.BASE_URL}nucare-logo.png`}
+          alt="NuCare"
+          className="h-9 w-9 rounded-lg object-cover"
+        />
         <div>
-          <div className="font-semibold tracking-tight">CarePath</div>
+          <div className="font-semibold tracking-tight">NuCare</div>
           <div className="text-xs text-sidebar-foreground/60">Care Planning System</div>
         </div>
       </div>
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        {visible.map(item => {
+        {visible.map((item) => {
           const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
@@ -73,8 +144,15 @@ function SidebarInner() {
             >
               <Icon className="h-4 w-4" />
               <span className="flex-1">{item.label}</span>
-              {item.to === "/alerts" && openAlerts > 0 && (
-                <span className="text-[10px] bg-destructive text-destructive-foreground rounded-full px-1.5 py-0.5 font-semibold">{openAlerts}</span>
+              {item.to === "/tasks" && tasksAttentionCount > 0 && (
+                <span
+                  className={cn(
+                    "text-[10px] rounded-full px-1.5 py-0.5 font-semibold",
+                    tasksBadgeClass,
+                  )}
+                >
+                  {tasksAttentionCount}
+                </span>
               )}
             </Link>
           );
@@ -85,13 +163,15 @@ function SidebarInner() {
 }
 
 function TopBar() {
-  const pathname = useRouterState({ select: s => s.location.pathname });
-  const current = nav.find(n => n.exact ? pathname === n.to : pathname.startsWith(n.to));
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const current = nav.find((n) => (n.exact ? pathname === n.to : pathname.startsWith(n.to)));
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b">
       <div className="flex items-center gap-3 px-4 md:px-6 h-14">
-        <div className="font-semibold text-sm md:text-base">{current?.label ?? "CarePath"}</div>
-        <Badge variant="outline" className="hidden sm:inline-flex text-[10px]">Demo Data</Badge>
+        <div className="font-semibold text-sm md:text-base">{current?.label ?? "NuCare"}</div>
+        <Badge variant="outline" className="hidden sm:inline-flex text-[10px]">
+          Demo Data
+        </Badge>
         <div className="flex-1" />
         <GlobalFilter />
         <div className="relative w-full max-w-[200px] hidden xl:block">
@@ -106,18 +186,50 @@ function TopBar() {
 }
 
 function MobileNav() {
-  const pathname = useRouterState({ select: s => s.location.pathname });
-  const { currentRole } = useCare();
-  const visible = nav.filter(i => !i.perm || i.perm(currentRole)).slice(0, 5);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { currentRole, tasks } = useCare();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
+  ).length;
+  const dueTodayTasks = tasks.filter(
+    (t) =>
+      t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) === todayKey,
+  ).length;
+  const tasksAttentionCount = overdueTasks + dueTodayTasks;
+  const tasksBadgeClass =
+    overdueTasks > 0
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-warning/20 text-warning-foreground";
+  const visible = nav.filter((i) => !i.perm || i.perm(currentRole)).slice(0, 5);
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar text-sidebar-foreground border-t border-sidebar-border flex justify-around py-1.5">
-      {visible.map(item => {
+      {visible.map((item) => {
         const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
         const Icon = item.icon;
         return (
-          <Link key={item.to} to={item.to} className={cn("flex flex-col items-center gap-0.5 px-2 py-1 text-[10px]", active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/70")}>
+          <Link
+            key={item.to}
+            to={item.to}
+            className={cn(
+              "flex flex-col items-center gap-0.5 px-2 py-1 text-[10px]",
+              active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/70",
+            )}
+          >
             <Icon className="h-5 w-5" />
-            <span>{item.label}</span>
+            <span className="flex items-center gap-1">
+              <span>{item.label}</span>
+              {item.to === "/tasks" && tasksAttentionCount > 0 && (
+                <span
+                  className={cn(
+                    "text-[9px] rounded-full px-1 py-0.5 font-semibold",
+                    tasksBadgeClass,
+                  )}
+                >
+                  {tasksAttentionCount}
+                </span>
+              )}
+            </span>
           </Link>
         );
       })}

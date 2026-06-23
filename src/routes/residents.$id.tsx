@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCare, age } from "@/lib/care/store";
+import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { can } from "@/lib/care/permissions";
 import { assessmentMeta } from "@/lib/care/scoring";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,18 +9,75 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  ArrowLeft, Calendar, Phone, User2, Pill, AlertTriangle, Plus, Bed, UserCog,
-  Activity, ClipboardList, ListChecks, FileWarning, Trash2,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ArrowLeft,
+  Calendar,
+  MoreVertical,
+  Phone,
+  User2,
+  Pill,
+  AlertTriangle,
+  Plus,
+  Bed,
+  UserCog,
+  Activity,
+  ClipboardList,
+  Trash2,
+  Archive,
+  Ban,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { QuickActions } from "@/components/care/QuickActions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ClinicalSnapshot } from "@/components/care/ClinicalSnapshot";
-import { useState } from "react";
+import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
+import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
+import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
+import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
+import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
+import { InterventionReviewModal } from "@/components/resident/modals/InterventionReviewModal";
+import { AddTaskModal } from "@/components/resident/modals/AddTaskModal";
+import { AddMDTNoteModal } from "@/components/resident/modals/AddMDTNoteModal";
+import { AddAssessmentModal } from "@/components/resident/modals/AddAssessmentModal";
+import { IncidentDialog } from "@/components/care/IncidentDialog";
+import { VisitorDialog } from "@/components/care/VisitorDialog";
+import { OutingDialog } from "@/components/care/OutingDialog";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  scheduledInterventions,
+  scheduledInterventionLabel,
+  type ScheduledInterventionStatus,
+} from "@/lib/care/intervention-schedule";
+import type { VitalSign } from "@/lib/care/types";
+import { calcNEWS2 } from "@/lib/care/vitals";
+import {
+  formatVitalValues,
+  inferVitalRecordType,
+  VITAL_TYPE_LABELS,
+} from "@/lib/care/vital-records";
 
 export const Route = createFileRoute("/residents/$id")({
   head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} — CarePath` }] }),
@@ -33,7 +91,72 @@ function riskColor(level: string) {
   return "bg-success/10 text-success border-success/20";
 }
 
-function DeleteAssessmentDialog({ id, onConfirm }: { id: string; onConfirm: (reason: string) => void }) {
+type UpcomingTaskStatus = ScheduledInterventionStatus;
+
+function statusBadgeClass(status: UpcomingTaskStatus) {
+  if (status === "overdue") return "bg-destructive/10 text-destructive border-destructive/30";
+  if (status === "due_now") return "bg-warning/15 text-warning-foreground border-warning/40";
+  if (status === "due_today") return "bg-warning/10 text-warning-foreground border-warning/30";
+  if (status === "upcoming") return "bg-info/10 text-info border-info/30";
+  if (status === "completed") return "bg-success/10 text-success border-success/20";
+  return "bg-muted text-muted-foreground";
+}
+
+function statusLabel(status: UpcomingTaskStatus) {
+  return scheduledInterventionLabel(status);
+}
+
+function activeVitalRows(vitals: VitalSign[]) {
+  return vitals
+    .filter((vital) => !vital.deletedAt)
+    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+}
+
+function trendStatus(values: number[], mode: "stable" | "lowerBetter" = "stable") {
+  if (values.length < 2) return null;
+  const [latest, previous] = values;
+  const delta = latest - previous;
+  if (Math.abs(delta) < 0.5) return "Stable";
+  if (mode === "lowerBetter") return delta < 0 ? "Improving" : "Requires Review";
+  return "Requires Review";
+}
+
+function trendTone(status: string | null) {
+  if (status === "Improving") return "border-success/30 text-success";
+  if (status === "Requires Review") return "border-warning/40 text-warning-foreground";
+  return "border-muted-foreground/20 text-muted-foreground";
+}
+
+function TrendCard({
+  title,
+  status,
+  detail,
+}: {
+  title: string;
+  status: string | null;
+  detail: string;
+}) {
+  if (!status) return null;
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-2">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{title}</div>
+        <Badge variant="outline" className={trendTone(status)}>
+          {status}
+        </Badge>
+        <div className="text-xs text-muted-foreground">{detail}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DeleteAssessmentDialog({
+  id,
+  onConfirm,
+}: {
+  id: string;
+  onConfirm: (reason: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   return (
@@ -44,14 +167,31 @@ function DeleteAssessmentDialog({ id, onConfirm }: { id: string; onConfirm: (rea
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Delete assessment (audited)</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Delete assessment (audited)</DialogTitle>
+        </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Assessments are soft-deleted and retained for audit. Provide a reason.
         </p>
-        <Textarea placeholder="Reason for deletion…" value={reason} onChange={e => setReason(e.target.value)} />
+        <Textarea
+          placeholder="Reason for deletion…"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="destructive" disabled={!reason.trim()} onClick={() => { onConfirm(reason); setOpen(false); }}>Delete</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!reason.trim()}
+            onClick={() => {
+              onConfirm(reason);
+              setOpen(false);
+            }}
+          >
+            Delete
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -62,109 +202,1058 @@ function ResidentDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const {
-    residents, assessments, carePlans, notes, interventions, alerts, tasks,
-    incidents, mdtNotes, visitors, outings, handovers,
-    currentRole, softDeleteAssessment, addNextOfKin,
+    residents,
+    assessments,
+    carePlans,
+    carePlanProblems,
+    problemInterventions,
+    problemInterventionLogs,
+    problemGoals,
+    problemEvaluations,
+    problemReviews,
+    problemHistory,
+    timelineEvents,
+    auditLogs,
+    notes,
+    alerts,
+    tasks,
+    incidents,
+    mdtNotes,
+    visitors,
+    outings,
+    vitals,
+    handovers,
+    currentRole,
+    currentUserName,
+    softDeleteAssessment,
+    addNextOfKin,
+    addGoal,
+    updateGoal,
+    removeGoal,
+    addProblemEvaluation,
+    addProblemReview,
+    addProblemIntervention,
+    discontinueProblemIntervention,
+    updateProblem,
+    updateProblemIntervention,
   } = useCare();
-  const r = residents.find(x => x.id === id);
+  const r = residents.find((x) => x.id === id);
+
+  // Modal state
   const [nokOpen, setNokOpen] = useState(false);
-  const [newNok, setNewNok] = useState({
-    name: "", relationship: "", phone: "", mobile: "", email: "", address: "", notes: "",
-    primaryContact: false, emergencyContact: false, powerOfAttorney: false, legalRepresentative: false,
+  const [modalState, setModalState] = useState<{
+    note: boolean;
+    intervention: boolean;
+    interventionCompletion: boolean;
+    interventionReview: boolean;
+    assessment: boolean;
+    task: boolean;
+    incident: boolean;
+    mdt: boolean;
+    visitor: boolean;
+    outing: boolean;
+  }>({
+    note: false,
+    intervention: false,
+    interventionCompletion: false,
+    interventionReview: false,
+    assessment: false,
+    task: false,
+    incident: false,
+    mdt: false,
+    visitor: false,
+    outing: false,
   });
 
-  if (!r) return <div className="p-8">Resident not found. <Link to="/residents" className="text-primary underline">Back</Link></div>;
+  const [selectedIntervention, setSelectedIntervention] = useState<any>(null);
+  const [selectedReviewAction, setSelectedReviewAction] = useState<
+    "extend" | "complete" | "cancel" | null
+  >(null);
+  const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
+  const [problemDetailOpen, setProblemDetailOpen] = useState(false);
+  const [evaluationOpen, setEvaluationOpen] = useState(false);
+  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
+  const [auditDialogOpen, setAuditDialogOpen] = useState(false);
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false);
+  const [latestVitalsDialogOpen, setLatestVitalsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    | "overview"
+    | "vitals"
+    | "assessments"
+    | "notes"
+    | "incidents"
+    | "mdt"
+    | "tasks"
+    | "interventions"
+    | "visitors"
+    | "outings"
+    | "handovers"
+    | "nok"
+    | "alerts"
+  >("overview");
+  const [timelineFilter, setTimelineFilter] = useState<
+    | "all"
+    | "assessments"
+    | "careplans"
+    | "interventions"
+    | "evaluations"
+    | "incidents"
+    | "mdt"
+    | "tasks"
+    | "vitals"
+    | "visitors"
+    | "outings"
+  >("all");
+  const [presetInterventionProblemId, setPresetInterventionProblemId] = useState<
+    string | undefined
+  >(undefined);
+  const [goalDraft, setGoalDraft] = useState({ statement: "", targetDate: "" });
+  const [evaluationDraft, setEvaluationDraft] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    summary: "",
+    goalsMet: "partial",
+    progress: "stable",
+    recommendations: "",
+    nextEvaluationDate: "",
+    revisionRequired: "no",
+    revisionReason: "",
+    revisionAddIntervention: "",
+    revisionDiscontinueInterventionId: "",
+    revisionChangeInterventionId: "",
+    revisionFrequencyType: "daily",
+    revisionUpdateGoalId: "",
+    revisionGoalText: "",
+    revisionReviewDate: "",
+  });
 
-  const rA = assessments.filter(a => a.residentId === id && a.status !== "deleted").sort((a, b) => b.date.localeCompare(a.date));
-  const rADeleted = assessments.filter(a => a.residentId === id && a.status === "deleted");
-  const rP = carePlans.filter(c => c.residentId === id);
-  const rN = notes.filter(n => n.residentId === id);
-  const rI = interventions.filter(i => i.residentId === id);
-  const rAlerts = alerts.filter(a => a.residentId === id);
-  const rTasks = tasks.filter(t => t.residentId === id);
-  const rIncidents = incidents.filter(x => x.residentId === id);
-  const rMDT = mdtNotes.filter(x => x.residentId === id);
-  const rVisitors = visitors.filter(x => x.residentId === id);
-  const rOutings = outings.filter(x => x.residentId === id);
-  const rHandovers = handovers.filter(x => x.residentId === id);
+  const handleOpenModal = (kind: keyof typeof modalState) => {
+    setModalState((prev) => ({ ...prev, [kind]: true }));
+  };
 
-  const activePlans = rP.filter(p => p.status === "active");
+  const handleCloseModal = (kind: keyof typeof modalState) => {
+    setModalState((prev) => ({ ...prev, [kind]: false }));
+  };
+
+  const handleRecordCompletion = (intervention: any) => {
+    setSelectedIntervention(intervention);
+    setModalState((prev) => ({ ...prev, interventionCompletion: true }));
+  };
+
+  const handleReviewIntervention = (
+    intervention: any,
+    action: "extend" | "complete" | "cancel",
+  ) => {
+    setSelectedIntervention(intervention);
+    setSelectedReviewAction(action);
+    setModalState((prev) => ({ ...prev, interventionReview: true }));
+  };
+
+  const [newNok, setNewNok] = useState({
+    name: "",
+    relationship: "",
+    phone: "",
+    mobile: "",
+    email: "",
+    address: "",
+    notes: "",
+    primaryContact: false,
+    emergencyContact: false,
+    powerOfAttorney: false,
+    legalRepresentative: false,
+  });
+
+  if (!r)
+    return (
+      <div className="p-8">
+        Resident not found.{" "}
+        <Link to="/residents" className="text-primary underline">
+          Back
+        </Link>
+      </div>
+    );
+
+  const rA = assessments
+    .filter((a) => a.residentId === id && a.status !== "deleted")
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const rADeleted = assessments.filter((a) => a.residentId === id && a.status === "deleted");
+  const rP = carePlans.filter((c) => c.residentId === id);
+  const rN = notes.filter((n) => n.residentId === id);
+  const rAlerts = alerts.filter(
+    (a) => a.residentId === id && isActionRequiredAlert(a) && !a.resolvedAt,
+  );
+  const rTasks = tasks.filter((t) => t.residentId === id && t.status !== "deleted");
+  const rIncidents = incidents.filter((x) => x.residentId === id);
+  const rMDT = mdtNotes.filter((x) => x.residentId === id);
+  const rVisitors = visitors.filter((x) => x.residentId === id);
+  const rOutings = outings.filter((x) => x.residentId === id);
+  const rVitals = vitals.filter((v) => v.residentId === id);
+  const rHandovers = handovers.filter((x) => x.residentId === id);
+  const rProblems = carePlanProblems.filter((p) => p.residentId === id);
+  const activeProblems = rProblems.filter((p) => p.status === "active");
+  const rProblemInterventions = problemInterventions.filter((i) => i.residentId === id);
+  const rProblemLogs = problemInterventionLogs.filter((l) => l.residentId === id);
+  const rProblemEvaluations = problemEvaluations.filter((e) =>
+    rProblems.some((p) => p.id === e.problemId),
+  );
+  const rProblemReviews = problemReviews.filter((rev) =>
+    rProblems.some((p) => p.id === rev.problemId),
+  );
+
   const today = new Date();
-  const outstandingReviews = rP.filter(p => p.status === "active" && new Date(p.reviewDate) <= today);
-  const openTasks = rTasks.filter(t => t.status !== "completed");
-  const nextReassessment = rA
-    .filter(a => a.nextReassessmentDate)
-    .map(a => a.nextReassessmentDate!)
-    .sort()[0];
-  const openAlertCount = rAlerts.filter(a => !a.acknowledged).length;
+  const overdueAssessments = rA.filter(
+    (a) =>
+      !!a.nextReassessmentDate &&
+      a.status !== "archived" &&
+      a.status !== "superseded" &&
+      new Date(a.nextReassessmentDate) <= today,
+  );
+  const overdueProblemReviews = activeProblems.filter((p) => new Date(p.reviewDate) <= today);
+  const highRiskFlags = activeProblems.filter(
+    (p) => p.riskLevel === "high" || p.riskLevel === "very_high",
+  );
+  const openIncidents = rIncidents.filter((i) => i.status !== "closed");
+  const openTasks = rTasks.filter((t) => t.status !== "completed");
+  const openAlertCount = rAlerts.filter((a) => !a.acknowledged).length;
+  const todayKey = today.toISOString().slice(0, 10);
+  const tomorrowDate = new Date(today);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowKey = tomorrowDate.toISOString().slice(0, 10);
+
+  const selectedProblem = selectedProblemId
+    ? rProblems.find((p) => p.id === selectedProblemId) || null
+    : null;
+  const selectedProblemGoals = selectedProblem
+    ? problemGoals.filter((g) => g.problemId === selectedProblem.id)
+    : [];
+  const selectedProblemInterventions = selectedProblem
+    ? rProblemInterventions.filter((i) => i.problemId === selectedProblem.id)
+    : [];
+  const selectedProblemLogs = selectedProblem
+    ? rProblemLogs.filter((l) => l.problemId === selectedProblem.id)
+    : [];
+  const selectedProblemEvaluations = selectedProblem
+    ? rProblemEvaluations.filter((e) => e.problemId === selectedProblem.id)
+    : [];
+  const selectedProblemReviews = selectedProblem
+    ? rProblemReviews.filter((rev) => rev.problemId === selectedProblem.id)
+    : [];
+
+  const linkedDailyNotes = selectedProblem
+    ? rN.filter((n) => n.linkedProblemId === selectedProblem.id)
+    : [];
+  const linkedMdtNotes = selectedProblem
+    ? rMDT.filter((m) => m.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    : [];
+  const linkedIncidents = selectedProblem
+    ? rIncidents.filter((i) => i.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    : [];
+  const linkedTasks = selectedProblem
+    ? rTasks.filter((t) => t.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    : [];
+  const linkedAssessments = selectedProblem
+    ? rA.filter(
+        (a) =>
+          a.id === selectedProblem.sourceAssessmentId ||
+          (a.linkedProblemIds || []).includes(selectedProblem.id),
+      )
+    : [];
+
+  const selectedProblemHistory = selectedProblem
+    ? problemHistory
+        .filter((h) => h.problemId === selectedProblem.id)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    : [];
+
+  const now = new Date();
+
+  const upcomingInterventionTasks = useMemo(() => {
+    return scheduledInterventions(rProblemInterventions, rProblemLogs, rProblems, now);
+  }, [now, rProblemInterventions, rProblemLogs, rProblems]);
+
+  const taskOps = useMemo(() => {
+    const completedToday = rTasks.filter(
+      (t) => t.status === "completed" && t.dueDate === now.toISOString().slice(0, 10),
+    );
+    const overdue = rTasks.filter((t) => t.status !== "completed" && new Date(t.dueDate) < now);
+    const upcoming = rTasks.filter(
+      (t) =>
+        t.status !== "completed" && new Date(t.dueDate) >= new Date(now.toISOString().slice(0, 10)),
+    );
+    return { completedToday, overdue, upcoming };
+  }, [rTasks]);
+
+  const residentVitals = useMemo(() => activeVitalRows(rVitals), [rVitals]);
+  const latestVital = residentVitals[0];
+  const weightValues = residentVitals
+    .filter((vital) => vital.weight !== undefined)
+    .map((vital) => vital.weight as number);
+  const temperatureValues = residentVitals
+    .filter((vital) => vital.temperature !== undefined)
+    .map((vital) => vital.temperature as number);
+  const painValues = residentVitals
+    .filter((vital) => vital.painScore !== undefined)
+    .map((vital) => vital.painScore as number);
+  const glucoseValues = residentVitals
+    .filter((vital) => vital.bloodGlucose !== undefined)
+    .map((vital) => vital.bloodGlucose as number);
+  const weightStatus = trendStatus(weightValues);
+  const temperatureStatus = trendStatus(temperatureValues);
+  const painStatus = trendStatus(painValues, "lowerBetter");
+  const glucoseStatus = trendStatus(glucoseValues);
+
+  const residentTimelineEntries = useMemo(() => {
+    const items = [
+      ...rA.map((a) => ({
+        id: `assess-${a.id}`,
+        module: "assessments" as const,
+        at: a.date,
+        title: `${assessmentMeta[a.type]?.name || a.type} assessment`,
+        summary: `Score ${a.totalScore} (${a.interpretation})`,
+        by: a.assessor,
+      })),
+      ...rProblems.map((p) => ({
+        id: `cp-${p.id}`,
+        module: "careplans" as const,
+        at: p.createdAt,
+        title: "Care plan problem updated",
+        summary: p.problemStatement,
+        by: p.createdBy,
+      })),
+      ...rProblemInterventions.map((i) => ({
+        id: `int-${i.id}`,
+        module: "interventions" as const,
+        at: i.updatedAt || i.createdAt,
+        title: i.name,
+        summary: `${i.frequencyType.replace(/_/g, " ")} · ${i.status.replace(/_/g, " ")}`,
+        by: i.updatedBy || i.createdBy,
+      })),
+      ...rProblemEvaluations.map((e) => ({
+        id: `eval-${e.id}`,
+        module: "evaluations" as const,
+        at: e.date,
+        title: "Problem evaluation",
+        summary: `${e.progress.replace(/_/g, " ")} · goals met: ${e.goalsMet}`,
+        by: e.evaluatorName,
+      })),
+      ...rProblemReviews.map((rev) => ({
+        id: `rev-${rev.id}`,
+        module: "careplans" as const,
+        at: rev.reviewDate,
+        title: "Care plan review",
+        summary: `${rev.outcome} · ${rev.comments || ""}`,
+        by: rev.reviewedByName,
+      })),
+      ...rTasks.map((t) => ({
+        id: `task-${t.id}`,
+        module: "tasks" as const,
+        at: t.dueDate,
+        title: t.title,
+        summary: t.status,
+        by: t.assignedTo,
+      })),
+      ...rIncidents.map((i) => ({
+        id: `inc-${i.id}`,
+        module: "incidents" as const,
+        at: i.date,
+        title: `${i.type.replace(/_/g, " ")} incident`,
+        summary: i.description,
+        by: i.reportedBy,
+      })),
+      ...rMDT.map((m) => ({
+        id: `mdt-${m.id}`,
+        module: "mdt" as const,
+        at: m.date,
+        title: "MDT note",
+        summary: m.discussion,
+        by: m.authoredBy,
+      })),
+      ...rVisitors.map((v) => ({
+        id: `vis-${v.id}`,
+        module: "visitors" as const,
+        at: v.date,
+        title: "Visitor recorded",
+        summary: `${v.visitorName} (${v.relationship})`,
+        by: v.signedInBy,
+      })),
+      ...rOutings.map((o) => ({
+        id: `out-${o.id}`,
+        module: "outings" as const,
+        at: o.date,
+        title: `Outing: ${o.destination}`,
+        summary: `${o.departureTime}-${o.returnTime}`,
+        by: o.accompaniedBy,
+      })),
+      ...rVitals.map((v) => ({
+        id: `vital-${v.id}`,
+        module: "vitals" as const,
+        at: v.recordedAt || `${v.date}T${v.time}`,
+        title: "Vitals recorded",
+        summary: `${v.date} ${v.time}`,
+        by: v.recordedByName || "Unknown",
+      })),
+      ...rAlerts.map((a) => ({
+        id: `alert-${a.id}`,
+        module: "careplans" as const,
+        at: a.createdAt,
+        title: `Alert: ${a.title}`,
+        summary: a.description,
+        by: "System",
+      })),
+      ...timelineEvents
+        .filter((e) => e.residentId === id)
+        .map((e) => ({
+          id: `tle-${e.id}`,
+          module: e.type.startsWith("assessment")
+            ? ("assessments" as const)
+            : e.type.startsWith("intervention")
+              ? ("interventions" as const)
+              : e.type.startsWith("careplan")
+                ? ("careplans" as const)
+                : e.type.startsWith("task")
+                  ? ("tasks" as const)
+                  : e.type.startsWith("incident")
+                    ? ("incidents" as const)
+                    : ("careplans" as const),
+          at: e.createdAt,
+          title: e.title,
+          summary: e.description || e.type,
+          by: e.createdBy,
+        })),
+    ];
+
+    return items.sort((a, b) => `${b.at}`.localeCompare(`${a.at}`));
+  }, [
+    rA,
+    rProblems,
+    rProblemInterventions,
+    rProblemEvaluations,
+    rProblemReviews,
+    rTasks,
+    rIncidents,
+    rMDT,
+    rVisitors,
+    rOutings,
+    rVitals,
+    rAlerts,
+    timelineEvents,
+    id,
+  ]);
+
+  const filteredTimelineEntries =
+    timelineFilter === "all"
+      ? residentTimelineEntries
+      : residentTimelineEntries.filter((x) => x.module === timelineFilter);
+
+  const residentAuditRows = useMemo(() => {
+    const entityModuleMap = new Map<string, string>();
+    rA.forEach((a) => entityModuleMap.set(a.id, "Assessments"));
+    rProblems.forEach((p) => entityModuleMap.set(p.id, "Care Plan Problems"));
+    rProblemInterventions.forEach((i) => entityModuleMap.set(i.id, "Interventions"));
+    rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Evaluations"));
+    rTasks.forEach((t) => entityModuleMap.set(t.id, "Tasks"));
+    rIncidents.forEach((i) => entityModuleMap.set(i.id, "Incidents"));
+    rMDT.forEach((m) => entityModuleMap.set(m.id, "MDT Notes"));
+    rVisitors.forEach((v) => entityModuleMap.set(v.id, "Visitors"));
+    rOutings.forEach((o) => entityModuleMap.set(o.id, "Outings"));
+    rVitals.forEach((v) => entityModuleMap.set(v.id, "Vitals"));
+
+    return auditLogs
+      .filter((a) => entityModuleMap.has(a.entity))
+      .map((a) => ({
+        ...a,
+        module: entityModuleMap.get(a.entity) || "Other",
+      }))
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }, [
+    auditLogs,
+    rA,
+    rProblems,
+    rProblemInterventions,
+    rProblemEvaluations,
+    rTasks,
+    rIncidents,
+    rMDT,
+    rVisitors,
+    rOutings,
+    rVitals,
+  ]);
+
+  const residentVersionRows = useMemo(() => {
+    const assessmentRows = rA.map((a) => ({
+      key: `assess-${a.id}`,
+      module: "Assessment Versions",
+      name: assessmentMeta[a.type]?.name || a.type,
+      version: a.version || 1,
+      createdBy: a.assessor,
+      date: a.date,
+      reason: a.revisionReason || "Initial",
+      supersededBy: a.supersededById || "—",
+    }));
+
+    const carePlanRows = rProblems.map((p) => {
+      const versions = problemHistory
+        .filter((h) => h.problemId === p.id)
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      return versions.map((h, idx) => ({
+        key: `cp-${h.id}`,
+        module: "Care Plan Versions",
+        name: p.problemStatement,
+        version: idx + 1,
+        createdBy: h.userName,
+        date: h.timestamp,
+        reason: h.reason || h.action.replace(/_/g, " "),
+        supersededBy: idx < versions.length - 1 ? `v${idx + 2}` : "Current",
+      }));
+    });
+
+    const evaluationRows = rProblemEvaluations
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((e, idx) => ({
+        key: `eval-${e.id}`,
+        module: "Evaluation Versions",
+        name: rProblems.find((p) => p.id === e.problemId)?.problemStatement || "Problem evaluation",
+        version: idx + 1,
+        createdBy: e.evaluatorName,
+        date: e.date,
+        reason: e.summary || e.progress,
+        supersededBy: idx < rProblemEvaluations.length - 1 ? `v${idx + 2}` : "Current",
+      }));
+
+    const interventionRows = rProblemInterventions
+      .slice()
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((i, idx) => ({
+        key: `int-${i.id}`,
+        module: "Intervention Versions",
+        name: i.name,
+        version: idx + 1,
+        createdBy: i.createdBy,
+        date: i.createdAt,
+        reason: i.notes || "Intervention created",
+        supersededBy: i.status === "superseded" ? "Superseded" : "Current",
+      }));
+
+    return [...assessmentRows, ...carePlanRows.flat(), ...evaluationRows, ...interventionRows].sort(
+      (a, b) => `${b.date}`.localeCompare(`${a.date}`),
+    );
+  }, [rA, rProblems, problemHistory, rProblemEvaluations, rProblemInterventions]);
+
+  const rolePermissions = {
+    canComplete: ["carer", "nurse", "cnm", "don"].includes(currentRole),
+    canEdit: ["nurse", "cnm", "don"].includes(currentRole),
+    canDisable: ["cnm", "don"].includes(currentRole),
+    canArchiveDelete: ["don"].includes(currentRole),
+  };
+
+  const applyInterventionStatus = (intv: any, status: any, reason: string) => {
+    updateProblemIntervention(
+      intv.id,
+      {
+        status,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "System",
+      },
+      reason,
+    );
+    toast.success(`Intervention ${status}`);
+  };
+
+  const openProblemDetail = (problemId: string) => {
+    setSelectedProblemId(problemId);
+    setProblemDetailOpen(true);
+  };
+
+  const openAddInterventionForProblem = (problemId: string) => {
+    setSelectedProblemId(problemId);
+    setPresetInterventionProblemId(problemId);
+    setModalState((prev) => ({ ...prev, intervention: true }));
+  };
+
+  const openAddEvaluationForProblem = (problemId: string) => {
+    setSelectedProblemId(problemId);
+    setEvaluationDraft((prev) => ({
+      ...prev,
+      date: new Date().toISOString().slice(0, 10),
+      nextEvaluationDate: "",
+      summary: "",
+      recommendations: "",
+      revisionRequired: "no",
+      revisionReason: "",
+      revisionAddIntervention: "",
+      revisionDiscontinueInterventionId: "",
+      revisionChangeInterventionId: "",
+      revisionFrequencyType: "daily",
+      revisionUpdateGoalId: "",
+      revisionGoalText: "",
+      revisionReviewDate: "",
+    }));
+    setEvaluationOpen(true);
+  };
+
+  const submitAddGoal = () => {
+    if (!selectedProblem || !goalDraft.statement.trim()) {
+      toast.error("Goal statement is required");
+      return;
+    }
+    addGoal(selectedProblem.id, goalDraft.statement.trim(), goalDraft.targetDate || undefined);
+    setGoalDraft({ statement: "", targetDate: "" });
+    toast.success("Goal added");
+  };
+
+  const submitEvaluation = () => {
+    if (!selectedProblem) {
+      toast.error("No care plan problem selected");
+      return;
+    }
+
+    if (!evaluationDraft.summary.trim()) {
+      toast.error("Evaluation summary is required");
+      return;
+    }
+
+    addProblemEvaluation({
+      problemId: selectedProblem.id,
+      date: evaluationDraft.date,
+      summary: evaluationDraft.summary,
+      goalsMet: evaluationDraft.goalsMet as any,
+      progress: evaluationDraft.progress as any,
+      recommendations: evaluationDraft.recommendations || undefined,
+      nextEvaluationDate: evaluationDraft.nextEvaluationDate || undefined,
+    });
+
+    if (evaluationDraft.revisionRequired === "yes") {
+      if (evaluationDraft.revisionAddIntervention.trim()) {
+        addProblemIntervention({
+          problemId: selectedProblem.id,
+          name: evaluationDraft.revisionAddIntervention.trim(),
+          frequencyType: "daily",
+          assignedRole: currentRole,
+          assignedStaffName: currentUserName,
+          startDate: evaluationDraft.date,
+          reviewDate:
+            evaluationDraft.revisionReviewDate ||
+            selectedProblem.reviewDate ||
+            new Date().toISOString().slice(0, 10),
+          endDate:
+            evaluationDraft.nextEvaluationDate ||
+            new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+          notes: `Revision workflow intervention. ${evaluationDraft.revisionReason || ""}`.trim(),
+        });
+      }
+
+      if (evaluationDraft.revisionDiscontinueInterventionId) {
+        discontinueProblemIntervention(
+          evaluationDraft.revisionDiscontinueInterventionId,
+          evaluationDraft.revisionReason || "Revision required",
+        );
+      }
+
+      if (evaluationDraft.revisionChangeInterventionId) {
+        updateProblemIntervention(
+          evaluationDraft.revisionChangeInterventionId,
+          { frequencyType: evaluationDraft.revisionFrequencyType as any },
+          evaluationDraft.revisionReason || "Revision frequency update",
+        );
+      }
+
+      if (evaluationDraft.revisionUpdateGoalId && evaluationDraft.revisionGoalText.trim()) {
+        updateGoal(evaluationDraft.revisionUpdateGoalId, {
+          statement: evaluationDraft.revisionGoalText.trim(),
+        });
+      }
+
+      if (evaluationDraft.revisionReviewDate) {
+        updateProblem(
+          selectedProblem.id,
+          { reviewDate: evaluationDraft.revisionReviewDate },
+          evaluationDraft.revisionReason || "Revision updated review date",
+        );
+      }
+
+      addProblemReview({
+        problemId: selectedProblem.id,
+        reviewDate: evaluationDraft.date,
+        outcome: "modify",
+        comments: evaluationDraft.revisionReason || "Revision required from evaluation",
+        nextReviewDate: evaluationDraft.revisionReviewDate || selectedProblem.reviewDate,
+      });
+    }
+
+    setEvaluationOpen(false);
+    toast.success("Evaluation saved");
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-7xl">
-      <Link to="/residents" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" /> All residents</Link>
+      <Link
+        to="/residents"
+        className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+      >
+        <ArrowLeft className="h-4 w-4" /> All residents
+      </Link>
 
       <Card>
         <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-5">
-          <Avatar className="h-20 w-20"><AvatarFallback className="text-xl bg-accent text-accent-foreground">{r.firstName[0]}{r.lastName[0]}</AvatarFallback></Avatar>
+          <Avatar className="h-20 w-20">
+            <AvatarFallback className="text-xl bg-accent text-accent-foreground">
+              {r.firstName[0]}
+              {r.lastName[0]}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{r.firstName} {r.lastName}</h1>
-              <Badge variant="outline" className="capitalize">{(r.residentType || r.status).replace("_", " ")}</Badge>
-              {r.endOfLife && <Badge variant="outline" className="border-destructive/40 text-destructive">End of Life</Badge>}
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {r.firstName} {r.lastName}
+              </h1>
+              <div className="ml-auto flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      Quick Actions
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleOpenModal("note")}>
+                      Daily Note
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("intervention")}>
+                      Intervention
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("assessment")}>
+                      Assessment
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("task")}>
+                      Task
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("incident")}>
+                      Incident
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("mdt")}>
+                      MDT Note
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("visitor")}>
+                      Visitor Record
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("outing")}>
+                      Resident Outing
+                    </DropdownMenuItem>
+                    <RecordObservationFlow
+                      residentId={r.id}
+                      onRecorded={() => setActiveTab("vitals")}
+                      trigger={
+                        <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
+                          Record Vitals
+                        </DropdownMenuItem>
+                      }
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Resident actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setLatestVitalsDialogOpen(true)}>
+                      Latest Vitals
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTimelineDialogOpen(true)}>
+                      Clinical Timeline
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setAuditDialogOpen(true)}>
+                      Audit History
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setVersionDialogOpen(true)}>
+                      Version History
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (typeof window !== "undefined") window.print();
+                      }}
+                    >
+                      Print Summary
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        toast.info("Export PDF is queued for next release");
+                      }}
+                    >
+                      Export PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <Badge variant="outline" className="capitalize">
+                {(r.residentType || r.status).replace("_", " ")}
+              </Badge>
+              {r.endOfLife && (
+                <Badge variant="outline" className="border-destructive/40 text-destructive">
+                  End of Life
+                </Badge>
+              )}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3 text-sm">
-              <div><div className="text-xs text-muted-foreground">Resident ID</div>{r.id}</div>
-              <div><div className="text-xs text-muted-foreground">Age</div>{age(r.dob)} ({r.dob})</div>
-              <div><div className="text-xs text-muted-foreground">Room</div>{r.roomNumber}</div>
-              <div><div className="text-xs text-muted-foreground">Bed</div><span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "—"}</span></div>
-              <div><div className="text-xs text-muted-foreground">Admitted</div>{r.admissionDate}</div>
+              <div>
+                <div className="text-xs text-muted-foreground">Resident ID</div>
+                {r.id}
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Age</div>
+                {age(r.dob)} ({r.dob})
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Room</div>
+                {r.roomNumber}
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Bed</div>
+                <span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "—"}</span>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Admitted</div>
+                {r.admissionDate}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {activeProblems
+                .filter((p) => p.riskLevel === "high" || p.riskLevel === "very_high")
+                .map((p) => (
+                  <Badge
+                    key={p.id}
+                    className="bg-destructive/10 text-destructive border border-destructive/30"
+                  >
+                    HIGH {p.category.replace(/_/g, " ")} RISK
+                  </Badge>
+                ))}
+              {activeProblems
+                .filter((p) => p.category === "pain")
+                .map((p) => (
+                  <Badge
+                    key={p.id}
+                    className="bg-warning/15 text-warning-foreground border border-warning/40"
+                  >
+                    PAIN MONITORING
+                  </Badge>
+                ))}
+              {activeProblems
+                .filter((p) => p.category === "nutrition" && new Date(p.reviewDate) <= now)
+                .map((p) => (
+                  <Badge key={p.id} className="bg-info/10 text-info border border-info/30">
+                    NUTRITION REVIEW DUE
+                  </Badge>
+                ))}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <QuickActions residentId={r.id} />
+      <ClinicalSnapshot residentId={r.id} showLatestVitals={false} />
 
-      <ClinicalSnapshot residentId={r.id} />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Active Care Plan Problems</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeProblems.slice(0, 8).map((problem) => {
+            const goalsCount = problemGoals.filter((g) => g.problemId === problem.id).length;
+            const interventionsCount = rProblemInterventions.filter(
+              (i) => i.problemId === problem.id,
+            ).length;
+            const evaluationsCount = rProblemEvaluations.filter(
+              (e) => e.problemId === problem.id,
+            ).length;
+            const reviewsCount = rProblemReviews.filter(
+              (rev) => rev.problemId === problem.id,
+            ).length;
+            const linkedAssessmentsCount = rA.filter(
+              (a) =>
+                a.id === problem.sourceAssessmentId ||
+                (a.linkedProblemIds || []).includes(problem.id),
+            ).length;
+            const linkedNotesCount = rN.filter((n) => n.linkedProblemId === problem.id).length;
 
-      {/* Resident Dashboard widgets */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <DashStat label="Active Care Plans" value={activePlans.length} icon={ClipboardList} />
-        <DashStat label="Active Assessments" value={rA.filter(a => a.status !== "archived" && a.status !== "superseded").length} icon={Activity} />
-        <DashStat label="Open Tasks" value={openTasks.length} icon={ListChecks} />
-        <DashStat label="Outstanding Reviews" value={outstandingReviews.length} icon={Calendar} tone="warning" />
-        <DashStat label="Open Alerts" value={openAlertCount} icon={AlertTriangle} tone={openAlertCount > 0 ? "destructive" : "default"} />
-        <DashStat label="Last GP Review" value={r.lastGpReview || "—"} icon={User2} small />
-        <DashStat label="Last MDT Review" value={r.lastMdtReview || "—"} icon={UserCog} small />
-        <DashStat label="Next Reassessment" value={nextReassessment?.slice(0, 10) || "—"} icon={Activity} small />
-      </div>
+            return (
+              <div key={problem.id} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-medium">{problem.problemStatement}</div>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${riskColor(problem.riskLevel)}`}
+                  >
+                    {problem.riskLevel.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Status: {problem.status} · Review: {problem.reviewDate} · Evaluation:{" "}
+                  {problem.evaluationDate}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-muted-foreground">
+                  <div>Goals: {goalsCount}</div>
+                  <div>Interventions: {interventionsCount}</div>
+                  <div>Evaluations: {evaluationsCount}</div>
+                  <div>Reviews: {reviewsCount}</div>
+                  <div>Linked Assessments: {linkedAssessmentsCount}</div>
+                  <div>Linked Notes: {linkedNotesCount}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => openProblemDetail(problem.id)}>
+                    Open Problem
+                  </Button>
+                  <Button size="sm" onClick={() => openAddInterventionForProblem(problem.id)}>
+                    Add Intervention
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openAddEvaluationForProblem(problem.id)}
+                  >
+                    Add Evaluation
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          {activeProblems.length === 0 && (
+            <p className="text-sm text-muted-foreground">No active care plan problems.</p>
+          )}
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="observations" asChild>
-            <Link to="/residents/$id/observations" params={{ id: r.id }} search={{ tab: "news2" } as any}>Observations</Link>
-          </TabsTrigger>
-          <TabsTrigger value="vitals" asChild>
-            <Link to="/residents/$id/vitals" params={{ id: r.id }}>Vitals (Legacy)</Link>
-          </TabsTrigger>
-          <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
-          <TabsTrigger value="careplans">Care Plans ({rP.length})</TabsTrigger>
-          <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
-          <TabsTrigger value="interventions">Interventions ({rI.length})</TabsTrigger>
-          <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
-          <TabsTrigger value="mdt">MDT ({rMDT.length})</TabsTrigger>
-          <TabsTrigger value="visitors">Visitors ({rVisitors.length})</TabsTrigger>
-          <TabsTrigger value="outings">Outings ({rOutings.length})</TabsTrigger>
-          <TabsTrigger value="handovers">Handovers ({rHandovers.length})</TabsTrigger>
-          <TabsTrigger value="nok">Next of Kin ({r.nextOfKinList?.length || 0})</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts ({rAlerts.length})</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks ({rTasks.length})</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Upcoming Tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {upcomingInterventionTasks.map((task) => (
+            <div key={task.intervention.id} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">{task.intervention.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {task.problem?.problemStatement || "Unlinked care plan problem"}
+                  </div>
+                </div>
+                <Badge variant="outline" className={statusBadgeClass(task.status)}>
+                  {statusLabel(task.status)}
+                </Badge>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <div>Due: {task.dueAt ? task.dueAt.toLocaleString("en-GB") : "Not scheduled"}</div>
+                <div>Assigned Role: {task.intervention.assignedRole || "Unassigned"}</div>
+                <div>Assigned Staff: {task.intervention.assignedStaffName || "Unassigned"}</div>
+                <div>Status: {statusLabel(task.status)}</div>
+              </div>
+
+              {(task.status === "completed" || task.completion) && (
+                <p className="text-xs text-muted-foreground">
+                  Completed by{" "}
+                  {task.completion?.staffName || task.intervention.completedBy || "Unknown"}
+                  {task.completion?.role ? ` ${task.completion.role.toUpperCase()}` : ""}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {task.status === "completed" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRecordCompletion(task.intervention)}
+                  >
+                    View Completion
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleRecordCompletion(task.intervention)}
+                      disabled={!rolePermissions.canComplete}
+                    >
+                      Mark Complete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openProblemDetail(task.intervention.problemId)}
+                    >
+                      Open Intervention
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {upcomingInterventionTasks.length === 0 && (
+            <div className="rounded-md border p-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">No upcoming intervention tasks.</p>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/residents/$id/care-plan" params={{ id: r.id }}>
+                  Open Care Plans
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as any)}
+        className="space-y-4"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
+            <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
+            <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
+            <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
+            <TabsTrigger value="mdt">MDT ({rMDT.length})</TabsTrigger>
+            <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks ({rTasks.length})</TabsTrigger>
+          </TabsList>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                More
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setActiveTab("interventions")}>
+                Interventions ({rProblemInterventions.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("visitors")}>
+                Visitors ({rVisitors.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("outings")}>
+                Outings ({rOutings.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("handovers")}>
+                Handovers ({rHandovers.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("nok")}>
+                Next of Kin ({r.nextOfKinList?.length || 0})
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><User2 className="h-4 w-4" /> Clinical</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <User2 className="h-4 w-4" /> Clinical
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Primary diagnosis" value={r.primaryDiagnosis} />
                 <Row label="Medical history" value={r.medicalHistory} />
@@ -173,11 +1262,21 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Pill className="h-4 w-4" /> Medication</CardTitle></CardHeader>
-              <CardContent className="text-sm"><p>{r.currentMedication}</p></CardContent>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Pill className="h-4 w-4" /> Medication
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm">
+                <p>{r.currentMedication}</p>
+              </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Bed className="h-4 w-4" /> Bed Management</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Bed className="h-4 w-4" /> Bed Management
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Bed type" value={r.bed?.bedType?.replace("_", " ") || "—"} />
                 <Row label="Mattress" value={r.bed?.mattressType?.replace("_", " ") || "—"} />
@@ -186,7 +1285,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><UserCog className="h-4 w-4" /> Key Workers</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <UserCog className="h-4 w-4" /> Key Workers
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Named Nurse" value={r.keyWorkers?.namedNurse || "—"} />
                 <Row label="Named Carer" value={r.keyWorkers?.namedCarer || "—"} />
@@ -194,7 +1297,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Phone className="h-4 w-4" /> GP / Consultant</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Phone className="h-4 w-4" /> GP / Consultant
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="GP" value={r.gp} />
                 <Row label="Consultant" value={r.consultant} />
@@ -202,7 +1309,9 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base">Preferences</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Preferences</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Communication" value={r.communicationNeeds} />
                 <Row label="Religion" value={r.religion} />
@@ -212,18 +1321,165 @@ function ResidentDetail() {
           </div>
         </TabsContent>
 
+        <TabsContent value="vitals" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Latest Recorded</h2>
+              {latestVital && (
+                <p className="text-xs text-muted-foreground">
+                  Recorded {latestVital.date} {latestVital.time} by{" "}
+                  {latestVital.recordedByName || "Unknown"}
+                </p>
+              )}
+            </div>
+            <RecordObservationFlow
+              residentId={r.id}
+              onRecorded={() => setActiveTab("vitals")}
+              trigger={<Button size="sm">Record New</Button>}
+            />
+          </div>
+          <LatestVitalsCard vitals={residentVitals} resident={r} />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RecordObservationFlow
+                residentId={r.id}
+                onRecorded={() => setActiveTab("vitals")}
+                trigger={<Button variant="outline">Record New Observation</Button>}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Vitals Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {residentVitals.slice(0, 12).map((vital) => {
+                  const news = calcNEWS2(vital);
+                  const type = inferVitalRecordType(vital);
+                  return (
+                    <div
+                      key={vital.id}
+                      className="flex items-start gap-3 rounded-md border p-3 text-sm"
+                    >
+                      <div className="w-20 shrink-0 text-xs text-muted-foreground tabular-nums">
+                        <div>{new Date(`${vital.date}T00:00:00`).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                        })}</div>
+                        <div>{vital.time}</div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium">{VITAL_TYPE_LABELS[type]}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatVitalValues(vital, residentVitals, r)}
+                          {news.complete ? ` · NEWS2 ${news.total}` : ""}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        Open
+                      </Badge>
+                    </div>
+                  );
+                })}
+                {residentVitals.length === 0 && (
+                  <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
+                    No observations recorded for this resident yet.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Trends</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                  <TrendCard
+                    title="Weight Trend"
+                    status={weightStatus}
+                    detail={
+                      weightValues.length >= 2
+                        ? `${weightValues[0]}kg from ${weightValues[1]}kg`
+                        : "More weight records needed"
+                    }
+                  />
+                  <TrendCard
+                    title="Temperature Trend"
+                    status={temperatureStatus}
+                    detail={
+                      temperatureValues.length >= 2
+                        ? `${temperatureValues[0]}°C from ${temperatureValues[1]}°C`
+                        : "More temperature records needed"
+                    }
+                  />
+                  <TrendCard
+                    title="Pain Trend"
+                    status={painStatus}
+                    detail={
+                      painValues.length >= 2
+                        ? `${painValues[0]}/10 from ${painValues[1]}/10`
+                        : "More pain records needed"
+                    }
+                  />
+                  <TrendCard
+                    title="Blood Glucose Trend"
+                    status={glucoseStatus}
+                    detail={
+                      glucoseValues.length >= 2
+                        ? `${glucoseValues[0]} mmol/L from ${glucoseValues[1]} mmol/L`
+                        : "More glucose records needed"
+                    }
+                  />
+                  {!weightStatus && !temperatureStatus && !painStatus && !glucoseStatus && (
+                    <div className="rounded-md border p-4 text-sm text-muted-foreground">
+                      Trends appear when two or more readings exist for the same observation type.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
         <TabsContent value="assessments" className="space-y-3">
           <div className="flex flex-wrap gap-2 items-center">
             <Link to="/residents/$id/assessments" params={{ id: r.id }}>
-              <Button size="sm"><Activity className="h-3 w-3 mr-1" /> Assessment Centre</Button>
+              <Button size="sm">
+                <Activity className="h-3 w-3 mr-1" /> Assessment Centre
+              </Button>
             </Link>
             <Link to="/residents/$id/quality-of-life" params={{ id: r.id }}>
-              <Button size="sm" variant="outline">Quality of Life</Button>
+              <Button size="sm" variant="outline">
+                Quality of Life
+              </Button>
             </Link>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            {(["barthel", "waterlow", "abbey_pain", "mna", "norton", "nutrition", "pinch_me"] as const).map(t => (
-              <Link key={t} to="/assessments/new/$residentId" params={{ residentId: r.id }} search={{ type: t } as any}>
-                <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> {assessmentMeta[t].name}</Button>
+            {(
+              [
+                "barthel",
+                "waterlow",
+                "abbey_pain",
+                "mna",
+                "norton",
+                "nutrition",
+                "pinch_me",
+              ] as const
+            ).map((t) => (
+              <Link
+                key={t}
+                to="/assessments/new/$residentId"
+                params={{ residentId: r.id }}
+                search={{ type: t } as any}
+              >
+                <Button size="sm" variant="outline">
+                  <Plus className="h-3 w-3 mr-1" /> {assessmentMeta[t].name}
+                </Button>
               </Link>
             ))}
           </div>
@@ -244,40 +1500,77 @@ function ResidentDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {rA.map(a => (
+                    {rA.map((a) => (
                       <tr key={a.id} className="hover:bg-muted/30">
                         <td className="p-3">
-                          <Link to="/assessments/$assessmentId" params={{ assessmentId: a.id }} className="font-medium hover:text-primary">
+                          <Link
+                            to="/assessments/$assessmentId"
+                            params={{ assessmentId: a.id }}
+                            className="font-medium hover:text-primary"
+                          >
                             {assessmentMeta[a.type].name}
                           </Link>
                         </td>
                         <td className="p-3 tabular-nums font-semibold">{a.totalScore}</td>
-                        <td className="p-3"><Badge variant="outline" className={`text-[10px] ${riskColor(a.riskLevel)}`}>{a.interpretation}</Badge></td>
-                        <td className="p-3"><Badge variant="outline" className="text-[10px] capitalize">{a.status}</Badge></td>
-                        <td className="p-3 text-xs">{a.assessor}<br /><span className="text-muted-foreground capitalize">{a.assessorRole}</span></td>
+                        <td className="p-3">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${riskColor(a.riskLevel)}`}
+                          >
+                            {a.interpretation}
+                          </Badge>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {a.status}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-xs">
+                          {a.assessor}
+                          <br />
+                          <span className="text-muted-foreground capitalize">{a.assessorRole}</span>
+                        </td>
                         <td className="p-3 text-xs">{a.date.slice(0, 10)}</td>
                         <td className="p-3 text-xs">{a.nextReassessmentDate || "—"}</td>
                         <td className="p-3 text-right">
                           <div className="inline-flex gap-1 items-center">
                             <Link to="/assessments/$assessmentId" params={{ assessmentId: a.id }}>
-                              <Button size="sm" variant="ghost" className="h-7 text-[11px]">View</Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-[11px]">
+                                View
+                              </Button>
                             </Link>
-                            {a.status === "completed" && !a.supersededById && can(currentRole, "assessment.create") && (
-                              <Link to="/assessments/new/$residentId" params={{ residentId: r.id }} search={{ type: a.type } as any}>
-                                <Button size="sm" variant="outline" className="h-7 text-[11px]">
-                                  <Plus className="h-3 w-3 mr-1" /> Reassess
-                                </Button>
-                              </Link>
-                            )}
+                            {a.status === "completed" &&
+                              !a.supersededById &&
+                              can(currentRole, "assessment.create") && (
+                                <Link
+                                  to="/assessments/new/$residentId"
+                                  params={{ residentId: r.id }}
+                                  search={{ type: a.type } as any}
+                                >
+                                  <Button size="sm" variant="outline" className="h-7 text-[11px]">
+                                    <Plus className="h-3 w-3 mr-1" /> Reassess
+                                  </Button>
+                                </Link>
+                              )}
                             {can(currentRole, "assessment.delete") && (
-                              <DeleteAssessmentDialog id={a.id} onConfirm={(reason) => { softDeleteAssessment(a.id, reason); toast.success("Assessment soft-deleted (audited)"); }} />
+                              <DeleteAssessmentDialog
+                                id={a.id}
+                                onConfirm={(reason) => {
+                                  softDeleteAssessment(a.id, reason);
+                                  toast.success("Assessment soft-deleted (audited)");
+                                }}
+                              />
                             )}
                           </div>
                         </td>
                       </tr>
                     ))}
                     {rA.length === 0 && (
-                      <tr><td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">No assessments yet.</td></tr>
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
+                          No assessments yet.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -287,229 +1580,1381 @@ function ResidentDetail() {
 
           {rADeleted.length > 0 && (
             <details className="border rounded-md p-3 text-sm">
-              <summary className="cursor-pointer font-medium">Deleted assessments ({rADeleted.length}) — audit trail</summary>
+              <summary className="cursor-pointer font-medium">
+                Deleted assessments ({rADeleted.length}) — audit trail
+              </summary>
               <div className="mt-2 space-y-2">
-                {rADeleted.map(a => (
-                  <div key={a.id} className="text-xs text-muted-foreground border-l-2 border-destructive/40 pl-3">
-                    <strong>{assessmentMeta[a.type].name}</strong> · {a.date.slice(0, 10)}<br />
+                {rADeleted.map((a) => (
+                  <div
+                    key={a.id}
+                    className="text-xs text-muted-foreground border-l-2 border-destructive/40 pl-3"
+                  >
+                    <strong>{assessmentMeta[a.type].name}</strong> · {a.date.slice(0, 10)}
+                    <br />
                     Deleted by {a.deletedBy} on {a.deletedAt?.slice(0, 10)} — {a.deletedReason}
                   </div>
                 ))}
               </div>
             </details>
           )}
-          
         </TabsContent>
 
-        <TabsContent value="careplans" className="space-y-3">
+        <TabsContent value="careplans" className="hidden">
           <Link to="/residents/$id/care-plan" params={{ id: r.id }}>
-            <Button size="sm"><ClipboardList className="h-3 w-3 mr-1" /> Open Unified Care Plan</Button>
+            <Button size="sm">
+              <ClipboardList className="h-3 w-3 mr-1" /> Open Unified Care Plan
+            </Button>
           </Link>
-          {rP.map(c => (
+          {rP.map((c) => (
             <Card key={c.id}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                  <Link to="/care-plans/$id" params={{ id: c.id }} className="font-medium hover:text-primary hover:underline">{c.title}</Link>
-                  <Badge variant="outline" className="capitalize">{c.status}</Badge>
+                  <Link
+                    to="/care-plans/$id"
+                    params={{ id: c.id }}
+                    className="font-medium hover:text-primary hover:underline"
+                  >
+                    {c.title}
+                  </Link>
+                  <Badge variant="outline" className="capitalize">
+                    {c.status}
+                  </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground mt-1"><strong>Problem:</strong> {c.problem}</p>
-                <p className="text-sm text-muted-foreground"><strong>Goal:</strong> {c.goal}</p>
-                <ul className="text-sm mt-2 list-disc pl-5 space-y-0.5">{c.interventions.map((i, k) => <li key={k}>{i}</li>)}</ul>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <strong>Problem:</strong> {c.problem}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  <strong>Goal:</strong> {c.goal}
+                </p>
+                <ul className="text-sm mt-2 list-disc pl-5 space-y-0.5">
+                  {c.interventions.map((i, k) => (
+                    <li key={k}>{i}</li>
+                  ))}
+                </ul>
                 <Separator className="my-3" />
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground items-center">
-                  <span><Calendar className="h-3 w-3 inline mr-1" /> Review {c.reviewDate}</span>
+                  <span>
+                    <Calendar className="h-3 w-3 inline mr-1" /> Review {c.reviewDate}
+                  </span>
                   <span>Frequency: {c.frequency}</span>
                   <span>Assigned: {c.assignedStaff}</span>
                   <div className="flex-1" />
-                  <Link to="/care-plans/$id" params={{ id: c.id }} className="text-primary hover:underline">Open plan →</Link>
+                  <Link
+                    to="/care-plans/$id"
+                    params={{ id: c.id }}
+                    className="text-primary hover:underline"
+                  >
+                    Open plan →
+                  </Link>
                 </div>
               </CardContent>
             </Card>
           ))}
-          {rP.length === 0 && <p className="text-sm text-muted-foreground">No active care plans.</p>}
+          {rP.length === 0 && (
+            <p className="text-sm text-muted-foreground">No active care plans.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="notes" className="space-y-2">
-          {rN.map(n => (
-            <Card key={n.id}><CardContent className="p-4">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{n.date.slice(0, 10)}</span>
-                <Badge variant="outline" className="text-[10px] capitalize">{n.shift}</Badge>
-                <span className="text-xs text-muted-foreground">{n.staff}</span>
-              </div>
-              <p className="text-sm mt-1">{n.observation}</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                <span>Mood: {n.mood}</span><span>Food: {n.foodIntake}</span>
-                <span>Fluids: {n.fluidIntake}</span><span>Sleep: {n.sleep}</span>
-              </div>
-            </CardContent></Card>
+          {rN.map((n) => (
+            <Card key={n.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{n.date.slice(0, 10)}</span>
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {n.shift}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{n.staff}</span>
+                </div>
+                <p className="text-sm mt-1">{n.observation}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
+                  <span>Mood: {n.mood}</span>
+                  <span>Food: {n.foodIntake}</span>
+                  <span>Fluids: {n.fluidIntake}</span>
+                  <span>Sleep: {n.sleep}</span>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </TabsContent>
 
-        <TabsContent value="interventions" className="space-y-2">
-          {rI.map(i => (
-            <Card key={i.id}><CardContent className="p-4">
-              <div className="flex items-center justify-between"><div className="font-medium">{i.intervention}</div><div className="text-xs text-muted-foreground">{i.date.slice(0, 10)}</div></div>
-              <p className="text-sm text-muted-foreground mt-1">Outcome: {i.outcome}</p>
-              <p className="text-xs text-muted-foreground">Response: {i.residentResponse} · {i.staff}</p>
-            </CardContent></Card>
-          ))}
+        <TabsContent value="interventions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Intervention Operations</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="text-left p-3">Intervention</th>
+                      <th className="text-left p-3">Problem</th>
+                      <th className="text-left p-3">Frequency</th>
+                      <th className="text-left p-3">Assigned To</th>
+                      <th className="text-left p-3">Start</th>
+                      <th className="text-left p-3">Review</th>
+                      <th className="text-left p-3">End</th>
+                      <th className="text-left p-3">Status</th>
+                      <th className="text-right p-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {rProblemInterventions.map((intv) => {
+                      const problem = rProblems.find((p) => p.id === intv.problemId);
+                      return (
+                        <tr key={intv.id} className="hover:bg-muted/30">
+                          <td className="p-3 font-medium">{intv.name}</td>
+                          <td className="p-3 text-xs">{problem?.problemStatement || "—"}</td>
+                          <td className="p-3 text-xs">{intv.frequencyType.replace(/_/g, " ")}</td>
+                          <td className="p-3 text-xs">
+                            {intv.assignedStaffName || intv.assignedRole || "—"}
+                          </td>
+                          <td className="p-3 text-xs">{intv.startDate}</td>
+                          <td className="p-3 text-xs">{intv.reviewDate}</td>
+                          <td className="p-3 text-xs">{intv.endDate}</td>
+                          <td className="p-3 text-xs capitalize">
+                            {intv.status.replace(/_/g, " ")}
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="inline-flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-[11px]"
+                                onClick={() => handleRecordCompletion(intv)}
+                                disabled={!rolePermissions.canComplete}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-[11px]"
+                                onClick={() => handleReviewIntervention(intv, "extend")}
+                                disabled={!rolePermissions.canEdit}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px]"
+                                onClick={() =>
+                                  applyInterventionStatus(
+                                    intv,
+                                    "discontinued",
+                                    "Disabled by role action",
+                                  )
+                                }
+                                disabled={!rolePermissions.canDisable}
+                              >
+                                <Ban className="h-3 w-3 mr-1" />
+                                Disable
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px]"
+                                onClick={() =>
+                                  applyInterventionStatus(intv, "superseded", "Archived")
+                                }
+                                disabled={!rolePermissions.canArchiveDelete}
+                              >
+                                <Archive className="h-3 w-3 mr-1" />
+                                Archive
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] text-destructive"
+                                onClick={() =>
+                                  applyInterventionStatus(intv, "cancelled", "Soft deleted")
+                                }
+                                disabled={!rolePermissions.canArchiveDelete}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {rProblemInterventions.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">
+                          No interventions defined for this resident.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="incidents" className="space-y-2">
-          {rIncidents.map(i => (
-            <Card key={i.id}><CardContent className="p-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="font-medium capitalize">{i.type.replace("_", " ")} — {i.date}</div>
-                <div className="flex gap-1.5"><Badge variant="outline" className="capitalize">{i.severity}</Badge><Badge variant="secondary" className="capitalize">{i.status.replace("_", " ")}</Badge></div>
-              </div>
-              <p className="text-sm mt-1">{i.description}</p>
-              <p className="text-xs text-muted-foreground mt-1">Action: {i.immediateAction} · Reported by {i.reportedBy}</p>
-            </CardContent></Card>
+          {rIncidents.map((i) => (
+            <Card key={i.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="font-medium capitalize">
+                    {i.type.replace("_", " ")} — {i.date}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Badge variant="outline" className="capitalize">
+                      {i.severity}
+                    </Badge>
+                    <Badge variant="secondary" className="capitalize">
+                      {i.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-sm mt-1">{i.description}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Action: {i.immediateAction} · Reported by {i.reportedBy}
+                </p>
+              </CardContent>
+            </Card>
           ))}
-          {rIncidents.length === 0 && <p className="text-sm text-muted-foreground">No incidents recorded.</p>}
+          {rIncidents.length === 0 && (
+            <p className="text-sm text-muted-foreground">No incidents recorded.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="mdt" className="space-y-2">
-          {rMDT.map(m => (
-            <Card key={m.id}><CardContent className="p-4">
-              <div className="text-sm font-medium">{m.date} · {m.authoredBy}</div>
-              <p className="text-xs text-muted-foreground mt-0.5">Attendees: {m.attendees}</p>
-              <p className="text-sm mt-2"><strong>Discussion:</strong> {m.discussion}</p>
-              <p className="text-sm"><strong>Recommendations:</strong> {m.recommendations}</p>
-              {m.followUpDate && <p className="text-xs text-muted-foreground mt-1">Follow-up: {m.followUpDate}</p>}
-            </CardContent></Card>
+          {rMDT.map((m) => (
+            <Card key={m.id}>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium">
+                  {m.date} · {m.authoredBy}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Attendees: {m.attendees}</p>
+                <p className="text-sm mt-2">
+                  <strong>Discussion:</strong> {m.discussion}
+                </p>
+                <p className="text-sm">
+                  <strong>Recommendations:</strong> {m.recommendations}
+                </p>
+                {m.followUpDate && (
+                  <p className="text-xs text-muted-foreground mt-1">Follow-up: {m.followUpDate}</p>
+                )}
+              </CardContent>
+            </Card>
           ))}
-          {rMDT.length === 0 && <p className="text-sm text-muted-foreground">No MDT notes recorded.</p>}
+          {rMDT.length === 0 && (
+            <p className="text-sm text-muted-foreground">No MDT notes recorded.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="visitors" className="space-y-2">
-          {rVisitors.map(v => (
-            <Card key={v.id}><CardContent className="p-4">
-              <div className="text-sm font-medium">{v.visitorName} <span className="text-xs text-muted-foreground">({v.relationship})</span></div>
-              <p className="text-xs text-muted-foreground">{v.date} · {v.arrivalTime}–{v.departureTime} · Signed in by {v.signedInBy}</p>
-              {v.notes && <p className="text-sm mt-1">{v.notes}</p>}
-            </CardContent></Card>
+          {rVisitors.map((v) => (
+            <Card key={v.id}>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium">
+                  {v.visitorName}{" "}
+                  <span className="text-xs text-muted-foreground">({v.relationship})</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {v.date} · {v.arrivalTime}–{v.departureTime} · Signed in by {v.signedInBy}
+                </p>
+                {v.notes && <p className="text-sm mt-1">{v.notes}</p>}
+              </CardContent>
+            </Card>
           ))}
-          {rVisitors.length === 0 && <p className="text-sm text-muted-foreground">No visitor records.</p>}
+          {rVisitors.length === 0 && (
+            <p className="text-sm text-muted-foreground">No visitor records.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="outings" className="space-y-2">
-          {rOutings.map(o => (
-            <Card key={o.id}><CardContent className="p-4">
-              <div className="text-sm font-medium">{o.destination} — {o.date}</div>
-              <p className="text-xs text-muted-foreground">{o.departureTime}–{o.returnTime} · {o.transportMethod} · With {o.accompaniedBy}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Risk assessment: {o.riskAssessmentCompleted ? "Completed" : "Not completed"}</p>
-              {o.notes && <p className="text-sm mt-1">{o.notes}</p>}
-            </CardContent></Card>
+          {rOutings.map((o) => (
+            <Card key={o.id}>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium">
+                  {o.destination} — {o.date}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {o.departureTime}–{o.returnTime} · {o.transportMethod} · With {o.accompaniedBy}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Risk assessment: {o.riskAssessmentCompleted ? "Completed" : "Not completed"}
+                </p>
+                {o.notes && <p className="text-sm mt-1">{o.notes}</p>}
+              </CardContent>
+            </Card>
           ))}
-          {rOutings.length === 0 && <p className="text-sm text-muted-foreground">No outings recorded.</p>}
+          {rOutings.length === 0 && (
+            <p className="text-sm text-muted-foreground">No outings recorded.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="handovers" className="space-y-2">
-          {rHandovers.map(h => (
-            <Card key={h.id}><CardContent className="p-4">
-              <div className="text-sm font-medium capitalize">{h.shift} shift — {h.date}</div>
-              <p className="text-xs text-muted-foreground">{h.staff}</p>
-              <p className="text-sm mt-1">{h.summary}</p>
-              <p className="text-xs text-muted-foreground mt-1"><strong>Outstanding:</strong> {h.outstandingActions}</p>
-            </CardContent></Card>
+          {rHandovers.map((h) => (
+            <Card key={h.id}>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium capitalize">
+                  {h.shift} shift — {h.date}
+                </div>
+                <p className="text-xs text-muted-foreground">{h.staff}</p>
+                <p className="text-sm mt-1">{h.summary}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <strong>Outstanding:</strong> {h.outstandingActions}
+                </p>
+              </CardContent>
+            </Card>
           ))}
-          {rHandovers.length === 0 && <p className="text-sm text-muted-foreground">No handover notes.</p>}
+          {rHandovers.length === 0 && (
+            <p className="text-sm text-muted-foreground">No handover notes.</p>
+          )}
         </TabsContent>
 
         <TabsContent value="nok" className="space-y-3">
           <div className="flex justify-end">
             <Dialog open={nokOpen} onOpenChange={setNokOpen}>
-              <DialogTrigger asChild><Button size="sm"><Plus className="h-3.5 w-3.5 mr-1" /> Add Next of Kin</Button></DialogTrigger>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Next of Kin
+                </Button>
+              </DialogTrigger>
               <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>Add Next of Kin</DialogTitle></DialogHeader>
+                <DialogHeader>
+                  <DialogTitle>Add Next of Kin</DialogTitle>
+                </DialogHeader>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2"><Label>Name</Label><Input value={newNok.name} onChange={e => setNewNok({ ...newNok, name: e.target.value })} /></div>
-                  <div><Label>Relationship</Label><Input value={newNok.relationship} onChange={e => setNewNok({ ...newNok, relationship: e.target.value })} /></div>
-                  <div><Label>Phone</Label><Input value={newNok.phone} onChange={e => setNewNok({ ...newNok, phone: e.target.value })} /></div>
-                  <div><Label>Mobile</Label><Input value={newNok.mobile} onChange={e => setNewNok({ ...newNok, mobile: e.target.value })} /></div>
-                  <div><Label>Email</Label><Input value={newNok.email} onChange={e => setNewNok({ ...newNok, email: e.target.value })} /></div>
-                  <div className="col-span-2"><Label>Address</Label><Input value={newNok.address} onChange={e => setNewNok({ ...newNok, address: e.target.value })} /></div>
-                  <div className="col-span-2 grid grid-cols-2 gap-2 text-sm">
-                    <label className="flex gap-2 items-center"><input type="checkbox" checked={newNok.primaryContact} onChange={e => setNewNok({ ...newNok, primaryContact: e.target.checked })} /> Primary contact</label>
-                    <label className="flex gap-2 items-center"><input type="checkbox" checked={newNok.emergencyContact} onChange={e => setNewNok({ ...newNok, emergencyContact: e.target.checked })} /> Emergency contact</label>
-                    <label className="flex gap-2 items-center"><input type="checkbox" checked={newNok.powerOfAttorney} onChange={e => setNewNok({ ...newNok, powerOfAttorney: e.target.checked })} /> Power of attorney</label>
-                    <label className="flex gap-2 items-center"><input type="checkbox" checked={newNok.legalRepresentative} onChange={e => setNewNok({ ...newNok, legalRepresentative: e.target.checked })} /> Legal representative</label>
+                  <div className="col-span-2">
+                    <Label>Name</Label>
+                    <Input
+                      value={newNok.name}
+                      onChange={(e) => setNewNok({ ...newNok, name: e.target.value })}
+                    />
                   </div>
-                  <div className="col-span-2"><Label>Notes</Label><Textarea value={newNok.notes} onChange={e => setNewNok({ ...newNok, notes: e.target.value })} /></div>
+                  <div>
+                    <Label>Relationship</Label>
+                    <Input
+                      value={newNok.relationship}
+                      onChange={(e) => setNewNok({ ...newNok, relationship: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Phone</Label>
+                    <Input
+                      value={newNok.phone}
+                      onChange={(e) => setNewNok({ ...newNok, phone: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Mobile</Label>
+                    <Input
+                      value={newNok.mobile}
+                      onChange={(e) => setNewNok({ ...newNok, mobile: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input
+                      value={newNok.email}
+                      onChange={(e) => setNewNok({ ...newNok, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Address</Label>
+                    <Input
+                      value={newNok.address}
+                      onChange={(e) => setNewNok({ ...newNok, address: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-2 text-sm">
+                    <label className="flex gap-2 items-center">
+                      <input
+                        type="checkbox"
+                        checked={newNok.primaryContact}
+                        onChange={(e) => setNewNok({ ...newNok, primaryContact: e.target.checked })}
+                      />{" "}
+                      Primary contact
+                    </label>
+                    <label className="flex gap-2 items-center">
+                      <input
+                        type="checkbox"
+                        checked={newNok.emergencyContact}
+                        onChange={(e) =>
+                          setNewNok({ ...newNok, emergencyContact: e.target.checked })
+                        }
+                      />{" "}
+                      Emergency contact
+                    </label>
+                    <label className="flex gap-2 items-center">
+                      <input
+                        type="checkbox"
+                        checked={newNok.powerOfAttorney}
+                        onChange={(e) =>
+                          setNewNok({ ...newNok, powerOfAttorney: e.target.checked })
+                        }
+                      />{" "}
+                      Power of attorney
+                    </label>
+                    <label className="flex gap-2 items-center">
+                      <input
+                        type="checkbox"
+                        checked={newNok.legalRepresentative}
+                        onChange={(e) =>
+                          setNewNok({ ...newNok, legalRepresentative: e.target.checked })
+                        }
+                      />{" "}
+                      Legal representative
+                    </label>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      value={newNok.notes}
+                      onChange={(e) => setNewNok({ ...newNok, notes: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setNokOpen(false)}>Cancel</Button>
-                  <Button onClick={() => {
-                    if (!newNok.name) { toast.error("Name required"); return; }
-                    addNextOfKin(r.id, newNok);
-                    setNewNok({ name: "", relationship: "", phone: "", mobile: "", email: "", address: "", notes: "", primaryContact: false, emergencyContact: false, powerOfAttorney: false, legalRepresentative: false });
-                    setNokOpen(false);
-                    toast.success("Next of kin added");
-                  }}>Add</Button>
+                  <Button variant="outline" onClick={() => setNokOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!newNok.name) {
+                        toast.error("Name required");
+                        return;
+                      }
+                      addNextOfKin(r.id, newNok);
+                      setNewNok({
+                        name: "",
+                        relationship: "",
+                        phone: "",
+                        mobile: "",
+                        email: "",
+                        address: "",
+                        notes: "",
+                        primaryContact: false,
+                        emergencyContact: false,
+                        powerOfAttorney: false,
+                        legalRepresentative: false,
+                      });
+                      setNokOpen(false);
+                      toast.success("Next of kin added");
+                    }}
+                  >
+                    Add
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
-          {(r.nextOfKinList || []).map(n => (
-            <Card key={n.id}><CardContent className="p-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <div className="font-medium">{n.name} <span className="text-xs text-muted-foreground">({n.relationship})</span></div>
-                  <div className="text-xs text-muted-foreground">{n.phone || n.mobile} · {n.email}</div>
-                  {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
+          {(r.nextOfKinList || []).map((n) => (
+            <Card key={n.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <div className="font-medium">
+                      {n.name}{" "}
+                      <span className="text-xs text-muted-foreground">({n.relationship})</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {n.phone || n.mobile} · {n.email}
+                    </div>
+                    {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {n.primaryContact && (
+                      <Badge variant="default" className="text-[10px]">
+                        Primary
+                      </Badge>
+                    )}
+                    {n.emergencyContact && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Emergency
+                      </Badge>
+                    )}
+                    {n.powerOfAttorney && (
+                      <Badge variant="outline" className="text-[10px]">
+                        PoA
+                      </Badge>
+                    )}
+                    {n.legalRepresentative && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Legal Rep
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {n.primaryContact && <Badge variant="default" className="text-[10px]">Primary</Badge>}
-                  {n.emergencyContact && <Badge variant="outline" className="text-[10px]">Emergency</Badge>}
-                  {n.powerOfAttorney && <Badge variant="outline" className="text-[10px]">PoA</Badge>}
-                  {n.legalRepresentative && <Badge variant="outline" className="text-[10px]">Legal Rep</Badge>}
-                </div>
-              </div>
-              {n.notes && <p className="text-sm mt-2 text-muted-foreground">{n.notes}</p>}
-            </CardContent></Card>
+                {n.notes && <p className="text-sm mt-2 text-muted-foreground">{n.notes}</p>}
+              </CardContent>
+            </Card>
           ))}
-          {(!r.nextOfKinList || r.nextOfKinList.length === 0) && <p className="text-sm text-muted-foreground">No next of kin recorded.</p>}
+          {(!r.nextOfKinList || r.nextOfKinList.length === 0) && (
+            <p className="text-sm text-muted-foreground">No next of kin recorded.</p>
+          )}
         </TabsContent>
 
-        <TabsContent value="alerts" className="space-y-2">
-          {rAlerts.map(a => (
-            <Card key={a.id}><CardContent className="p-4 flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-warning-foreground" />
-              <div className="flex-1"><div className="font-medium">{a.title}</div><p className="text-sm text-muted-foreground">{a.description}</p></div>
-              <Badge variant="outline" className="capitalize">{a.priority}</Badge>
-            </CardContent></Card>
-          ))}
+        <TabsContent value="alerts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Alerts & Risks</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex items-center justify-between border rounded-md p-2">
+                <span>High Risk Resident Flags</span>
+                <Badge variant="outline">{highRiskFlags.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between border rounded-md p-2">
+                <span>Overdue Assessments</span>
+                <Badge variant="outline">{overdueAssessments.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between border rounded-md p-2">
+                <span>Overdue Reviews</span>
+                <Badge variant="outline">{overdueProblemReviews.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between border rounded-md p-2">
+                <span>Open Incidents</span>
+                <Badge variant="outline">{openIncidents.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between border rounded-md p-2">
+                <span>Clinical Alerts</span>
+                <Badge variant="outline">{openAlertCount}</Badge>
+              </div>
+              <div className="border rounded-md p-2 space-y-2">
+                <div className="font-medium text-sm">Outstanding Tasks</div>
+                {openTasks.length > 0 ? (
+                  <div className="space-y-1">
+                    {openTasks.slice(0, 3).map((task) => {
+                      const taskDate = task.dueDate.slice(0, 10);
+                      let dueLabel = `Due ${taskDate}`;
+                      if (taskDate < todayKey) dueLabel = "Overdue";
+                      else if (taskDate === todayKey) dueLabel = "Due Today";
+                      else if (taskDate === tomorrowKey) dueLabel = "Due Tomorrow";
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="truncate">{task.title}</span>
+                          <span className="text-muted-foreground whitespace-nowrap">
+                            {dueLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {openTasks.length > 3 && (
+                      <div className="text-xs text-muted-foreground">
+                        +{openTasks.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">No Outstanding Tasks</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Clinical Alerts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {rAlerts.length > 0 ? (
+                rAlerts.map((a) => (
+                  <div key={a.id} className="border rounded-md p-3 flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-warning-foreground" />
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{a.title}</div>
+                      <p className="text-xs text-muted-foreground">{a.description}</p>
+                    </div>
+                    <Badge variant="outline" className="capitalize">
+                      {a.priority}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No clinical alerts recorded.</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="tasks" className="space-y-2">
-          {rTasks.map(t => (
-            <Card key={t.id}><CardContent className="p-4 flex items-center justify-between">
-              <div><div className="font-medium">{t.title}</div><div className="text-xs text-muted-foreground">Due {t.dueDate} · {t.assignedTo}</div></div>
-              <Badge variant="outline" className="capitalize">{t.status}</Badge>
-            </CardContent></Card>
+          <div className="grid md:grid-cols-3 gap-3 text-sm">
+            <div className="border rounded-md p-2 text-center">
+              <div className="text-xs text-muted-foreground">Upcoming Tasks</div>
+              <div className="font-semibold tabular-nums">{taskOps.upcoming.length}</div>
+            </div>
+            <div className="border rounded-md p-2 text-center">
+              <div className="text-xs text-muted-foreground">Overdue Tasks</div>
+              <div className="font-semibold tabular-nums text-destructive">
+                {taskOps.overdue.length}
+              </div>
+            </div>
+            <div className="border rounded-md p-2 text-center">
+              <div className="text-xs text-muted-foreground">Completed Today</div>
+              <div className="font-semibold tabular-nums">{taskOps.completedToday.length}</div>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Overdue Tasks</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {taskOps.overdue.map((t) => (
+                <div
+                  key={t.id}
+                  className="border rounded-md p-3 flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="font-medium text-sm">{t.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Assigned to {t.assignedTo} · Due {t.dueDate}
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="bg-destructive/10 text-destructive border-destructive/30"
+                  >
+                    Overdue
+                  </Badge>
+                </div>
+              ))}
+              {taskOps.overdue.length === 0 && (
+                <p className="text-sm text-muted-foreground">No overdue tasks.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {rTasks.map((t) => (
+            <Card key={t.id}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{t.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Due {t.dueDate} · {t.assignedTo}
+                  </div>
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {t.status}
+                </Badge>
+              </CardContent>
+            </Card>
           ))}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Task History</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {rTasks
+                .slice()
+                .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
+                .map((t) => (
+                  <div key={t.id} className="text-xs border rounded-md p-2">
+                    <div className="font-medium">{t.title}</div>
+                    <div className="text-muted-foreground">
+                      Status: {t.status} · Due: {t.dueDate} · Assigned: {t.assignedTo}
+                    </div>
+                  </div>
+                ))}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={latestVitalsDialogOpen} onOpenChange={setLatestVitalsDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Latest Vitals</DialogTitle>
+            <DialogDescription>
+              Most recent recorded vital signs for this resident.
+            </DialogDescription>
+          </DialogHeader>
+          <LatestVitalsCard vitals={rVitals} resident={r} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={timelineDialogOpen} onOpenChange={setTimelineDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clinical Timeline</DialogTitle>
+            <DialogDescription>Newest first, filter by clinical module.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              ["all", "All"],
+              ["assessments", "Assessments"],
+              ["careplans", "Care Plans"],
+              ["interventions", "Interventions"],
+              ["evaluations", "Evaluations"],
+              ["incidents", "Incidents"],
+              ["mdt", "MDT"],
+              ["tasks", "Tasks"],
+              ["vitals", "Vitals"],
+              ["visitors", "Visitors"],
+              ["outings", "Outings"],
+            ].map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={timelineFilter === key ? "default" : "outline"}
+                onClick={() => setTimelineFilter(key as any)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {filteredTimelineEntries.map((e) => (
+              <div key={e.id} className="border rounded-md p-3">
+                <div className="text-xs text-muted-foreground">
+                  {`${e.at}`.slice(0, 16).replace("T", " ")}
+                </div>
+                <div className="text-sm font-medium">{e.title}</div>
+                <div className="text-xs text-muted-foreground capitalize">
+                  {e.module} · {e.summary || "—"} · {e.by || "System"}
+                </div>
+              </div>
+            ))}
+            {filteredTimelineEntries.length === 0 && (
+              <p className="text-sm text-muted-foreground">No timeline records for this filter.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={auditDialogOpen} onOpenChange={setAuditDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resident Audit History</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="text-left p-2">Date</th>
+                  <th className="text-left p-2">Time</th>
+                  <th className="text-left p-2">User</th>
+                  <th className="text-left p-2">Role</th>
+                  <th className="text-left p-2">Module</th>
+                  <th className="text-left p-2">Action</th>
+                  <th className="text-left p-2">Old Value</th>
+                  <th className="text-left p-2">New Value</th>
+                  <th className="text-left p-2">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {residentAuditRows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="p-2 text-xs">{row.timestamp.slice(0, 10)}</td>
+                    <td className="p-2 text-xs">{row.timestamp.slice(11, 16)}</td>
+                    <td className="p-2 text-xs">{row.user}</td>
+                    <td className="p-2 text-xs capitalize">{row.role || "—"}</td>
+                    <td className="p-2 text-xs">{row.module}</td>
+                    <td className="p-2 text-xs">{row.action}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.before || "—"}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.after || "—"}</td>
+                    <td className="p-2 text-xs">{row.reason || "—"}</td>
+                  </tr>
+                ))}
+                {residentAuditRows.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-sm text-muted-foreground">
+                      No resident audit entries found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={versionDialogOpen} onOpenChange={setVersionDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Version History</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="text-left p-2">Module</th>
+                  <th className="text-left p-2">Record</th>
+                  <th className="text-left p-2">Version</th>
+                  <th className="text-left p-2">Created By</th>
+                  <th className="text-left p-2">Date</th>
+                  <th className="text-left p-2">Reason</th>
+                  <th className="text-left p-2">Superseded By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {residentVersionRows.map((row) => (
+                  <tr key={row.key}>
+                    <td className="p-2 text-xs">{row.module}</td>
+                    <td className="p-2 text-xs">{row.name}</td>
+                    <td className="p-2 text-xs">v{row.version}</td>
+                    <td className="p-2 text-xs">{row.createdBy}</td>
+                    <td className="p-2 text-xs">{`${row.date}`.slice(0, 16).replace("T", " ")}</td>
+                    <td className="p-2 text-xs">{row.reason || "—"}</td>
+                    <td className="p-2 text-xs">{row.supersededBy || "—"}</td>
+                  </tr>
+                ))}
+                {residentVersionRows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
+                      No version history entries.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Components */}
+      <AddDailyNoteModal
+        open={modalState.note}
+        onOpenChange={(open) => handleCloseModal("note")}
+        residentId={r.id}
+      />
+
+      <AddInterventionModal
+        open={modalState.intervention}
+        onOpenChange={(open) => {
+          handleCloseModal("intervention");
+          if (!open) setPresetInterventionProblemId(undefined);
+        }}
+        residentId={r.id}
+        initialProblemId={presetInterventionProblemId}
+        lockProblemSelection={!!presetInterventionProblemId}
+      />
+
+      <AddInterventionCompletionModal
+        open={modalState.interventionCompletion}
+        onOpenChange={(open) => handleCloseModal("interventionCompletion")}
+        intervention={selectedIntervention}
+        residentId={r.id}
+      />
+
+      <InterventionReviewModal
+        open={modalState.interventionReview}
+        onOpenChange={(open) => handleCloseModal("interventionReview")}
+        intervention={selectedIntervention}
+        action={selectedReviewAction}
+        onSuccess={() => {
+          handleCloseModal("interventionReview");
+          setSelectedIntervention(null);
+          setSelectedReviewAction(null);
+        }}
+      />
+
+      <AddAssessmentModal
+        open={modalState.assessment}
+        onOpenChange={(open) => handleCloseModal("assessment")}
+        residentId={r.id}
+      />
+
+      <AddTaskModal
+        open={modalState.task}
+        onOpenChange={(open) => handleCloseModal("task")}
+        residentId={r.id}
+      />
+
+      <IncidentDialog
+        open={modalState.incident}
+        onOpenChange={(open) => handleCloseModal("incident")}
+        mode="create"
+        defaultResidentId={r.id}
+      />
+
+      <AddMDTNoteModal
+        open={modalState.mdt}
+        onOpenChange={(open) => handleCloseModal("mdt")}
+        residentId={r.id}
+      />
+
+      <VisitorDialog
+        open={modalState.visitor}
+        onOpenChange={(open) => handleCloseModal("visitor")}
+        mode="create"
+        defaultResidentId={r.id}
+      />
+
+      <OutingDialog
+        open={modalState.outing}
+        onOpenChange={(open) => handleCloseModal("outing")}
+        mode="create"
+        defaultResidentId={r.id}
+      />
+
+      <Dialog open={problemDetailOpen} onOpenChange={setProblemDetailOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Care Plan Problem Detail</DialogTitle>
+            <DialogDescription>
+              {selectedProblem
+                ? `${selectedProblem.problemStatement}`
+                : "Select a problem from Active Care Plan Problems."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedProblem && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Problem Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid md:grid-cols-2 gap-2 text-sm">
+                  <Row label="Problem statement" value={selectedProblem.problemStatement} />
+                  <Row label="Category" value={selectedProblem.category.replace(/_/g, " ")} />
+                  <Row label="Risk level" value={selectedProblem.riskLevel.replace(/_/g, " ")} />
+                  <Row label="Created date" value={selectedProblem.createdAt.slice(0, 10)} />
+                  <Row label="Created by" value={selectedProblem.createdBy} />
+                  <Row label="Status" value={selectedProblem.status} />
+                  <Row label="Review date" value={selectedProblem.reviewDate} />
+                  <Row label="Evaluation date" value={selectedProblem.evaluationDate} />
+                  <Row
+                    label="Source assessment"
+                    value={
+                      selectedProblem.sourceAssessmentType ||
+                      selectedProblem.sourceAssessmentId ||
+                      "—"
+                    }
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Goals</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="grid md:grid-cols-3 gap-2">
+                    <Input
+                      placeholder="Add goal"
+                      value={goalDraft.statement}
+                      onChange={(e) => setGoalDraft((s) => ({ ...s, statement: e.target.value }))}
+                    />
+                    <Input
+                      type="date"
+                      value={goalDraft.targetDate}
+                      onChange={(e) => setGoalDraft((s) => ({ ...s, targetDate: e.target.value }))}
+                    />
+                    <Button onClick={submitAddGoal}>Add Goal</Button>
+                  </div>
+                  {selectedProblemGoals.map((goal) => (
+                    <div
+                      key={goal.id}
+                      className="border rounded-md p-2 grid md:grid-cols-5 gap-2 items-center text-sm"
+                    >
+                      <div className="md:col-span-2">{goal.statement}</div>
+                      <div className="text-xs">{goal.targetDate || "—"}</div>
+                      <div className="text-xs capitalize">{goal.status.replace(/_/g, " ")}</div>
+                      <div className="flex gap-1 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateGoal(goal.id, { status: "achieved" })}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateGoal(goal.id, { status: "discontinued" })}
+                        >
+                          Archive
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)}>
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Interventions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => openAddInterventionForProblem(selectedProblem.id)}
+                    >
+                      Add Intervention
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="text-left p-2">Intervention</th>
+                          <th className="text-left p-2">Frequency</th>
+                          <th className="text-left p-2">Assigned</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-left p-2">Start</th>
+                          <th className="text-left p-2">Review</th>
+                          <th className="text-right p-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {selectedProblemInterventions.map((intv) => {
+                          return (
+                            <tr key={intv.id}>
+                              <td className="p-2">{intv.name}</td>
+                              <td className="p-2 text-xs">
+                                {intv.frequencyType.replace(/_/g, " ")}
+                              </td>
+                              <td className="p-2 text-xs">
+                                {intv.assignedStaffName || intv.assignedRole || "—"}
+                              </td>
+                              <td className="p-2 text-xs">{intv.status.replace(/_/g, " ")}</td>
+                              <td className="p-2 text-xs">{intv.startDate}</td>
+                              <td className="p-2 text-xs">{intv.reviewDate}</td>
+                              <td className="p-2 text-right">
+                                <div className="inline-flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleRecordCompletion(intv)}
+                                  >
+                                    Open
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReviewIntervention(intv, "extend")}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      discontinueProblemIntervention(
+                                        intv.id,
+                                        "Discontinued from problem detail",
+                                      )
+                                    }
+                                  >
+                                    Discontinue
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Evaluations</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
+                    >
+                      Add Evaluation
+                    </Button>
+                  </div>
+                  {selectedProblemEvaluations.map((evl) => (
+                    <div key={evl.id} className="border rounded-md p-2 text-sm">
+                      <div className="font-medium">
+                        {evl.date.slice(0, 10)} · {evl.evaluatorName}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Progress: {evl.progress.replace(/_/g, " ")} · Goals Met: {evl.goalsMet}
+                      </div>
+                      <div className="text-xs">Outcome: {evl.recommendations || "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Next Evaluation: {evl.nextEvaluationDate || "—"}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={evaluationOpen} onOpenChange={setEvaluationOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Evaluation</DialogTitle>
+            <DialogDescription>
+              {selectedProblem
+                ? `Resident and problem are pre-linked: ${selectedProblem.problemStatement}`
+                : "Select a problem first."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <Label>Evaluation Date</Label>
+              <Input
+                type="date"
+                value={evaluationDraft.date}
+                onChange={(e) => setEvaluationDraft((s) => ({ ...s, date: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Evaluator</Label>
+              <Input value={currentUserName} disabled />
+            </div>
+            <div className="md:col-span-2">
+              <Label>Summary</Label>
+              <Textarea
+                value={evaluationDraft.summary}
+                onChange={(e) => setEvaluationDraft((s) => ({ ...s, summary: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Goals Met</Label>
+              <Select
+                value={evaluationDraft.goalsMet}
+                onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, goalsMet: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Progress</Label>
+              <Select
+                value={evaluationDraft.progress}
+                onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, progress: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="improved">Improved</SelectItem>
+                  <SelectItem value="stable">Stable</SelectItem>
+                  <SelectItem value="deteriorated">Deteriorated</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="requires_revision">Requires Revision</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-2">
+              <Label>Evidence / Review Outcome</Label>
+              <Textarea
+                value={evaluationDraft.recommendations}
+                onChange={(e) =>
+                  setEvaluationDraft((s) => ({ ...s, recommendations: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <Label>Next Evaluation Date</Label>
+              <Input
+                type="date"
+                value={evaluationDraft.nextEvaluationDate}
+                onChange={(e) =>
+                  setEvaluationDraft((s) => ({ ...s, nextEvaluationDate: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <Label>Revision Required?</Label>
+              <Select
+                value={evaluationDraft.revisionRequired}
+                onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, revisionRequired: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no">No</SelectItem>
+                  <SelectItem value="yes">Yes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {evaluationDraft.revisionRequired === "yes" && (
+              <>
+                <div className="md:col-span-2">
+                  <Label>Revision Reason</Label>
+                  <Textarea
+                    value={evaluationDraft.revisionReason}
+                    onChange={(e) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionReason: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Add Intervention (optional)</Label>
+                  <Input
+                    value={evaluationDraft.revisionAddIntervention}
+                    onChange={(e) =>
+                      setEvaluationDraft((s) => ({
+                        ...s,
+                        revisionAddIntervention: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Remove Intervention</Label>
+                  <Select
+                    value={evaluationDraft.revisionDiscontinueInterventionId}
+                    onValueChange={(v) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionDiscontinueInterventionId: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select intervention" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedProblemInterventions.map((intv) => (
+                        <SelectItem key={intv.id} value={intv.id}>
+                          {intv.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Change Frequency For</Label>
+                  <Select
+                    value={evaluationDraft.revisionChangeInterventionId}
+                    onValueChange={(v) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionChangeInterventionId: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select intervention" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedProblemInterventions.map((intv) => (
+                        <SelectItem key={intv.id} value={intv.id}>
+                          {intv.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>New Frequency</Label>
+                  <Select
+                    value={evaluationDraft.revisionFrequencyType}
+                    onValueChange={(v) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionFrequencyType: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hourly">Hourly</SelectItem>
+                      <SelectItem value="every_2_hours">Every 2 Hours</SelectItem>
+                      <SelectItem value="every_4_hours">Every 4 Hours</SelectItem>
+                      <SelectItem value="every_6_hours">Every 6 Hours</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="twice_daily">Twice Daily</SelectItem>
+                      <SelectItem value="three_times_daily">Three Times Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Update Goal</Label>
+                  <Select
+                    value={evaluationDraft.revisionUpdateGoalId}
+                    onValueChange={(v) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionUpdateGoalId: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select goal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedProblemGoals.map((goal) => (
+                        <SelectItem key={goal.id} value={goal.id}>
+                          {goal.statement}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Updated Goal Text</Label>
+                  <Input
+                    value={evaluationDraft.revisionGoalText}
+                    onChange={(e) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionGoalText: e.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Update Review Date</Label>
+                  <Input
+                    type="date"
+                    value={evaluationDraft.revisionReviewDate}
+                    onChange={(e) =>
+                      setEvaluationDraft((s) => ({ ...s, revisionReviewDate: e.target.value }))
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEvaluationOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitEvaluation}>Save Evaluation</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function DashStat({ label, value, icon: Icon, tone = "default", small }: { label: string; value: any; icon: any; tone?: "default" | "warning" | "destructive"; small?: boolean }) {
-  const tones: Record<string, string> = {
-    default: "bg-secondary text-secondary-foreground",
-    warning: "bg-warning/15 text-warning-foreground",
-    destructive: "bg-destructive/10 text-destructive",
-  };
+function LinkedList({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ id: string; date: string; summary: string; by: string }>;
+}) {
   return (
-    <Card><CardContent className="p-4 flex items-center gap-3">
-      <div className={`h-9 w-9 rounded-md flex items-center justify-center ${tones[tone]}`}><Icon className="h-4 w-4" /></div>
-      <div className="min-w-0">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className={small ? "text-sm font-medium truncate" : "text-xl font-semibold tabular-nums"}>{value}</div>
-      </div>
-    </CardContent></Card>
+    <div className="border rounded-md p-2 space-y-1">
+      <div className="font-medium text-sm">{title}</div>
+      {items.slice(0, 5).map((item) => (
+        <div key={item.id} className="text-xs border rounded p-1">
+          <div>{item.date}</div>
+          <div className="text-muted-foreground">{item.summary}</div>
+          <div className="text-muted-foreground">{item.by}</div>
+        </div>
+      ))}
+      {items.length === 0 && (
+        <div className="text-xs text-muted-foreground">No linked records.</div>
+      )}
+    </div>
   );
 }
 

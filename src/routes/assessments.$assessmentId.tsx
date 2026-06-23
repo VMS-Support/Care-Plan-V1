@@ -78,7 +78,7 @@ function AssessmentDetail() {
 
   const linkedCP = a ? carePlans.filter(c => c.linkedAssessmentId === a.id) : [];
   const linkedI = a ? interventions.filter(i => i.linkedAssessmentId === a.id) : [];
-  const linkedT = a ? tasks.filter(t => t.linkedAssessmentId === a.id) : [];
+  const linkedT = a ? tasks.filter(t => t.linkedAssessmentId === a.id && t.status !== "deleted") : [];
   const linkedIn = a ? incidents.filter(i => i.linkedAssessmentId === a.id) : [];
   const linkedM = a ? mdtNotes.filter(m => m.linkedAssessmentId === a.id) : [];
 

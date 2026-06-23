@@ -24,7 +24,7 @@ export const Route = createFileRoute("/assessments/new/$residentId")({
 function NewAssessment() {
   const { residentId } = Route.useParams();
   const { type } = Route.useSearch() as { type: AssessmentType };
-  const { residents, addAssessment, addAlert, addCarePlan, currentRole, currentUserName } = useCare();
+  const { residents, addAssessment, addCarePlan, currentRole, currentUserName } = useCare();
   const navigate = useNavigate();
   const resident = residents.find(r => r.id === residentId);
 
@@ -91,12 +91,6 @@ function NewAssessment() {
           reviewDate, status: "active", linkedAssessmentId: a.id,
         });
       }
-      addAlert({
-        residentId,
-        title: `${assessmentMeta[type].name} ${result.totalScore}`,
-        description: `${result.interpretation} — review care plan.`,
-        priority: result.riskLevel === "very_high" ? "critical" : "high",
-      });
     }
     toast.success(draft ? "Draft saved" : "Assessment submitted");
     navigate({ to: "/residents/$id", params: { id: residentId } });

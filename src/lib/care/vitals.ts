@@ -50,8 +50,18 @@ export function bmiHistory(residentId: string, allVitals: VitalSign[], resident?
 export interface NEWS2Result {
   total: number;
   risk: "low" | "low-medium" | "medium" | "high";
-  breakdown: Record<string, number>;
+  breakdown: NEWS2Breakdown;
   complete: boolean;
+}
+
+export interface NEWS2Breakdown {
+  RR: number;
+  SpO2: number;
+  Temp: number;
+  BP: number;
+  Pulse: number;
+  Consciousness: number;
+  Oxygen: number;
 }
 
 function rrScore(rr?: number) {
@@ -95,27 +105,27 @@ function pulseScore(p?: number) {
   return 3;
 }
 function consciousnessScore(c?: string) {
-  if (!c) return undefined;
+  if (!c || !["A", "C", "V", "P", "U"].includes(c)) return undefined;
   return c === "A" ? 0 : 3;
 }
 
 export function calcNEWS2(v: Partial<VitalSign>): NEWS2Result {
-  const breakdown: Record<string, number> = {};
+  const breakdown = {} as NEWS2Breakdown;
   let total = 0;
   let complete = true;
-  const add = (key: string, val: number | undefined) => {
+  const add = (key: keyof NEWS2Breakdown, val: number | undefined) => {
     if (val === undefined) { complete = false; return; }
     breakdown[key] = val;
     total += val;
   };
-  add("respiratoryRate", rrScore(v.respiratoryRate));
-  add("spo2", spo2Score(v.spo2));
-  breakdown["supplementalO2"] = v.onOxygen ? 2 : 0;
-  total += breakdown["supplementalO2"];
-  add("temperature", tempScore(v.temperature));
-  add("systolicBP", sbpScore(v.systolicBP));
-  add("pulse", pulseScore(v.pulse));
-  add("consciousness", consciousnessScore(v.consciousness));
+  add("RR", rrScore(v.respiratoryRate));
+  add("SpO2", spo2Score(v.spo2));
+  breakdown.Oxygen = v.onOxygen ? 2 : 0;
+  total += breakdown.Oxygen;
+  add("Temp", tempScore(v.temperature));
+  add("BP", sbpScore(v.systolicBP));
+  add("Pulse", pulseScore(v.pulse));
+  add("Consciousness", consciousnessScore(v.consciousness));
 
   let risk: NEWS2Result["risk"] = "low";
   const anyThree = Object.values(breakdown).some(x => x >= 3);
@@ -192,79 +202,102 @@ export function glucoseTrend(residentVitals: VitalSign[]): GlucoseSummary {
 
 // ---------------- Alert derivation (informational only) ----------------
 
-interface AlertSeed { type: ClinicalAlertType; severity: ClinicalAlertSeverity; title: string; message: string; recommendation: string; sourceVitalId?: string; }
+export interface AlertSeed {
+  type: ClinicalAlertType;
+  severity: ClinicalAlertSeverity;
+  title: string;
+  message: string;
+  recommendation: string;
+  currentValue?: string;
+  previousValue?: string;
+  sourceVitalId?: string;
+}
 
-export function derivedAlertsForResident(residentVitals: VitalSign[], resident?: Resident): AlertSeed[] {
+export function derivedAlertsForResident(residentVitals: VitalSign[], _resident?: Resident): AlertSeed[] {
   const out: AlertSeed[] = [];
-  const sorted = residentVitals.filter(v => !v.deletedAt).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+  const sorted = residentVitals.filter((v) => !v.deletedAt).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   if (sorted.length === 0) return out;
-  const latest = sorted[0];
+  const readingsWith = (key: keyof VitalSign) => sorted.filter((v) => v[key] !== undefined);
+  const [currentTemp, previousTemp] = readingsWith("temperature");
 
-  // Temp
-  if (latest.temperature !== undefined) {
-    if (latest.temperature >= 38.5 || latest.temperature < 35) {
-      out.push({ type: "abnormal_temp", severity: latest.temperature >= 39.5 || latest.temperature < 35 ? "critical" : "warning",
-        title: `Temperature ${latest.temperature}°C`, message: "Temperature outside expected range.",
-        recommendation: "Monitor resident and consider clinical review.", sourceVitalId: latest.id });
+  if (currentTemp?.temperature !== undefined && (currentTemp.temperature > 38 || currentTemp.temperature < 35.5)) {
+    out.push({ type: "abnormal_temp", severity: currentTemp.temperature >= 39 || currentTemp.temperature < 35.5 ? "critical" : "warning",
+      title: currentTemp.temperature < 35.5 ? "Low Temperature" : "High Temperature",
+      message: "Temperature is outside the expected clinical range.", recommendation: "Repeat observations and review resident.",
+      currentValue: `${currentTemp.temperature}°C`, previousValue: previousTemp?.temperature !== undefined ? `${previousTemp.temperature}°C` : undefined, sourceVitalId: currentTemp.id });
+  }
+
+  const [currentSpo2, previousSpo2] = readingsWith("spo2");
+  if (currentSpo2?.spo2 !== undefined && currentSpo2.spo2 < 92) {
+    out.push({ type: "low_spo2", severity: currentSpo2.spo2 < 90 ? "critical" : "warning", title: "Low Oxygen Saturation",
+      message: "Oxygen saturation is below the expected clinical range.", recommendation: "Repeat observations and review respiratory status.",
+      currentValue: `${currentSpo2.spo2}%`, previousValue: previousSpo2?.spo2 !== undefined ? `${previousSpo2.spo2}%` : undefined, sourceVitalId: currentSpo2.id });
+  }
+
+  const [currentBp, previousBp] = readingsWith("systolicBP");
+  if (currentBp?.systolicBP !== undefined && (currentBp.systolicBP < 90 || currentBp.systolicBP > 180 || (currentBp.diastolicBP ?? 0) > 110)) {
+    out.push({ type: "abnormal_bp", severity: currentBp.systolicBP < 90 || currentBp.systolicBP > 180 ? "critical" : "warning",
+      title: "Abnormal Blood Pressure", message: "Blood pressure is outside the expected clinical range.",
+      recommendation: "Repeat observations and review resident.", currentValue: `${currentBp.systolicBP}/${currentBp.diastolicBP ?? "?"} mmHg`,
+      previousValue: previousBp?.systolicBP !== undefined ? `${previousBp.systolicBP}/${previousBp.diastolicBP ?? "?"} mmHg` : undefined, sourceVitalId: currentBp.id });
+  }
+
+  const [currentPain, previousPain] = readingsWith("painScore");
+  const significantPainIncrease = currentPain?.painScore !== undefined && previousPain?.painScore !== undefined && currentPain.painScore - previousPain.painScore >= 3;
+  const sustainedHighPain = currentPain?.painScore !== undefined && currentPain.painScore >= 7 && (previousPain?.painScore ?? 0) >= 7;
+  if (currentPain?.painScore !== undefined && (significantPainIncrease || sustainedHighPain)) {
+    out.push({ type: "high_pain", severity: "warning", title: "Pain Escalation",
+      message: sustainedHighPain ? "High pain score remains sustained." : "Pain has increased significantly.", recommendation: "Review pain management.",
+      currentValue: `${currentPain.painScore}/10`, previousValue: previousPain?.painScore !== undefined ? `${previousPain.painScore}/10` : undefined, sourceVitalId: currentPain.id });
+  }
+
+  const [currentGlucose, previousGlucose] = readingsWith("bloodGlucose");
+  if (currentGlucose?.bloodGlucose !== undefined && (currentGlucose.bloodGlucose < 4 || currentGlucose.bloodGlucose > 15)) {
+    const low = currentGlucose.bloodGlucose < 4;
+    out.push({ type: low ? "hypoglycaemia" : "hyperglycaemia", severity: "warning", title: low ? "Low Blood Glucose" : "High Blood Glucose",
+      message: `Blood glucose is ${low ? "below 4" : "above 15"} mmol/L.`, recommendation: "Review resident and follow the local glucose protocol.",
+      currentValue: `${currentGlucose.bloodGlucose} mmol/L`, previousValue: previousGlucose?.bloodGlucose !== undefined ? `${previousGlucose.bloodGlucose} mmol/L` : undefined, sourceVitalId: currentGlucose.id });
+  }
+
+  const newsReadings = sorted.map((vital) => ({ vital, score: calcNEWS2(vital) })).filter(({ score }) => score.complete);
+  const currentNews = newsReadings[0];
+  const news = currentNews?.score;
+  if (news?.complete && news.total >= 5) {
+    const previousNews = newsReadings[1]?.score;
+    out.push({ type: "high_news2", severity: news.total >= 7 ? "critical" : "warning", title: "Elevated NEWS2",
+      message: "NEWS2 indicates possible clinical deterioration.", recommendation: "Repeat observations and follow the local escalation protocol.",
+      currentValue: `${news.total}`, previousValue: previousNews ? `${previousNews.total}` : undefined, sourceVitalId: currentNews.vital.id });
+  }
+
+  const weights = sorted.filter((v) => v.weight !== undefined);
+  const currentWeight = weights[0];
+  if (currentWeight?.weight !== undefined) {
+    const currentAt = new Date(currentWeight.recordedAt).getTime();
+    const readingsWithin = (days: number) => weights.filter((v) => currentAt - new Date(v.recordedAt).getTime() <= days * 86400000);
+    const previous30 = readingsWithin(30).at(-1);
+    const previous3 = readingsWithin(3).at(-1);
+    if (previous30?.weight !== undefined && previous30.id !== currentWeight.id) {
+      const lossPct = ((previous30.weight - currentWeight.weight) / previous30.weight) * 100;
+      if (lossPct > 5) out.push({ type: "weight_loss", severity: lossPct > 10 ? "critical" : "warning", title: "Significant Weight Loss",
+        message: `Weight reduced by ${lossPct.toFixed(1)}% within 30 days.`, recommendation: lossPct > 10 ? "Escalate nutritional review." : "Review nutrition and hydration.",
+        currentValue: `${currentWeight.weight} kg`, previousValue: `${previous30.weight} kg`, sourceVitalId: currentWeight.id });
+    }
+    if (previous3?.weight !== undefined && previous3.id !== currentWeight.id && currentWeight.weight - previous3.weight > 2) {
+      out.push({ type: "weight_gain", severity: "warning", title: "Rapid Weight Gain",
+        message: `Weight increased by ${(currentWeight.weight - previous3.weight).toFixed(1)} kg within 3 days.`, recommendation: "Assess fluid retention.",
+        currentValue: `${currentWeight.weight} kg`, previousValue: `${previous3.weight} kg`, sourceVitalId: currentWeight.id });
     }
   }
-  // SpO2
-  if (latest.spo2 !== undefined && latest.spo2 < 92) {
-    out.push({ type: "low_spo2", severity: latest.spo2 < 88 ? "critical" : "warning",
-      title: `SpO2 ${latest.spo2}%`, message: "Low oxygen saturation recorded.",
-      recommendation: "Review respiratory status and escalate per local policy.", sourceVitalId: latest.id });
-  }
-  // BP
-  if (latest.systolicBP !== undefined) {
-    if (latest.systolicBP < 90 || latest.systolicBP > 180 || (latest.diastolicBP ?? 0) > 110) {
-      out.push({ type: "abnormal_bp", severity: latest.systolicBP < 80 || latest.systolicBP > 200 ? "critical" : "warning",
-        title: `BP ${latest.systolicBP}/${latest.diastolicBP ?? "?"}`, message: "Blood pressure outside expected range.",
-        recommendation: "Monitor and consider nursing review.", sourceVitalId: latest.id });
-    }
-  }
-  // Pain
-  if (latest.painScore !== undefined && latest.painScore >= 7) {
-    out.push({ type: "high_pain", severity: "warning",
-      title: `Pain score ${latest.painScore}/10`, message: "Severe pain recorded.",
-      recommendation: "Review pain management interventions.", sourceVitalId: latest.id });
-  }
-  // Glucose
-  if (latest.bloodGlucose !== undefined) {
-    if (latest.bloodGlucose < 4) {
-      out.push({ type: "hypoglycaemia", severity: latest.bloodGlucose < 3 ? "critical" : "warning",
-        title: `BGL ${latest.bloodGlucose} mmol/L`, message: "Hypoglycaemia risk.",
-        recommendation: "Review per hypoglycaemia protocol.", sourceVitalId: latest.id });
-    } else if (latest.bloodGlucose > 11) {
-      out.push({ type: "hyperglycaemia", severity: latest.bloodGlucose > 20 ? "critical" : "warning",
-        title: `BGL ${latest.bloodGlucose} mmol/L`, message: "Hyperglycaemia risk.",
-        recommendation: "Review per hyperglycaemia protocol.", sourceVitalId: latest.id });
-    }
-  }
-  // NEWS2
-  const news = calcNEWS2(latest);
-  if (news.complete && news.total >= 5) {
-    out.push({ type: "high_news2", severity: news.total >= 7 ? "critical" : "warning",
-      title: `NEWS2 ${news.total} (${news.risk})`, message: "Elevated NEWS2 score.",
-      recommendation: "Follow local escalation protocol.", sourceVitalId: latest.id });
-  }
-  // BMI
-  const h = heightAtDate(latest.residentId, latest.date, residentVitals, resident);
-  const bmi = calcBMI(latest.weight, h);
-  if (bmi !== undefined) {
-    if (bmi < 18.5) out.push({ type: "bmi_low", severity: bmi < 16 ? "critical" : "warning",
-      title: `BMI ${bmi}`, message: "Underweight BMI.", recommendation: "Review nutritional care plan.", sourceVitalId: latest.id });
-    if (bmi >= 30) out.push({ type: "bmi_high", severity: "info",
-      title: `BMI ${bmi}`, message: "Obese BMI category.", recommendation: "Consider dietetic review.", sourceVitalId: latest.id });
-  }
-  // Weight loss
-  const wt = weightTrend(residentVitals, 90);
-  if (wt.deltaPct !== undefined && wt.deltaPct <= -5) {
-    const sev: ClinicalAlertSeverity = wt.deltaPct <= -15 ? "critical" : wt.deltaPct <= -10 ? "warning" : "warning";
-    out.push({ type: "weight_loss", severity: sev,
-      title: `Weight loss ${Math.abs(wt.deltaPct)}% (90d)`,
-      message: `Down ${Math.abs(wt.deltaKg ?? 0)}kg from ${wt.previous}kg to ${wt.current}kg.`,
-      recommendation: wt.deltaPct <= -15 ? "Urgent nutritional review recommended." : "Review nutritional status.",
-      sourceVitalId: latest.id });
+
+  const latestFluid = sorted.find((v) => v.fluidIntakeMl !== undefined || v.fluidOutputMl !== undefined);
+  const dayVitals = latestFluid ? sorted.filter((v) => v.date === latestFluid.date) : [];
+  const intake = dayVitals.reduce((total, v) => total + (v.fluidIntakeMl ?? 0), 0);
+  const output = dayVitals.reduce((total, v) => total + (v.fluidOutputMl ?? 0), 0);
+  const balance = intake - output;
+  if (output > 0 && balance <= -1000) {
+    out.push({ type: "fluid_imbalance", severity: "warning", title: "Negative Fluid Balance",
+      message: "A significant negative fluid balance has been recorded.", recommendation: "Review hydration status.", currentValue: `${balance} ml`,
+      previousValue: `Intake ${intake} ml / output ${output} ml`, sourceVitalId: latestFluid?.id });
   }
   return out;
 }
