@@ -7,7 +7,7 @@ export default defineConfig({
   base: "/Care-Plan-V1/",
   plugins: [react(), tailwindcss(), tsconfigPaths()],
   build: {
-    outDir: "dist/pages",
+    outDir: "dist",
     emptyOutDir: true,
   },
 });
