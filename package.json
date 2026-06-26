@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:pages": "vite build --config vite.pages.config.ts",
+    "build:vercel": "vite build --config vite.vercel.config.ts",
     "predeploy": "npm run build:pages",
     "deploy": "gh-pages -d dist",
     "test:news2": "node src/lib/care/vitals.test.ts",
