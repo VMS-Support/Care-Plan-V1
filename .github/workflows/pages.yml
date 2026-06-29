@@ -39,6 +39,17 @@ jobs:
       - name: Disable Jekyll
         run: touch dist/.nojekyll
 
+      - name: Debug Pages artifact
+        run: |
+          ls -la dist
+          find dist -maxdepth 2 -type f
+          grep -o 'src="[^"]*"' dist/index.html || true
+          grep -o 'href="[^"]*"' dist/index.html || true
+          test -f dist/index.html
+          test -f dist/404.html
+          test -f dist/.nojekyll
+          test -d dist/assets
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

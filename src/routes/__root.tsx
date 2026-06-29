@@ -13,7 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/layout/AppShell";
 
-const publicAsset = (name: string) => `${import.meta.env.BASE_URL}${name}`.replace(/\/+/g, "/");
+const publicAsset = (name: string) => `${import.meta.env.BASE_URL}${name.replace(/^\/+/, "")}`;
 
 function NotFoundComponent() {
   return (
