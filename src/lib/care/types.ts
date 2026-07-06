@@ -1,6 +1,14 @@
 export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
 export type ResidentStatus = "active" | "discharged" | "deceased";
+
+export interface Facility {
+  id: string;
+  name: string;
+  status: "active" | "inactive";
+  createdAt: string;
+  createdBy: string;
+}
 export type AssessmentType =
   | "barthel"
   | "waterlow"
@@ -92,6 +100,7 @@ export interface AssessmentComment {
 
 export interface AssessmentReviewTriggerEvent {
   id: string;
+  facilityId?: string;
   residentId: string;
   trigger: ReviewTriggerType;
   sourceModule: "incident" | "mdt" | "medication" | "visitor" | "manual";
@@ -144,6 +153,8 @@ export interface Room {
 
 export interface UserProfile {
   id: string;
+  facilityId?: string;
+  facilityIds?: string[];
   name: string;
   role: Role;
   email: string;
@@ -214,6 +225,7 @@ export interface AKeyToMe {
 
 export interface Resident {
   id: string;
+  facilityId?: string;
   firstName: string;
   lastName: string;
   dob: string;
@@ -250,6 +262,7 @@ export interface Resident {
 
 export interface Assessment {
   id: string;
+  facilityId?: string;
   residentId: string;
   type: AssessmentType;
   date: string;
@@ -356,6 +369,7 @@ export interface OutcomeMeasure {
 
 export interface CarePlanEvaluation {
   id: string;
+  facilityId?: string;
   carePlanId: string;
   date: string;
   evaluatedBy: string;
@@ -374,6 +388,7 @@ export interface CarePlanEvaluation {
 
 export interface CarePlanReview {
   id: string;
+  facilityId?: string;
   carePlanId: string;
   date: string;
   reviewer: string;
@@ -395,6 +410,7 @@ export interface CarePlanReview {
 
 export interface CarePlan {
   id: string;
+  facilityId?: string;
   residentId: string;
   title: string;
   category?: string;
@@ -432,6 +448,7 @@ export interface CarePlan {
 
 export interface InterventionLog {
   id: string;
+  facilityId?: string;
   interventionSpecId?: string;
   carePlanId: string;
   residentId: string;
@@ -450,6 +467,7 @@ export interface InterventionLog {
 
 export interface ReadReceipt {
   id: string;
+  facilityId?: string;
   entityType: "care_plan" | "alert" | "incident" | "safeguarding";
   entityId: string;
   userId: string;
@@ -486,6 +504,7 @@ export interface CarePlanTemplate {
 
 export interface Intervention {
   id: string;
+  facilityId?: string;
   residentId: string;
   carePlanId?: string;
   date: string;
@@ -500,6 +519,7 @@ export interface Intervention {
 
 export interface DailyNote {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   staff: string;
@@ -531,6 +551,7 @@ export type ChartKind =
 
 export interface Observation {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   time: string;
@@ -548,6 +569,7 @@ export interface Observation {
 
 export interface WeightRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   weightKg: number;
@@ -558,6 +580,7 @@ export interface WeightRecord {
 
 export interface FluidRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   time: string;
@@ -569,6 +592,7 @@ export interface FluidRecord {
 
 export interface FoodRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   meal: "breakfast" | "lunch" | "dinner" | "snack";
@@ -579,6 +603,7 @@ export interface FoodRecord {
 
 export interface PainRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   time: string;
@@ -590,6 +615,7 @@ export interface PainRecord {
 
 export interface SleepRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   hoursSlept: number;
@@ -600,6 +626,7 @@ export interface SleepRecord {
 
 export interface BowelRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   time: string;
@@ -611,6 +638,7 @@ export interface BowelRecord {
 
 export interface BehaviourRecord {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   time: string;
@@ -623,6 +651,7 @@ export interface BehaviourRecord {
 
 export interface IncidentAction {
   id: string;
+  facilityId?: string;
   incidentId: string;
   date: string;
   action: string;
@@ -632,6 +661,7 @@ export interface IncidentAction {
 
 export interface ShiftSummary {
   id: string;
+  facilityId?: string;
   date: string; // YYYY-MM-DD
   shift: "morning" | "afternoon" | "night";
   generatedAt: string;
@@ -677,6 +707,7 @@ export type TimelineEventType =
 
 export interface TimelineEvent {
   id: string;
+  facilityId?: string;
   residentId: string;
   type: TimelineEventType;
   title: string;
@@ -691,6 +722,7 @@ export interface TimelineEvent {
 
 export interface Evaluation {
   id: string;
+  facilityId?: string;
   carePlanId: string;
   date: string;
   reviewer: string;
@@ -702,6 +734,7 @@ export interface Evaluation {
 
 export interface Alert {
   id: string;
+  facilityId?: string;
   residentId: string;
   title: string;
   description: string;
@@ -718,6 +751,7 @@ export interface Alert {
 
 export interface ActionAlertWorkflow {
   id: string;
+  facilityId?: string;
   residentId: string;
   title: string;
   category: string;
@@ -732,6 +766,7 @@ export interface ActionAlertWorkflow {
 
 export interface Task {
   id: string;
+  facilityId?: string;
   residentId?: string;
   title: string;
   description?: string;
@@ -747,6 +782,7 @@ export interface Task {
 
 export interface AuditLog {
   id: string;
+  facilityId?: string;
   user: string;
   role?: Role;
   action: string;
@@ -775,6 +811,7 @@ export interface LifecycleFields {
 
 export interface Incident extends LifecycleFields {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   type: "fall" | "medication_error" | "injury" | "behaviour" | "near_miss" | "other";
@@ -795,6 +832,7 @@ export interface Incident extends LifecycleFields {
 
 export interface MDTNote extends LifecycleFields {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   attendees: string;
@@ -809,6 +847,7 @@ export interface MDTNote extends LifecycleFields {
 
 export interface Visitor extends LifecycleFields {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   visitorName: string;
@@ -823,6 +862,7 @@ export interface Visitor extends LifecycleFields {
 
 export interface Outing extends LifecycleFields {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   destination: string;
@@ -839,6 +879,7 @@ export interface Outing extends LifecycleFields {
 
 export interface HandoverNote extends LifecycleFields {
   id: string;
+  facilityId?: string;
   residentId: string;
   date: string;
   shift: "morning" | "afternoon" | "night";
@@ -915,6 +956,7 @@ export type InterventionOutcome =
 
 export interface ResidentCarePlan {
   id: string;
+  facilityId?: string;
   residentId: string;
   status: "active" | "archived";
   createdAt: string;
@@ -925,6 +967,7 @@ export interface ResidentCarePlan {
 
 export interface CarePlanProblem {
   id: string;
+  facilityId?: string;
   residentCarePlanId: string;
   residentId: string;
   category: ProblemCategory;
@@ -945,6 +988,7 @@ export interface CarePlanProblem {
 
 export interface ProblemGoal {
   id: string;
+  facilityId?: string;
   problemId: string;
   statement: string;
   targetDate?: string;
@@ -955,6 +999,7 @@ export interface ProblemGoal {
 
 export interface ProblemIntervention {
   id: string;
+  facilityId?: string;
   problemId: string;
   residentId: string;
   name: string;
@@ -988,6 +1033,7 @@ export interface ProblemIntervention {
 
 export interface ProblemInterventionLog {
   id: string;
+  facilityId?: string;
   interventionId: string;
   problemId: string;
   residentId: string;
@@ -1007,6 +1053,7 @@ export interface ProblemInterventionLog {
 
 export interface ProblemEvaluation {
   id: string;
+  facilityId?: string;
   problemId: string;
   date: string;
   evaluatorId: string;
@@ -1021,6 +1068,7 @@ export interface ProblemEvaluation {
 
 export interface ProblemReview {
   id: string;
+  facilityId?: string;
   problemId: string;
   reviewDate: string;
   reviewedById: string;
@@ -1050,6 +1098,7 @@ export type ProblemHistoryAction =
 
 export interface ProblemHistoryEntry {
   id: string;
+  facilityId?: string;
   problemId: string;
   timestamp: string;
   userId: string;
@@ -1064,6 +1113,7 @@ export interface ProblemHistoryEntry {
 
 export interface AssessmentSuggestion {
   id: string;
+  facilityId?: string;
   assessmentId: string;
   residentId: string;
   assessmentType: AssessmentType;
@@ -1114,6 +1164,7 @@ export interface VitalAuditEntry {
 
 export interface VitalSign {
   id: string;
+  facilityId?: string;
   residentId: string;
   observationType?: VitalRecordType;
   date: string; // YYYY-MM-DD
@@ -1197,6 +1248,7 @@ export interface ObservationPlanItem {
 }
 
 export interface ObservationPlan {
+  facilityId?: string;
   residentId: string;
   items: ObservationPlanItem[];
   updatedAt: string;
@@ -1232,6 +1284,7 @@ export interface ClinicalEscalationNote {
 
 export interface ClinicalAlert {
   id: string;
+  facilityId?: string;
   residentId: string;
   type: ClinicalAlertType;
   severity: ClinicalAlertSeverity;
@@ -1278,6 +1331,7 @@ export interface ObservationAuditEntry {
 
 export interface ClinicalObservation {
   id: string;
+  facilityId?: string;
   residentId: string;
   kind: ObservationKind;
   date: string; // YYYY-MM-DD
@@ -1307,6 +1361,7 @@ export interface ObservationScheduleItem {
 }
 
 export interface ObservationSchedule {
+  facilityId?: string;
   residentId: string;
   items: ObservationScheduleItem[];
   updatedAt: string;

@@ -74,7 +74,7 @@ function Stat({
 }
 
 function Dashboard() {
-  const { residents, assessments, carePlans, alerts, notes, tasks } = useCare();
+  const { residents, assessments, carePlans, alerts, notes, tasks, currentUser } = useCare();
   const active = residents.filter((r) => r.status === "active");
   const highRisk = residents.filter((r) =>
     assessments.some(
@@ -116,7 +116,7 @@ function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            Good day, Nurse Roberts
+            Good day, {currentUser.name}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Overview of resident wellbeing across the home.

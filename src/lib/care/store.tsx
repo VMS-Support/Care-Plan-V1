@@ -75,6 +75,7 @@ import type {
   ObservationSchedule,
   ObservationScheduleItem,
   ObservationAuditEntry,
+  Facility,
 } from "./types";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
@@ -86,6 +87,26 @@ let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
 const STORE_STORAGE_KEY = "carepath-pro-data";
 const LEGACY_STORE_STORAGE_KEY = "carepath-pro-store";
+export const BALLYMORE_FACILITY_ID = "facility-ballymore-haven";
+export const HAZELWOOD_FACILITY_ID = "facility-hazelwood-care";
+const ACTIVE_FACILITY_STORAGE_KEY = "carepath-pro-active-facility";
+const CURRENT_USER_STORAGE_KEY = "carepath-pro-current-user";
+const FACILITIES_SEED: Facility[] = [
+  {
+    id: BALLYMORE_FACILITY_ID,
+    name: "Ballymore Haven",
+    status: "active",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    createdBy: "System",
+  },
+  {
+    id: HAZELWOOD_FACILITY_ID,
+    name: "Hazelwood Care",
+    status: "active",
+    createdAt: "2026-07-06T00:00:00.000Z",
+    createdBy: "System",
+  },
+];
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
 const daysAhead = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
 const phoneFor = (seed: number) =>
@@ -282,6 +303,8 @@ function seedUsers(): UserProfile[] {
     },
     {
       id: "u-3",
+      facilityId: BALLYMORE_FACILITY_ID,
+      facilityIds: DEMO_MULTI_FACILITY_IDS,
       name: "J. Roberts",
       role: "nurse",
       email: "j.roberts@carepath.org",
@@ -342,6 +365,8 @@ function seedUsers(): UserProfile[] {
     },
     {
       id: "u-7",
+      facilityId: BALLYMORE_FACILITY_ID,
+      facilityIds: DEMO_MULTI_FACILITY_IDS,
       name: "L. Hartley",
       role: "don",
       email: "l.hartley@carepath.org",
@@ -353,6 +378,23 @@ function seedUsers(): UserProfile[] {
       lastLogin: daysAgo(0),
       status: "active",
       avatarSeed: "DonHart",
+      notificationPrefs: { email: true, sms: true, inApp: true, criticalAlertsOnly: false },
+    },
+    {
+      id: "u-hazelwood-don",
+      facilityId: HAZELWOOD_FACILITY_ID,
+      facilityIds: [HAZELWOOD_FACILITY_ID],
+      name: "Hazelwood DON",
+      role: "don",
+      email: "don@hazelwoodcare.example",
+      phone: "07700 901001",
+      department: "Executive",
+      assignedWings: [],
+      employeeNumber: "HZ-4001",
+      startDate: "2026-07-06",
+      lastLogin: daysAgo(0),
+      status: "active",
+      avatarSeed: "HazelwoodDon",
       notificationPrefs: { email: true, sms: true, inApp: true, criticalAlertsOnly: false },
     },
   ];
@@ -1562,6 +1604,7 @@ function seedData() {
   }
 
   return {
+    facilities: FACILITIES_SEED,
     wings,
     units,
     rooms,
@@ -1622,11 +1665,185 @@ function seedData() {
 
 type Store = ReturnType<typeof seedData>;
 
+type ScopedItem = { id?: string; facilityId?: string; residentId?: string; carePlanId?: string; problemId?: string };
+type ScopedArrayKey = {
+  [K in keyof Store]: Store[K] extends ScopedItem[] ? K : never;
+}[keyof Store];
+
+const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
+  "residents",
+  "assessments",
+  "carePlans",
+  "interventions",
+  "notes",
+  "evaluations",
+  "carePlanEvaluations",
+  "carePlanReviews",
+  "alerts",
+  "tasks",
+  "auditLogs",
+  "incidents",
+  "mdtNotes",
+  "visitors",
+  "outings",
+  "handovers",
+  "interventionLogs",
+  "readReceipts",
+  "observations",
+  "weights",
+  "fluids",
+  "foods",
+  "pains",
+  "sleeps",
+  "bowels",
+  "behaviours",
+  "incidentActions",
+  "shiftSummaries",
+  "timelineEvents",
+  "residentCarePlans",
+  "carePlanProblems",
+  "problemGoals",
+  "problemInterventions",
+  "problemInterventionLogs",
+  "problemEvaluations",
+  "problemReviews",
+  "problemHistory",
+  "assessmentSuggestions",
+  "assessmentTriggerEvents",
+  "vitals",
+  "observationPlans",
+  "clinicalAlerts",
+  "clinicalObservations",
+  "observationSchedules",
+];
+
+const hasFacility = (item: { facilityId?: string }, facilityId: string) =>
+  (item.facilityId || BALLYMORE_FACILITY_ID) === facilityId;
+
+const DEMO_MULTI_FACILITY_USER_IDS = new Set(["u-3", "u-7"]);
+const DEMO_MULTI_FACILITY_IDS = [BALLYMORE_FACILITY_ID, HAZELWOOD_FACILITY_ID];
+
+const userFacilityIds = (user: UserProfile) =>
+  user.facilityIds?.length ? user.facilityIds : [user.facilityId || BALLYMORE_FACILITY_ID];
+
+function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILITY_ID): Store {
+  const users = store.users.map((user) => {
+    if (user.id === "u-hazelwood-don") {
+      return {
+        ...user,
+        facilityId: HAZELWOOD_FACILITY_ID,
+        facilityIds: [HAZELWOOD_FACILITY_ID],
+      };
+    }
+    if (DEMO_MULTI_FACILITY_USER_IDS.has(user.id)) {
+      return {
+        ...user,
+        facilityId: BALLYMORE_FACILITY_ID,
+        facilityIds: DEMO_MULTI_FACILITY_IDS,
+      };
+    }
+    const ids = user.facilityIds?.length ? user.facilityIds : [user.facilityId || defaultFacilityId];
+    return { ...user, facilityId: ids[0], facilityIds: ids };
+  });
+  const hasHazelwoodDon = users.some((user) => user.id === "u-hazelwood-don");
+  const normalized: Store = {
+    ...store,
+    facilities: FACILITIES_SEED,
+    users: hasHazelwoodDon
+      ? users
+      : [
+          ...users,
+          {
+            ...seedUsers().find((user) => user.id === "u-hazelwood-don")!,
+            facilityId: HAZELWOOD_FACILITY_ID,
+            facilityIds: [HAZELWOOD_FACILITY_ID],
+          },
+        ],
+  };
+
+  for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
+    const records = normalized[key] as ScopedItem[];
+    (normalized as any)[key] = records.map((record) => ({
+      ...record,
+      facilityId: record.facilityId || defaultFacilityId,
+    }));
+  }
+
+  normalized.alertWorkflow = Object.fromEntries(
+    Object.entries(normalized.alertWorkflow || {}).map(([id, alert]) => [
+      id,
+      { ...alert, facilityId: alert.facilityId || defaultFacilityId },
+    ]),
+  );
+
+  return normalized;
+}
+
+function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string): Store {
+  const scoped = { ...next };
+  for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
+    const previousIds = new Set((previous[key] as ScopedItem[]).map((record) => record.id));
+    const records = scoped[key] as ScopedItem[];
+    (scoped as any)[key] = records.map((record) => ({
+      ...record,
+      facilityId: record.facilityId || (record.id && previousIds.has(record.id) ? BALLYMORE_FACILITY_ID : activeFacilityId),
+    }));
+  }
+  scoped.alertWorkflow = Object.fromEntries(
+    Object.entries(scoped.alertWorkflow || {}).map(([id, alert]) => {
+      const existing = previous.alertWorkflow?.[id];
+      return [
+        id,
+        {
+          ...alert,
+          facilityId: alert.facilityId || existing?.facilityId || activeFacilityId,
+        },
+      ];
+    }),
+  );
+  return scoped;
+}
+
+function filterByFacility(store: Store, activeFacilityId: string): Store {
+  const residentIds = new Set(
+    store.residents.filter((resident) => hasFacility(resident, activeFacilityId)).map((resident) => resident.id),
+  );
+  const carePlanIds = new Set(
+    store.carePlans.filter((plan) => hasFacility(plan, activeFacilityId)).map((plan) => plan.id),
+  );
+  const problemIds = new Set(
+    store.carePlanProblems.filter((problem) => hasFacility(problem, activeFacilityId)).map((problem) => problem.id),
+  );
+  const scoped: Store = {
+    ...store,
+    users: store.users.filter((user) => userFacilityIds(user).includes(activeFacilityId)),
+    residents: store.residents.filter((record) => hasFacility(record, activeFacilityId)),
+    alertWorkflow: Object.fromEntries(
+      Object.entries(store.alertWorkflow || {}).filter(([, alert]) => hasFacility(alert, activeFacilityId)),
+    ),
+  };
+
+  for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
+    if (key === "residents") continue;
+    const records = scoped[key] as ScopedItem[];
+    (scoped as any)[key] = records.filter((record) => {
+      if (!hasFacility(record, activeFacilityId)) return false;
+      if (record.residentId && !residentIds.has(record.residentId)) return false;
+      if (record.carePlanId && !carePlanIds.has(record.carePlanId)) return false;
+      if (record.problemId && !problemIds.has(record.problemId)) return false;
+      return true;
+    });
+  }
+
+  return scoped;
+}
+
 function loadInitialStore(): Store {
   const base = seedData();
   if (typeof window === "undefined") {
-    syncUidSequence(base);
-    return base;
+    const normalizedBase = normalizeFacilities(base);
+    syncUidSequence(normalizedBase);
+    return normalizedBase;
   }
 
   try {
@@ -1634,8 +1851,9 @@ function loadInitialStore(): Store {
       window.localStorage.getItem(STORE_STORAGE_KEY) ||
       window.localStorage.getItem(LEGACY_STORE_STORAGE_KEY);
     if (!raw) {
-      syncUidSequence(base);
-      return base;
+      const normalizedBase = normalizeFacilities(base);
+      syncUidSequence(normalizedBase);
+      return normalizedBase;
     }
 
     const parsed = JSON.parse(raw) as Partial<Store>;
@@ -1650,7 +1868,7 @@ function loadInitialStore(): Store {
       parsed.vitals = [...base.vitals, ...retainedVitals];
       parsed.clinicalAlerts = [...base.clinicalAlerts, ...retainedAlerts];
     }
-    const merged = { ...base, ...parsed } as Store;
+    const merged = normalizeFacilities({ ...base, ...parsed } as Store);
     merged.tasks = removeRemovedDemoTasks(merged.tasks);
     merged.vitals = merged.vitals.map(vitalWithCalculatedNEWS2);
     merged.clinicalObservations = merged.clinicalObservations.map((observation) => ({
@@ -1661,8 +1879,9 @@ function loadInitialStore(): Store {
     return merged;
   } catch (error) {
     console.warn("Failed to load persisted care store, using seeded data.", error);
-    syncUidSequence(base);
-    return base;
+    const normalizedBase = normalizeFacilities(base);
+    syncUidSequence(normalizedBase);
+    return normalizedBase;
   }
 }
 
@@ -1676,6 +1895,9 @@ export interface CareFilter {
 }
 
 interface CareCtx extends Store {
+  activeFacilityId: string;
+  activeFacility: Facility;
+  setActiveFacilityId: (id: string) => void;
   currentRole: Role;
   setCurrentRole: (r: Role) => void;
   resetToDemoData: () => void;
@@ -1683,6 +1905,13 @@ interface CareCtx extends Store {
   currentUser: UserProfile;
   setCurrentUserId: (id: string) => void;
   updateUser: (id: string, patch: Partial<UserProfile>) => void;
+  createStaffUser: (input: {
+    name: string;
+    role: Role;
+    email: string;
+    temporaryPassword?: string;
+    status: UserProfile["status"];
+  }) => UserProfile;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -1898,9 +2127,26 @@ interface CareCtx extends Store {
 const Ctx = createContext<CareCtx | null>(null);
 
 export function CareProvider({ children }: { children: ReactNode }) {
-  const [store, setStore] = useState<Store>(() => loadInitialStore());
-  const [currentUserId, setCurrentUserId] = useState<string>("u-3"); // J. Roberts (Nurse)
+  const [store, rawSetStore] = useState<Store>(() => loadInitialStore());
+  const [currentUserId, setCurrentUserId] = useState<string>(() => {
+    if (typeof window === "undefined") return "u-3";
+    return window.localStorage.getItem(CURRENT_USER_STORAGE_KEY) || "u-3";
+  }); // J. Roberts (Nurse)
+  const [activeFacilityId, setActiveFacilityIdState] = useState<string>(() => {
+    if (typeof window === "undefined") return BALLYMORE_FACILITY_ID;
+    return window.localStorage.getItem(ACTIVE_FACILITY_STORAGE_KEY) || BALLYMORE_FACILITY_ID;
+  });
   const [filter, setFilter] = useState<CareFilter>({});
+
+  const setStore = useCallback(
+    (value: Store | ((previous: Store) => Store)) => {
+      rawSetStore((previous) => {
+        const next = typeof value === "function" ? (value as (previous: Store) => Store)(previous) : value;
+        return normalizeFacilities(scopeNewRecords(previous, next, activeFacilityId));
+      });
+    },
+    [activeFacilityId],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1912,19 +2158,70 @@ export function CareProvider({ children }: { children: ReactNode }) {
     }
   }, [store]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(ACTIVE_FACILITY_STORAGE_KEY, activeFacilityId);
+  }, [activeFacilityId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, currentUserId);
+  }, [currentUserId]);
+
   const currentUser = useMemo(
     () => store.users.find((u) => u.id === currentUserId) || store.users[0],
     [store.users, currentUserId],
   );
   const currentRole = currentUser.role;
   const currentUserName = currentUser.name;
+  const activeFacility = useMemo(
+    () => store.facilities.find((facility) => facility.id === activeFacilityId) || store.facilities[0],
+    [store.facilities, activeFacilityId],
+  );
+  const scopedStore = useMemo(() => filterByFacility(store, activeFacilityId), [store, activeFacilityId]);
+
+  useEffect(() => {
+    const ids = userFacilityIds(currentUser);
+    if (ids.includes(activeFacilityId)) return;
+    setActiveFacilityIdState(ids[0] || BALLYMORE_FACILITY_ID);
+    setFilter({});
+  }, [activeFacilityId, currentUser]);
+
+  const setActiveFacilityId = useCallback(
+    (id: string) => {
+      const nextFacility = store.facilities.find((facility) => facility.id === id);
+      if (!nextFacility) return;
+      if (!userFacilityIds(currentUser).includes(id)) return;
+      const from = activeFacilityId;
+      setActiveFacilityIdState(id);
+      setFilter({});
+      setStore((s) => ({
+        ...s,
+        auditLogs: [
+          {
+            id: uid(),
+            facilityId: id,
+            user: currentUserName,
+            role: currentRole,
+            action: "Switched nursing home",
+            entity: id,
+            before: from,
+            after: id,
+            timestamp: new Date().toISOString(),
+          },
+          ...s.auditLogs,
+        ].slice(0, 500),
+      }));
+    },
+    [activeFacilityId, currentRole, currentUser, currentUserName, setStore, store.facilities, store.users],
+  );
 
   const setCurrentRole = useCallback(
     (r: Role) => {
-      const user = store.users.find((u) => u.role === r);
+      const user = store.users.find((u) => u.role === r && userFacilityIds(u).includes(activeFacilityId));
       if (user) setCurrentUserId(user.id);
     },
-    [store.users],
+    [activeFacilityId, store.users],
   );
 
   const resetToDemoData = useCallback(() => {
@@ -1934,12 +2231,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
       try {
         window.localStorage.removeItem(STORE_STORAGE_KEY);
         window.localStorage.removeItem(LEGACY_STORE_STORAGE_KEY);
+        window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+        window.localStorage.removeItem(ACTIVE_FACILITY_STORAGE_KEY);
       } catch (error) {
         console.warn("Failed to clear persisted store during demo reset.", error);
       }
     }
     setStore(nextStore);
     setCurrentUserId("u-3");
+    setActiveFacilityIdState(BALLYMORE_FACILITY_ID);
   }, []);
 
   const logAudit = useCallback((a: Omit<AuditLog, "id" | "timestamp">) => {
@@ -1953,7 +2253,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const filteredResidentIds = useMemo(() => {
-    return store.residents
+    return scopedStore.residents
       .filter((r) => {
         if (filter.residentId && r.id !== filter.residentId) return false;
         if (filter.roomId && r.roomId !== filter.roomId) return false;
@@ -1963,11 +2263,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return true;
       })
       .map((r) => r.id);
-  }, [store.residents, filter]);
+  }, [scopedStore.residents, filter]);
 
   const api = useMemo<CareCtx>(
     () => ({
-      ...store,
+      ...scopedStore,
+      facilities: store.facilities,
+      activeFacilityId,
+      activeFacility,
+      setActiveFacilityId,
       currentRole,
       setCurrentRole,
       resetToDemoData,
@@ -1982,6 +2286,54 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ...s,
           users: s.users.map((u) => (u.id === id ? { ...u, ...patch } : u)),
         })),
+      createStaffUser: (input) => {
+        if (currentRole !== "don") {
+          throw new Error("Only a DON can create staff logins.");
+        }
+        const existingDon = store.users.some(
+          (user) =>
+            user.role === "don" &&
+            userFacilityIds(user).includes(activeFacilityId),
+        );
+        if (input.role === "don" && existingDon) {
+          throw new Error("This nursing home already has a DON.");
+        }
+        const now = new Date().toISOString();
+        const staffUser: UserProfile = {
+          id: `u-${activeFacilityId.replace("facility-", "")}-${uid()}`,
+          facilityId: activeFacilityId,
+          facilityIds: [activeFacilityId],
+          name: input.name.trim(),
+          role: input.role,
+          email: input.email.trim(),
+          phone: "",
+          department:
+            input.role === "doctor"
+              ? "Medical"
+              : input.role === "don" || input.role === "cnm"
+                ? "Management"
+                : input.role === "nurse"
+                  ? "Nursing"
+                  : "Care",
+          assignedWings: [],
+          employeeNumber: `${activeFacilityId === HAZELWOOD_FACILITY_ID ? "HZ" : "BH"}-${String(store.users.length + 1).padStart(4, "0")}`,
+          startDate: now.slice(0, 10),
+          lastLogin: now,
+          status: input.status,
+          avatarSeed: input.name.replace(/\s+/g, ""),
+          notificationPrefs: { email: true, sms: false, inApp: true, criticalAlertsOnly: false },
+        };
+        setStore((s) => ({ ...s, users: [staffUser, ...s.users] }));
+        logAudit({
+          facilityId: activeFacilityId,
+          user: currentUserName,
+          role: currentRole,
+          action: "Created staff account",
+          entity: staffUser.id,
+          after: JSON.stringify({ role: staffUser.role, user: staffUser.name }),
+        });
+        return staffUser;
+      },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;
         const resident: Resident = { ...r, id, photoSeed: r.firstName + r.lastName };
@@ -5454,12 +5806,17 @@ export function CareProvider({ children }: { children: ReactNode }) {
     }),
     [
       store,
+      scopedStore,
+      activeFacilityId,
+      activeFacility,
+      setActiveFacilityId,
       logAudit,
       currentRole,
       currentUserName,
       currentUser,
       filter,
       filteredResidentIds,
+      setStore,
       setCurrentRole,
       resetToDemoData,
     ],

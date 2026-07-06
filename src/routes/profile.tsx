@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { roleLabels } from "@/lib/care/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import type { Role } from "@/lib/care/types";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "My Profile — CarePath" }] }),
@@ -21,7 +23,10 @@ export const Route = createFileRoute("/profile")({
 function ProfilePage() {
   const {
     currentUser,
+    activeFacility,
+    users,
     updateUser,
+    createStaffUser,
     resetToDemoData,
     wings,
     residents,
@@ -33,7 +38,20 @@ function ProfilePage() {
     carePlans,
   } = useCare();
   const [draft, setDraft] = useState({ email: currentUser.email, phone: currentUser.phone });
+  const [staffDraft, setStaffDraft] = useState({
+    name: "",
+    role: "nurse" as Role,
+    email: "",
+    temporaryPassword: "TempPass123!",
+    status: "active" as const,
+  });
   const canResetDemoData = currentUser.role === "cnm" || currentUser.role === "don";
+  const isDon = currentUser.role === "don";
+  const facilityHasDon = users.some((user) => user.role === "don" && user.status !== "inactive");
+
+  useEffect(() => {
+    setDraft({ email: currentUser.email, phone: currentUser.phone });
+  }, [currentUser.email, currentUser.phone]);
 
   const handleResetDemoData = () => {
     const confirmed = window.confirm(
@@ -42,6 +60,22 @@ function ProfilePage() {
     if (!confirmed) return;
     resetToDemoData();
     toast.success("Demo data reset completed.");
+  };
+
+  const handleCreateStaff = () => {
+    try {
+      const staffUser = createStaffUser(staffDraft);
+      toast.success(`${staffUser.name} login created for ${activeFacility.name}`);
+      setStaffDraft({
+        name: "",
+        role: "nurse",
+        email: "",
+        temporaryPassword: "TempPass123!",
+        status: "active",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create staff login.");
+    }
   };
 
   const assignedWingNames =
@@ -116,6 +150,7 @@ function ProfilePage() {
         <TabsList>
           <TabsTrigger value="info">Profile Info</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          {isDon ? <TabsTrigger value="staff">Staff & Logins</TabsTrigger> : null}
           <TabsTrigger value="dashboard">My Dashboard</TabsTrigger>
         </TabsList>
 
@@ -224,6 +259,114 @@ function ProfilePage() {
             </Card>
           ) : null}
         </TabsContent>
+
+        {isDon ? (
+          <TabsContent value="staff" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Staff & Logins</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-md border overflow-hidden">
+                  <div className="grid grid-cols-[1.3fr_1fr_1.5fr_0.8fr] gap-3 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                    <span>Name</span>
+                    <span>Role</span>
+                    <span>Email / username</span>
+                    <span>Status</span>
+                  </div>
+                  {users.length === 0 ? (
+                    <div className="px-3 py-6 text-sm text-muted-foreground">No staff logins yet.</div>
+                  ) : (
+                    users.map((user) => (
+                      <div
+                        key={user.id}
+                        className="grid grid-cols-[1.3fr_1fr_1.5fr_0.8fr] gap-3 border-t px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium">{user.name}</span>
+                        <span>{roleLabels[user.role]}</span>
+                        <span className="truncate">{user.email}</span>
+                        <span className="capitalize">{user.status}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Name</Label>
+                    <Input
+                      value={staffDraft.name}
+                      onChange={(e) => setStaffDraft({ ...staffDraft, name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Role</Label>
+                    <Select
+                      value={staffDraft.role}
+                      onValueChange={(value) => setStaffDraft({ ...staffDraft, role: value as Role })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(["nurse", "cnm", "doctor", "carer", "don"] as Role[]).map((role) => (
+                          <SelectItem key={role} value={role} disabled={role === "don" && facilityHasDon}>
+                            {roleLabels[role]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {facilityHasDon ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        This nursing home already has a DON.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <Label>Email / username</Label>
+                    <Input
+                      value={staffDraft.email}
+                      onChange={(e) => setStaffDraft({ ...staffDraft, email: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Temporary password</Label>
+                    <Input
+                      value={staffDraft.temporaryPassword}
+                      onChange={(e) =>
+                        setStaffDraft({ ...staffDraft, temporaryPassword: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select
+                      value={staffDraft.status}
+                      onValueChange={(value) =>
+                        setStaffDraft({ ...staffDraft, status: value as "active" | "inactive" | "suspended" })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="suspended">Suspended</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleCreateStaff}
+                  disabled={!staffDraft.name.trim() || !staffDraft.email.trim()}
+                >
+                  Create staff login
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="dashboard">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
