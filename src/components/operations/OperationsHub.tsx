@@ -6,7 +6,7 @@ import { deriveStatus } from "@/lib/care/assessments";
 import { complianceForResident } from "@/lib/care/vitals";
 import {
   endOfCurrentShift,
-  scheduledInterventions,
+  getUpcomingScheduledInterventions,
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
 import { cn } from "@/lib/utils";
@@ -254,28 +254,17 @@ export function OperationsHub() {
     [assignedFilter, currentUserName, filteredResidents, observationPlans, vitals],
   );
 
-  // Scheduled interventions for residents in scope — no extra staff filter
-  // so all care work for the nurse's assigned residents is visible.
+  // Scheduled interventions are generated from active schedules, with logs used
+  // only to remove completed occurrences.
   const dueInterventions = useMemo(() => {
-    const shiftEnd = endOfCurrentShift(now);
-    return scheduledInterventions(
+    return getUpcomingScheduledInterventions(
       problemInterventions,
       problemInterventionLogs,
       carePlanProblems,
       now,
-    ).filter((scheduled) => {
-      const iv = scheduled.intervention;
-      if (!filteredResidentIds.has(iv.residentId)) return false;
-      if (["cancelled", "completed"].includes(scheduled.status)) return false;
-      if (!scheduled.dueAt) return false;
-      return (
-        scheduled.status === "overdue" ||
-        scheduled.status === "due_now" ||
-        scheduled.status === "due_today" ||
-        scheduled.dueAt.getTime() <= shiftEnd.getTime()
-      );
-    });
-  }, [carePlanProblems, filteredResidentIds, now, problemInterventionLogs, problemInterventions]);
+      { residentIds: filteredResidentIds, currentUser, until: endOfCurrentShift(now) },
+    );
+  }, [carePlanProblems, currentUser, filteredResidentIds, now, problemInterventionLogs, problemInterventions]);
 
   const handoverRows = useMemo(() => {
     const today = now.toISOString().slice(0, 10);
@@ -369,6 +358,7 @@ export function OperationsHub() {
   const INTV_GROUPS: { status: ScheduledInterventionStatus; label: string; cls: string }[] = [
     { status: "overdue", label: "Overdue", cls: "text-destructive" },
     { status: "due_now", label: "Due Now", cls: "text-warning-foreground" },
+    { status: "due_next_hour", label: "Next Hour", cls: "text-warning-foreground" },
     { status: "due_today", label: "This Shift", cls: "text-primary" },
     { status: "upcoming", label: "Upcoming", cls: "text-muted-foreground" },
   ];

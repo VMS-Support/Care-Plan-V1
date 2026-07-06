@@ -1,8 +1,9 @@
-import type { CarePlanProblem, ProblemIntervention, ProblemInterventionLog } from "./types";
+import type { CarePlanProblem, ProblemIntervention, ProblemInterventionLog, UserProfile } from "./types";
 
 export type ScheduledInterventionStatus =
   | "overdue"
   | "due_now"
+  | "due_next_hour"
   | "due_today"
   | "upcoming"
   | "completed"
@@ -14,6 +15,14 @@ export interface ScheduledIntervention {
   dueAt: Date | null;
   status: ScheduledInterventionStatus;
   completion?: ProblemInterventionLog;
+}
+
+export interface UpcomingScheduledInterventionScope {
+  residentIds?: Set<string> | string[];
+  currentUser?: UserProfile;
+  until?: Date;
+  includeUpcoming?: boolean;
+  roleAppropriateOnly?: boolean;
 }
 
 export function interventionFrequencyMinutes(frequency: ProblemIntervention["frequencyType"]) {
@@ -71,9 +80,10 @@ export function scheduledInterventions(
       const baseTimestamp = completion
         ? new Date(`${completion.date}T${completion.time || "08:00"}`).getTime()
         : new Date(`${intervention.startDate}T08:00`).getTime();
-      const dueAt = Number.isFinite(baseTimestamp)
-        ? new Date(baseTimestamp + (intervalMinutes ?? 0) * 60000)
-        : null;
+      const dueTimestamp = completion && intervalMinutes
+        ? baseTimestamp + intervalMinutes * 60000
+        : baseTimestamp;
+      const dueAt = Number.isFinite(dueTimestamp) ? new Date(dueTimestamp) : null;
 
       let status: ScheduledInterventionStatus = "upcoming";
       if (["cancelled", "discontinued", "superseded"].includes(intervention.status)) {
@@ -84,6 +94,7 @@ export function scheduledInterventions(
         const minutesUntilDue = Math.floor((dueAt.getTime() - nowMs) / 60000);
         if (minutesUntilDue < 0) status = "overdue";
         else if (minutesUntilDue <= 30) status = "due_now";
+        else if (minutesUntilDue <= 60) status = "due_next_hour";
         else if (dueAt.toDateString() === now.toDateString()) status = "due_today";
       }
 
@@ -91,15 +102,54 @@ export function scheduledInterventions(
     })
     .sort((a, b) => {
       const rank: Record<ScheduledInterventionStatus, number> = {
-        overdue: 0, due_now: 1, due_today: 2, upcoming: 3, completed: 4, cancelled: 5,
+        overdue: 0, due_now: 1, due_next_hour: 2, due_today: 3, upcoming: 4, completed: 5, cancelled: 6,
       };
       return rank[a.status] - rank[b.status] ||
         (a.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER);
     });
 }
 
+export function getUpcomingScheduledInterventions(
+  interventions: ProblemIntervention[],
+  logs: ProblemInterventionLog[],
+  problems: CarePlanProblem[],
+  now: Date,
+  scope: UpcomingScheduledInterventionScope = {},
+) {
+  const residentIds = scope.residentIds
+    ? scope.residentIds instanceof Set
+      ? scope.residentIds
+      : new Set(scope.residentIds)
+    : null;
+  const currentUser = scope.currentUser;
+  const until = scope.until ?? endOfCurrentShift(now);
+
+  return scheduledInterventions(interventions, logs, problems, now).filter((scheduled) => {
+    const intervention = scheduled.intervention;
+    if (!scheduled.dueAt) return false;
+    if (["cancelled", "completed"].includes(scheduled.status)) return false;
+    if (residentIds && !residentIds.has(intervention.residentId)) return false;
+    if (scheduled.dueAt.getTime() > until.getTime() && !scope.includeUpcoming) return false;
+
+    if (currentUser) {
+      const assignedToOtherStaff =
+        intervention.assignedStaffId &&
+        intervention.assignedStaffId !== currentUser.id &&
+        intervention.assignedStaffName !== currentUser.name;
+      if (assignedToOtherStaff) return false;
+
+      if (scope.roleAppropriateOnly && intervention.assignedRole && intervention.assignedRole !== currentUser.role) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 export function scheduledInterventionLabel(status: ScheduledInterventionStatus) {
   if (status === "due_now") return "Due Now";
+  if (status === "due_next_hour") return "Due in Next Hour";
   if (status === "due_today") return "Due Today";
   if (status === "overdue") return "Overdue";
   if (status === "completed") return "Completed";
