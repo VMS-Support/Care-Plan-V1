@@ -238,6 +238,7 @@ function ResidentDetail() {
     addProblemReview,
     addProblemIntervention,
     discontinueProblemIntervention,
+    archiveProblem,
     updateProblem,
     updateProblemIntervention,
     updateResident,
@@ -280,7 +281,10 @@ function ResidentDetail() {
     "extend" | "complete" | "cancel" | null
   >(null);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
+  const [newlyCreatedProblemId, setNewlyCreatedProblemId] = useState<string | null>(null);
   const [problemDetailOpen, setProblemDetailOpen] = useState(false);
+  const [inactiveProblemOpen, setInactiveProblemOpen] = useState(false);
+  const [inactiveProblemReason, setInactiveProblemReason] = useState("");
   const [evaluationOpen, setEvaluationOpen] = useState(false);
   const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
   const [auditDialogOpen, setAuditDialogOpen] = useState(false);
@@ -774,6 +778,7 @@ function ResidentDetail() {
     canEdit: ["nurse", "cnm", "don"].includes(currentRole),
     canDisable: ["cnm", "don"].includes(currentRole),
     canArchiveDelete: ["don"].includes(currentRole),
+    canSetCarePlanInactive: ["nurse", "cnm", "don"].includes(currentRole),
   };
 
   const applyInterventionStatus = (intv: any, status: any, reason: string) => {
@@ -790,6 +795,13 @@ function ResidentDetail() {
   };
 
   const openProblemDetail = (problemId: string) => {
+    setNewlyCreatedProblemId(null);
+    setSelectedProblemId(problemId);
+    setProblemDetailOpen(true);
+  };
+
+  const openNewlyCreatedProblemDetail = (problemId: string) => {
+    setNewlyCreatedProblemId(problemId);
     setSelectedProblemId(problemId);
     setProblemDetailOpen(true);
   };
@@ -819,6 +831,20 @@ function ResidentDetail() {
       revisionReviewDate: "",
     }));
     setEvaluationOpen(true);
+  };
+
+  const submitSetProblemInactive = () => {
+    if (!selectedProblem || !inactiveProblemReason.trim()) {
+      toast.error("Reason for inactivation required");
+      return;
+    }
+    archiveProblem(selectedProblem.id, inactiveProblemReason.trim());
+    toast.success("Care plan problem set inactive");
+    setInactiveProblemOpen(false);
+    setProblemDetailOpen(false);
+    setInactiveProblemReason("");
+    setNewlyCreatedProblemId(null);
+    setSelectedProblemId(null);
   };
 
   const submitAddGoal = () => {
@@ -1222,6 +1248,7 @@ function ResidentDetail() {
               <p className="text-sm text-muted-foreground">No active care plans.</p>
               <CreateCarePlanDialog
                 residentId={r.id}
+                onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
                   <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
@@ -1788,6 +1815,7 @@ function ResidentDetail() {
               <p className="text-sm text-muted-foreground">No active care plans.</p>
               <CreateCarePlanDialog
                 residentId={r.id}
+                onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
                   <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
@@ -2648,6 +2676,48 @@ function ResidentDetail() {
 
           {selectedProblem && (
             <div className="space-y-4">
+              {selectedProblem.status === "active" && rolePermissions.canSetCarePlanInactive && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setInactiveProblemReason("");
+                      setInactiveProblemOpen(true);
+                    }}
+                  >
+                    <Archive className="h-3 w-3 mr-1" /> Set Inactive
+                  </Button>
+                </div>
+              )}
+              {newlyCreatedProblemId === selectedProblem.id &&
+                selectedProblemInterventions.length === 0 && (
+                  <div className="rounded-md border bg-muted/20 p-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">Next Recommended Steps</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Continue from this problem detail when you are ready.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => openAddInterventionForProblem(selectedProblem.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Add Intervention
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Add Evaluation Later
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Problem Information</CardTitle>
@@ -2832,6 +2902,37 @@ function ResidentDetail() {
               </Card>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={inactiveProblemOpen} onOpenChange={setInactiveProblemOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Care Plan Problem Inactive</DialogTitle>
+            <DialogDescription>
+              This will set this care plan problem as inactive and also set all linked
+              interventions as inactive. The record will remain available for audit/history.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Reason for inactivation *</Label>
+            <Textarea
+              value={inactiveProblemReason}
+              onChange={(event) => setInactiveProblemReason(event.target.value)}
+              placeholder="Enter the clinical reason"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInactiveProblemOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitSetProblemInactive}
+              disabled={!inactiveProblemReason.trim()}
+            >
+              Set Inactive
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
-import { CATEGORY_LABELS, PREDEFINED_GOALS } from "@/lib/care/problems";
-import type { FrequencyType, ProblemCategory, ProblemRiskLevel } from "@/lib/care/types";
+import { CATEGORY_LABELS } from "@/lib/care/problems";
+import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,25 +30,14 @@ const CATEGORY_OPTIONS: ProblemCategory[] = [
   "falls",
   "nutrition",
   "pain",
-  "behaviour",
+  "cognition",
   "continence",
   "mobility",
-  "cognition",
-  "communication",
-  "personal_care",
-  "mental_health",
-  "social",
-  "sleep",
-  "medication",
-  "end_of_life",
-  "skin",
-  "safeguarding",
+  "behaviour",
   "custom",
 ];
 
-const RISK_OPTIONS: ProblemRiskLevel[] = ["none", "low", "moderate", "high", "very_high"];
-const FREQUENCY_OPTIONS: FrequencyType[] = ["daily", "per_shift", "weekly", "monthly", "prn", "custom"];
-const CARE_TEAM_VALUE = "__care_team__";
+const RISK_OPTIONS: ProblemRiskLevel[] = ["low", "moderate", "high", "very_high"];
 
 function todayPlus(days: number) {
   return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -58,44 +47,43 @@ type Props = {
   residentId?: string;
   trigger?: ReactNode;
   buttonLabel?: string;
+  onCreated?: (problem: CarePlanProblem) => void;
 };
 
-export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, buttonLabel = "New Care Plan" }: Props) {
-  const { residents, addProblem, addGoal, addProblemIntervention, users } = useCare();
+export function CreateCarePlanDialog({
+  residentId: fixedResidentId,
+  trigger,
+  buttonLabel = "New Care Plan",
+  onCreated,
+}: Props) {
+  const { residents, addProblem, addGoal } = useCare();
   const [open, setOpen] = useState(false);
   const [residentId, setResidentId] = useState(fixedResidentId || "");
   const [category, setCategory] = useState<ProblemCategory>("pressure");
+  const [risk, setRisk] = useState<ProblemRiskLevel>("high");
   const [statement, setStatement] = useState("");
-  const [risk, setRisk] = useState<ProblemRiskLevel>("moderate");
   const [goal, setGoal] = useState("");
-  const [interventions, setInterventions] = useState("");
-  const [frequencyType, setFrequencyType] = useState<FrequencyType>("daily");
-  const [frequencyInstructions, setFrequencyInstructions] = useState("");
-  const [assignedStaffId, setAssignedStaffId] = useState(CARE_TEAM_VALUE);
   const [evalDate, setEvalDate] = useState(todayPlus(7));
   const [reviewDate, setReviewDate] = useState(todayPlus(90));
+  const [notes, setNotes] = useState("");
 
   const selectedResident = residents.find((resident) => resident.id === (fixedResidentId || residentId));
-  const goalSuggestions = useMemo(() => PREDEFINED_GOALS[category] || [], [category]);
 
   const reset = () => {
     setResidentId(fixedResidentId || "");
     setCategory("pressure");
+    setRisk("high");
     setStatement("");
-    setRisk("moderate");
     setGoal("");
-    setInterventions("");
-    setFrequencyType("daily");
-    setFrequencyInstructions("");
-    setAssignedStaffId(CARE_TEAM_VALUE);
     setEvalDate(todayPlus(7));
     setReviewDate(todayPlus(90));
+    setNotes("");
   };
 
   const handleCreate = () => {
     const targetResidentId = fixedResidentId || residentId;
-    if (!targetResidentId || !statement.trim()) {
-      toast.error("Resident and problem statement required");
+    if (!targetResidentId || !statement.trim() || !goal.trim() || !evalDate || !reviewDate) {
+      toast.error("Resident, problem statement, goal, evaluation date and review date required");
       return;
     }
 
@@ -106,32 +94,15 @@ export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, but
       riskLevel: risk,
       evaluationDate: evalDate,
       reviewDate,
+      notes: notes.trim() || undefined,
     });
 
-    if (goal.trim()) {
-      addGoal(problem.id, goal.trim(), reviewDate);
-    }
+    addGoal(problem.id, goal.trim(), reviewDate);
 
-    const staff = assignedStaffId === CARE_TEAM_VALUE ? undefined : users.find((user) => user.id === assignedStaffId);
-    interventions
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .forEach((name) => {
-        addProblemIntervention({
-          problemId: problem.id,
-          name,
-          frequencyType,
-          frequencyInstructions: frequencyInstructions.trim() || undefined,
-          assignedRole: staff?.role,
-          assignedStaffId: staff?.id,
-          assignedStaffName: staff?.name,
-        });
-      });
-
-    toast.success("Care plan problem added");
+    toast.success("Care plan created");
     setOpen(false);
     reset();
+    onCreated?.(problem);
   };
 
   return (
@@ -173,7 +144,7 @@ export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, but
 
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <Label>Category</Label>
+              <Label>Care Area</Label>
               <Select value={category} onValueChange={(value) => setCategory(value as ProblemCategory)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -210,7 +181,7 @@ export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, but
               value={statement}
               onChange={(event) => setStatement(event.target.value)}
               rows={3}
-              placeholder="Resident is at risk of..."
+              placeholder="Enter the resident's care plan problem"
             />
           </div>
 
@@ -220,76 +191,7 @@ export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, but
               value={goal}
               onChange={(event) => setGoal(event.target.value)}
               rows={2}
-              placeholder="Goal or expected outcome"
-            />
-            {goalSuggestions.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {goalSuggestions.map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => setGoal(suggestion)}
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label>Interventions (one per line)</Label>
-            <Textarea
-              value={interventions}
-              onChange={(event) => setInterventions(event.target.value)}
-              rows={4}
-              placeholder="Add one or more interventions"
-            />
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <Label>Schedule</Label>
-              <Select value={frequencyType} onValueChange={(value) => setFrequencyType(value as FrequencyType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FREQUENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Assigned Staff</Label>
-              <Select value={assignedStaffId} onValueChange={setAssignedStaffId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={CARE_TEAM_VALUE}>Care team</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name} ({user.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label>Schedule Notes</Label>
-            <Input
-              value={frequencyInstructions}
-              onChange={(event) => setFrequencyInstructions(event.target.value)}
-              placeholder="Optional timing or instructions"
+              placeholder="Enter the clinical goal"
             />
           </div>
 
@@ -303,12 +205,22 @@ export function CreateCarePlanDialog({ residentId: fixedResidentId, trigger, but
               <Input type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} />
             </div>
           </div>
+
+          <div>
+            <Label>Optional Notes</Label>
+            <Textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={2}
+              placeholder="Optional context for the care plan problem"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate}>Save</Button>
+          <Button onClick={handleCreate}>Create Care Plan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

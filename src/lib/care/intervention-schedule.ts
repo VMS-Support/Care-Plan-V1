@@ -58,6 +58,10 @@ export function scheduledInterventions(
   }
 
   return interventions
+    .filter((intervention) => {
+      const problem = problemById.get(intervention.problemId);
+      return problem?.status === "active" && intervention.status === "active";
+    })
     .map((intervention): ScheduledIntervention => {
       const interventionLogs = (logsByIntervention.get(intervention.id) || []).sort((a, b) =>
         `${b.date}T${b.time || "00:00"}`.localeCompare(`${a.date}T${a.time || "00:00"}`),

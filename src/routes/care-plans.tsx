@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
@@ -227,6 +227,7 @@ function CarePlansPage() {
     currentUserName,
     auditLogs,
   } = useCare();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<WorkflowTab>("active");
   const [filter, setFilter] = useState<QuickFilter>("all");
 
@@ -501,7 +502,14 @@ function CarePlansPage() {
             DONs.
           </p>
         </div>
-        {can(currentRole, "careplan.create") && <CreateCarePlanDialog buttonLabel="New Care Plan" />}
+        {can(currentRole, "careplan.create") && (
+          <CreateCarePlanDialog
+            buttonLabel="New Care Plan"
+            onCreated={(problem) =>
+              navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+            }
+          />
+        )}
       </div>
 
       <Card>

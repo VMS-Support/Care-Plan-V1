@@ -999,10 +999,14 @@ export interface CarePlanProblem {
   createdAt: string;
   evaluationDate: string; // YYYY-MM-DD
   reviewDate: string; // YYYY-MM-DD
+  notes?: string;
   status: ProblemStatus;
   resolvedAt?: string;
   resolvedBy?: string;
   resolvedReason?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  archivedReason?: string;
 }
 
 export interface ProblemGoal {
@@ -1048,6 +1052,10 @@ export interface ProblemIntervention {
   cancelledBy?: string;
   cancelledByRole?: Role;
   cancellationReason?: string;
+  discontinuedAt?: string;
+  discontinuedBy?: string;
+  discontinuedByRole?: Role;
+  discontinuedReason?: string;
 }
 
 export interface ProblemInterventionLog {

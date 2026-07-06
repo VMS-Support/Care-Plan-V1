@@ -2043,6 +2043,7 @@ interface CareCtx extends Store {
     riskLevel: ProblemRiskLevel;
     evaluationDate?: string;
     reviewDate?: string;
+    notes?: string;
     sourceAssessmentId?: string;
     sourceAssessmentType?: any;
   }) => CarePlanProblem;
@@ -4935,6 +4936,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             input.evaluationDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
           reviewDate:
             input.reviewDate || new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+          notes: input.notes,
           status: "active",
         };
         const hist: ProblemHistoryEntry = {
@@ -5103,31 +5105,105 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       archiveProblem: (id, reason) => {
+        const now = new Date().toISOString();
+        const problem = store.carePlanProblems.find((p) => p.id === id);
+        const linkedInterventions = store.problemInterventions.filter(
+          (intervention) => intervention.problemId === id && intervention.status !== "discontinued",
+        );
+        const cascadeReason = `Care plan problem set inactive: ${reason}`;
         setStore((s) => ({
           ...s,
           carePlanProblems: s.carePlanProblems.map((p) =>
-            p.id === id ? { ...p, status: "archived" as const } : p,
+            p.id === id
+              ? {
+                  ...p,
+                  status: "archived" as const,
+                  archivedAt: now,
+                  archivedBy: currentUserName,
+                  archivedReason: reason,
+                }
+              : p,
+          ),
+          problemInterventions: s.problemInterventions.map((intervention) =>
+            intervention.problemId === id &&
+            !["discontinued", "completed", "cancelled"].includes(intervention.status)
+              ? {
+                  ...intervention,
+                  status: "discontinued" as const,
+                  discontinuedAt: now,
+                  discontinuedBy: currentUserName,
+                  discontinuedByRole: currentRole,
+                  discontinuedReason: cascadeReason,
+                  updatedAt: now,
+                  updatedBy: currentUserName,
+                  updatedByRole: currentRole,
+                }
+              : intervention,
           ),
           problemHistory: [
             {
               id: newId("hist"),
               problemId: id,
-              timestamp: new Date().toISOString(),
+              timestamp: now,
               userId: currentUser.id,
               userName: currentUserName,
               role: currentRole,
               action: "archived",
               reason,
             },
+            ...linkedInterventions.map((intervention) => ({
+              id: newId("hist"),
+              problemId: id,
+              timestamp: now,
+              userId: currentUser.id,
+              userName: currentUserName,
+              role: currentRole,
+              action: "intervention_discontinued",
+              reason: cascadeReason,
+              oldValue: intervention.name,
+            })),
             ...s.problemHistory,
           ],
+          timelineEvents: problem
+            ? [
+                {
+                  id: newId("tle"),
+                  residentId: problem.residentId,
+                  type: "careplan.updated",
+                  title: `Care plan problem set inactive: ${problem.problemStatement.slice(0, 60)}`,
+                  description: `${linkedInterventions.length} linked intervention${linkedInterventions.length === 1 ? "" : "s"} discontinued. ${reason}`,
+                  createdAt: now,
+                  createdBy: currentUserName,
+                  role: currentRole,
+                  linkedRecordId: id,
+                  linkedRecordKind: "care_plan_problem",
+                },
+                ...linkedInterventions.map((intervention) => ({
+                  id: newId("tle"),
+                  residentId: intervention.residentId,
+                  type: "intervention.updated" as const,
+                  title: `Intervention discontinued: ${intervention.name}`,
+                  description: cascadeReason,
+                  createdAt: now,
+                  createdBy: currentUserName,
+                  role: currentRole,
+                  linkedRecordId: intervention.id,
+                  linkedRecordKind: "problem_intervention" as const,
+                })),
+                ...s.timelineEvents,
+              ]
+            : s.timelineEvents,
         }));
         logAudit({
           user: currentUserName,
           role: currentRole,
-          action: "Archived problem",
+          action: "Archived problem and discontinued linked interventions",
           entity: id,
           reason,
+          after: JSON.stringify({
+            problemId: id,
+            interventionCount: linkedInterventions.length,
+          }),
         });
       },
 
