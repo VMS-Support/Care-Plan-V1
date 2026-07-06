@@ -1,6 +1,6 @@
 export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
-export type ResidentStatus = "active" | "discharged" | "deceased";
+export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
 
 export interface Facility {
   id: string;
@@ -128,10 +128,19 @@ export type BedType =
   | "standard"
   | "low"
   | "profiling"
+  | "bariatric"
   | "pressure_relief"
   | "air_mattress"
   | "specialist";
-export type MattressType = "standard" | "foam" | "alternating_air" | "low_air_loss" | "gel";
+export type MattressType =
+  | "standard"
+  | "foam"
+  | "dynamic"
+  | "air_mattress"
+  | "pressure_relieving"
+  | "alternating_air"
+  | "low_air_loss"
+  | "gel";
 
 export interface Wing {
   id: string;
@@ -226,6 +235,11 @@ export interface AKeyToMe {
 export interface Resident {
   id: string;
   facilityId?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedReason?: string;
+  externalResidentId?: string;
+  preferredName?: string;
   firstName: string;
   lastName: string;
   dob: string;
@@ -246,7 +260,8 @@ export interface Resident {
   communicationNeeds: string;
   religion: string;
   preferredLanguage: string;
-  mentalCapacity: "has_capacity" | "lacks_capacity" | "fluctuating";
+  mentalCapacity: "has_capacity" | "lacks_capacity" | "fluctuating" | "not_assessed";
+  dnarStatus?: "not_recorded" | "yes" | "no";
   endOfLife: boolean;
   currentMedication: string;
   status: ResidentStatus;
@@ -258,6 +273,10 @@ export interface Resident {
   photoSeed: string;
   aKeyToMe?: AKeyToMe;
   heightCm?: number;
+  gpPractice?: string;
+  consultantSpecialty?: string;
+  otherPreferences?: string;
+  admissionSource?: "home" | "hospital" | "another_care_home" | "other" | "";
 }
 
 export interface Assessment {

@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
+import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
+import { CATEGORY_LABELS } from "@/lib/care/problems";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -212,130 +213,12 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
   );
 }
 
-function NewPlanDialog() {
-  const { residents, addCarePlan } = useCare();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    residentId: "",
-    title: "",
-    problem: "",
-    goal: "",
-    interventions: "",
-    frequency: "Daily",
-    assignedStaff: "Care team",
-    reviewDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>New Care Plan</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>New Care Plan</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <Label>Resident</Label>
-            <Select
-              value={form.residentId}
-              onValueChange={(value) => setForm({ ...form, residentId: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose resident" />
-              </SelectTrigger>
-              <SelectContent>
-                {residents.map((resident) => (
-                  <SelectItem key={resident.id} value={resident.id}>
-                    {resident.firstName} {resident.lastName} ({resident.roomNumber})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2">
-            <Label>Title</Label>
-            <Input
-              value={form.title}
-              onChange={(event) => setForm({ ...form, title: event.target.value })}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label>Problem</Label>
-            <Textarea
-              value={form.problem}
-              onChange={(event) => setForm({ ...form, problem: event.target.value })}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label>Goal</Label>
-            <Textarea
-              value={form.goal}
-              onChange={(event) => setForm({ ...form, goal: event.target.value })}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label>Interventions (one per line)</Label>
-            <Textarea
-              rows={4}
-              value={form.interventions}
-              onChange={(event) => setForm({ ...form, interventions: event.target.value })}
-            />
-          </div>
-          <div>
-            <Label>Frequency</Label>
-            <Input
-              value={form.frequency}
-              onChange={(event) => setForm({ ...form, frequency: event.target.value })}
-            />
-          </div>
-          <div>
-            <Label>Assigned staff</Label>
-            <Input
-              value={form.assignedStaff}
-              onChange={(event) => setForm({ ...form, assignedStaff: event.target.value })}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label>Review date</Label>
-            <Input
-              type="date"
-              value={form.reviewDate}
-              onChange={(event) => setForm({ ...form, reviewDate: event.target.value })}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              if (!form.residentId || !form.title) {
-                toast.error("Resident and title required");
-                return;
-              }
-              addCarePlan({
-                ...form,
-                interventions: form.interventions.split("\n").filter(Boolean),
-                status: "active",
-              });
-              toast.success("Care plan created");
-              setOpen(false);
-            }}
-          >
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function CarePlansPage() {
   const {
     carePlans,
+    residentCarePlans,
+    carePlanProblems,
+    problemInterventions,
     residents,
     carePlanEvaluations,
     carePlanReviews,
@@ -353,7 +236,7 @@ function CarePlansPage() {
     : (["active", "reviews", "evaluations"] as const);
 
   const rows = useMemo(() => {
-    return carePlans
+    const legacyRows = carePlans
       .map((plan) => {
         const resident = residents.find((item) => item.id === plan.residentId);
         if (!resident) return null;
@@ -387,6 +270,7 @@ function CarePlansPage() {
         return {
           plan,
           resident,
+          isUnified: false,
           lastUpdated,
           residentIsMine,
           isHighRisk,
@@ -398,30 +282,99 @@ function CarePlansPage() {
           status: statusMeta(plan),
         };
       })
-      .filter((item): item is NonNullable<typeof item> => !!item)
-      .sort((left, right) => right.lastUpdated.localeCompare(left.lastUpdated));
+      .filter((item): item is NonNullable<typeof item> => !!item);
+
+    const unifiedRows = carePlanProblems
+      .map((problem) => {
+        const resident = residents.find((item) => item.id === problem.residentId);
+        if (!resident) return null;
+
+        const assignedStaff = problemInterventions
+          .filter((intervention) => intervention.problemId === problem.id)
+          .map((intervention) => intervention.assignedStaffName || intervention.assignedRole || "Care team")
+          .filter(Boolean)
+          .join(", ");
+        const plan = {
+          id: problem.id,
+          residentId: problem.residentId,
+          title: `${CATEGORY_LABELS[problem.category]} care plan`,
+          problem: problem.problemStatement,
+          status:
+            problem.status === "resolved"
+              ? "completed"
+              : problem.status === "archived"
+                ? "archived"
+                : "active",
+          reviewDate: problem.reviewDate,
+          evaluationDate: problem.evaluationDate,
+          updatedAt: undefined,
+          createdAt: problem.createdAt,
+          assignedStaff: assignedStaff || "Care team",
+          priority: problem.riskLevel === "very_high" ? "critical" : problem.riskLevel,
+        };
+        const reviewDays = daysUntil(plan.reviewDate);
+        const evaluationDays = daysUntil(plan.evaluationDate);
+        const residentIsMine =
+          resident.keyWorkers?.namedNurse === currentUserName ||
+          resident.keyWorkers?.keyWorker === currentUserName ||
+          plan.assignedStaff.includes(currentUserName) ||
+          (currentUser.assignedWings.length > 0 &&
+            !!resident.wingId &&
+            currentUser.assignedWings.includes(resident.wingId));
+        const isHighRisk = problem.riskLevel === "high" || problem.riskLevel === "very_high";
+        const hasOverdue =
+          (reviewDays !== null && reviewDays < 0) ||
+          (evaluationDays !== null && evaluationDays < 0);
+        const isReviewDue = reviewDays !== null && reviewDays <= DUE_SOON_DAYS;
+        const isEvaluationDue = evaluationDays !== null && evaluationDays <= DUE_SOON_DAYS;
+
+        return {
+          plan,
+          resident,
+          isUnified: true,
+          lastUpdated: problem.createdAt,
+          residentIsMine,
+          isHighRisk,
+          hasOverdue,
+          isReviewDue,
+          isEvaluationDue,
+          reviewDays,
+          evaluationDays,
+          status: statusMeta(plan),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+
+    return [...legacyRows, ...unifiedRows].sort((left, right) =>
+      right.lastUpdated.localeCompare(left.lastUpdated),
+    );
   }, [
     carePlanEvaluations,
     carePlanReviews,
+    carePlanProblems,
     carePlans,
     currentUser.assignedWings,
     currentUserName,
+    problemInterventions,
     residents,
   ]);
 
   const residentsWithoutActivePlan = useMemo(() => {
     const activeResidentIds = new Set(
-      carePlans
-        .filter(
-          (plan) =>
-            plan.status !== "completed" &&
-            plan.status !== "archived" &&
-            plan.status !== "superseded",
-        )
-        .map((plan) => plan.residentId),
+      [
+        ...carePlans
+          .filter(
+            (plan) =>
+              plan.status !== "completed" &&
+              plan.status !== "archived" &&
+              plan.status !== "superseded",
+          )
+          .map((plan) => plan.residentId),
+        ...residentCarePlans.filter((plan) => plan.status === "active").map((plan) => plan.residentId),
+      ],
     );
     return residents.filter((resident) => !activeResidentIds.has(resident.id));
-  }, [carePlans, residents]);
+  }, [carePlans, residentCarePlans, residents]);
 
   const filteredRows = useMemo(() => {
     const tabFiltered = rows.filter((row) => {
@@ -548,7 +501,7 @@ function CarePlansPage() {
             DONs.
           </p>
         </div>
-        {can(currentRole, "careplan.create") && <NewPlanDialog />}
+        {can(currentRole, "careplan.create") && <CreateCarePlanDialog buttonLabel="New Care Plan" />}
       </div>
 
       <Card>
@@ -659,13 +612,23 @@ function CarePlansPage() {
                           </TableCell>
                           <TableCell>
                             <div className="min-w-[220px]">
-                              <Link
-                                to="/care-plans/$id"
-                                params={{ id: row.plan.id }}
-                                className="font-medium hover:text-primary hover:underline"
-                              >
-                                {row.plan.title}
-                              </Link>
+                              {row.isUnified ? (
+                                <Link
+                                  to="/residents/$id/care-plan"
+                                  params={{ id: row.resident.id }}
+                                  className="font-medium hover:text-primary hover:underline"
+                                >
+                                  {row.plan.title}
+                                </Link>
+                              ) : (
+                                <Link
+                                  to="/care-plans/$id"
+                                  params={{ id: row.plan.id }}
+                                  className="font-medium hover:text-primary hover:underline"
+                                >
+                                  {row.plan.title}
+                                </Link>
+                              )}
                               <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
                                 {row.plan.problem}
                               </div>
@@ -682,15 +645,22 @@ function CarePlansPage() {
                           <TableCell>{formatDateTime(row.lastUpdated)}</TableCell>
                           <TableCell>
                             <div className="flex justify-end gap-2">
-                              <Link to="/care-plans/$id" params={{ id: row.plan.id }}>
-                                <Button size="sm">Open Care Plan</Button>
-                              </Link>
+                              {row.isUnified ? (
+                                <Link to="/residents/$id/care-plan" params={{ id: row.resident.id }}>
+                                  <Button size="sm">Open Care Plan</Button>
+                                </Link>
+                              ) : (
+                                <Link to="/care-plans/$id" params={{ id: row.plan.id }}>
+                                  <Button size="sm">Open Care Plan</Button>
+                                </Link>
+                              )}
                               <Link to="/residents/$id" params={{ id: row.resident.id }}>
                                 <Button size="sm" variant="outline">
                                   Open Resident
                                 </Button>
                               </Link>
-                              {can(currentRole, "careplan.evaluate") &&
+                              {!row.isUnified &&
+                                can(currentRole, "careplan.evaluate") &&
                                 row.plan.status !== "completed" &&
                                 row.plan.status !== "archived" &&
                                 row.plan.status !== "superseded" && (

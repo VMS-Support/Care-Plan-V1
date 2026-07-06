@@ -1806,20 +1806,28 @@ function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string)
 
 function filterByFacility(store: Store, activeFacilityId: string): Store {
   const residentIds = new Set(
-    store.residents.filter((resident) => hasFacility(resident, activeFacilityId)).map((resident) => resident.id),
+    store.residents
+      .filter((resident) => hasFacility(resident, activeFacilityId) && resident.status !== "deleted")
+      .map((resident) => resident.id),
   );
   const carePlanIds = new Set(
-    store.carePlans.filter((plan) => hasFacility(plan, activeFacilityId)).map((plan) => plan.id),
+    store.carePlans
+      .filter((plan) => hasFacility(plan, activeFacilityId) && residentIds.has(plan.residentId))
+      .map((plan) => plan.id),
   );
   const problemIds = new Set(
-    store.carePlanProblems.filter((problem) => hasFacility(problem, activeFacilityId)).map((problem) => problem.id),
+    store.carePlanProblems
+      .filter((problem) => hasFacility(problem, activeFacilityId) && residentIds.has(problem.residentId))
+      .map((problem) => problem.id),
   );
   const scoped: Store = {
     ...store,
     users: store.users.filter((user) => userFacilityIds(user).includes(activeFacilityId)),
-    residents: store.residents.filter((record) => hasFacility(record, activeFacilityId)),
+    residents: store.residents.filter((record) => hasFacility(record, activeFacilityId) && record.status !== "deleted"),
     alertWorkflow: Object.fromEntries(
-      Object.entries(store.alertWorkflow || {}).filter(([, alert]) => hasFacility(alert, activeFacilityId)),
+      Object.entries(store.alertWorkflow || {}).filter(
+        ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
+      ),
     ),
   };
 
@@ -1919,6 +1927,7 @@ interface CareCtx extends Store {
   // residents
   addResident: (r: Omit<Resident, "id" | "photoSeed">) => Resident;
   updateResident: (id: string, patch: Partial<Resident>) => void;
+  softDeleteResident: (id: string, reason?: string) => number;
   addNextOfKin: (residentId: string, nok: Omit<NextOfKin, "id">) => void;
   updateNextOfKin: (residentId: string, id: string, patch: Partial<NextOfKin>) => void;
   removeNextOfKin: (residentId: string, id: string) => void;
@@ -2357,6 +2366,349 @@ export function CareProvider({ children }: { children: ReactNode }) {
           action: "Updated resident",
           entity: id,
         });
+      },
+      softDeleteResident: (id, reason) => {
+        if (currentRole !== "don" && currentRole !== "cnm") {
+          throw new Error("Only a DON or CNM can delete a resident.");
+        }
+        const resident = store.residents.find((candidate) => candidate.id === id);
+        if (!resident) return 0;
+        const residentName = `${resident.firstName} ${resident.lastName}`;
+        const now = new Date().toISOString();
+        const deleteReason = reason?.trim() || `Resident deleted: ${residentName}`;
+        const carePlanIdsForCount = new Set(
+          store.carePlans.filter((carePlan) => carePlan.residentId === id).map((carePlan) => carePlan.id),
+        );
+        const problemIdsForCount = new Set(
+          store.carePlanProblems.filter((problem) => problem.residentId === id).map((problem) => problem.id),
+        );
+        const interventionIdsForCount = new Set(
+          store.problemInterventions
+            .filter((intervention) => intervention.residentId === id)
+            .map((intervention) => intervention.id),
+        );
+        const incidentIdsForCount = new Set(
+          store.incidents.filter((incident) => incident.residentId === id).map((incident) => incident.id),
+        );
+        const archivedCount = [
+          store.assessments.filter((item) => item.residentId === id).length,
+          store.carePlans.filter((item) => item.residentId === id).length,
+          store.carePlanEvaluations.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
+          store.carePlanReviews.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
+          store.interventions.filter((item) => item.residentId === id).length,
+          store.interventionLogs.filter((item) => item.residentId === id || carePlanIdsForCount.has(item.carePlanId)).length,
+          store.notes.filter((item) => item.residentId === id).length,
+          store.evaluations.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
+          store.alerts.filter((item) => item.residentId === id).length,
+          store.tasks.filter((item) => item.residentId === id).length,
+          store.incidents.filter((item) => item.residentId === id).length,
+          store.mdtNotes.filter((item) => item.residentId === id).length,
+          store.visitors.filter((item) => item.residentId === id).length,
+          store.outings.filter((item) => item.residentId === id).length,
+          store.handovers.filter((item) => item.residentId === id).length,
+          store.observations.filter((item) => item.residentId === id).length,
+          store.weights.filter((item) => item.residentId === id).length,
+          store.fluids.filter((item) => item.residentId === id).length,
+          store.foods.filter((item) => item.residentId === id).length,
+          store.pains.filter((item) => item.residentId === id).length,
+          store.sleeps.filter((item) => item.residentId === id).length,
+          store.bowels.filter((item) => item.residentId === id).length,
+          store.behaviours.filter((item) => item.residentId === id).length,
+          store.incidentActions.filter((item) => incidentIdsForCount.has(item.incidentId)).length,
+          store.timelineEvents.filter((item) => item.residentId === id).length,
+          store.residentCarePlans.filter((item) => item.residentId === id).length,
+          store.carePlanProblems.filter((item) => item.residentId === id).length,
+          store.problemGoals.filter((item) => problemIdsForCount.has(item.problemId)).length,
+          store.problemInterventions.filter((item) => item.residentId === id).length,
+          store.problemInterventionLogs.filter((item) => item.residentId === id || interventionIdsForCount.has(item.interventionId)).length,
+          store.problemEvaluations.filter((item) => problemIdsForCount.has(item.problemId)).length,
+          store.problemReviews.filter((item) => problemIdsForCount.has(item.problemId)).length,
+          store.problemHistory.filter((item) => problemIdsForCount.has(item.problemId)).length,
+          store.assessmentSuggestions.filter((item) => item.residentId === id).length,
+          store.assessmentTriggerEvents.filter((item) => item.residentId === id).length,
+          store.vitals.filter((item) => item.residentId === id).length,
+          store.observationPlans.filter((item) => item.residentId === id).length,
+          store.clinicalAlerts.filter((item) => item.residentId === id).length,
+          store.clinicalObservations.filter((item) => item.residentId === id).length,
+          store.observationSchedules.filter((item) => item.residentId === id).length,
+          Object.values(store.alertWorkflow || {}).filter((item) => item.residentId === id).length,
+        ].reduce((sum, count) => sum + count, 0);
+        const markDeleted = <T extends { id?: string }>(item: T) => {
+          return {
+            ...item,
+            deletedAt: (item as any).deletedAt || now,
+            deletedBy: (item as any).deletedBy || currentUserName,
+            deletedReason: (item as any).deletedReason || deleteReason,
+          };
+        };
+        const markArchived = <T extends { id?: string }>(item: T) => {
+          return {
+            ...item,
+            archivedAt: (item as any).archivedAt || now,
+            archivedBy: (item as any).archivedBy || currentUserName,
+            archivedReason: (item as any).archivedReason || deleteReason,
+          };
+        };
+
+        setStore((s) => {
+          const carePlanIds = new Set(
+            s.carePlans.filter((carePlan) => carePlan.residentId === id).map((carePlan) => carePlan.id),
+          );
+          const problemIds = new Set(
+            s.carePlanProblems
+              .filter((problem) => problem.residentId === id)
+              .map((problem) => problem.id),
+          );
+          const interventionIds = new Set(
+            s.problemInterventions
+              .filter((intervention) => intervention.residentId === id)
+              .map((intervention) => intervention.id),
+          );
+          const incidentIds = new Set(
+            s.incidents.filter((incident) => incident.residentId === id).map((incident) => incident.id),
+          );
+
+          return {
+            ...s,
+            residents: s.residents.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: "deleted" as const,
+                    residentType: "inactive",
+                    deletedAt: now,
+                    deletedBy: currentUserName,
+                    deletedReason: deleteReason,
+                  }
+                : item,
+            ),
+            assessments: s.assessments.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    status: "deleted" as const,
+                  }
+                : item,
+            ),
+            carePlans: s.carePlans.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markArchived(item),
+                    status: "archived" as const,
+                    updatedAt: now,
+                    updatedBy: currentUserName,
+                  }
+                : item,
+            ),
+            carePlanEvaluations: s.carePlanEvaluations.map((item) =>
+              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
+            ),
+            carePlanReviews: s.carePlanReviews.map((item) =>
+              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
+            ),
+            interventions: s.interventions.map((item) =>
+              item.residentId === id ? markDeleted(item) : item,
+            ),
+            interventionLogs: s.interventionLogs.map((item) =>
+              item.residentId === id || carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
+            ),
+            notes: s.notes.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            evaluations: s.evaluations.map((item) =>
+              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
+            ),
+            alerts: s.alerts.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    acknowledged: true,
+                    resolvedAt: item.resolvedAt || now,
+                    resolvedBy: item.resolvedBy || currentUserName,
+                  }
+                : item,
+            ),
+            tasks: s.tasks.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    status: "deleted" as const,
+                  }
+                : item,
+            ),
+            incidents: s.incidents.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    recordStatus: "deleted" as const,
+                    status: "closed" as const,
+                    closedAt: item.closedAt || now,
+                    closedBy: item.closedBy || currentUserName,
+                  }
+                : item,
+            ),
+            mdtNotes: s.mdtNotes.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            visitors: s.visitors.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    recordStatus: "deleted" as const,
+                    status: "cancelled" as const,
+                    cancelledReason: item.cancelledReason || deleteReason,
+                  }
+                : item,
+            ),
+            outings: s.outings.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    recordStatus: "deleted" as const,
+                    status: "cancelled" as const,
+                    cancelledReason: item.cancelledReason || deleteReason,
+                  }
+                : item,
+            ),
+            handovers: s.handovers.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    recordStatus: "deleted" as const,
+                    status: "closed" as const,
+                    closedAt: item.closedAt || now,
+                    closedBy: item.closedBy || currentUserName,
+                  }
+                : item,
+            ),
+            observations: s.observations.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            weights: s.weights.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            fluids: s.fluids.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            foods: s.foods.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            pains: s.pains.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            sleeps: s.sleeps.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            bowels: s.bowels.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            behaviours: s.behaviours.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            incidentActions: s.incidentActions.map((item) =>
+              incidentIds.has(item.incidentId) ? markDeleted(item) : item,
+            ),
+            timelineEvents: s.timelineEvents.map((item) =>
+              item.residentId === id ? markDeleted(item) : item,
+            ),
+            residentCarePlans: s.residentCarePlans.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markArchived(item),
+                    status: "archived" as const,
+                  }
+                : item,
+            ),
+            carePlanProblems: s.carePlanProblems.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markArchived(item),
+                    status: "archived" as const,
+                    resolvedAt: item.resolvedAt || now,
+                    resolvedBy: item.resolvedBy || currentUserName,
+                    resolvedReason: item.resolvedReason || deleteReason,
+                  }
+                : item,
+            ),
+            problemGoals: s.problemGoals.map((item) =>
+              problemIds.has(item.problemId)
+                ? {
+                    ...markDeleted(item),
+                    status: "discontinued" as const,
+                  }
+                : item,
+            ),
+            problemInterventions: s.problemInterventions.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markArchived(item),
+                    status: "discontinued" as const,
+                    completedAt: item.completedAt || now,
+                    completedBy: item.completedBy || currentUserName,
+                    completedByRole: item.completedByRole || currentRole,
+                    completionReason: item.completionReason || deleteReason,
+                  }
+                : item,
+            ),
+            problemInterventionLogs: s.problemInterventionLogs.map((item) =>
+              item.residentId === id || interventionIds.has(item.interventionId)
+                ? markDeleted(item)
+                : item,
+            ),
+            problemEvaluations: s.problemEvaluations.map((item) =>
+              problemIds.has(item.problemId) ? markDeleted(item) : item,
+            ),
+            problemReviews: s.problemReviews.map((item) =>
+              problemIds.has(item.problemId) ? markDeleted(item) : item,
+            ),
+            problemHistory: s.problemHistory.map((item) =>
+              problemIds.has(item.problemId) ? markDeleted(item) : item,
+            ),
+            assessmentSuggestions: s.assessmentSuggestions.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    status: "rejected" as const,
+                    rejectedReason: item.rejectedReason || deleteReason,
+                  }
+                : item,
+            ),
+            assessmentTriggerEvents: s.assessmentTriggerEvents.map((item) =>
+              item.residentId === id ? markDeleted(item) : item,
+            ),
+            vitals: s.vitals.map((item) => (item.residentId === id ? markDeleted(item) : item)),
+            observationPlans: s.observationPlans.map((item) =>
+              item.residentId === id ? markArchived(item) : item,
+            ),
+            clinicalAlerts: s.clinicalAlerts.map((item) =>
+              item.residentId === id
+                ? {
+                    ...markDeleted(item),
+                    acknowledged: true,
+                    dismissedAt: item.dismissedAt || now,
+                    dismissedBy: item.dismissedBy || currentUserName,
+                    dismissedReason: item.dismissedReason || "Resolved",
+                    resolvedAt: item.resolvedAt || now,
+                    resolvedBy: item.resolvedBy || currentUserName,
+                  }
+                : item,
+            ),
+            clinicalObservations: s.clinicalObservations.map((item) =>
+              item.residentId === id ? markDeleted(item) : item,
+            ),
+            observationSchedules: s.observationSchedules.map((item) =>
+              item.residentId === id ? markArchived(item) : item,
+            ),
+            alertWorkflow: Object.fromEntries(
+              Object.entries(s.alertWorkflow || {}).map(([key, item]) => [
+                key,
+                item.residentId === id
+                  ? {
+                      ...markDeleted(item),
+                      acknowledgedBy: item.acknowledgedBy || currentUserName,
+                      acknowledgedAt: item.acknowledgedAt || now,
+                    }
+                  : item,
+              ]),
+            ),
+            auditLogs: [
+              {
+                id: uid(),
+                facilityId: resident.facilityId || activeFacilityId,
+                user: currentUserName,
+                role: currentRole,
+                action: "Resident deleted",
+                entity: id,
+                timestamp: now,
+                before: residentName,
+                after: JSON.stringify({ residentId: id, residentName, archivedCount }),
+                reason: deleteReason,
+              },
+              ...s.auditLogs,
+            ].slice(0, 500),
+          };
+        });
+        return archivedCount;
       },
       addNextOfKin: (residentId, nok) =>
         setStore((s) => ({

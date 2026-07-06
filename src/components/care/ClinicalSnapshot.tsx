@@ -5,7 +5,8 @@ import { assessmentMeta } from "@/lib/care/scoring";
 import { deriveStatus, riskBadgeCls, statusBadgeCls } from "@/lib/care/assessments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, RefreshCw, Lock, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, RefreshCw, Lock, AlertTriangle, Plus } from "lucide-react";
 import type { Assessment, AssessmentType } from "@/lib/care/types";
 import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { isActionableClinicalAlert } from "@/lib/care/alerts";
@@ -94,7 +95,18 @@ export function ClinicalSnapshot({
         </CardHeader>
         <CardContent>
           {latest.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No completed assessments yet.</p>
+            <div className="rounded-md border p-4 space-y-3">
+              <p className="text-sm text-muted-foreground">No completed assessments yet.</p>
+              <Button asChild size="sm">
+                <Link
+                  to="/assessments/new/$residentId"
+                  params={{ residentId }}
+                  search={{ type: "waterlow" } as any}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add Initial Assessment
+                </Link>
+              </Button>
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {latest.map(({ type, a }) => {

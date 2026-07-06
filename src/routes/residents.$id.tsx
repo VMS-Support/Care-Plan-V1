@@ -12,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -54,6 +55,7 @@ import {
 import { ClinicalSnapshot } from "@/components/care/ClinicalSnapshot";
 import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
+import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
 import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
 import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
@@ -65,6 +67,7 @@ import { IncidentDialog } from "@/components/care/IncidentDialog";
 import { VisitorDialog } from "@/components/care/VisitorDialog";
 import { OutingDialog } from "@/components/care/OutingDialog";
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
   scheduledInterventions,
@@ -72,6 +75,7 @@ import {
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
 import type { VitalSign } from "@/lib/care/types";
+import type { Resident } from "@/lib/care/types";
 import { calcNEWS2 } from "@/lib/care/vitals";
 import {
   formatVitalValues,
@@ -236,11 +240,17 @@ function ResidentDetail() {
     discontinueProblemIntervention,
     updateProblem,
     updateProblemIntervention,
+    updateResident,
+    softDeleteResident,
   } = useCare();
   const r = residents.find((x) => x.id === id);
 
   // Modal state
   const [nokOpen, setNokOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
   const [modalState, setModalState] = useState<{
     note: boolean;
     intervention: boolean;
@@ -372,6 +382,10 @@ function ResidentDetail() {
       </div>
     );
 
+  const residentFullName = `${r.firstName} ${r.lastName}`;
+  const canDeleteResident = currentRole === "don" || currentRole === "cnm";
+  const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
+
   const rA = assessments
     .filter((a) => a.residentId === id && a.status !== "deleted")
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -414,6 +428,22 @@ function ResidentDetail() {
   const openIncidents = rIncidents.filter((i) => i.status !== "closed");
   const openTasks = rTasks.filter((t) => t.status !== "completed");
   const openAlertCount = rAlerts.filter((a) => !a.acknowledged).length;
+  const overviewHasMissingInfo = [
+    r.primaryDiagnosis,
+    r.medicalHistory,
+    r.allergies,
+    r.currentMedication,
+    r.gp,
+    r.consultant,
+    r.emergencyContact,
+    r.communicationNeeds,
+    r.religion,
+    r.preferredLanguage,
+    r.bed,
+    r.keyWorkers?.namedNurse,
+    r.keyWorkers?.namedCarer,
+    r.keyWorkers?.keyWorker,
+  ].some((value) => !value);
   const todayKey = today.toISOString().slice(0, 10);
   const tomorrowDate = new Date(today);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -987,6 +1017,22 @@ function ResidentDetail() {
                     >
                       Export PDF
                     </DropdownMenuItem>
+                    {canDeleteResident && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => {
+                            setDeleteConfirmName("");
+                            setDeleteReason("");
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Resident
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1053,6 +1099,57 @@ function ResidentDetail() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Resident</DialogTitle>
+            <DialogDescription>
+              This will remove the resident from active views and archive all related records,
+              including tasks, interventions, care plans, assessments, notes, incidents, handovers,
+              visitors, outings, alerts, risks and vitals.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone from normal screens.
+            </p>
+            <div>
+              <Label>Type resident name to confirm: {residentFullName}</Label>
+              <Input
+                value={deleteConfirmName}
+                onChange={(event) => setDeleteConfirmName(event.target.value)}
+                placeholder={residentFullName}
+              />
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Textarea
+                value={deleteReason}
+                onChange={(event) => setDeleteReason(event.target.value)}
+                placeholder={`Resident deleted: ${residentFullName}`}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!deleteNameMatches}
+              onClick={() => {
+                const archivedCount = softDeleteResident(r.id, deleteReason);
+                toast.success(`Resident deleted. ${archivedCount} related records archived.`);
+                setDeleteOpen(false);
+                navigate({ to: "/residents" });
+              }}
+            >
+              Delete Resident
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ClinicalSnapshot residentId={r.id} showLatestVitals={false} />
 
@@ -1121,7 +1218,17 @@ function ResidentDetail() {
             );
           })}
           {activeProblems.length === 0 && (
-            <p className="text-sm text-muted-foreground">No active care plan problems.</p>
+            <div className="rounded-md border p-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">No active care plans.</p>
+              <CreateCarePlanDialog
+                residentId={r.id}
+                trigger={
+                  <Button size="sm">
+                  <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
+                  </Button>
+                }
+              />
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1247,6 +1354,27 @@ function ResidentDetail() {
         </div>
 
         <TabsContent value="overview" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {overviewHasMissingInfo ? (
+              <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                Some resident information has not yet been completed.
+              </div>
+            ) : (
+              <div />
+            )}
+            <Button size="sm" variant="outline" onClick={() => setOverviewOpen(true)}>
+              Edit Overview Details
+            </Button>
+          </div>
+          <EditOverviewDialog
+            resident={r}
+            open={overviewOpen}
+            onOpenChange={setOverviewOpen}
+            onSave={(patch) => {
+              updateResident(r.id, patch);
+              toast.success("Overview details updated");
+            }}
+          />
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
@@ -1387,8 +1515,13 @@ function ResidentDetail() {
                   );
                 })}
                 {residentVitals.length === 0 && (
-                  <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
-                    No observations recorded for this resident yet.
+                  <div className="rounded-md border p-8 text-center space-y-3">
+                    <p className="text-sm text-muted-foreground">No vital signs recorded.</p>
+                    <RecordObservationFlow
+                      residentId={r.id}
+                      onRecorded={() => setActiveTab("vitals")}
+                      trigger={<Button size="sm">Record First Vital Signs</Button>}
+                    />
                   </div>
                 )}
               </CardContent>
@@ -1651,7 +1784,17 @@ function ResidentDetail() {
             </Card>
           ))}
           {rP.length === 0 && (
-            <p className="text-sm text-muted-foreground">No active care plans.</p>
+            <div className="rounded-md border p-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">No active care plans.</p>
+              <CreateCarePlanDialog
+                residentId={r.id}
+                trigger={
+                  <Button size="sm">
+                  <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
+                  </Button>
+                }
+              />
+            </div>
           )}
         </TabsContent>
 
@@ -2930,6 +3073,217 @@ function ResidentDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+type OverviewDraft = {
+  primaryDiagnosis: string;
+  medicalHistory: string;
+  allergies: string;
+  mentalCapacity: Resident["mentalCapacity"];
+  currentMedication: string;
+  bedType: NonNullable<Resident["bed"]>["bedType"] | "";
+  mattressType: NonNullable<Resident["bed"]>["mattressType"] | "";
+  installationDate: string;
+  reviewDate: string;
+  namedNurse: string;
+  namedCarer: string;
+  keyWorker: string;
+  gp: string;
+  consultant: string;
+  emergencyContact: string;
+  communicationNeeds: string;
+  religion: string;
+  preferredLanguage: string;
+};
+
+function overviewDraft(resident: Resident): OverviewDraft {
+  return {
+    primaryDiagnosis: resident.primaryDiagnosis || "",
+    medicalHistory: resident.medicalHistory || "",
+    allergies: resident.allergies || "",
+    mentalCapacity: resident.mentalCapacity || "not_assessed",
+    currentMedication: resident.currentMedication || "",
+    bedType: resident.bed?.bedType || "",
+    mattressType: resident.bed?.mattressType || "",
+    installationDate: resident.bed?.installationDate || "",
+    reviewDate: resident.bed?.reviewDate || "",
+    namedNurse: resident.keyWorkers?.namedNurse || "",
+    namedCarer: resident.keyWorkers?.namedCarer || "",
+    keyWorker: resident.keyWorkers?.keyWorker || "",
+    gp: resident.gp || "",
+    consultant: resident.consultant || "",
+    emergencyContact: resident.emergencyContact || "",
+    communicationNeeds: resident.communicationNeeds || "",
+    religion: resident.religion || "",
+    preferredLanguage: resident.preferredLanguage || "",
+  };
+}
+
+function EditOverviewDialog({
+  resident,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  resident: Resident;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (patch: Partial<Resident>) => void;
+}) {
+  const [draft, setDraft] = useState(() => overviewDraft(resident));
+  const update = (patch: Partial<OverviewDraft>) => setDraft((current) => ({ ...current, ...patch }));
+
+  const save = () => {
+    onSave({
+      primaryDiagnosis: draft.primaryDiagnosis.trim(),
+      medicalHistory: draft.medicalHistory.trim(),
+      allergies: draft.allergies.trim(),
+      mentalCapacity: draft.mentalCapacity,
+      currentMedication: draft.currentMedication.trim(),
+      gp: draft.gp.trim(),
+      consultant: draft.consultant.trim(),
+      emergencyContact: draft.emergencyContact.trim(),
+      communicationNeeds: draft.communicationNeeds.trim(),
+      religion: draft.religion.trim(),
+      preferredLanguage: draft.preferredLanguage.trim(),
+      bed: draft.bedType || draft.mattressType || draft.installationDate || draft.reviewDate
+        ? {
+            bedType: (draft.bedType || "standard") as NonNullable<Resident["bed"]>["bedType"],
+            mattressType: (draft.mattressType || "foam") as NonNullable<Resident["bed"]>["mattressType"],
+            installationDate: draft.installationDate,
+            reviewDate: draft.reviewDate,
+          }
+        : undefined,
+      keyWorkers: draft.namedNurse || draft.namedCarer || draft.keyWorker
+        ? {
+            namedNurse: draft.namedNurse.trim(),
+            namedCarer: draft.namedCarer.trim(),
+            keyWorker: draft.keyWorker.trim(),
+          }
+        : undefined,
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) setDraft(overviewDraft(resident));
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Overview Details</DialogTitle>
+          <DialogDescription>All fields are optional and can be completed over time.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5">
+          <OverviewSection title="Clinical">
+            <Field label="Primary diagnosis" value={draft.primaryDiagnosis} onChange={(v) => update({ primaryDiagnosis: v })} />
+            <Field label="Known allergies" value={draft.allergies} onChange={(v) => update({ allergies: v })} />
+            <div className="md:col-span-2">
+              <Label>Medical history</Label>
+              <Textarea value={draft.medicalHistory} onChange={(e) => update({ medicalHistory: e.target.value })} />
+            </div>
+            <div>
+              <Label>Mental capacity</Label>
+              <Select value={draft.mentalCapacity} onValueChange={(value) => update({ mentalCapacity: value as Resident["mentalCapacity"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="has_capacity">Has capacity</SelectItem>
+                  <SelectItem value="lacks_capacity">Lacks capacity</SelectItem>
+                  <SelectItem value="fluctuating">Fluctuating capacity</SelectItem>
+                  <SelectItem value="not_assessed">Not assessed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-2">
+              <Label>Medication</Label>
+              <Textarea value={draft.currentMedication} onChange={(e) => update({ currentMedication: e.target.value })} />
+            </div>
+          </OverviewSection>
+          <OverviewSection title="Bed Management">
+            <OverviewSelect label="Bed type" value={draft.bedType} onChange={(v) => update({ bedType: v as any })} options={[["standard","Standard"],["low","Low"],["profiling","Profiling"],["bariatric","Bariatric"]]} />
+            <OverviewSelect label="Mattress" value={draft.mattressType} onChange={(v) => update({ mattressType: v as any })} options={[["foam","Foam"],["dynamic","Dynamic"],["air_mattress","Air Mattress"],["pressure_relieving","Pressure-relieving mattress"]]} />
+            <Field label="Installed date" type="date" value={draft.installationDate} onChange={(v) => update({ installationDate: v })} />
+            <Field label="Review date" type="date" value={draft.reviewDate} onChange={(v) => update({ reviewDate: v })} />
+          </OverviewSection>
+          <OverviewSection title="Key Workers">
+            <Field label="Named Nurse" value={draft.namedNurse} onChange={(v) => update({ namedNurse: v })} />
+            <Field label="Named Carer" value={draft.namedCarer} onChange={(v) => update({ namedCarer: v })} />
+            <Field label="Key Worker" value={draft.keyWorker} onChange={(v) => update({ keyWorker: v })} />
+          </OverviewSection>
+          <OverviewSection title="GP / Consultant">
+            <Field label="GP" value={draft.gp} onChange={(v) => update({ gp: v })} />
+            <Field label="Consultant" value={draft.consultant} onChange={(v) => update({ consultant: v })} />
+            <Field label="Emergency contact" value={draft.emergencyContact} onChange={(v) => update({ emergencyContact: v })} />
+          </OverviewSection>
+          <OverviewSection title="Preferences">
+            <Field label="Communication" value={draft.communicationNeeds} onChange={(v) => update({ communicationNeeds: v })} />
+            <Field label="Religion" value={draft.religion} onChange={(v) => update({ religion: v })} />
+            <Field label="Preferred language" value={draft.preferredLanguage} onChange={(v) => update({ preferredLanguage: v })} />
+          </OverviewSection>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save}>Save details</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function OverviewSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+      <div className="grid md:grid-cols-2 gap-3">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function OverviewSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+        <SelectContent>
+          {options.map(([optionValue, label]) => <SelectItem key={optionValue} value={optionValue}>{label}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
