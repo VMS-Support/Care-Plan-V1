@@ -144,7 +144,7 @@ function statusMeta(plan: { status: string; reviewDate: string; evaluationDate?:
   }
   if (evaluationDays !== null && evaluationDays < 0) {
     return {
-      label: "Evaluation Overdue",
+      label: "Review of Outcome Overdue",
       tone: "bg-destructive/10 text-destructive border-destructive/30",
       dot: "bg-destructive",
     };
@@ -184,16 +184,16 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          Evaluate
+          Review
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Evaluate Care Plan</DialogTitle>
+          <DialogTitle>Review Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Goal achievement</Label>
+            <Label>Plan outcome</Label>
             <Select value={achieve} onValueChange={(value) => setAchieve(value as typeof achieve)}>
               <SelectTrigger>
                 <SelectValue />
@@ -219,7 +219,7 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
             </Select>
           </div>
           <div>
-            <Label>Evaluation notes</Label>
+            <Label>Review notes</Label>
             <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         </div>
@@ -241,7 +241,7 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
               if (outcome === "close") {
                 updateCarePlan(carePlanId, { status: "completed" });
               }
-              toast.success("Evaluation recorded");
+              toast.success("Review recorded");
               setOpen(false);
             }}
           >
@@ -269,21 +269,21 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          Evaluate
+          Review
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Evaluate Care Plan Problem</DialogTitle>
+          <DialogTitle>Review Nursing Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Evaluation summary</Label>
+            <Label>Review summary</Label>
             <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Goals met</Label>
+              <Label>Plan met</Label>
               <Select value={goalsMet} onValueChange={(value) => setGoalsMet(value as typeof goalsMet)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -308,7 +308,7 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
             </div>
           </div>
           <div>
-            <Label>Next evaluation date</Label>
+            <Label>Next Review of Outcome</Label>
             <Textarea
               value={nextEvaluationDate}
               onChange={(event) => setNextEvaluationDate(event.target.value)}
@@ -331,7 +331,7 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
                 recommendations: "",
                 nextEvaluationDate,
               });
-              toast.success("Evaluation recorded");
+              toast.success("Review recorded");
               setSummary("");
               setOpen(false);
             }}
@@ -367,16 +367,16 @@ function ProblemEvaluationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Evaluate Care Plan</DialogTitle>
+          <DialogTitle>Review Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Evaluation summary</Label>
+            <Label>Review summary</Label>
             <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Goals met</Label>
+              <Label>Plan met</Label>
               <Select value={goalsMet} onValueChange={(value) => setGoalsMet(value as typeof goalsMet)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -401,7 +401,7 @@ function ProblemEvaluationDialog({
             </div>
           </div>
           <div>
-            <Label>Next evaluation date</Label>
+            <Label>Next Review of Outcome</Label>
             <Input
               type="date"
               value={nextEvaluationDate}
@@ -425,7 +425,7 @@ function ProblemEvaluationDialog({
                 recommendations: "",
                 nextEvaluationDate,
               });
-              toast.success("Evaluation recorded");
+              toast.success("Review recorded");
               setSummary("");
               onOpenChange(false);
             }}
@@ -911,7 +911,7 @@ function CarePlansPage() {
         </div>
         {can(currentRole, "careplan.create") && (
           <CreateCarePlanDialog
-            buttonLabel="New Care Plan"
+            buttonLabel="New Nursing Care Plan"
             onCreated={(problem) =>
               navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
             }
@@ -921,7 +921,7 @@ function CarePlansPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         <CarePlanSummaryCard
-          label="Active Care Plans"
+          label="Active Nursing Care Plans"
           value={workQueueSummary.active}
           onClick={() => {
             setTab("active");
@@ -946,7 +946,7 @@ function CarePlansPage() {
           }}
         />
         <CarePlanSummaryCard
-          label="Evaluations Due"
+          label="Reviews of Outcome Due"
           value={workQueueSummary.evaluationsDue}
           tone="warn"
           onClick={() => {
@@ -991,7 +991,7 @@ function CarePlansPage() {
           <StatusLegend toneClass="bg-emerald-500" label="On Track" />
           <StatusLegend toneClass="bg-amber-500" label="Review Due Soon" />
           <StatusLegend toneClass="bg-destructive" label="Review Overdue" />
-          <StatusLegend toneClass="bg-destructive" label="Evaluation Overdue" />
+          <StatusLegend toneClass="bg-destructive" label="Review of Outcome Overdue" />
         </CardContent>
       </Card>
 
@@ -1003,11 +1003,11 @@ function CarePlansPage() {
         <TabsList className="flex-wrap h-auto">
           {visibleTabs.map((value) => (
             <TabsTrigger key={value} value={value}>
-              {value === "active" && "Active Care Plans"}
+              {value === "active" && "Active Nursing Care Plans"}
               {value === "reviews" && "Reviews Due"}
-              {value === "evaluations" && "Evaluations Due"}
-              {value === "completed" && "Completed Care Plans"}
-              {value === "archived" && "Archived Care Plans"}
+              {value === "evaluations" && "Reviews of Outcome Due"}
+              {value === "completed" && "Completed Nursing Care Plans"}
+              {value === "archived" && "Archived Nursing Care Plans"}
               {value === "governance" && "Governance"}
             </TabsTrigger>
           ))}
@@ -1039,7 +1039,7 @@ function CarePlansPage() {
                   active={filter === "evaluation_due"}
                   onClick={() => setFilter("evaluation_due")}
                 >
-                  Evaluation Due
+                  Review of Outcome Due
                 </QuickFilterButton>
                 <QuickFilterButton
                   active={filter === "overdue"}
@@ -1091,9 +1091,9 @@ function CarePlansPage() {
                       </SelectContent>
                     </Select>
                     <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as RegisterStatusFilter); setPage(1); }}>
-                      <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Progress" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="all">All progress</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
@@ -1114,7 +1114,7 @@ function CarePlansPage() {
                       <SelectContent>
                         <SelectItem value="all">All due dates</SelectItem>
                         <SelectItem value="review_due">Review due</SelectItem>
-                        <SelectItem value="evaluation_due">Evaluation due</SelectItem>
+                        <SelectItem value="evaluation_due">Review of outcome due</SelectItem>
                         <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1131,8 +1131,8 @@ function CarePlansPage() {
                         <TableHead>Room</TableHead>
                         <TableHead>Risk</TableHead>
                         <TableHead>Review</TableHead>
-                        <TableHead>Evaluation</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Review of Outcome</TableHead>
+                        <TableHead>Progress</TableHead>
                         <TableHead>Last Updated</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                       </TableRow>
@@ -1188,7 +1188,7 @@ function CarePlansPage() {
                                   </DropdownMenuItem>
                                   {can(currentRole, "careplan.evaluate") && row.primaryProblemId && (
                                     <DropdownMenuItem onClick={() => setEvaluatingProblemId(row.primaryProblemId)}>
-                                      Evaluate
+                                      Review
                                     </DropdownMenuItem>
                                   )}
                                   {can(currentRole, "careplan.delete") && row.activeProblemIds.length > 0 && (
@@ -1216,7 +1216,7 @@ function CarePlansPage() {
                               <p className="text-sm text-muted-foreground">No care plans found.</p>
                               {can(currentRole, "careplan.create") && (
                                 <CreateCarePlanDialog
-                                  buttonLabel="Create Care Plan"
+                                  buttonLabel="Create Nursing Care Plan"
                                   onCreated={(problem) =>
                                     navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
                                   }
@@ -1248,8 +1248,8 @@ function CarePlansPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <div>Review {formatDate(row.nextReviewDate)}</div>
-                        <div>Eval {formatDate(row.nextEvaluationDate)}</div>
-                        <div className="capitalize">Status {row.status}</div>
+                        <div>Outcome review {formatDate(row.nextEvaluationDate)}</div>
+                        <div className="capitalize">Progress {row.status}</div>
                         <div>Updated {formatDateTime(row.lastUpdated)}</div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -1275,7 +1275,7 @@ function CarePlansPage() {
                             </DropdownMenuItem>
                             {can(currentRole, "careplan.evaluate") && row.primaryProblemId && (
                               <DropdownMenuItem onClick={() => setEvaluatingProblemId(row.primaryProblemId)}>
-                                Evaluate
+                                Review
                               </DropdownMenuItem>
                             )}
                             {can(currentRole, "careplan.delete") && row.activeProblemIds.length > 0 && (
@@ -1302,7 +1302,7 @@ function CarePlansPage() {
                       <p className="text-sm text-muted-foreground">No care plans found.</p>
                       {can(currentRole, "careplan.create") && (
                         <CreateCarePlanDialog
-                          buttonLabel="Create Care Plan"
+                          buttonLabel="Create Nursing Care Plan"
                           onCreated={(problem) =>
                             navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
                           }
@@ -1360,7 +1360,7 @@ function CarePlansPage() {
                   tone="destructive"
                 />
                 <MetricCard
-                  title="Overdue Evaluations"
+                  title="Overdue Reviews of Outcome"
                   value={governance.overdueEvaluations.length}
                   icon={AlertTriangle}
                   tone="destructive"
@@ -1394,7 +1394,7 @@ function CarePlansPage() {
                       }))}
                     />
                     <GovernanceList
-                      title="Overdue Evaluations"
+                      title="Overdue Reviews of Outcome"
                       items={governance.overdueEvaluations.map((row) => ({
                         id: row.plan.id,
                         primary: row.plan.title,
@@ -1420,7 +1420,7 @@ function CarePlansPage() {
                     <AuditStat label="Archived plans" value={governance.auditStats.archived} />
                     <AuditStat label="Revisions" value={governance.auditStats.revised} />
                     <AuditStat
-                      label="Evaluations logged"
+                      label="Reviews logged"
                       value={governance.auditStats.evaluations}
                     />
                     <AuditStat label="Reviews logged" value={governance.auditStats.reviews} />

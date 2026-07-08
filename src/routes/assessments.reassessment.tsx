@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
@@ -11,7 +11,7 @@ import { ArrowLeft, RefreshCw, AlertTriangle, Clock, Users, Zap } from "lucide-r
 import type { AssessmentType } from "@/lib/care/types";
 
 export const Route = createFileRoute("/assessments/reassessment")({
-  head: () => ({ meta: [{ title: "Reassessment Queue — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Review Queue â€” CarePath" }] }),
   component: ReassessmentQueue,
 });
 
@@ -52,11 +52,11 @@ function ReassessmentQueue() {
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-[1400px]">
       <Link to="/assessments" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-        <ArrowLeft className="h-4 w-4" /> Assessment Centre
+        <ArrowLeft className="h-4 w-4" /> Assessment Work Queue
       </Link>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Reassessment Queue</h1>
-        <p className="text-sm text-muted-foreground mt-1">Scheduled and triggered reassessments across all residents.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Assessment Review Queue</h1>
+        <p className="text-sm text-muted-foreground mt-1">Scheduled and triggered assessment reviews across all residents.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -138,12 +138,12 @@ function ReassessmentQueue() {
                         <td className="p-3"><Link to="/residents/$id/assessments" params={{ id: t.residentId }} className="hover:text-primary">{r?.firstName} {r?.lastName}</Link></td>
                         <td className="p-3"><Badge variant="outline" className="capitalize text-[10px]"><Zap className="h-3 w-3 mr-1" />{t.trigger.replace(/_/g, " ")}</Badge></td>
                         <td className="p-3 text-xs capitalize">{t.sourceModule}</td>
-                        <td className="p-3 text-xs">{t.affectedAssessmentTypes.map(x => assessmentMeta[x].name).join(", ") || "—"}</td>
-                        <td className="p-3 text-xs">{t.byUserName || "—"}</td>
+                        <td className="p-3 text-xs">{t.affectedAssessmentTypes.map(x => assessmentMeta[x].name).join(", ") || "â€”"}</td>
+                        <td className="p-3 text-xs">{t.byUserName || "â€”"}</td>
                       </tr>
                     );
                   })}
-                  {triggered.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-sm text-muted-foreground">No triggered reassessments yet.</td></tr>}
+                  {triggered.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-sm text-muted-foreground">No triggered assessment reviews yet.</td></tr>}
                 </tbody>
               </table>
             </CardContent>
@@ -155,7 +155,7 @@ function ReassessmentQueue() {
 }
 
 function QueueTable({ list, residents }: { list: { a: any; ds: string }[]; residents: any[] }) {
-  if (list.length === 0) return <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Nothing here. 🎉</CardContent></Card>;
+  if (list.length === 0) return <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Nothing here. ðŸŽ‰</CardContent></Card>;
   return (
     <Card>
       <CardContent className="p-0">
@@ -217,3 +217,4 @@ function Stat({ icon: Icon, label, value, tone = "default" }: { icon: any; label
     </Card>
   );
 }
+

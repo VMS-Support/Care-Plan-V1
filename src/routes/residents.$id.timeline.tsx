@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/residents/$id/timeline")({
-  head: () => ({ meta: [{ title: "Resident Timeline — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Resident Timeline â€” CarePath" }] }),
   component: ResidentTimeline,
 });
 
@@ -85,7 +85,7 @@ function ResidentTimeline() {
           ts: a.date,
           icon: Stethoscope,
           type: `${a.type.toUpperCase()} Assessment ${a.status === "completed" ? "Completed" : "Created"}`,
-          summary: `${a.totalScore} — ${a.interpretation}`,
+          summary: `${a.totalScore} â€” ${a.interpretation}`,
           user: a.assessor,
           role: a.assessorRole,
           tone:
@@ -99,7 +99,7 @@ function ResidentTimeline() {
           ts: c.createdAt,
           icon: c.supersedesId ? GitBranch : ClipboardList,
           type: c.supersedesId ? `Care Plan Revised (v${c.version})` : "Care Plan Created",
-          summary: `${c.title}${c.revisionReason ? " — " + c.revisionReason : ""}`,
+          summary: `${c.title}${c.revisionReason ? " â€” " + c.revisionReason : ""}`,
           user: c.createdBy,
           tone: c.priority === "critical" ? "critical" : "default",
         });
@@ -107,7 +107,7 @@ function ResidentTimeline() {
           list.push({
             ts: c.createdAt,
             icon: Target,
-            type: "Goal Added",
+            type: "Plan Added",
             summary: g.title,
             tone: "default",
           });
@@ -120,7 +120,7 @@ function ResidentTimeline() {
         ts: e.date,
         icon: FileCheck2,
         type: "Evaluation Completed",
-        summary: `${cp.title}: goals ${e.goalsMet} · ${e.outcomeRating}`,
+        summary: `${cp.title}: goals ${e.goalsMet} Â· ${e.outcomeRating}`,
         user: e.evaluatedBy,
         role: e.role,
         tone:
@@ -150,7 +150,7 @@ function ResidentTimeline() {
           ts: i.date,
           icon: HeartPulse,
           type: "Intervention Recorded",
-          summary: `${i.intervention} — ${i.outcome}`,
+          summary: `${i.intervention} â€” ${i.outcome}`,
           user: i.staff,
         });
       });
@@ -161,7 +161,7 @@ function ResidentTimeline() {
           ts: l.date + "T" + l.time,
           icon: HeartPulse,
           type: `Intervention ${l.outcome.replace(/_/g, " ")}`,
-          summary: l.comments || l.residentResponse || "Intervention logged",
+          summary: l.comments || l.residentResponse || "Care action logged",
           user: l.staff,
           role: l.role,
           tone: l.outcome === "missed" || l.outcome === "escalated" ? "warn" : "success",
@@ -232,7 +232,7 @@ function ResidentTimeline() {
           ts: o.date,
           icon: Plane,
           type: "Outing",
-          summary: `${o.destination} · ${o.accompaniedBy}`,
+          summary: `${o.destination} Â· ${o.accompaniedBy}`,
           user: o.accompaniedBy,
         });
       });
@@ -303,9 +303,9 @@ function ResidentTimeline() {
         <ArrowLeft className="h-4 w-4" /> Back to resident
       </Link>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Clinical Timeline</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Resident Timeline</h1>
         <p className="text-sm text-muted-foreground">
-          {r.firstName} {r.lastName} · Room {r.roomNumber} · {events.length} events
+          {r.firstName} {r.lastName} Â· Room {r.roomNumber} Â· {events.length} events
         </p>
       </div>
 
@@ -330,7 +330,7 @@ function ResidentTimeline() {
                       {e.user && (
                         <p className="text-xs text-muted-foreground mt-1">
                           {e.user}
-                          {e.role ? ` · ${e.role}` : ""}
+                          {e.role ? ` Â· ${e.role}` : ""}
                         </p>
                       )}
                     </div>
@@ -350,3 +350,4 @@ function ResidentTimeline() {
     </div>
   );
 }
+

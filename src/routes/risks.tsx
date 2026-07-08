@@ -3,12 +3,11 @@ import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Brain, HeartPulse, PersonStanding, Shield, Utensils } from "lucide-react";
 import type { Assessment, AssessmentType } from "@/lib/care/types";
 
 export const Route = createFileRoute("/risks")({
-  head: () => ({ meta: [{ title: "Risks - CarePath" }] }),
+  head: () => ({ meta: [{ title: "Risk Register - CarePath" }] }),
   component: RisksPage,
 });
 
@@ -55,14 +54,11 @@ function RisksPage() {
     <div className="p-4 md:p-8 space-y-5 max-w-7xl">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Risks</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Risk Register</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Awareness information from current assessments. Risks are not alert-queue items.
+            Risks identified from current assessments and resident information.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/alerts">Back to Alerts</Link>
-        </Button>
       </div>
 
       <div className="grid xl:grid-cols-2 gap-4">

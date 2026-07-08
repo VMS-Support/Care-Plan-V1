@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
@@ -15,7 +15,7 @@ import { ArrowLeft, Plus, Search, Lock, RefreshCw } from "lucide-react";
 import type { AssessmentType, AssessmentCategory } from "@/lib/care/types";
 
 export const Route = createFileRoute("/residents/$id/assessments")({
-  head: () => ({ meta: [{ title: "Assessment Centre — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Work Queue â€” CarePath" }] }),
   component: ResidentAssessments,
 });
 
@@ -43,7 +43,7 @@ function NewAssessmentDialog({ residentId }: { residentId: string }) {
         <DialogHeader><DialogTitle>Select Assessment Type</DialogTitle></DialogHeader>
         <div className="relative">
           <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search by name or category…" value={q} onChange={e => setQ(e.target.value)} />
+          <Input className="pl-8" placeholder="Search by name or categoryâ€¦" value={q} onChange={e => setQ(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant={cat === "all" ? "default" : "outline"} onClick={() => setCat("all")}>All</Button>
@@ -110,20 +110,20 @@ function ResidentAssessments() {
 
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assessment Centre</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Assessment Work Queue</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {resident.firstName} {resident.lastName} · Room {resident.roomNumber}
+            {resident.firstName} {resident.lastName} Â· Room {resident.roomNumber}
           </p>
         </div>
         {can(currentRole, "assessment.create") && <NewAssessmentDialog residentId={id} />}
       </div>
 
-      {/* Filter bar — mirrors global Assessment Centre */}
+      {/* Filter bar â€” mirrors global Assessment Work Queue */}
       <Card>
         <CardContent className="p-3 space-y-2">
           <div className="relative">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input className="pl-8 h-9" placeholder="Search assessor or assessment type…" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input className="pl-8 h-9" placeholder="Search assessor or assessment typeâ€¦" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-1.5 items-center">
             <span className="text-xs text-muted-foreground mr-1">Status:</span>
@@ -186,7 +186,7 @@ function ResidentAssessments() {
                       <td className="p-3"><Badge variant="outline" className={`text-[10px] capitalize ${statusBadgeCls(ds)}`}>{ds}</Badge></td>
                       <td className="p-3 text-xs">{a.assessor}<br /><span className="text-muted-foreground capitalize">{a.assessorRole}</span></td>
                       <td className="p-3 text-xs">{a.date.slice(0, 10)}</td>
-                      <td className="p-3 text-xs">{a.nextReassessmentDate || "—"}</td>
+                      <td className="p-3 text-xs">{a.nextReassessmentDate || "â€”"}</td>
                       <td className="p-3 text-right">
                         {canReassess && (
                           <Link to="/assessments/new/$residentId" params={{ residentId: id }} search={{ type: a.type } as any}>
@@ -213,3 +213,4 @@ function ResidentAssessments() {
     </div>
   );
 }
+

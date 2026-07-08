@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta, assessmentItems, uniformScale } from "@/lib/care/scoring";
@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/assessments/$assessmentId")({
-  head: () => ({ meta: [{ title: "Assessment Detail — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Detail â€” CarePath" }] }),
   component: AssessmentDetail,
 });
 
@@ -32,7 +32,7 @@ function ReasonDialog({ trigger, title, label, variant = "default", onConfirm }:
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <Textarea placeholder={`Reason…`} value={reason} onChange={e => setReason(e.target.value)} />
+        <Textarea placeholder={`Reasonâ€¦`} value={reason} onChange={e => setReason(e.target.value)} />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant={variant} disabled={!reason.trim()} onClick={() => { onConfirm(reason); setOpen(false); }}>{label}</Button>
@@ -90,7 +90,7 @@ function AssessmentDetail() {
     addCarePlan({
       residentId: r.id, title: `Care Plan from ${meta.name}`,
       category: meta.category,
-      problem: `${meta.name} ${a.totalScore} — ${a.interpretation}`,
+      problem: `${meta.name} ${a.totalScore} â€” ${a.interpretation}`,
       goal: a.recommendations || "Address risks identified in assessment.",
       identifiedNeeds: [meta.category],
       interventions: ["Initial review", "Targeted interventions", "Reassess at review date"],
@@ -117,7 +117,7 @@ function AssessmentDetail() {
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-6xl print:p-0">
       <Link to="/residents/$id/assessments" params={{ id: r.id }} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 print:hidden">
-        <ArrowLeft className="h-4 w-4" /> Back to Assessment Centre
+        <ArrowLeft className="h-4 w-4" /> Back to Assessment Work Queue
       </Link>
 
       {/* Lock banner */}
@@ -128,7 +128,7 @@ function AssessmentDetail() {
             <div className="font-medium">This assessment is locked</div>
             <div className="text-xs text-muted-foreground">
               Locked by {a.lockedBy || a.assessor} on {(a.lockedAt || a.date).slice(0, 16).replace("T", " ")}.
-              Content cannot be edited — create a revision to update.
+              Content cannot be edited â€” create a revision to update.
             </div>
           </div>
           {can(currentRole, "assessment.create_revision") && !a.supersededById && (
@@ -143,7 +143,7 @@ function AssessmentDetail() {
       {a.supersededById && (
         <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm print:hidden">
           This version has been superseded by a newer revision.{" "}
-          <Link to="/assessments/$assessmentId" params={{ assessmentId: a.supersededById }} className="text-primary underline">View latest →</Link>
+          <Link to="/assessments/$assessmentId" params={{ assessmentId: a.supersededById }} className="text-primary underline">View latest â†’</Link>
         </div>
       )}
 
@@ -158,7 +158,7 @@ function AssessmentDetail() {
                 {a.locked && <Badge variant="outline" className="text-[10px]"><Lock className="h-2.5 w-2.5 mr-1" />Locked</Badge>}
               </div>
               <Link to="/residents/$id" params={{ id: r.id }} className="text-sm text-primary hover:underline">
-                {r.firstName} {r.lastName} · Room {r.roomNumber}
+                {r.firstName} {r.lastName} Â· Room {r.roomNumber}
               </Link>
               <p className="text-xs text-muted-foreground mt-1">{meta.description}</p>
               {a.revisionReason && <p className="text-xs italic mt-1 text-muted-foreground"><strong>Revision reason:</strong> {a.revisionReason}</p>}
@@ -172,11 +172,11 @@ function AssessmentDetail() {
           <Separator className="my-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <Info label="Completed By" value={a.assessor} />
-            <Info label="Role" value={a.assessorRole || "—"} />
+            <Info label="Role" value={a.assessorRole || "â€”"} />
             <Info label="Date" value={a.date.slice(0, 10)} />
             <Info label="Category" value={a.category || meta.category} />
-            <Info label="Review Frequency" value={a.reviewFrequency || "—"} />
-            <Info label="Next Reassessment" value={a.nextReassessmentDate || "—"} />
+            <Info label="Review Frequency" value={a.reviewFrequency || "â€”"} />
+            <Info label="Next Reassessment" value={a.nextReassessmentDate || "â€”"} />
             <Info label="Version" value={String(a.version || 1)} />
             <Info label="Risk Level" value={a.riskLevel} />
           </div>
@@ -238,8 +238,8 @@ function AssessmentDetail() {
                 return (
                   <tr key={it.key}>
                     <td className="p-2">{it.label}</td>
-                    <td className="p-2 text-muted-foreground">{opt ? opt[1] : (val === undefined ? "—" : String(val))}</td>
-                    <td className="p-2 text-right font-medium tabular-nums">{val ?? "—"}</td>
+                    <td className="p-2 text-muted-foreground">{opt ? opt[1] : (val === undefined ? "â€”" : String(val))}</td>
+                    <td className="p-2 text-right font-medium tabular-nums">{val ?? "â€”"}</td>
                   </tr>
                 );
               })}
@@ -258,7 +258,7 @@ function AssessmentDetail() {
           <CardTitle className="text-base">Score History &amp; Trend</CardTitle>
           {trend && (
             <p className="text-xs text-muted-foreground">
-              Previous: <strong>{prev?.totalScore}</strong> · Δ <strong>{delta! > 0 ? "+" : ""}{delta}</strong> · {" "}
+              Previous: <strong>{prev?.totalScore}</strong> Â· Î” <strong>{delta! > 0 ? "+" : ""}{delta}</strong> Â· {" "}
               <span className="inline-flex items-center gap-1 font-medium">
                 {trend === "Improved" && <TrendingDown className="h-3 w-3 text-success" />}
                 {trend === "Deteriorated" && <TrendingUp className="h-3 w-3 text-destructive" />}
@@ -278,7 +278,7 @@ function AssessmentDetail() {
                     <span className="font-medium tabular-nums">{h.totalScore}</span>
                     <span className="text-muted-foreground ml-2 text-xs">{h.interpretation}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">v{h.version || 1} · {h.date.slice(0, 10)} · {h.assessor}</div>
+                  <div className="text-xs text-muted-foreground">v{h.version || 1} Â· {h.date.slice(0, 10)} Â· {h.assessor}</div>
                 </Link>
               ))}
             </div>
@@ -296,7 +296,7 @@ function AssessmentDetail() {
                 <Badge variant="outline" className="text-[10px]">v{v.version || 1}</Badge>
                 <span className="font-medium tabular-nums">{v.totalScore}</span>
                 <Badge variant="outline" className={`text-[10px] capitalize ${statusBadgeCls(deriveStatus(v))}`}>{deriveStatus(v)}</Badge>
-                <span className="text-xs text-muted-foreground flex-1">{v.date.slice(0, 10)} · {v.assessor}</span>
+                <span className="text-xs text-muted-foreground flex-1">{v.date.slice(0, 10)} Â· {v.assessor}</span>
                 {v.revisionReason && <span className="text-xs text-muted-foreground italic truncate max-w-[14rem]">"{v.revisionReason}"</span>}
               </Link>
             ))}
@@ -312,14 +312,14 @@ function AssessmentDetail() {
           {comments.map(c => (
             <div key={c.id} className="border-l-2 border-primary/30 pl-3">
               <div className="text-xs text-muted-foreground">
-                <strong className="text-foreground">{c.authorName}</strong> ({c.role}) · {c.at.slice(0, 16).replace("T", " ")}
+                <strong className="text-foreground">{c.authorName}</strong> ({c.role}) Â· {c.at.slice(0, 16).replace("T", " ")}
               </div>
               <div className="text-sm mt-1 whitespace-pre-wrap">{c.body}</div>
             </div>
           ))}
           {can(currentRole, "assessment.comment") && (
             <div className="pt-2 border-t print:hidden">
-              <Textarea placeholder="Add clinical comment (visible to all authorised staff, audited)…" value={comment} onChange={e => setComment(e.target.value)} />
+              <Textarea placeholder="Add clinical comment (visible to all authorised staff, audited)â€¦" value={comment} onChange={e => setComment(e.target.value)} />
               <div className="flex justify-end mt-2">
                 <Button size="sm" disabled={!comment.trim()} onClick={() => { addAssessmentComment(a.id, comment.trim()); setComment(""); toast.success("Comment added"); }}>
                   Post Comment
@@ -332,11 +332,11 @@ function AssessmentDetail() {
 
       {/* Linked records */}
       <div className="grid md:grid-cols-2 gap-4">
-        <LinkedList title={`Linked Care Plans (${linkedCP.length})`} items={linkedCP.map(c => ({ id: c.id, title: c.title, sub: `${c.status} · Review ${c.reviewDate}` }))} />
-        <LinkedList title={`Linked Interventions (${linkedI.length})`} items={linkedI.map(i => ({ id: i.id, title: i.intervention, sub: `${i.date.slice(0,10)} · ${i.staff}` }))} />
-        <LinkedList title={`Linked Tasks (${linkedT.length})`} items={linkedT.map(t => ({ id: t.id, title: t.title, sub: `Due ${t.dueDate} · ${t.status}` }))} />
-        <LinkedList title={`Linked Incidents (${linkedIn.length})`} items={linkedIn.map(i => ({ id: i.id, title: i.type, sub: `${i.date} · ${i.severity}` }))} />
-        <LinkedList title={`Linked MDT (${linkedM.length})`} items={linkedM.map(m => ({ id: m.id, title: (m.meetingType || m.discussion).slice(0, 60), sub: `${m.date} · ${m.authoredBy}` }))} />
+        <LinkedList title={`Linked Care Plans (${linkedCP.length})`} items={linkedCP.map(c => ({ id: c.id, title: c.title, sub: `${c.status} Â· Review ${c.reviewDate}` }))} />
+        <LinkedList title={`Linked Interventions (${linkedI.length})`} items={linkedI.map(i => ({ id: i.id, title: i.intervention, sub: `${i.date.slice(0,10)} Â· ${i.staff}` }))} />
+        <LinkedList title={`Linked Tasks (${linkedT.length})`} items={linkedT.map(t => ({ id: t.id, title: t.title, sub: `Due ${t.dueDate} Â· ${t.status}` }))} />
+        <LinkedList title={`Linked Incidents (${linkedIn.length})`} items={linkedIn.map(i => ({ id: i.id, title: i.type, sub: `${i.date} Â· ${i.severity}` }))} />
+        <LinkedList title={`Linked MDT (${linkedM.length})`} items={linkedM.map(m => ({ id: m.id, title: (m.meetingType || m.discussion).slice(0, 60), sub: `${m.date} Â· ${m.authoredBy}` }))} />
       </div>
 
       {/* Audit Trail */}
@@ -348,7 +348,7 @@ function AssessmentDetail() {
               {audit.slice().reverse().map(e => (
                 <li key={e.id} className="border-l-2 border-border pl-3">
                   <div className="font-medium capitalize">{e.action.replace(/_/g, " ")}</div>
-                  <div className="text-muted-foreground">{e.byUserName} ({e.byRole}) · {e.at.slice(0, 16).replace("T", " ")}</div>
+                  <div className="text-muted-foreground">{e.byUserName} ({e.byRole}) Â· {e.at.slice(0, 16).replace("T", " ")}</div>
                   {e.reason && <div className="text-muted-foreground italic">"{e.reason}"</div>}
                 </li>
               ))}
@@ -383,3 +383,4 @@ function LinkedList({ title, items }: { title: string; items: { id: string; titl
     </Card>
   );
 }
+

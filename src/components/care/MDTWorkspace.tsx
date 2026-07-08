@@ -384,7 +384,7 @@ export function MDTWorkspace() {
       createdBy: currentUserName,
     });
     updateMDTNote(note.id, { linkedTaskIds: [...(note.linkedTaskIds || []), task.id] });
-    toast.success("Follow-up task created");
+    toast.success("Follow-up action created");
   };
 
   const setQuickRange = (from: string, to: string) => setFilters({ ...filters, from, to });
@@ -411,7 +411,7 @@ export function MDTWorkspace() {
         <Metric icon={Users} label="Meetings" value={filtered.length} />
         <Metric icon={CalendarDays} label="This Week" value={mdtNotes.filter((note) => note.date >= today() && note.date <= weekEnd()).length} />
         <Metric icon={ClipboardList} label="Actions Agreed" value={filtered.reduce((total, note) => total + actionLines(note).length, 0)} />
-        <Metric icon={ClipboardList} label="Linked Tasks" value={tasks.filter((task) => task.linkedMDTNoteId).length} />
+        <Metric icon={ClipboardList} label="Linked Actions" value={tasks.filter((task) => task.linkedMDTNoteId).length} />
       </div>
 
       <Card>
@@ -603,7 +603,7 @@ function MeetingDetail({
             {actions.map((action) => (
               <div key={action} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <span>{action}</span>
-                <Button size="sm" variant="outline" onClick={() => onCreateTask(note, action)}>Create Task</Button>
+                <Button size="sm" variant="outline" onClick={() => onCreateTask(note, action)}>Create Action</Button>
               </div>
             ))}
           </div>
@@ -612,7 +612,7 @@ function MeetingDetail({
         )}
       </section>
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Linked Tasks</h3>
+        <h3 className="text-sm font-semibold">Linked Actions</h3>
         {tasks.length > 0 ? (
           <div className="space-y-2">
             {tasks.map((task) => (
@@ -623,7 +623,7 @@ function MeetingDetail({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No linked tasks yet.</p>
+          <p className="text-sm text-muted-foreground">No linked actions yet.</p>
         )}
       </section>
       <section className="rounded-md border p-4 text-sm">

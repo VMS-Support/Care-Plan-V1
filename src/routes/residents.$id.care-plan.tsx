@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import {
@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/residents/$id/care-plan")({
-  head: ({ params }) => ({ meta: [{ title: `Care Plan — ${params.id} — CarePath` }] }),
+  head: ({ params }) => ({ meta: [{ title: `Care Plan â€” ${params.id} â€” CarePath` }] }),
   component: ResidentCarePlanPage,
 });
 
@@ -44,7 +44,7 @@ function todayPlus(days: number) {
 function ResidentCarePlanPage() {
   const { id } = Route.useParams();
   const {
-    residents, residentCarePlans, carePlanProblems, problemGoals,
+    residents, residentCarePlans, carePlanProblems, problemPlans,
     problemInterventions, problemInterventionLogs, problemEvaluations,
     problemReviews, problemHistory, assessmentSuggestions, assessments,
   } = useCare();
@@ -75,7 +75,7 @@ function ResidentCarePlanPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Resident Care Plan</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {r.firstName} {r.lastName} · Room {r.roomNumber} ·{" "}
+            {r.firstName} {r.lastName} Â· Room {r.roomNumber} Â·{" "}
             {rcp ? <>Plan created {rcp.createdAt.slice(0, 10)} by {rcp.createdBy}</> : "No active plan yet"}
           </p>
         </div>
@@ -175,12 +175,12 @@ function SuggestionRow({ suggestionId }: { suggestionId: string }) {
         <div className="flex flex-col gap-1">
           {editing ? (
             <>
-              <Button size="sm" onClick={() => { acceptSuggestion(s.id, { problemStatement: statement, riskLevel: risk }); toast.success("Problem added to care plan"); }}>Save & Accept</Button>
+              <Button size="sm" onClick={() => { acceptSuggestion(s.id, { problemStatement: statement, riskLevel: risk }); toast.success("Nursing care plan added to care plan"); }}>Save & Accept</Button>
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
             </>
           ) : (
             <>
-              <Button size="sm" onClick={() => { acceptSuggestion(s.id); toast.success("Problem added"); }}>Accept</Button>
+              <Button size="sm" onClick={() => { acceptSuggestion(s.id); toast.success("Nursing care plan added"); }}>Accept</Button>
               <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
               <Button size="sm" variant="ghost" onClick={() => { rejectSuggestion(s.id, "Not clinically indicated"); }}>Reject</Button>
             </>
@@ -195,12 +195,12 @@ function SuggestionRow({ suggestionId }: { suggestionId: string }) {
 
 function ProblemCard({ problem }: { problem: CarePlanProblem }) {
   const {
-    problemGoals, problemInterventions, problemInterventionLogs,
+    problemPlans, problemInterventions, problemInterventionLogs,
     problemEvaluations, problemReviews, problemHistory,
   } = useCare();
   const [showHistory, setShowHistory] = useState(false);
 
-  const goals = problemGoals.filter(g => g.problemId === problem.id);
+  const goals = problemPlans.filter(g => g.problemId === problem.id);
   const interventions = problemInterventions.filter(i => i.problemId === problem.id && i.status === "active");
   const evals = problemEvaluations.filter(e => e.problemId === problem.id);
   const reviews = problemReviews.filter(r => r.problemId === problem.id);
@@ -225,12 +225,12 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
             </div>
             <p className="text-sm font-medium">{problem.problemStatement}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Created {problem.createdAt.slice(0, 10)} by {problem.createdBy} · Eval {problem.evaluationDate} · Review {problem.reviewDate}
+              Created {problem.createdAt.slice(0, 10)} by {problem.createdBy} Â· Eval {problem.evaluationDate} Â· Review {problem.reviewDate}
             </p>
           </div>
           {problem.status === "active" && (
             <div className="flex flex-wrap gap-1">
-              <EvaluateDialog problemId={problem.id} />
+              <ReviewDialog problemId={problem.id} />
               <FormalReviewDialog problemId={problem.id} />
               <ReviewUpdateDialog problem={problem} />
               <ResolveDialog problemId={problem.id} />
@@ -240,9 +240,9 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         <Separator />
 
-        {/* Goals */}
-        <Section icon={<Target className="h-3.5 w-3.5" />} label={`Goals (${goals.length})`}>
-          <GoalsEditor problemId={problem.id} />
+        {/* Plans */}
+        <Section icon={<Target className="h-3.5 w-3.5" />} label={`Plans (${goals.length})`}>
+          <PlansEditor problemId={problem.id} />
         </Section>
 
         {/* Interventions */}
@@ -255,8 +255,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                   <div className="font-medium">{i.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {frequencyLabel(i.frequencyType, i.frequencyValue, i.frequencyInstructions)}
-                    {i.assignedRole && ` · ${i.assignedRole}`}
-                    {i.assignedStaffName && ` · ${i.assignedStaffName}`}
+                    {i.assignedRole && ` Â· ${i.assignedRole}`}
+                    {i.assignedStaffName && ` Â· ${i.assignedStaffName}`}
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -275,8 +275,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
             <ul className="text-xs space-y-1">
               {logs.map(l => (
                 <li key={l.id} className="text-muted-foreground">
-                  {l.date} {l.time} · <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName} ({l.role})
-                  {l.comments && ` — ${l.comments}`}
+                  {l.date} {l.time} Â· <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName} ({l.role})
+                  {l.comments && ` â€” ${l.comments}`}
                 </li>
               ))}
             </ul>
@@ -291,8 +291,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                 <div className="font-medium uppercase tracking-wide text-muted-foreground">Evaluations ({evals.length})</div>
                 {evals.slice(0, 3).map(e => (
                   <div key={e.id} className="border rounded p-2">
-                    <div className="font-medium">{e.date.slice(0, 10)} · <span className="capitalize">{e.progress.replace("_", " ")}</span></div>
-                    <div className="text-muted-foreground">{e.evaluatorName} — {e.summary}</div>
+                    <div className="font-medium">{e.date.slice(0, 10)} Â· <span className="capitalize">{e.progress.replace("_", " ")}</span></div>
+                    <div className="text-muted-foreground">{e.evaluatorName} â€” {e.summary}</div>
                   </div>
                 ))}
               </div>
@@ -302,8 +302,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                 <div className="font-medium uppercase tracking-wide text-muted-foreground">Formal Reviews ({reviews.length})</div>
                 {reviews.slice(0, 3).map(rv => (
                   <div key={rv.id} className="border rounded p-2">
-                    <div className="font-medium">{rv.reviewDate.slice(0, 10)} · <span className="capitalize">{rv.outcome}</span></div>
-                    <div className="text-muted-foreground">{rv.reviewedByName} — {rv.comments}</div>
+                    <div className="font-medium">{rv.reviewDate.slice(0, 10)} Â· <span className="capitalize">{rv.outcome}</span></div>
+                    <div className="text-muted-foreground">{rv.reviewedByName} â€” {rv.comments}</div>
                   </div>
                 ))}
               </div>
@@ -321,9 +321,9 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
               {history.map(h => (
                 <div key={h.id} className="border-b last:border-b-0 py-1">
                   <div className="font-medium">
-                    {h.timestamp.slice(0, 16).replace("T", " ")} · {h.action.replace(/_/g, " ")}
+                    {h.timestamp.slice(0, 16).replace("T", " ")} Â· {h.action.replace(/_/g, " ")}
                   </div>
-                  <div className="text-muted-foreground">{h.userName} ({h.role}){h.reason ? ` — ${h.reason}` : ""}</div>
+                  <div className="text-muted-foreground">{h.userName} ({h.role}){h.reason ? ` â€” ${h.reason}` : ""}</div>
                   {h.newValue && <div className="text-muted-foreground italic">{h.newValue.slice(0, 200)}</div>}
                 </div>
               ))}
@@ -333,7 +333,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         {problem.status === "resolved" && problem.resolvedReason && (
           <div className="text-xs text-muted-foreground italic border-t pt-2">
-            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} — {problem.resolvedReason}
+            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} â€” {problem.resolvedReason}
           </div>
         )}
       </CardContent>
@@ -350,11 +350,11 @@ function Section({ icon, label, children }: { icon: React.ReactNode; label: stri
   );
 }
 
-// ============ Goals ============
+// ============ Plans ============
 
-function GoalsEditor({ problemId }: { problemId: string }) {
-  const { problemGoals, addGoal, updateGoal, removeGoal, carePlanProblems } = useCare();
-  const goals = problemGoals.filter(g => g.problemId === problemId);
+function PlansEditor({ problemId }: { problemId: string }) {
+  const { problemPlans, addPlan, updatePlan, removePlan, carePlanProblems } = useCare();
+  const goals = problemPlans.filter(g => g.problemId === problemId);
   const problem = carePlanProblems.find(p => p.id === problemId);
   const [newStatement, setNewStatement] = useState("");
   const suggestions = problem ? PREDEFINED_GOALS[problem.category] : [];
@@ -364,7 +364,7 @@ function GoalsEditor({ problemId }: { problemId: string }) {
       {goals.length === 0 && <p className="text-xs text-muted-foreground">No goals yet.</p>}
       {goals.map(g => (
         <div key={g.id} className="flex items-center gap-2 text-sm border rounded-md p-2">
-          <Select value={g.status} onValueChange={v => updateGoal(g.id, { status: v as any })}>
+          <Select value={g.status} onValueChange={v => updatePlan(g.id, { status: v as any })}>
             <SelectTrigger className="w-40 h-7 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               {["active", "achieved", "partially_achieved", "not_achieved", "discontinued"].map(s => (
@@ -373,14 +373,14 @@ function GoalsEditor({ problemId }: { problemId: string }) {
             </SelectContent>
           </Select>
           <span className="flex-1">{g.statement}</span>
-          <Button size="sm" variant="ghost" onClick={() => removeGoal(g.id)}><X className="h-3 w-3" /></Button>
+          <Button size="sm" variant="ghost" onClick={() => removePlan(g.id)}><X className="h-3 w-3" /></Button>
         </div>
       ))}
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {suggestions.filter(s => !goals.some(g => g.statement === s)).map(s => (
             <Button key={s} size="sm" variant="outline" className="h-6 text-xs"
-              onClick={() => { addGoal(problemId, s); }}>
+              onClick={() => { addPlan(problemId, s); }}>
               <Plus className="h-2.5 w-2.5 mr-1" /> {s}
             </Button>
           ))}
@@ -389,10 +389,10 @@ function GoalsEditor({ problemId }: { problemId: string }) {
       <div className="flex gap-2">
         <Input
           value={newStatement} onChange={e => setNewStatement(e.target.value)}
-          placeholder="Add custom goal…" className="h-8 text-sm"
+          placeholder="Add custom goalâ€¦" className="h-8 text-sm"
         />
         <Button size="sm" disabled={!newStatement.trim()} onClick={() => {
-          addGoal(problemId, newStatement.trim());
+          addPlan(problemId, newStatement.trim());
           setNewStatement("");
         }}><Plus className="h-3 w-3" /></Button>
       </div>
@@ -414,10 +414,10 @@ function AddProblemButton({ residentId }: { residentId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button><Plus className="h-4 w-4 mr-1" /> Add Problem</Button>
+        <Button><Plus className="h-4 w-4 mr-1" /> Add Nursing Care Plan</Button>
       </DialogTrigger>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>Add Care Plan Problem</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Add Nursing Care Plan</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Category</Label>
@@ -429,9 +429,9 @@ function AddProblemButton({ residentId }: { residentId: string }) {
             </Select>
           </div>
           <div>
-            <Label>Problem Statement</Label>
+            <Label>Care Need</Label>
             <Textarea value={statement} onChange={e => setStatement(e.target.value)} rows={3}
-              placeholder="Resident is at risk of…" />
+              placeholder="Describe the resident care needâ€¦" />
           </div>
           <div>
             <Label>Risk Level</Label>
@@ -444,11 +444,11 @@ function AddProblemButton({ residentId }: { residentId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Next Evaluation Date</Label>
+              <Label>Next Review of Outcome</Label>
               <Input type="date" value={evalDate} onChange={e => setEvalDate(e.target.value)} />
             </div>
             <div>
-              <Label>Next Review Date</Label>
+              <Label>Care Plan Review Date</Label>
               <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} />
             </div>
           </div>
@@ -457,16 +457,16 @@ function AddProblemButton({ residentId }: { residentId: string }) {
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button disabled={!statement.trim()} onClick={() => {
             addProblem({ residentId, category, problemStatement: statement.trim(), riskLevel: risk, evaluationDate: evalDate, reviewDate });
-            toast.success("Problem added");
+            toast.success("Nursing care plan added");
             setOpen(false); setStatement("");
-          }}>Add Problem</Button>
+          }}>Add Nursing Care Plan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ============ Add intervention ============
+// ============ Add care action ============
 
 function AddInterventionDialog({ problemId }: { problemId: string }) {
   const { addProblemIntervention, users, currentUser } = useCare();
@@ -480,13 +480,13 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="h-7 mt-1"><Plus className="h-3 w-3 mr-1" /> Add Intervention</Button>
+        <Button size="sm" variant="outline" className="h-7 mt-1"><Plus className="h-3 w-3 mr-1" /> Add Care Action</Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Add Intervention</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Add Care Action</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Intervention name</Label>
+            <Label>Care action name</Label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Reposition resident" />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -503,7 +503,7 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
             </div>
             {freqType !== "prn" && freqType !== "custom" && (
               <div>
-                <Label>Every N {freqType === "hourly" ? "hours" : freqType === "daily" ? "× per day" : freqType}</Label>
+                <Label>Every N {freqType === "hourly" ? "hours" : freqType === "daily" ? "Ã— per day" : freqType}</Label>
                 <Input type="number" min={1} value={freqValue} onChange={e => setFreqValue(+e.target.value)} />
               </div>
             )}
@@ -551,8 +551,8 @@ function DiscontinueButton({ interventionId }: { interventionId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Trash2 className="h-3 w-3" /></Button></DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Discontinue intervention</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason…" />
+        <DialogHeader><DialogTitle>Discontinue care action</DialogTitle></DialogHeader>
+        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reasonâ€¦" />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="destructive" disabled={!reason.trim()} onClick={() => {
@@ -564,7 +564,7 @@ function DiscontinueButton({ interventionId }: { interventionId: string }) {
   );
 }
 
-// ============ Log intervention ============
+// ============ Log care action ============
 
 function LogInterventionDialog({ interventionId, interventionName }: { interventionId: string; interventionName: string }) {
   const { logProblemIntervention } = useCare();
@@ -578,7 +578,7 @@ function LogInterventionDialog({ interventionId, interventionName }: { intervent
         <Button size="sm" className="h-7"><PlayCircle className="h-3 w-3 mr-1" /> Log</Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Log: {interventionName}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Log care action: {interventionName}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Outcome</Label>
@@ -607,7 +607,7 @@ function LogInterventionDialog({ interventionId, interventionName }: { intervent
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={() => {
             logProblemIntervention({ interventionId, outcome, residentResponse: response, comments });
-            toast.success("Intervention logged");
+            toast.success("Care action logged");
             setOpen(false); setResponse(""); setComments(""); setOutcome("completed");
           }}>Save Log</Button>
         </DialogFooter>
@@ -616,20 +616,20 @@ function LogInterventionDialog({ interventionId, interventionName }: { intervent
   );
 }
 
-// ============ Evaluate / Review / Review & Update / Resolve ============
+// ============ Review / Review / Review & Update / Resolve ============
 
-function EvaluateDialog({ problemId }: { problemId: string }) {
+function ReviewDialog({ problemId }: { problemId: string }) {
   const { addProblemEvaluation } = useCare();
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState("");
-  const [goalsMet, setGoalsMet] = useState<"yes" | "partial" | "no">("partial");
+  const [goalsMet, setPlansMet] = useState<"yes" | "partial" | "no">("partial");
   const [progress, setProgress] = useState<"improved" | "stable" | "deteriorated" | "resolved" | "requires_revision">("stable");
   const [nextDate, setNextDate] = useState(todayPlus(7));
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" variant="outline">Evaluate</Button></DialogTrigger>
+      <DialogTrigger asChild><Button size="sm" variant="outline">Review</Button></DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Clinical Evaluation</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Care Plan Review</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Summary</Label>
@@ -637,8 +637,8 @@ function EvaluateDialog({ problemId }: { problemId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Goals met?</Label>
-              <Select value={goalsMet} onValueChange={v => setGoalsMet(v as any)}>
+              <Label>Plan met?</Label>
+              <Select value={goalsMet} onValueChange={v => setPlansMet(v as any)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{["yes", "partial", "no"].map(o => <SelectItem key={o} value={o} className="capitalize">{o}</SelectItem>)}</SelectContent>
               </Select>
@@ -652,7 +652,7 @@ function EvaluateDialog({ problemId }: { problemId: string }) {
             </div>
           </div>
           <div>
-            <Label>Next evaluation date</Label>
+            <Label>Next Review of Outcome</Label>
             <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
           </div>
         </div>
@@ -776,7 +776,7 @@ function ResolveDialog({ problemId }: { problemId: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Resolve Problem</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Resolution reason (e.g. reassessment normal)…" />
+        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Resolution reason (e.g. reassessment normal)â€¦" />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button disabled={!reason.trim()} onClick={() => {
@@ -787,3 +787,4 @@ function ResolveDialog({ problemId }: { problemId: string }) {
     </Dialog>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -132,10 +132,10 @@ export function AddInterventionModal({
         createdByRole: currentRole,
       });
 
-      toast.success("Intervention scheduled successfully");
+      toast.success("Care action scheduled successfully");
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to schedule intervention");
+      toast.error(error instanceof Error ? error.message : "Failed to schedule care action");
     }
   }
 
@@ -143,45 +143,45 @@ export function AddInterventionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Intervention</DialogTitle>
+          <DialogTitle>Add Care Action</DialogTitle>
           <DialogDescription>
             {resident &&
-              `For ${resident.firstName} ${resident.lastName} — Define and schedule the intervention`}
+              `For ${resident.firstName} ${resident.lastName} â€” Define and schedule the care action`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-3 space-y-3">
           {/* Care Plan Problem Selection */}
           <div className="col-span-2 space-y-1.5">
-            <Label>Related Care Plan Problem *</Label>
+            <Label>Related Nursing Care Plan *</Label>
             <Select
               value={form.problemId}
               onValueChange={(v) => setForm({ ...form, problemId: v })}
               disabled={lockProblemSelection}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a problem..." />
+                <SelectValue placeholder="Select a nursing care plan..." />
               </SelectTrigger>
               <SelectContent>
                 {problems.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {`${p.problemStatement} • ${p.category.replace(/_/g, " ")} • ${p.riskLevel.replace(/_/g, " ")} • ${p.status}`}
+                    {`${p.problemStatement} â€¢ ${p.category.replace(/_/g, " ")} â€¢ ${p.riskLevel.replace(/_/g, " ")} â€¢ ${p.status}`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {problems.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No active care plan problems. Create one first.
+                No active nursing care plans. Create one first.
               </p>
             )}
           </div>
 
-          {/* Intervention Name */}
+          {/* Care Action Name */}
           <div className="col-span-2 space-y-1.5">
-            <Label>Intervention Name *</Label>
+            <Label>Care Action Name *</Label>
             <Input
-              placeholder="e.g., Daily Skin Inspection, Reposition Every 2 Hours"
+              placeholder="e.g., Daily skin inspection, reposition every 2 hours"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
@@ -192,7 +192,7 @@ export function AddInterventionModal({
             <Label>Description</Label>
             <Textarea
               rows={2}
-              placeholder="Detailed description of the intervention..."
+              placeholder="Detailed description of the care action..."
               value={form.description || ""}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
@@ -215,9 +215,9 @@ export function AddInterventionModal({
             </Select>
           </div>
 
-          {/* Assigned Role */}
+          {/* Role */}
           <div className="space-y-1.5">
-            <Label>Assigned Role</Label>
+            <Label>Role</Label>
             <Select
               value={form.assignedRole || "Nurse"}
               onValueChange={(v) => setForm({ ...form, assignedRole: v })}
@@ -237,7 +237,7 @@ export function AddInterventionModal({
 
           {/* Assigned Staff */}
           <div className="space-y-1.5">
-            <Label>Assigned Staff Name</Label>
+            <Label>Assigned To</Label>
             <Input
               placeholder="e.g., J. Roberts (RN)"
               value={form.assignedStaffName || ""}
@@ -316,3 +316,4 @@ export function AddInterventionModal({
     </Dialog>
   );
 }
+

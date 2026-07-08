@@ -73,16 +73,16 @@ function EvaluateDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <FileCheck2 className="h-3.5 w-3.5 mr-1.5" /> Evaluate
+          <FileCheck2 className="h-3.5 w-3.5 mr-1.5" /> Review
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Evaluate Care Plan</DialogTitle>
+          <DialogTitle>Review Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Evaluation summary</Label>
+            <Label>Review summary</Label>
             <Textarea
               value={form.summary}
               onChange={(event) => setForm({ ...form, summary: event.target.value })}
@@ -90,7 +90,7 @@ function EvaluateDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Goals met?</Label>
+              <Label>Plan met?</Label>
               <Select
                 value={form.goalsMet}
                 onValueChange={(value) =>
@@ -190,7 +190,7 @@ function EvaluateDialog({
               if (form.reviseRequired) {
                 updateCarePlan(carePlanId, { status: "review_due" });
               }
-              toast.success("Evaluation locked and signed");
+              toast.success("Review locked and signed");
               setOpen(false);
               setTimeout(onRevisePrompt, 250);
             }}
@@ -227,17 +227,17 @@ function LogInterventionDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" /> Log Intervention
+          <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" /> Log Care Action
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Log intervention delivery</DialogTitle>
+          <DialogTitle>Log care action delivery</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           {interventionsSpec.length > 0 && (
             <div>
-              <Label>Intervention</Label>
+              <Label>Care Action</Label>
               <Select
                 value={form.interventionSpecId}
                 onValueChange={(value) => setForm({ ...form, interventionSpecId: value })}
@@ -328,7 +328,7 @@ function LogInterventionDialog({
                 followUpRequired: form.followUpRequired,
                 signature: form.signature || currentUserName,
               });
-              toast.success("Intervention logged");
+              toast.success("Care action logged");
               setOpen(false);
             }}
           >
@@ -540,10 +540,10 @@ function CarePlanDetail() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 mt-4">
-            <HeaderMeta label="Status" value={plan.status.replace("_", " ")} />
+            <HeaderMeta label="Progress" value={plan.status.replace("_", " ")} />
             <HeaderMeta label="Created Date" value={plan.createdAt.slice(0, 10)} />
-            <HeaderMeta label="Next Review Date" value={plan.reviewDate} />
-            <HeaderMeta label="Next Evaluation Date" value={plan.evaluationDate || "—"} />
+            <HeaderMeta label="Care Plan Review Date" value={plan.reviewDate} />
+            <HeaderMeta label="Next Review of Outcome" value={plan.evaluationDate || "—"} />
             <HeaderMeta
               label="Last Updated"
               value={(plan.updatedAt || plan.createdAt).slice(0, 10)}
@@ -557,7 +557,7 @@ function CarePlanDetail() {
           )}
           {overdueEvaluation && (
             <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 text-destructive p-2 text-sm">
-              <AlertTriangle className="h-4 w-4" /> Evaluation overdue (was due{" "}
+              <AlertTriangle className="h-4 w-4" /> Review of outcome overdue (was due{" "}
               {plan.evaluationDate})
             </div>
           )}
@@ -573,7 +573,7 @@ function CarePlanDetail() {
 
         <TabsContent value="care" className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
-            <DetailCard title="Problem Statement">
+            <DetailCard title="Care Need">
               <p>{plan.problemStatement || plan.problem}</p>
               {plan.identifiedNeeds && plan.identifiedNeeds.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-3">
@@ -586,7 +586,7 @@ function CarePlanDetail() {
               )}
             </DetailCard>
 
-            <DetailCard title="Goals">
+            <DetailCard title="Plan">
               {plan.goals && plan.goals.length > 0 ? (
                 <div className="space-y-3">
                   {plan.goals.map((goal) => (
@@ -617,13 +617,13 @@ function CarePlanDetail() {
                 <div>
                   <p>{plan.goal}</p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    No structured SMART goals recorded yet.
+                    No structured nursing plan recorded yet.
                   </p>
                 </div>
               )}
             </DetailCard>
 
-            <DetailCard title="Interventions">
+            <DetailCard title="Care Actions">
               <ul className="list-disc pl-5 space-y-1">
                 {plan.interventions.map((intervention, index) => (
                   <li key={index}>{intervention}</li>
@@ -631,7 +631,7 @@ function CarePlanDetail() {
               </ul>
             </DetailCard>
 
-            <DetailCard title="Scheduled Interventions">
+            <DetailCard title="Scheduled Care Actions">
               {scheduledInterventions.length > 0 ? (
                 <div className="space-y-3">
                   {scheduledInterventions.map((item) => (
@@ -664,7 +664,7 @@ function CarePlanDetail() {
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground">No scheduled interventions recorded yet.</p>
+                <p className="text-muted-foreground">No scheduled care actions recorded yet.</p>
               )}
             </DetailCard>
           </div>
@@ -704,9 +704,9 @@ function CarePlanDetail() {
 
         <TabsContent value="timeline" className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
-            <DetailCard title={`Evaluations Timeline (${evals.length})`}>
+            <DetailCard title={`Review Timeline (${evals.length})`}>
               {evals.length === 0 && (
-                <p className="text-muted-foreground">No evaluations recorded.</p>
+                <p className="text-muted-foreground">No reviews recorded.</p>
               )}
               <div className="space-y-3">
                 {evals.map((evaluation) => (
@@ -748,7 +748,7 @@ function CarePlanDetail() {
 
           <DetailCard title={`Recent Delivery Log (${planLogs.length})`}>
             {planLogs.length === 0 && (
-              <p className="text-muted-foreground">No intervention deliveries logged yet.</p>
+              <p className="text-muted-foreground">No care action deliveries logged yet.</p>
             )}
             <div className="space-y-3">
               {planLogs.map((log) => {
@@ -758,7 +758,7 @@ function CarePlanDetail() {
                 return (
                   <TimelineCard
                     key={log.id}
-                    title={`${log.date} ${log.time} · ${spec?.name || "Intervention"}`}
+                    title={`${log.date} ${log.time} · ${spec?.name || "Care Action"}`}
                     badge={log.outcome.replace("_", " ")}
                     subtitle={`${log.staff}${log.role ? ` · ${log.role}` : ""}`}
                   >
@@ -785,7 +785,7 @@ function CarePlanDetail() {
             {compliance.total > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Intervention Compliance</CardTitle>
+                  <CardTitle className="text-base">Care Action Compliance</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between text-sm gap-3 flex-wrap">
@@ -891,7 +891,7 @@ function CarePlanDetail() {
 
             <div className="grid gap-4 xl:grid-cols-2">
               <EvidenceSection
-                title={`Linked Tasks (${linkedTasks.length})`}
+                title={`Linked Actions (${linkedTasks.length})`}
                 items={linkedTasks.map((task) => ({
                   id: task.id,
                   title: task.title,
@@ -931,7 +931,7 @@ function CarePlanDetail() {
                 }))}
               />
               <EvidenceSection
-                title={`Logged Interventions (${linkedInterventions.length})`}
+                title={`Logged Care Actions (${linkedInterventions.length})`}
                 items={linkedInterventions.map((item) => ({
                   id: item.id,
                   title: item.intervention,
@@ -949,7 +949,7 @@ function CarePlanDetail() {
             <DialogTitle>Revise this care plan?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            An evaluation has been signed. Would you like to revise this care plan now? A new
+            A review has been signed. Would you like to revise this care plan now? A new
             version will be created and this one will be superseded.
           </p>
           <Textarea

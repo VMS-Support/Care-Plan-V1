@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Mic, Activity, AlertCircle, Eye, Search, X } from "lucide-react";
 import type { DailyNote } from "@/lib/care/types";
 
 export const Route = createFileRoute("/daily-notes")({
-  head: () => ({ meta: [{ title: "Daily Notes — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Daily Notes â€” CarePath" }] }),
   component: DailyNotesPage,
 });
 
@@ -100,7 +100,7 @@ function NewNote() {
     rec.continuous = false; rec.interimResults = false;
     rec.onresult = (e: any) => setF(s => ({ ...s, observation: (s.observation + " " + e.results[0][0].transcript).trim() }));
     rec.start();
-    toast.info("Listening…");
+    toast.info("Listeningâ€¦");
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -294,7 +294,7 @@ function DailyNotesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Daily Notes</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {filteredNotes.length} shown � {notes.length} notes recorded
+            {filteredNotes.length} shown · {notes.length} notes recorded
           </p>
         </div>
         <NewNote />
@@ -398,7 +398,7 @@ function DailyNotesPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(note.date).toLocaleString("en-GB")} � {note.staff}
+                      {new Date(note.date).toLocaleString("en-GB")} · {note.staff}
                     </p>
                     <p className="text-sm mt-2 line-clamp-2">{notePreview(note)}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
@@ -407,7 +407,7 @@ function DailyNotesPage() {
                     </div>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => setSelectedNote(note)}>
-                    <Eye className="h-3.5 w-3.5 mr-1" /> View
+                    <Eye className="h-3.5 w-3.5 mr-1" /> View Note
                   </Button>
                 </div>
               </CardContent>
@@ -449,3 +449,4 @@ function DailyNotesPage() {
     </div>
   );
 }
+

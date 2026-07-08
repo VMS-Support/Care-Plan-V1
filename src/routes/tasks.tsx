@@ -2,6 +2,6 @@
 import { TaskWorkflowEngine } from "@/components/care/TaskWorkflowEngine";
 
 export const Route = createFileRoute("/tasks")({
-  head: () => ({ meta: [{ title: "Tasks - CarePath" }] }),
+  head: () => ({ meta: [{ title: "Actions - CarePath" }] }),
   component: TaskWorkflowEngine,
 });

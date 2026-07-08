@@ -581,8 +581,8 @@ function ResidentDetail() {
         id: `eval-${e.id}`,
         module: "evaluations" as const,
         at: e.date,
-        title: "Problem evaluation",
-        summary: `${e.progress.replace(/_/g, " ")} · goals met: ${e.goalsMet}`,
+        title: "Care plan review",
+        summary: `${e.progress.replace(/_/g, " ")} · plan met: ${e.goalsMet}`,
         by: e.evaluatorName,
       })),
       ...rProblemReviews.map((rev) => ({
@@ -697,10 +697,10 @@ function ResidentDetail() {
   const residentAuditRows = useMemo(() => {
     const entityModuleMap = new Map<string, string>();
     rA.forEach((a) => entityModuleMap.set(a.id, "Assessments"));
-    rProblems.forEach((p) => entityModuleMap.set(p.id, "Care Plan Problems"));
-    rProblemInterventions.forEach((i) => entityModuleMap.set(i.id, "Interventions"));
-    rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Evaluations"));
-    rTasks.forEach((t) => entityModuleMap.set(t.id, "Tasks"));
+    rProblems.forEach((p) => entityModuleMap.set(p.id, "Nursing Care Plans"));
+    rProblemInterventions.forEach((i) => entityModuleMap.set(i.id, "Care Actions"));
+    rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Reviews"));
+    rTasks.forEach((t) => entityModuleMap.set(t.id, "Actions"));
     rIncidents.forEach((i) => entityModuleMap.set(i.id, "Incidents"));
     rMDT.forEach((m) => entityModuleMap.set(m.id, "MDT"));
     rVisitors.forEach((v) => entityModuleMap.set(v.id, "Visitors"));
@@ -865,12 +865,12 @@ function ResidentDetail() {
 
   const submitAddGoal = () => {
     if (!selectedProblem || !goalDraft.statement.trim()) {
-      toast.error("Goal statement is required");
+      toast.error("Plan statement is required");
       return;
     }
     addGoal(selectedProblem.id, goalDraft.statement.trim(), goalDraft.targetDate || undefined);
     setGoalDraft({ statement: "", targetDate: "" });
-    toast.success("Goal added");
+    toast.success("Plan added");
   };
 
   const submitEvaluation = () => {
@@ -1037,7 +1037,7 @@ function ResidentDetail() {
                       Latest Vitals
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setTimelineDialogOpen(true)}>
-                      Clinical Timeline
+                      Resident Timeline
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setAuditDialogOpen(true)}>
                       Audit History
@@ -1148,7 +1148,7 @@ function ResidentDetail() {
             <DialogTitle>Delete Resident</DialogTitle>
             <DialogDescription>
               This will remove the resident from active views and archive all related records,
-              including tasks, interventions, care plans, assessments, notes, incidents, handovers,
+              including actions, care actions, care plans, assessments, notes, incidents, handovers,
               visitors, outings, alerts, risks and vitals.
             </DialogDescription>
           </DialogHeader>
@@ -1197,7 +1197,7 @@ function ResidentDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Active Care Plan Problems</CardTitle>
+          <CardTitle className="text-base">Active Nursing Care Plans</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {activeProblems.slice(0, 8).map((problem) => {
@@ -1230,30 +1230,30 @@ function ResidentDetail() {
                   </Badge>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Status: {problem.status} · Review: {problem.reviewDate} · Evaluation:{" "}
+                  Progress: {problem.status} · Care Plan Review: {problem.reviewDate} · Review of Outcome:{" "}
                   {problem.evaluationDate}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-muted-foreground">
-                  <div>Goals: {goalsCount}</div>
-                  <div>Interventions: {interventionsCount}</div>
-                  <div>Evaluations: {evaluationsCount}</div>
+                  <div>Plans: {goalsCount}</div>
+                  <div>Care Actions: {interventionsCount}</div>
+                  <div>Reviews: {evaluationsCount}</div>
                   <div>Reviews: {reviewsCount}</div>
                   <div>Linked Assessments: {linkedAssessmentsCount}</div>
                   <div>Linked Notes: {linkedNotesCount}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => openProblemDetail(problem.id)}>
-                    Open Problem
+                    Open Care Plan
                   </Button>
                   <Button size="sm" onClick={() => openAddInterventionForProblem(problem.id)}>
-                    Add Intervention
+                    Add Care Action
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => openAddEvaluationForProblem(problem.id)}
                   >
-                    Add Evaluation
+                    Add Review
                   </Button>
                 </div>
               </div>
@@ -1278,7 +1278,7 @@ function ResidentDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Upcoming Tasks</CardTitle>
+          <CardTitle className="text-base">Upcoming Care Actions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {upcomingInterventionTasks.map((task) => (
@@ -1297,9 +1297,9 @@ function ResidentDetail() {
 
               <div className="grid md:grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <div>Due: {task.dueAt ? task.dueAt.toLocaleString("en-GB") : "Not scheduled"}</div>
-                <div>Assigned Role: {task.intervention.assignedRole || "Unassigned"}</div>
-                <div>Assigned Staff: {task.intervention.assignedStaffName || "Unassigned"}</div>
-                <div>Status: {statusLabel(task.status)}</div>
+                <div>Role: {task.intervention.assignedRole || "Unassigned"}</div>
+                <div>Assigned To: {task.intervention.assignedStaffName || "Unassigned"}</div>
+                <div>Progress: {statusLabel(task.status)}</div>
               </div>
 
               {(task.status === "completed" || task.completion) && (
@@ -1333,7 +1333,7 @@ function ResidentDetail() {
                       variant="outline"
                       onClick={() => openProblemDetail(task.intervention.problemId)}
                     >
-                      Open Intervention
+                      Open Care Action
                     </Button>
                   </>
                 )}
@@ -1343,7 +1343,7 @@ function ResidentDetail() {
 
           {upcomingInterventionTasks.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">No upcoming intervention tasks.</p>
+              <p className="text-sm text-muted-foreground">No upcoming care actions.</p>
               <Button asChild variant="outline" size="sm">
                 <Link to="/residents/$id/care-plan" params={{ id: r.id }}>
                   Open Care Plans
@@ -1368,7 +1368,7 @@ function ResidentDetail() {
             <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
             <TabsTrigger value="mdt">MDT ({rMDT.length})</TabsTrigger>
             <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks ({rTasks.length})</TabsTrigger>
+            <TabsTrigger value="tasks">Actions ({rTasks.length})</TabsTrigger>
           </TabsList>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1378,7 +1378,7 @@ function ResidentDetail() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onClick={() => setActiveTab("interventions")}>
-                Interventions ({rProblemInterventions.length})
+                Care Actions ({rProblemInterventions.length})
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setActiveTab("visitors")}>
                 Visitors ({rVisitors.length})
@@ -1627,7 +1627,7 @@ function ResidentDetail() {
           <div className="flex flex-wrap gap-2 items-center">
             <Link to="/residents/$id/assessments" params={{ id: r.id }}>
               <Button size="sm">
-                <Activity className="h-3 w-3 mr-1" /> Assessment Centre
+                <Activity className="h-3 w-3 mr-1" /> Assessment Work Queue
               </Button>
             </Link>
             <Link to="/residents/$id/quality-of-life" params={{ id: r.id }}>
@@ -1724,7 +1724,7 @@ function ResidentDetail() {
                                   search={{ type: a.type } as any}
                                 >
                                   <Button size="sm" variant="outline" className="h-7 text-[11px]">
-                                    <Plus className="h-3 w-3 mr-1" /> Reassess
+                                    <Plus className="h-3 w-3 mr-1" /> Start Assessment
                                   </Button>
                                 </Link>
                               )}
@@ -1800,7 +1800,7 @@ function ResidentDetail() {
                   <strong>Problem:</strong> {c.problem}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  <strong>Goal:</strong> {c.goal}
+                  <strong>Plan:</strong> {c.goal}
                 </p>
                 <ul className="text-sm mt-2 list-disc pl-5 space-y-0.5">
                   {c.interventions.map((i, k) => (
@@ -1868,7 +1868,7 @@ function ResidentDetail() {
         <TabsContent value="interventions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Intervention Operations</CardTitle>
+              <CardTitle className="text-base">Care Action Operations</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -1970,7 +1970,7 @@ function ResidentDetail() {
                     {rProblemInterventions.length === 0 && (
                       <tr>
                         <td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">
-                          No interventions defined for this resident.
+                          No care actions defined for this resident.
                         </td>
                       </tr>
                     )}
@@ -2307,7 +2307,7 @@ function ResidentDetail() {
                 <Badge variant="outline">{openAlertCount}</Badge>
               </div>
               <div className="border rounded-md p-2 space-y-2">
-                <div className="font-medium text-sm">Outstanding Tasks</div>
+                <div className="font-medium text-sm">Outstanding Actions</div>
                 {openTasks.length > 0 ? (
                   <div className="space-y-1">
                     {openTasks.slice(0, 3).map((task) => {
@@ -2336,7 +2336,7 @@ function ResidentDetail() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No Outstanding Tasks</div>
+                  <div className="text-xs text-muted-foreground">No Outstanding Actions</div>
                 )}
               </div>
             </CardContent>
@@ -2370,11 +2370,11 @@ function ResidentDetail() {
         <TabsContent value="tasks" className="space-y-2">
           <div className="grid md:grid-cols-3 gap-3 text-sm">
             <div className="border rounded-md p-2 text-center">
-              <div className="text-xs text-muted-foreground">Upcoming Tasks</div>
+              <div className="text-xs text-muted-foreground">Upcoming Actions</div>
               <div className="font-semibold tabular-nums">{taskOps.upcoming.length}</div>
             </div>
             <div className="border rounded-md p-2 text-center">
-              <div className="text-xs text-muted-foreground">Overdue Tasks</div>
+              <div className="text-xs text-muted-foreground">Overdue Actions</div>
               <div className="font-semibold tabular-nums text-destructive">
                 {taskOps.overdue.length}
               </div>
@@ -2387,7 +2387,7 @@ function ResidentDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Overdue Tasks</CardTitle>
+              <CardTitle className="text-base">Overdue Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {taskOps.overdue.map((t) => (
@@ -2410,7 +2410,7 @@ function ResidentDetail() {
                 </div>
               ))}
               {taskOps.overdue.length === 0 && (
-                <p className="text-sm text-muted-foreground">No overdue tasks.</p>
+                <p className="text-sm text-muted-foreground">No overdue actions.</p>
               )}
             </CardContent>
           </Card>
@@ -2433,7 +2433,7 @@ function ResidentDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Task History</CardTitle>
+              <CardTitle className="text-base">Action History</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {rTasks
@@ -2443,7 +2443,7 @@ function ResidentDetail() {
                   <div key={t.id} className="text-xs border rounded-md p-2">
                     <div className="font-medium">{t.title}</div>
                     <div className="text-muted-foreground">
-                      Status: {t.status} · Due: {t.dueDate} · Assigned: {t.assignedTo}
+                      Progress: {t.status} · Due: {t.dueDate} · Assigned To: {t.assignedTo}
                     </div>
                   </div>
                 ))}
@@ -2467,19 +2467,19 @@ function ResidentDetail() {
       <Dialog open={timelineDialogOpen} onOpenChange={setTimelineDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Clinical Timeline</DialogTitle>
+            <DialogTitle>Resident Timeline</DialogTitle>
             <DialogDescription>Newest first, filter by clinical module.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-2 mb-3">
             {[
               ["all", "All"],
               ["assessments", "Assessments"],
-              ["careplans", "Care Plans"],
-              ["interventions", "Interventions"],
-              ["evaluations", "Evaluations"],
+              ["careplans", "Nursing Care Plans"],
+              ["interventions", "Care Actions"],
+              ["evaluations", "Reviews"],
               ["incidents", "Incidents"],
               ["mdt", "MDT"],
-              ["tasks", "Tasks"],
+              ["tasks", "Actions"],
               ["vitals", "Vitals"],
               ["visitors", "Visitors"],
               ["outings", "Outings"],
@@ -2690,11 +2690,11 @@ function ResidentDetail() {
       >
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Care Plan Problem Detail</DialogTitle>
+            <DialogTitle>Nursing Care Plan</DialogTitle>
             <DialogDescription>
               {selectedProblem
                 ? `${selectedProblem.problemStatement}`
-                : "Select a problem from Active Care Plan Problems."}
+                : "Select a nursing care plan from Active Nursing Care Plans."}
             </DialogDescription>
           </DialogHeader>
 
@@ -2729,14 +2729,14 @@ function ResidentDetail() {
                           size="sm"
                           onClick={() => openAddInterventionForProblem(selectedProblem.id)}
                         >
-                          <Plus className="h-3 w-3 mr-1" /> Add Intervention
+                          <Plus className="h-3 w-3 mr-1" /> Add Care Action
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
                         >
-                          <Plus className="h-3 w-3 mr-1" /> Add Evaluation Later
+                          <Plus className="h-3 w-3 mr-1" /> Add Review Later
                         </Button>
                       </div>
                     </div>
@@ -2744,17 +2744,17 @@ function ResidentDetail() {
                 )}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Problem Information</CardTitle>
+                  <CardTitle className="text-base">Nursing Care Plan</CardTitle>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-2 text-sm">
-                  <Row label="Problem statement" value={selectedProblem.problemStatement} />
+                  <Row label="Care need" value={selectedProblem.problemStatement} />
                   <Row label="Category" value={selectedProblem.category.replace(/_/g, " ")} />
                   <Row label="Risk level" value={selectedProblem.riskLevel.replace(/_/g, " ")} />
                   <Row label="Created date" value={selectedProblem.createdAt.slice(0, 10)} />
                   <Row label="Created by" value={selectedProblem.createdBy} />
                   <Row label="Status" value={selectedProblem.status} />
                   <Row label="Review date" value={selectedProblem.reviewDate} />
-                  <Row label="Evaluation date" value={selectedProblem.evaluationDate} />
+                  <Row label="Next Review of Outcome" value={selectedProblem.evaluationDate} />
                   <Row
                     label="Source assessment"
                     value={
@@ -2768,12 +2768,12 @@ function ResidentDetail() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Goals</CardTitle>
+                  <CardTitle className="text-base">Plan</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="grid md:grid-cols-3 gap-2">
                     <Input
-                      placeholder="Add goal"
+                      placeholder="Add plan"
                       value={goalDraft.statement}
                       onChange={(e) => setGoalDraft((s) => ({ ...s, statement: e.target.value }))}
                     />
@@ -2782,7 +2782,7 @@ function ResidentDetail() {
                       value={goalDraft.targetDate}
                       onChange={(e) => setGoalDraft((s) => ({ ...s, targetDate: e.target.value }))}
                     />
-                    <Button onClick={submitAddGoal}>Add Goal</Button>
+                    <Button onClick={submitAddGoal}>Add Plan</Button>
                   </div>
                   {selectedProblemGoals.map((goal) => (
                     <div
@@ -2818,7 +2818,7 @@ function ResidentDetail() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Interventions</CardTitle>
+                  <CardTitle className="text-base">Care Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex justify-end">
@@ -2826,7 +2826,7 @@ function ResidentDetail() {
                       size="sm"
                       onClick={() => openAddInterventionForProblem(selectedProblem.id)}
                     >
-                      Add Intervention
+                      Add Care Action
                     </Button>
                   </div>
                   <div className="overflow-x-auto">
@@ -2897,7 +2897,7 @@ function ResidentDetail() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Evaluations</CardTitle>
+                  <CardTitle className="text-base">Reviews</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex justify-end">
@@ -2905,7 +2905,7 @@ function ResidentDetail() {
                       size="sm"
                       onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
                     >
-                      Add Evaluation
+                      Add Review
                     </Button>
                   </div>
                   {selectedProblemEvaluations.map((evl) => (
@@ -2914,11 +2914,11 @@ function ResidentDetail() {
                         {evl.date.slice(0, 10)} · {evl.evaluatorName}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Progress: {evl.progress.replace(/_/g, " ")} · Goals Met: {evl.goalsMet}
+                        Progress: {evl.progress.replace(/_/g, " ")} · Plan Met: {evl.goalsMet}
                       </div>
                       <div className="text-xs">Outcome: {evl.recommendations || "—"}</div>
                       <div className="text-xs text-muted-foreground">
-                        Next Evaluation: {evl.nextEvaluationDate || "—"}
+                        Next Review of Outcome: {evl.nextEvaluationDate || "—"}
                       </div>
                     </div>
                   ))}
@@ -2932,10 +2932,10 @@ function ResidentDetail() {
       <Dialog open={inactiveProblemOpen} onOpenChange={setInactiveProblemOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set Care Plan Problem Inactive</DialogTitle>
+            <DialogTitle>Set Nursing Care Plan Inactive</DialogTitle>
             <DialogDescription>
-              This will set this care plan problem as inactive and also set all linked
-              interventions as inactive. The record will remain available for audit/history.
+              This will set this nursing care plan as inactive and also set all linked
+              care actions as inactive. The record will remain available for audit/history.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -2963,7 +2963,7 @@ function ResidentDetail() {
       <Dialog open={evaluationOpen} onOpenChange={setEvaluationOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Evaluation</DialogTitle>
+            <DialogTitle>Add Review</DialogTitle>
             <DialogDescription>
               {selectedProblem
                 ? `Resident and problem are pre-linked: ${selectedProblem.problemStatement}`
@@ -2973,7 +2973,7 @@ function ResidentDetail() {
 
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <Label>Evaluation Date</Label>
+              <Label>Review Date</Label>
               <Input
                 type="date"
                 value={evaluationDraft.date}
@@ -2992,7 +2992,7 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Goals Met</Label>
+              <Label>Plan Met</Label>
               <Select
                 value={evaluationDraft.goalsMet}
                 onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, goalsMet: v }))}
@@ -3035,7 +3035,7 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Next Evaluation Date</Label>
+              <Label>Next Review of Outcome</Label>
               <Input
                 type="date"
                 value={evaluationDraft.nextEvaluationDate}
@@ -3072,7 +3072,7 @@ function ResidentDetail() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Add Intervention (optional)</Label>
+                  <Label>Add Care Action (optional)</Label>
                   <Input
                     value={evaluationDraft.revisionAddIntervention}
                     onChange={(e) =>
@@ -3084,7 +3084,7 @@ function ResidentDetail() {
                   />
                 </div>
                 <div>
-                  <Label>Remove Intervention</Label>
+                  <Label>Remove Care Action</Label>
                   <Select
                     value={evaluationDraft.revisionDiscontinueInterventionId}
                     onValueChange={(v) =>
@@ -3148,7 +3148,7 @@ function ResidentDetail() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Update Goal</Label>
+                  <Label>Update Plan</Label>
                   <Select
                     value={evaluationDraft.revisionUpdateGoalId}
                     onValueChange={(v) =>
@@ -3156,7 +3156,7 @@ function ResidentDetail() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select goal" />
+                      <SelectValue placeholder="Select plan" />
                     </SelectTrigger>
                     <SelectContent>
                       {selectedProblemGoals.map((goal) => (
@@ -3168,7 +3168,7 @@ function ResidentDetail() {
                   </Select>
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Updated Goal Text</Label>
+                  <Label>Updated Plan Text</Label>
                   <Input
                     value={evaluationDraft.revisionGoalText}
                     onChange={(e) =>
@@ -3194,7 +3194,7 @@ function ResidentDetail() {
             <Button variant="outline" onClick={() => setEvaluationOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitEvaluation}>Save Evaluation</Button>
+            <Button onClick={submitEvaluation}>Save Review</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

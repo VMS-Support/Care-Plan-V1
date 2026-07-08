@@ -82,7 +82,7 @@ const TASK_TYPES: Record<TaskCategory, string[]> = {
     "Outing",
     "Activity",
   ],
-  general: ["Custom Task"],
+  general: ["Custom Action"],
 };
 
 const PRIORITIES: TaskPriority[] = ["critical", "high", "normal", "low"];
@@ -139,7 +139,7 @@ function residentName(resident?: Resident) {
 }
 
 function taskKind(task: Pick<Task, "taskType" | "appointmentType">) {
-  return task.taskType || task.appointmentType || "General Task";
+  return task.taskType || task.appointmentType || "General Action";
 }
 
 function isAppointmentTask(task: Pick<Task, "taskType" | "category" | "appointmentLocation">) {
@@ -186,7 +186,7 @@ function NewTaskDialog() {
 
   const create = () => {
     if (!form.title.trim()) {
-      toast.error("Task title is required");
+      toast.error("Action title is required");
       return;
     }
     addTask({
@@ -216,7 +216,7 @@ function NewTaskDialog() {
       createdAt: new Date().toISOString(),
       createdBy: currentUserName,
     });
-    toast.success("Task created");
+    toast.success("Action created");
     setForm(blankForm());
     setOpen(false);
   };
@@ -224,11 +224,11 @@ function NewTaskDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>New Task</Button>
+        <Button>New Action</Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
+          <DialogTitle>New Action</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
@@ -272,7 +272,7 @@ function NewTaskDialog() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Task type</Label>
+            <Label>Action type</Label>
             <Select value={form.taskType} onValueChange={(taskType) => setForm({ ...form, taskType })}>
               <SelectTrigger>
                 <SelectValue />
@@ -420,7 +420,7 @@ function NewTaskDialog() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={create}>Create Task</Button>
+          <Button onClick={create}>Create Action</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -562,7 +562,7 @@ export function TaskWorkflowEngine() {
       outcome: notes.trim() || task.outcome,
       followUpRequired,
     });
-    toast.success("Task completed");
+    toast.success("Action completed");
     setCompleteTaskId(null);
     setOpenTaskId(null);
     setOutcome("");
@@ -581,7 +581,7 @@ export function TaskWorkflowEngine() {
       createdAt: new Date().toISOString(),
       createdBy: currentUserName,
     });
-    toast.success("Task duplicated");
+    toast.success("Action duplicated");
   };
 
   const clearFilters = () => {
@@ -609,15 +609,15 @@ export function TaskWorkflowEngine() {
       updateTask(task.id, { status: "completed", completedAt: new Date().toISOString(), completedBy: currentUserName }),
     );
     setSelectedIds([]);
-    toast.success("Selected tasks completed");
+    toast.success("Selected actions completed");
   };
 
   return (
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
-          <p className="text-sm text-muted-foreground mt-1">Clinical, operational and appointment work queue</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Actions</h1>
+          <p className="text-sm text-muted-foreground mt-1">Clinical, operational and appointment actions</p>
         </div>
         <NewTaskDialog />
       </div>
@@ -656,10 +656,10 @@ export function TaskWorkflowEngine() {
               </SelectContent>
             </Select>
             <Select value={filters.assignedTo} onValueChange={(assignedTo) => setFilters({ ...filters, assignedTo })}>
-              <SelectTrigger><SelectValue placeholder="Assigned" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All assignees</SelectItem>
-                <SelectItem value={currentUserName}>My tasks</SelectItem>
+                <SelectItem value={currentUserName}>My actions</SelectItem>
                 {assignedOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -692,7 +692,7 @@ export function TaskWorkflowEngine() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-9"
-                placeholder="Search task, resident, location or notes"
+                placeholder="Search action, resident, location or notes"
                 value={filters.search}
                 onChange={(event) => setFilters({ ...filters, search: event.target.value })}
               />
@@ -700,7 +700,7 @@ export function TaskWorkflowEngine() {
             <Button variant="outline" onClick={() => { setTab("due_today"); setFilters({ ...filters, from: todayKey, to: todayKey }); }}>Today</Button>
             <Button variant="outline" onClick={() => setTab("overdue")}>Overdue</Button>
             <Button variant="outline" onClick={() => { setTab("active"); setFilters({ ...filters, from: todayKey, to: weekEndKey }); }}>This Week</Button>
-            <Button variant="outline" onClick={() => setFilters({ ...filters, assignedTo: currentUserName })}>My Tasks</Button>
+            <Button variant="outline" onClick={() => setFilters({ ...filters, assignedTo: currentUserName })}>My Actions</Button>
             <Button variant="ghost" onClick={clearFilters}>Clear</Button>
           </div>
         </CardContent>
@@ -731,7 +731,7 @@ export function TaskWorkflowEngine() {
                 onClick={() => {
                   selectedTasks.forEach((task) => updateTask(task.id, { assignedTo: bulkAssignee.trim(), assignedToType: "staff" }));
                   setBulkAssignee("");
-                  toast.success("Selected tasks assigned");
+                  toast.success("Selected actions assigned");
                 }}
                 disabled={!bulkAssignee.trim()}
               >
@@ -797,7 +797,7 @@ export function TaskWorkflowEngine() {
                         <span>{residentName(resident)}</span>
                         <span>Room {resident?.roomNumber || "N/A"}</span>
                         <span>Due {formatDue(task.dueDate)}</span>
-                        <span>Assigned: {task.assignedTo || "Unassigned"}</span>
+                        <span>Assigned To: {task.assignedTo || "Unassigned"}</span>
                       </div>
                       {(task.appointmentLocation || task.transportRequired || task.escortRequired) && (
                         <div className="flex flex-wrap gap-2 text-xs">
@@ -837,9 +837,9 @@ export function TaskWorkflowEngine() {
           <Card>
             <CardContent className="p-8 text-center">
               <ClipboardList className="mx-auto h-8 w-8 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">No tasks in this view.</h3>
+              <h3 className="mt-3 font-semibold">No actions in this view.</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Adjust the filters or create a new task for clinical, operational or resident follow-up work.
+                Adjust the filters or create a new action for clinical, operational or resident follow-up work.
               </p>
             </CardContent>
           </Card>
@@ -861,7 +861,7 @@ export function TaskWorkflowEngine() {
 
       <Dialog open={!!taskToComplete} onOpenChange={(open) => !open && setCompleteTaskId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Complete Task</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Complete Action</DialogTitle></DialogHeader>
           {taskToComplete && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">{taskToComplete.title}</p>
@@ -877,16 +877,16 @@ export function TaskWorkflowEngine() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCompleteTaskId(null)}>Cancel</Button>
-            {taskToComplete && <Button onClick={() => completeTask(taskToComplete)}>Complete Task</Button>}
+            {taskToComplete && <Button onClick={() => completeTask(taskToComplete)}>Complete Action</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!taskPendingDelete} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Delete Task</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Delete Action</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This task will be removed from active task lists but retained for audit purposes.
+            This action will be removed from active action lists but retained for audit purposes.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTaskId(null)}>Cancel</Button>
@@ -896,10 +896,10 @@ export function TaskWorkflowEngine() {
                 onClick={() => {
                   softDeleteTask(taskPendingDelete.id);
                   setDeleteTaskId(null);
-                  toast.success("Task removed from active lists");
+                  toast.success("Action removed from active lists");
                 }}
               >
-                Delete Task
+                Delete Action
               </Button>
             )}
           </DialogFooter>
@@ -945,7 +945,7 @@ function TaskDetails({ task, resident, todayKey }: { task: Task; resident?: Resi
       </div>
       <div><span className="text-muted-foreground">Resident:</span> {residentName(resident)}</div>
       <div><span className="text-muted-foreground">Due:</span> {formatDue(task.dueDate)}</div>
-      <div><span className="text-muted-foreground">Assigned:</span> {task.assignedTo || "Unassigned"}</div>
+      <div><span className="text-muted-foreground">Assigned To:</span> {task.assignedTo || "Unassigned"}</div>
       {task.reminderAt && <div><span className="text-muted-foreground">Reminder:</span> {formatDue(task.reminderAt)}</div>}
       {task.recurrence && task.recurrence !== "none" && <div><span className="text-muted-foreground">Repeat:</span> {task.recurrence}</div>}
       {task.appointmentLocation && <div><span className="text-muted-foreground">Location:</span> {task.appointmentLocation}</div>}

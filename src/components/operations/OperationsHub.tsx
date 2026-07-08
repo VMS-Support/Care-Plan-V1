@@ -126,7 +126,7 @@ function MetricCard({
 export function OperationsHub({
   title,
   subtitle = "What do I need to do next?",
-  eyebrow = "Operations Centre",
+  eyebrow = "Operations",
 }: {
   title?: string;
   subtitle?: string;
@@ -465,9 +465,9 @@ export function OperationsHub({
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <MetricCard label="Residents Assigned" value={filteredResidents.length} icon={Users} />
-        <MetricCard label="Tasks Due" value={dueTasks.length} icon={ClipboardList} />
+        <MetricCard label="Actions Due" value={dueTasks.length} icon={ClipboardList} />
         <MetricCard
-          label="Interventions Due"
+          label="Care Actions Due"
           value={dueInterventions.length}
           icon={ClipboardCheck}
         />
@@ -593,7 +593,7 @@ export function OperationsHub({
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Upcoming Care Interventions</CardTitle>
+            <CardTitle className="text-base">Upcoming Care Actions</CardTitle>
             {dueInterventions.length > 0 && (
               <span className="text-xs text-muted-foreground">
                 {dueInterventions.length} scheduled
@@ -604,7 +604,7 @@ export function OperationsHub({
         <CardContent className="space-y-3">
           {dueInterventions.length === 0 ? (
             <div className="border rounded-md p-8 text-center space-y-1 text-sm text-muted-foreground">
-              <div>No upcoming scheduled interventions for your assigned residents.</div>
+              <div>No upcoming scheduled care actions for your assigned residents.</div>
               <div className="text-xs">
                 Try switching Assigned To to All Staff, or use Reset Demo Data.
               </div>
@@ -681,7 +681,7 @@ export function OperationsHub({
                 >
                   {showAllInterventions
                     ? "Show fewer"
-                    : `View all ${dueInterventions.length} interventions`}
+                    : `View all ${dueInterventions.length} care actions`}
                 </button>
               )}
             </>
@@ -716,7 +716,7 @@ export function OperationsHub({
                       variant="outline"
                       className="text-[10px] shrink-0 border-primary/30 text-primary bg-primary/5"
                     >
-                      Task
+                      Action
                     </Badge>
                   )}
                 </div>
@@ -737,7 +737,7 @@ export function OperationsHub({
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Assessment Centre</span>
+                <span className="font-medium text-sm">Assessment Work Queue</span>
               </div>
               <div className="text-2xl font-semibold tabular-nums">{dueAssessments.length}</div>
               <div className="text-xs text-muted-foreground mt-0.5">reassessments due</div>
@@ -749,10 +749,10 @@ export function OperationsHub({
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Tasks</span>
+                <span className="font-medium text-sm">Actions</span>
               </div>
               <div className="text-2xl font-semibold tabular-nums">{dueTasks.length}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">tasks due today</div>
+              <div className="text-xs text-muted-foreground mt-0.5">actions due today</div>
             </CardContent>
           </Card>
         </Link>

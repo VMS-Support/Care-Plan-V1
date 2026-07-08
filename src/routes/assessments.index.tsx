@@ -36,7 +36,7 @@ import {
 import type { Assessment, AssessmentType } from "@/lib/care/types";
 
 export const Route = createFileRoute("/assessments/")({
-  head: () => ({ meta: [{ title: "Assessment Centre — CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Work Queue - CarePath" }] }),
   component: AssessmentsList,
 });
 
@@ -210,11 +210,11 @@ function QueueTable({
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="text-left p-3">Resident</th>
-            <th className="text-left p-3">Assessment Type</th>
+            <th className="text-left p-3">Assessment</th>
             <th className="text-left p-3">Risk Level</th>
             <th className="text-left p-3">Due Date</th>
-            <th className="text-left p-3">Assigned Staff</th>
-            <th className="text-left p-3">Status</th>
+            <th className="text-left p-3">Assigned To</th>
+            <th className="text-left p-3">Progress</th>
             <th className="text-right p-3">Actions</th>
           </tr>
         </thead>
@@ -276,7 +276,7 @@ function QueueTable({
                     className="text-xs text-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    Reassess
+                    Start Assessment
                   </Link>
                 </div>
               </td>
@@ -387,9 +387,9 @@ function AssessmentQueueFilters({
           </Select>
 
           <Select value={typeF} onValueChange={(value) => setTypeF(value as AssessmentType | "all")}>
-            <SelectTrigger><SelectValue placeholder="Assessment Type" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Assessment" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Assessment Type: All</SelectItem>
+              <SelectItem value="all">Assessment: All</SelectItem>
               {(categoryF === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []).map((type) => (
                 <SelectItem key={type} value={type}>{assessmentMeta[type].name}</SelectItem>
               ))}
@@ -409,9 +409,9 @@ function AssessmentQueueFilters({
           </Select>
 
           <Select value={statusF} onValueChange={(value) => setStatusF(value as QueueStatus | "all")}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Progress" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Status: All Open</SelectItem>
+              <SelectItem value="all">Progress: All Open</SelectItem>
               <SelectItem value="due">Due</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
             </SelectContent>
@@ -502,10 +502,10 @@ function ResidentAssessmentCard({ item, todayKey }: { item: ResidentQueueItem; t
 
         <div className="flex flex-wrap gap-2">
           <Link to="/residents/$id" params={{ id: item.residentId }}>
-            <Button variant="outline">View Resident</Button>
+            <Button variant="outline">Open Resident</Button>
           </Link>
           <Link to="/residents/$id/assessments" params={{ id: item.residentId }} search={{ type: firstType } as any}>
-            <Button>Start Assessments</Button>
+            <Button>Start Assessment</Button>
           </Link>
         </div>
       </CardContent>
@@ -991,14 +991,14 @@ function AssessmentsList() {
     <div className="p-4 md:p-8 space-y-5 max-w-[1500px]">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assessment Centre</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Assessment Work Queue</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Clinical assessment record system with a default task-focused nurse view.
           </p>
         </div>
         <Link to="/assessments/reassessment">
           <Button variant="outline">
-            <ClipboardList className="h-4 w-4 mr-1.5" /> Reassessment Workflow
+            <ClipboardList className="h-4 w-4 mr-1.5" /> Review Workflow
           </Button>
         </Link>
       </div>
@@ -1077,14 +1077,14 @@ function AssessmentsList() {
                         <SelectValue placeholder="View mode" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="due_overdue">Due / Overdue</SelectItem>
+                        <SelectItem value="due_overdue">Due for Review</SelectItem>
                         <SelectItem value="all_active">All Active Assessments</SelectItem>
                         <SelectItem value="completed">Completed Assessments</SelectItem>
                         <SelectItem value="draft_in_progress">Draft / In Progress</SelectItem>
                         <SelectItem value="high_risk">High Risk Only</SelectItem>
                         <SelectItem value="my_assigned">My Assigned Assessments</SelectItem>
                         <SelectItem value="by_resident">By Resident</SelectItem>
-                        <SelectItem value="by_assessment_type">By Assessment Type</SelectItem>
+                        <SelectItem value="by_assessment_type">By Assessment</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -1123,10 +1123,10 @@ function AssessmentsList() {
                       onValueChange={(value) => setTypeF(value as AssessmentType | "all")}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Assessment Type" />
+                        <SelectValue placeholder="Assessment" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Assessment Type: All</SelectItem>
+                        <SelectItem value="all">Assessment: All</SelectItem>
                         {(categoryF === "all"
                           ? ALL_TYPES
                           : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []
@@ -1145,10 +1145,10 @@ function AssessmentsList() {
                       onValueChange={(value) => setStatusF(value as QueueStatus | "all")}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Status" />
+                        <SelectValue placeholder="Progress" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Status: All</SelectItem>
+                        <SelectItem value="all">Progress: All</SelectItem>
                         <SelectItem value="due">Due</SelectItem>
                         <SelectItem value="overdue">Overdue</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
@@ -1417,7 +1417,7 @@ function AssessmentsList() {
                           params={{ id: row.resident.id }}
                           className="text-xs text-primary hover:underline"
                         >
-                          Open Resident Profile
+                          Open Resident
                         </Link>
                         <span className="text-muted-foreground">•</span>
                         <Link
@@ -1425,7 +1425,7 @@ function AssessmentsList() {
                           params={{ id: row.resident.id }}
                           className="text-xs text-primary hover:underline"
                         >
-                          View Assessment Status
+                          View Assessment Progress
                         </Link>
                       </div>
                     </div>
@@ -1448,7 +1448,7 @@ function AssessmentsList() {
                       <table className="w-full text-sm">
                         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                           <tr>
-                            <th className="text-left p-3">Assessment Type</th>
+                            <th className="text-left p-3">Assessment</th>
                             <th className="text-left p-3">Completed</th>
                             <th className="text-left p-3">Due</th>
                             <th className="text-left p-3">Overdue</th>
@@ -1586,14 +1586,14 @@ function AssessmentsList() {
                       <SelectValue placeholder="View mode" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="due_overdue">Due / Overdue</SelectItem>
+                      <SelectItem value="due_overdue">Due for Review</SelectItem>
                       <SelectItem value="all_active">All Active Assessments</SelectItem>
                       <SelectItem value="completed">Completed Assessments</SelectItem>
                       <SelectItem value="draft_in_progress">Draft / In Progress</SelectItem>
                       <SelectItem value="high_risk">High Risk Only</SelectItem>
                       <SelectItem value="my_assigned">My Assigned Assessments</SelectItem>
                       <SelectItem value="by_resident">By Resident</SelectItem>
-                      <SelectItem value="by_assessment_type">By Assessment Type</SelectItem>
+                      <SelectItem value="by_assessment_type">By Assessment</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1632,10 +1632,10 @@ function AssessmentsList() {
                     onValueChange={(value) => setTypeF(value as AssessmentType | "all")}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Assessment Type" />
+                      <SelectValue placeholder="Assessment" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Assessment Type: All</SelectItem>
+                      <SelectItem value="all">Assessment: All</SelectItem>
                       {(categoryF === "all"
                         ? ALL_TYPES
                         : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []
@@ -1654,10 +1654,10 @@ function AssessmentsList() {
                     onValueChange={(value) => setStatusF(value as QueueStatus | "all")}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder="Progress" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Status: All</SelectItem>
+                      <SelectItem value="all">Progress: All</SelectItem>
                       <SelectItem value="due">Due</SelectItem>
                       <SelectItem value="overdue">Overdue</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>

@@ -53,7 +53,7 @@ type Props = {
 export function CreateCarePlanDialog({
   residentId: fixedResidentId,
   trigger,
-  buttonLabel = "New Care Plan",
+  buttonLabel = "New Nursing Care Plan",
   onCreated,
 }: Props) {
   const { residents, addProblem, addGoal } = useCare();
@@ -83,7 +83,7 @@ export function CreateCarePlanDialog({
   const handleCreate = () => {
     const targetResidentId = fixedResidentId || residentId;
     if (!targetResidentId || !statement.trim() || !goal.trim() || !evalDate || !reviewDate) {
-      toast.error("Resident, problem statement, goal, evaluation date and review date required");
+      toast.error("Resident, care need, plan, review of outcome and care plan review date required");
       return;
     }
 
@@ -116,7 +116,7 @@ export function CreateCarePlanDialog({
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Care Plan</DialogTitle>
+          <DialogTitle>Create Nursing Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -144,7 +144,7 @@ export function CreateCarePlanDialog({
 
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <Label>Care Area</Label>
+              <Label>Activity / Care Area</Label>
               <Select value={category} onValueChange={(value) => setCategory(value as ProblemCategory)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -176,43 +176,43 @@ export function CreateCarePlanDialog({
           </div>
 
           <div>
-            <Label>Problem Statement</Label>
+            <Label>Care Need</Label>
             <Textarea
               value={statement}
               onChange={(event) => setStatement(event.target.value)}
               rows={3}
-              placeholder="Enter the resident's care plan problem"
+              placeholder="Describe the resident's care need"
             />
           </div>
 
           <div>
-            <Label>Goal</Label>
+            <Label>Plan</Label>
             <Textarea
               value={goal}
               onChange={(event) => setGoal(event.target.value)}
               rows={2}
-              placeholder="Enter the clinical goal"
+              placeholder="Describe the nursing plan"
             />
           </div>
 
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <Label>Next Evaluation Date</Label>
+              <Label>Next Review of Outcome</Label>
               <Input type="date" value={evalDate} onChange={(event) => setEvalDate(event.target.value)} />
             </div>
             <div>
-              <Label>Next Review Date</Label>
+              <Label>Care Plan Review Date</Label>
               <Input type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} />
             </div>
           </div>
 
           <div>
-            <Label>Optional Notes</Label>
+            <Label>Notes</Label>
             <Textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={2}
-              placeholder="Optional context for the care plan problem"
+              placeholder="Optional context for this nursing care plan"
             />
           </div>
         </div>

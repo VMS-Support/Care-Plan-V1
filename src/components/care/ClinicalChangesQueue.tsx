@@ -96,7 +96,7 @@ export function ClinicalChangesQueue() {
     <div className="p-4 md:p-8 space-y-5 max-w-7xl">
       <div>
         <h1 className="text-2xl font-semibold">Alerts</h1>
-        <p className="text-sm font-medium mt-1">Clinical Changes Requiring Review</p>
+        <p className="text-sm font-medium mt-1">Changes requiring nursing review.</p>
         <p className="text-xs text-muted-foreground mt-1">{scopeLabel(currentRole)}</p>
       </div>
 
@@ -179,7 +179,7 @@ export function ClinicalChangesQueue() {
         {filtered.length === 0 && (
           <div className="border rounded-md p-10 text-center">
             <CheckCircle2 className="h-9 w-9 mx-auto text-success mb-3" />
-            <p className="font-medium">No active clinical changes requiring review.</p>
+            <p className="font-medium">No active changes requiring review.</p>
             <p className="text-sm text-muted-foreground mt-1">Everything appears clinically stable.</p>
           </div>
         )}

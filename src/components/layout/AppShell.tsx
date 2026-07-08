@@ -84,9 +84,9 @@ const nav: NavItem[] = [
   { to: "/outings", label: "Outings", icon: Plane },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/risks", label: "Risks", icon: Gauge },
-  { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/tasks", label: "Actions", icon: CheckSquare },
   { to: "/reports", label: "Reports", icon: BarChart3, perm: (r) => can(r, "report.view") },
-  { to: "/audit-logs", label: "Audit Logs", icon: History, perm: (r) => can(r, "audit.view") },
+  { to: "/audit-logs", label: "Audit Trail", icon: History, perm: (r) => can(r, "audit.view") },
 ];
 
 function SidebarInner() {
