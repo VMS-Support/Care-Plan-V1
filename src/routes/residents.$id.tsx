@@ -66,7 +66,7 @@ import { AddAssessmentModal } from "@/components/resident/modals/AddAssessmentMo
 import { IncidentDialog } from "@/components/care/IncidentDialog";
 import { VisitorDialog } from "@/components/care/VisitorDialog";
 import { OutingDialog } from "@/components/care/OutingDialog";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -84,6 +84,11 @@ import {
 } from "@/lib/care/vital-records";
 
 export const Route = createFileRoute("/residents/$id")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    carePlanId: typeof search.carePlanId === "string" ? search.carePlanId : undefined,
+    carePlanProblemId:
+      typeof search.carePlanProblemId === "string" ? search.carePlanProblemId : undefined,
+  }),
   head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} — CarePath` }] }),
   component: ResidentDetail,
 });
@@ -204,6 +209,7 @@ function DeleteAssessmentDialog({
 
 function ResidentDetail() {
   const { id } = Route.useParams();
+  const { carePlanProblemId } = Route.useSearch();
   const navigate = useNavigate();
   const {
     residents,
@@ -456,6 +462,16 @@ function ResidentDetail() {
   const selectedProblem = selectedProblemId
     ? rProblems.find((p) => p.id === selectedProblemId) || null
     : null;
+
+  useEffect(() => {
+    if (!carePlanProblemId) return;
+    const problemBelongsToResident = rProblems.some((problem) => problem.id === carePlanProblemId);
+    if (!problemBelongsToResident) return;
+    setNewlyCreatedProblemId(null);
+    setSelectedProblemId(carePlanProblemId);
+    setProblemDetailOpen(true);
+  }, [carePlanProblemId]);
+
   const selectedProblemGoals = selectedProblem
     ? problemGoals.filter((g) => g.problemId === selectedProblem.id)
     : [];
@@ -597,8 +613,8 @@ function ResidentDetail() {
         id: `mdt-${m.id}`,
         module: "mdt" as const,
         at: m.date,
-        title: "MDT note",
-        summary: m.discussion,
+        title: `${m.meetingType || "MDT"} meeting`,
+        summary: m.clinicalDecisions || m.recommendations || m.discussion,
         by: m.authoredBy,
       })),
       ...rVisitors.map((v) => ({
@@ -686,7 +702,7 @@ function ResidentDetail() {
     rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Evaluations"));
     rTasks.forEach((t) => entityModuleMap.set(t.id, "Tasks"));
     rIncidents.forEach((i) => entityModuleMap.set(i.id, "Incidents"));
-    rMDT.forEach((m) => entityModuleMap.set(m.id, "MDT Notes"));
+    rMDT.forEach((m) => entityModuleMap.set(m.id, "MDT"));
     rVisitors.forEach((v) => entityModuleMap.set(v.id, "Visitors"));
     rOutings.forEach((o) => entityModuleMap.set(o.id, "Outings"));
     rVitals.forEach((v) => entityModuleMap.set(v.id, "Vitals"));
@@ -986,7 +1002,7 @@ function ResidentDetail() {
                       Incident
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleOpenModal("mdt")}>
-                      MDT Note
+                      MDT Meeting
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleOpenModal("visitor")}>
                       Visitor Record
@@ -1999,7 +2015,7 @@ function ResidentDetail() {
             <Card key={m.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium">
-                  {m.date} · {m.authoredBy}
+                  {m.date} · {m.meetingType || "MDT"} · {m.authoredBy}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">Attendees: {m.attendees}</p>
                 <p className="text-sm mt-2">
@@ -2015,7 +2031,7 @@ function ResidentDetail() {
             </Card>
           ))}
           {rMDT.length === 0 && (
-            <p className="text-sm text-muted-foreground">No MDT notes recorded.</p>
+            <p className="text-sm text-muted-foreground">No MDT meetings recorded.</p>
           )}
         </TabsContent>
 
@@ -2663,7 +2679,15 @@ function ResidentDetail() {
         defaultResidentId={r.id}
       />
 
-      <Dialog open={problemDetailOpen} onOpenChange={setProblemDetailOpen}>
+      <Dialog
+        open={problemDetailOpen}
+        onOpenChange={(open) => {
+          setProblemDetailOpen(open);
+          if (!open && carePlanProblemId) {
+            navigate({ to: "/residents/$id", params: { id }, search: {} });
+          }
+        }}
+      >
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Care Plan Problem Detail</DialogTitle>

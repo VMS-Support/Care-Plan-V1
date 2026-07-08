@@ -76,7 +76,7 @@ export function AddMDTNoteModal({ open, onOpenChange, residentId }: Props) {
       role: professional.toLowerCase() === "gp" ? "doctor" : "nurse",
     } as any);
 
-    toast.success("MDT Note Added");
+    toast.success("MDT meeting added");
     onOpenChange(false);
   }
 
@@ -84,7 +84,7 @@ export function AddMDTNoteModal({ open, onOpenChange, residentId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add MDT Note</DialogTitle>
+          <DialogTitle>Add MDT Meeting</DialogTitle>
           <DialogDescription>
             {resident && `For ${resident.firstName} ${resident.lastName}`}
           </DialogDescription>
@@ -167,7 +167,7 @@ export function AddMDTNoteModal({ open, onOpenChange, residentId }: Props) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={save}>Save MDT Note</Button>
+          <Button onClick={save}>Save MDT Meeting</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

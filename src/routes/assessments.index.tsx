@@ -61,8 +61,22 @@ interface RowModel {
   assessment: Assessment;
   residentName: string;
   roomNumber: string;
+  wingId?: string;
   dueDate: string;
   status: QueueStatus;
+}
+
+type ResidentQueueGroupKey = "overdue" | "due_today" | "due_this_week" | "scheduled";
+
+interface ResidentQueueItem {
+  residentId: string;
+  residentName: string;
+  roomNumber: string;
+  rows: RowModel[];
+  group: ResidentQueueGroupKey;
+  highestPriority: RowModel;
+  highestRisk: Assessment["riskLevel"];
+  oldestDueDate: string;
 }
 
 const ALL_TYPES: AssessmentType[] = [
@@ -135,6 +149,35 @@ function dueText(dueDate: string, status: QueueStatus, todayKey: string) {
   if (status === "overdue") return `Overdue · ${dueDate}`;
   if (dueDate === todayKey) return "Due Today";
   return `Due ${dueDate}`;
+}
+
+function daysAgoLabel(dueDate: string, todayKey: string) {
+  if (!dueDate) return "No due date";
+  const diff = Math.floor((new Date(todayKey).getTime() - new Date(dueDate).getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff > 1) return `${diff} days ago`;
+  const future = Math.abs(diff);
+  if (future === 1) return "Tomorrow";
+  return `In ${future} days`;
+}
+
+function priorityRank(row: RowModel) {
+  const statusRank = row.status === "overdue" ? 0 : row.status === "due" ? 1 : 2;
+  return statusRank * 100 - riskOrder(row.assessment.riskLevel) * 10;
+}
+
+function residentQueueGroup(rows: RowModel[], todayKey: string): ResidentQueueGroupKey {
+  if (rows.some((row) => row.status === "overdue")) return "overdue";
+  if (rows.some((row) => row.dueDate === todayKey)) return "due_today";
+  if (
+    rows.some((row) => {
+      if (!row.dueDate) return false;
+      const diff = Math.floor((new Date(row.dueDate).getTime() - new Date(todayKey).getTime()) / 86400000);
+      return diff <= 7;
+    })
+  ) return "due_this_week";
+  return "scheduled";
 }
 
 function queueGroup(row: RowModel, todayKey: string): QueueGroupKey {
@@ -252,9 +295,265 @@ function QueueTable({
   );
 }
 
+function AssessmentQueueFilters({
+  search,
+  setSearch,
+  categoryF,
+  setCategoryF,
+  typeF,
+  setTypeF,
+  statusF,
+  setStatusF,
+  riskF,
+  setRiskF,
+  assignedF,
+  setAssignedF,
+  wingF,
+  setWingF,
+  roomF,
+  setRoomF,
+  users,
+  wings,
+  rooms,
+  onReset,
+}: {
+  search: string;
+  setSearch: (value: string) => void;
+  categoryF: string;
+  setCategoryF: (value: string) => void;
+  typeF: AssessmentType | "all";
+  setTypeF: (value: AssessmentType | "all") => void;
+  statusF: QueueStatus | "all";
+  setStatusF: (value: QueueStatus | "all") => void;
+  riskF: Assessment["riskLevel"] | "all";
+  setRiskF: (value: Assessment["riskLevel"] | "all") => void;
+  assignedF: string;
+  setAssignedF: (value: string) => void;
+  wingF: string;
+  setWingF: (value: string) => void;
+  roomF: string;
+  setRoomF: (value: string) => void;
+  users: { id: string; name: string }[];
+  wings: { id: string; name: string }[];
+  rooms: string[];
+  onReset: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3 space-y-3">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="relative xl:col-span-2">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              className="pl-8 h-9"
+              placeholder="Resident search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <Select value={wingF} onValueChange={setWingF}>
+            <SelectTrigger><SelectValue placeholder="Wing" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Wing: All</SelectItem>
+              {wings.map((wing) => <SelectItem key={wing.id} value={wing.id}>{wing.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={roomF} onValueChange={setRoomF}>
+            <SelectTrigger><SelectValue placeholder="Room" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Room: All</SelectItem>
+              {rooms.map((room) => <SelectItem key={room} value={room}>Room {room}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+          <Select
+            value={categoryF}
+            onValueChange={(value) => {
+              setCategoryF(value);
+              setTypeF("all");
+            }}
+          >
+            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Category: All</SelectItem>
+              {CATEGORY_FILTERS.map((category) => (
+                <SelectItem key={category.id} value={category.id}>{category.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={typeF} onValueChange={(value) => setTypeF(value as AssessmentType | "all")}>
+            <SelectTrigger><SelectValue placeholder="Assessment Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Assessment Type: All</SelectItem>
+              {(categoryF === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []).map((type) => (
+                <SelectItem key={type} value={type}>{assessmentMeta[type].name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={riskF} onValueChange={(value) => setRiskF(value as Assessment["riskLevel"] | "all")}>
+            <SelectTrigger><SelectValue placeholder="Risk" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Risk: All</SelectItem>
+              <SelectItem value="very_high">Very High</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="moderate">Moderate</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={statusF} onValueChange={(value) => setStatusF(value as QueueStatus | "all")}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Status: All Open</SelectItem>
+              <SelectItem value="due">Due</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={assignedF} onValueChange={setAssignedF}>
+            <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Assigned To: All</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {users.map((user) => <SelectItem key={user.id} value={user.name}>{user.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline" onClick={onReset}>Reset Filters</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResidentAssessmentCard({ item, todayKey }: { item: ResidentQueueItem; todayKey: string }) {
+  const firstType = item.highestPriority.assessment.type;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle className="text-base">{item.residentName}</CardTitle>
+            <div className="text-xs text-muted-foreground mt-1">Room {item.roomNumber || "-"}</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">{item.rows.length} Assessment{item.rows.length === 1 ? "" : "s"} Due</Badge>
+            <Badge variant="outline" className={`capitalize ${riskBadgeCls(item.highestRisk)}`}>
+              {item.highestRisk.replace("_", " ")}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-2 md:grid-cols-3 text-sm">
+          <div className="rounded-md border p-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Highest Priority</div>
+            <div className="font-medium mt-1">{assessmentMeta[item.highestPriority.assessment.type].name}</div>
+          </div>
+          <div className="rounded-md border p-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Highest Risk</div>
+            <div className="font-medium capitalize mt-1">{item.highestRisk.replace("_", " ")}</div>
+          </div>
+          <div className="rounded-md border p-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Oldest Due</div>
+            <div className="font-medium mt-1">{daysAgoLabel(item.oldestDueDate, todayKey)}</div>
+          </div>
+        </div>
+
+        <Accordion type="single" collapsible>
+          <AccordionItem value="details">
+            <AccordionTrigger className="text-sm">Assessments Due</AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2">
+                {item.rows.map((row) => (
+                  <div key={row.assessment.id} className="rounded-md border p-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-sm font-medium">{assessmentMeta[row.assessment.type].name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {dueText(row.dueDate, row.status, todayKey)}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className={`text-[10px] capitalize ${riskBadgeCls(row.assessment.riskLevel)}`}>
+                        {row.assessment.riskLevel.replace("_", " ")}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] ${statusClass(row.status)}`}>
+                        {row.status === "overdue" ? "Overdue" : "Due"}
+                      </Badge>
+                      <Link to="/assessments/new/$residentId" params={{ residentId: row.assessment.residentId }} search={{ type: row.assessment.type } as any}>
+                        <Button size="sm" variant="outline">
+                          {row.assessment.status === "draft" || row.assessment.status === "in_progress" ? "Continue Assessment" : "Start Assessment"}
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        <div className="flex flex-wrap gap-2">
+          <Link to="/residents/$id" params={{ id: item.residentId }}>
+            <Button variant="outline">View Resident</Button>
+          </Link>
+          <Link to="/residents/$id/assessments" params={{ id: item.residentId }} search={{ type: firstType } as any}>
+            <Button>Start Assessments</Button>
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AssessmentWorkQueue({
+  groups,
+  todayKey,
+}: {
+  groups: Record<ResidentQueueGroupKey, ResidentQueueItem[]>;
+  todayKey: string;
+}) {
+  const sections: { key: ResidentQueueGroupKey; label: string; empty: string }[] = [
+    { key: "overdue", label: "Overdue", empty: "No overdue assessments." },
+    { key: "due_today", label: "Due Today", empty: "No assessments due today." },
+    { key: "due_this_week", label: "Due This Week", empty: "No assessments due this week." },
+    { key: "scheduled", label: "Scheduled", empty: "All residents are up to date." },
+  ];
+  return (
+    <div className="space-y-4">
+      {sections.map((section) => (
+        <section key={section.key} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.label}</h2>
+            <Badge variant="outline">{groups[section.key].length}</Badge>
+          </div>
+          {groups[section.key].length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">{section.empty}</CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {groups[section.key].map((item) => (
+                <ResidentAssessmentCard key={item.residentId} item={item} todayKey={todayKey} />
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function AssessmentsList() {
   const navigate = useNavigate();
-  const { assessments, residents, users, currentRole, currentUserName } = useCare();
+  const { assessments, residents, users, wings, currentRole, currentUserName } = useCare();
 
   const [roleView, setRoleView] = useState<"nurse" | "governance">("nurse");
   const [viewMode, setViewMode] = useState<ViewMode>("due_overdue");
@@ -263,6 +562,9 @@ function AssessmentsList() {
   const [statusF, setStatusF] = useState<QueueStatus | "all">("all");
   const [riskF, setRiskF] = useState<Assessment["riskLevel"] | "all">("all");
   const [categoryF, setCategoryF] = useState<string>("all");
+  const [assignedF, setAssignedF] = useState("all");
+  const [wingF, setWingF] = useState("all");
+  const [roomF, setRoomF] = useState("all");
 
   const isGovernanceRole = currentRole === "cnm" || currentRole === "don";
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -293,6 +595,7 @@ function AssessmentsList() {
             ? `${resident.firstName} ${resident.lastName}`
             : "Unknown Resident",
           roomNumber: resident?.roomNumber || "",
+          wingId: resident?.wingId,
           dueDate: toDateKey(assessment.nextReassessmentDate || assessment.dueDate),
           status: getStatus(assessment),
         } as RowModel;
@@ -319,6 +622,7 @@ function AssessmentsList() {
             ? `${resident.firstName} ${resident.lastName}`
             : "Unknown Resident",
           roomNumber: resident?.roomNumber || "",
+          wingId: resident?.wingId,
           dueDate: toDateKey(assessment.nextReassessmentDate || assessment.dueDate),
           status: getStatus(assessment),
         } as RowModel;
@@ -360,6 +664,16 @@ function AssessmentsList() {
       if (typeF !== "all" && row.assessment.type !== typeF) return false;
       if (statusF !== "all" && row.status !== statusF) return false;
       if (riskF !== "all" && row.assessment.riskLevel !== riskF) return false;
+      if (assignedF !== "all") {
+        const assigned = row.assessment.assignedToName || "";
+        if (assignedF === "unassigned") {
+          if (assigned) return false;
+        } else if (assigned !== assignedF) {
+          return false;
+        }
+      }
+      if (wingF !== "all" && row.wingId !== wingF) return false;
+      if (roomF !== "all" && row.roomNumber !== roomF) return false;
 
       if (categoryF !== "all") {
         const category = CATEGORY_FILTERS.find((c) => c.id === categoryF);
@@ -368,7 +682,7 @@ function AssessmentsList() {
 
       return true;
     });
-  }, [baseRowsForMode, categoryF, riskF, search, statusF, typeF]);
+  }, [assignedF, baseRowsForMode, categoryF, riskF, roomF, search, statusF, typeF, wingF]);
 
   const groupedPriorityRows = useMemo(() => {
     const grouped: Record<QueueGroupKey, RowModel[]> = {
@@ -384,6 +698,63 @@ function AssessmentsList() {
 
     return grouped;
   }, [filteredRows, todayKey]);
+
+  const assessmentQueueRows = useMemo(
+    () => filteredRows.filter((row) => row.status === "due" || row.status === "overdue"),
+    [filteredRows],
+  );
+
+  const residentQueueGroups = useMemo(() => {
+    const groupedByResident = new Map<string, RowModel[]>();
+    for (const row of assessmentQueueRows) {
+      const list = groupedByResident.get(row.assessment.residentId) || [];
+      list.push(row);
+      groupedByResident.set(row.assessment.residentId, list);
+    }
+
+    const groups: Record<ResidentQueueGroupKey, ResidentQueueItem[]> = {
+      overdue: [],
+      due_today: [],
+      due_this_week: [],
+      scheduled: [],
+    };
+
+    for (const rows of groupedByResident.values()) {
+      const sortedRows = [...rows].sort((a, b) =>
+        priorityRank(a) - priorityRank(b) ||
+        `${a.dueDate || "9999-12-31"}`.localeCompare(`${b.dueDate || "9999-12-31"}`),
+      );
+      const highestPriority = sortedRows[0];
+      const oldestDueDate = [...rows]
+        .map((row) => row.dueDate)
+        .filter(Boolean)
+        .sort()[0] || "";
+      const highestRisk = [...rows]
+        .map((row) => row.assessment.riskLevel)
+        .sort((a, b) => riskOrder(b) - riskOrder(a))[0] || "none";
+      const group = residentQueueGroup(rows, todayKey);
+      groups[group].push({
+        residentId: highestPriority.assessment.residentId,
+        residentName: highestPriority.residentName,
+        roomNumber: highestPriority.roomNumber,
+        rows: sortedRows,
+        group,
+        highestPriority,
+        highestRisk,
+        oldestDueDate,
+      });
+    }
+
+    for (const key of Object.keys(groups) as ResidentQueueGroupKey[]) {
+      groups[key].sort((a, b) =>
+        priorityRank(a.highestPriority) - priorityRank(b.highestPriority) ||
+        `${a.oldestDueDate || "9999-12-31"}`.localeCompare(`${b.oldestDueDate || "9999-12-31"}`) ||
+        a.residentName.localeCompare(b.residentName),
+      );
+    }
+
+    return groups;
+  }, [assessmentQueueRows, todayKey]);
 
   const byResident = useMemo(() => {
     const map = new Map<string, RowModel[]>();
@@ -436,7 +807,17 @@ function AssessmentsList() {
       .filter((row) => row.missing.length > 0);
   }, [residents, latestByResidentType]);
 
+  const availableRooms = useMemo(
+    () => [...new Set(residents.map((resident) => resident.roomNumber).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [residents],
+  );
+
   const summary = useMemo(() => {
+    const residentsRequiringAssessment = new Set(
+      latestRows
+        .filter((r) => r.status === "due" || r.status === "overdue")
+        .map((r) => r.assessment.residentId),
+    ).size;
     const dueToday = latestRows.filter(
       (r) => (r.status === "due" || r.status === "overdue") && r.dueDate === todayKey,
     ).length;
@@ -454,6 +835,7 @@ function AssessmentsList() {
     }).length;
 
     return {
+      residentsRequiringAssessment,
       dueToday,
       overdue,
       highRiskResidents,
@@ -537,6 +919,46 @@ function AssessmentsList() {
     };
   }, [activeAssessments, latestRows, residents, users]);
 
+  const resetAssessmentFilters = () => {
+    setViewMode("due_overdue");
+    setSearch("");
+    setCategoryF("all");
+    setTypeF("all");
+    setStatusF("all");
+    setRiskF("all");
+    setAssignedF("all");
+    setWingF("all");
+    setRoomF("all");
+  };
+
+  const nurseQueueView = (
+    <>
+      <AssessmentQueueFilters
+        search={search}
+        setSearch={setSearch}
+        categoryF={categoryF}
+        setCategoryF={setCategoryF}
+        typeF={typeF}
+        setTypeF={setTypeF}
+        statusF={statusF}
+        setStatusF={setStatusF}
+        riskF={riskF}
+        setRiskF={setRiskF}
+        assignedF={assignedF}
+        setAssignedF={setAssignedF}
+        wingF={wingF}
+        setWingF={setWingF}
+        roomF={roomF}
+        setRoomF={setRoomF}
+        users={users}
+        wings={wings}
+        rooms={availableRooms}
+        onReset={resetAssessmentFilters}
+      />
+      <AssessmentWorkQueue groups={residentQueueGroups} todayKey={todayKey} />
+    </>
+  );
+
   const exportGovernanceCsv = () => {
     const header = ["Resident", "Assessment", "Assessor", "Completed Date", "Due Date", "Status"];
     const body = filteredRows.map((row) => [
@@ -586,8 +1008,8 @@ function AssessmentsList() {
           <CardContent className="p-4 flex items-center gap-3">
             <CalendarClock className="h-5 w-5 text-warning-foreground" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.dueToday}</div>
-              <div className="text-[11px] text-muted-foreground">Due Today</div>
+              <div className="text-2xl font-semibold tabular-nums">{summary.residentsRequiringAssessment}</div>
+              <div className="text-[11px] text-muted-foreground">Residents Requiring Assessment</div>
             </div>
           </CardContent>
         </Card>
@@ -596,8 +1018,8 @@ function AssessmentsList() {
           <CardContent className="p-4 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.overdue}</div>
-              <div className="text-[11px] text-muted-foreground">Overdue</div>
+              <div className="text-2xl font-semibold tabular-nums">{summary.dueToday}</div>
+              <div className="text-[11px] text-muted-foreground">Assessments Due Today</div>
             </div>
           </CardContent>
         </Card>
@@ -605,6 +1027,16 @@ function AssessmentsList() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-warning-foreground" />
+            <div>
+              <div className="text-2xl font-semibold tabular-nums">{summary.overdue}</div>
+              <div className="text-[11px] text-muted-foreground">Overdue Assessments</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Layers className="h-5 w-5 text-muted-foreground" />
             <div>
               <div className="text-2xl font-semibold tabular-nums">{summary.highRiskResidents}</div>
               <div className="text-[11px] text-muted-foreground">High Risk Residents</div>
@@ -614,22 +1046,10 @@ function AssessmentsList() {
 
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Layers className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">
-                {summary.missingAssessments}
-              </div>
-              <div className="text-[11px] text-muted-foreground">Missing Assessments</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
             <UserCheck className="h-5 w-5 text-info" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.myAssessments}</div>
-              <div className="text-[11px] text-muted-foreground">My Assessments</div>
+              <div className="text-2xl font-semibold tabular-nums">{summary.missingAssessments}</div>
+              <div className="text-[11px] text-muted-foreground">Missing Initial Assessments</div>
             </div>
           </CardContent>
         </Card>
@@ -644,6 +1064,8 @@ function AssessmentsList() {
             </TabsList>
 
             <TabsContent value="nurse" className="space-y-4">
+              {nurseQueueView}
+              <div className="hidden">
               <Card>
                 <CardContent className="p-3 space-y-3">
                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
@@ -899,6 +1321,7 @@ function AssessmentsList() {
                   </CardContent>
                 </Card>
               )}
+              </div>
             </TabsContent>
 
             <TabsContent value="governance" className="space-y-4">
@@ -1150,6 +1573,8 @@ function AssessmentsList() {
           </Tabs>
         ) : (
           <>
+            {nurseQueueView}
+            <div className="hidden">
             <Card>
               <CardContent className="p-3 space-y-3">
                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
@@ -1405,6 +1830,7 @@ function AssessmentsList() {
                 </CardContent>
               </Card>
             )}
+            </div>
           </>
         )}
       </div>

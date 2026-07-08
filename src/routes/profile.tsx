@@ -375,7 +375,7 @@ function ProfilePage() {
             <Stat label="My Interventions" value={myStats.interventions} />
             <Stat label="My Assessments" value={myStats.assessments} />
             <Stat label="My Incidents" value={myStats.incidents} />
-            <Stat label="My MDT Notes" value={myStats.mdt} />
+            <Stat label="My MDT" value={myStats.mdt} />
             <Stat label="My Care Plans" value={myStats.carePlans} />
             <Stat label="Upcoming Reviews (7d)" value={myStats.reviews} />
           </div>

@@ -792,11 +792,38 @@ export interface Task {
   assignedTo: string;
   dueDate: string;
   status: TaskStatus;
+  category?: "clinical" | "operational" | "administrative" | "resident" | "general";
+  taskType?: string;
+  priority?: "critical" | "high" | "normal" | "low";
+  reminderAt?: string;
+  recurrence?: "none" | "daily" | "weekly" | "monthly" | "custom";
+  recurrenceNotes?: string;
+  assignedToType?: "staff" | "role" | "unit" | "wing" | "unassigned";
+  assignedRole?: Role;
+  assignedUnitId?: string;
+  assignedWingId?: string;
+  appointmentType?: string;
+  appointmentLocation?: string;
+  appointmentTime?: string;
+  transportRequired?: boolean;
+  escortRequired?: boolean;
+  escortStaff?: string;
+  appointmentNotes?: string;
+  outcome?: string;
+  followUpRequired?: boolean;
+  completedAt?: string;
+  completedBy?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  createdAt?: string;
+  createdBy?: string;
   deletedBy?: string;
   deletedAt?: string;
   deleteReason?: string;
   linkedAssessmentId?: string;
   linkedCarePlanId?: string;
+  linkedMDTNoteId?: string;
 }
 
 export interface AuditLog {
@@ -854,12 +881,21 @@ export interface MDTNote extends LifecycleFields {
   facilityId?: string;
   residentId: string;
   date: string;
+  meetingTime?: string;
+  meetingType?: string;
+  chairperson?: string;
   attendees: string;
+  attendeeList?: string[];
   discussion: string;
   recommendations: string;
+  clinicalDecisions?: string;
+  actionsAgreed?: string;
   followUpDate?: string;
   authoredBy: string;
   role?: Role;
+  linkedTaskIds?: string[];
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
   linkedAssessmentId?: string;
   linkedCarePlanId?: string;
 }

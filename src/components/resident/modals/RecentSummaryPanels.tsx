@@ -39,7 +39,7 @@ const SUMMARY_CONFIGS = [
     renderItem: (item: any) => `${item.date} — ${item.type.replace("_", " ")} (${item.severity})`,
   },
   {
-    title: "Recent MDT Notes",
+    title: "Recent MDT",
     kind: "mdt" as const,
     key: "mdtNotes",
     renderItem: (item: any) => `${item.date} — ${item.authoredBy}`,

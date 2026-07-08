@@ -3,10 +3,17 @@ import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
-import { CATEGORY_LABELS } from "@/lib/care/problems";
+import { CATEGORY_LABELS, RISK_COLORS } from "@/lib/care/problems";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, ClipboardCheck, FileWarning, Layers3, UserRound } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, FileWarning, Layers3, MoreHorizontal, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/care-plans")({
@@ -52,6 +59,20 @@ type QuickFilter =
   | "completed";
 
 const DUE_SOON_DAYS = 7;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const RISK_RANK: Record<string, number> = {
+  critical: 4,
+  very_high: 4,
+  high: 3,
+  medium: 2,
+  moderate: 2,
+  low: 1,
+};
+const INACTIVE_STATUSES = ["completed", "archived", "superseded"];
+
+type RegisterStatusFilter = "all" | "active" | "completed" | "archived";
+type RegisterRiskFilter = "all" | "critical" | "high" | "medium" | "low";
+type RegisterDueFilter = "all" | "review_due" | "evaluation_due" | "overdue";
 
 function startOfToday() {
   return new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00`);
@@ -82,6 +103,25 @@ function formatDateTime(date?: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function riskLabel(risk?: string) {
+  if (!risk) return "None";
+  if (risk === "very_high" || risk === "critical") return "Critical";
+  return risk.charAt(0).toUpperCase() + risk.slice(1).replace("_", " ");
+}
+
+function riskClass(risk?: string) {
+  const key = risk === "critical" ? "very_high" : risk;
+  return RISK_COLORS[key as keyof typeof RISK_COLORS] || "";
+}
+
+function earliestDate(dates: Array<string | undefined>) {
+  return dates.filter(Boolean).sort()[0];
+}
+
+function latestDate(dates: Array<string | undefined>) {
+  return dates.filter(Boolean).sort().at(-1);
 }
 
 function statusMeta(plan: { status: string; reviewDate: string; evaluationDate?: string }) {
@@ -213,6 +253,191 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
   );
 }
 
+function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
+  const { addProblemEvaluation } = useCare();
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [goalsMet, setGoalsMet] = useState<"yes" | "partial" | "no">("partial");
+  const [progress, setProgress] = useState<
+    "improved" | "stable" | "deteriorated" | "resolved" | "requires_revision"
+  >("stable");
+  const [nextEvaluationDate, setNextEvaluationDate] = useState(
+    new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          Evaluate
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Evaluate Care Plan Problem</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Evaluation summary</Label>
+            <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Goals met</Label>
+              <Select value={goalsMet} onValueChange={(value) => setGoalsMet(value as typeof goalsMet)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Progress</Label>
+              <Select value={progress} onValueChange={(value) => setProgress(value as typeof progress)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="improved">Improved</SelectItem>
+                  <SelectItem value="stable">Stable</SelectItem>
+                  <SelectItem value="deteriorated">Deteriorated</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="requires_revision">Requires revision</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Next evaluation date</Label>
+            <Textarea
+              value={nextEvaluationDate}
+              onChange={(event) => setNextEvaluationDate(event.target.value)}
+              rows={1}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!summary.trim()}
+            onClick={() => {
+              addProblemEvaluation({
+                problemId,
+                summary,
+                goalsMet,
+                progress,
+                recommendations: "",
+                nextEvaluationDate,
+              });
+              toast.success("Evaluation recorded");
+              setSummary("");
+              setOpen(false);
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProblemEvaluationDialog({
+  problemId,
+  open,
+  onOpenChange,
+}: {
+  problemId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { addProblemEvaluation } = useCare();
+  const [summary, setSummary] = useState("");
+  const [goalsMet, setGoalsMet] = useState<"yes" | "partial" | "no">("partial");
+  const [progress, setProgress] = useState<
+    "improved" | "stable" | "deteriorated" | "resolved" | "requires_revision"
+  >("stable");
+  const [nextEvaluationDate, setNextEvaluationDate] = useState(
+    new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Evaluate Care Plan</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Evaluation summary</Label>
+            <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Goals met</Label>
+              <Select value={goalsMet} onValueChange={(value) => setGoalsMet(value as typeof goalsMet)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Progress</Label>
+              <Select value={progress} onValueChange={(value) => setProgress(value as typeof progress)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="improved">Improved</SelectItem>
+                  <SelectItem value="stable">Stable</SelectItem>
+                  <SelectItem value="deteriorated">Deteriorated</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="requires_revision">Requires revision</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Next evaluation date</Label>
+            <Input
+              type="date"
+              value={nextEvaluationDate}
+              onChange={(event) => setNextEvaluationDate(event.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!problemId || !summary.trim()}
+            onClick={() => {
+              if (!problemId) return;
+              addProblemEvaluation({
+                problemId,
+                summary,
+                goalsMet,
+                progress,
+                recommendations: "",
+                nextEvaluationDate,
+              });
+              toast.success("Evaluation recorded");
+              setSummary("");
+              onOpenChange(false);
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CarePlansPage() {
   const {
     carePlans,
@@ -226,10 +451,20 @@ function CarePlansPage() {
     currentUser,
     currentUserName,
     auditLogs,
+    archiveProblem,
   } = useCare();
   const navigate = useNavigate();
   const [tab, setTab] = useState<WorkflowTab>("active");
   const [filter, setFilter] = useState<QuickFilter>("all");
+  const [search, setSearch] = useState("");
+  const [wingFilter, setWingFilter] = useState("all");
+  const [nurseFilter, setNurseFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<RegisterStatusFilter>("all");
+  const [riskFilter, setRiskFilter] = useState<RegisterRiskFilter>("all");
+  const [dueFilter, setDueFilter] = useState<RegisterDueFilter>("all");
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [page, setPage] = useState(1);
+  const [evaluatingProblemId, setEvaluatingProblemId] = useState<string | null>(null);
 
   const governanceView = currentRole === "cnm" || currentRole === "don";
   const visibleTabs = governanceView
@@ -420,6 +655,178 @@ function CarePlansPage() {
     });
   }, [filter, rows, tab]);
 
+  const registerRows = useMemo(() => {
+    const activeResidents = residents.filter((resident) => resident.status !== "deleted");
+    return activeResidents
+      .map((resident) => {
+        const residentPlan = residentCarePlans
+          .filter((plan) => plan.residentId === resident.id)
+          .sort((left, right) =>
+            (right.updatedAt || right.createdAt).localeCompare(left.updatedAt || left.createdAt),
+          )[0];
+        const problems = carePlanProblems.filter((problem) => problem.residentId === resident.id);
+        if (!residentPlan && problems.length === 0) return null;
+
+        const activeProblems = problems.filter((problem) => problem.status === "active");
+        const visibleProblems = activeProblems.length > 0 ? activeProblems : problems;
+        const highestRisk = visibleProblems
+          .map((problem) => problem.riskLevel)
+          .sort((left, right) => (RISK_RANK[right] || 0) - (RISK_RANK[left] || 0))[0];
+        const nextReviewDate = earliestDate(activeProblems.map((problem) => problem.reviewDate));
+        const nextEvaluationDate = earliestDate(activeProblems.map((problem) => problem.evaluationDate));
+        const reviewDays = daysUntil(nextReviewDate);
+        const evaluationDays = daysUntil(nextEvaluationDate);
+        const hasOverdue =
+          (reviewDays !== null && reviewDays < 0) ||
+          (evaluationDays !== null && evaluationDays < 0);
+        const isReviewDue = reviewDays !== null && reviewDays <= DUE_SOON_DAYS;
+        const isEvaluationDue = evaluationDays !== null && evaluationDays <= DUE_SOON_DAYS;
+        const status =
+          residentPlan?.status === "archived" || problems.every((problem) => problem.status === "archived")
+            ? "archived"
+            : activeProblems.length > 0 || residentPlan?.status === "active"
+              ? "active"
+              : problems.length > 0 && problems.every((problem) => problem.status === "resolved")
+                ? "completed"
+                : "active";
+        const residentIsMine =
+          resident.keyWorkers?.namedNurse === currentUserName ||
+          resident.keyWorkers?.keyWorker === currentUserName ||
+          (currentUser.assignedWings.length > 0 &&
+            !!resident.wingId &&
+            currentUser.assignedWings.includes(resident.wingId));
+        const primaryProblem =
+          [...activeProblems].sort((left, right) => {
+            const leftReview = daysUntil(left.reviewDate) ?? 9999;
+            const rightReview = daysUntil(right.reviewDate) ?? 9999;
+            return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
+          })[0] || visibleProblems[0];
+
+        return {
+          resident,
+          status,
+          highestRisk,
+          nextReviewDate,
+          nextEvaluationDate,
+          lastUpdated: latestDate([
+            residentPlan?.updatedAt,
+            residentPlan?.createdAt,
+            ...problems.map((problem) => problem.archivedAt || problem.resolvedAt || problem.createdAt),
+          ]),
+          reviewDays,
+          evaluationDays,
+          hasOverdue,
+          isReviewDue,
+          isEvaluationDue,
+          isHighRisk: highestRisk === "high" || highestRisk === "very_high",
+          residentIsMine,
+          primaryProblemId: primaryProblem?.id,
+          primaryCarePlanId: primaryProblem?.residentCarePlanId || residentPlan?.id,
+          activeProblemIds: activeProblems.map((problem) => problem.id),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+  }, [
+    carePlanProblems,
+    currentUser.assignedWings,
+    currentUserName,
+    residentCarePlans,
+    residents,
+  ]);
+
+  const wingOptions = useMemo(
+    () =>
+      Array.from(new Set(registerRows.map((row) => row.resident.wingId).filter(Boolean))).sort(),
+    [registerRows],
+  );
+  const nurseOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          registerRows
+            .map((row) => row.resident.keyWorkers?.namedNurse)
+            .filter((name): name is string => !!name),
+        ),
+      ).sort(),
+    [registerRows],
+  );
+
+  const filteredRegisterRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return registerRows
+      .filter((row) => {
+        if (tab === "reviews") return row.status === "active" && row.isReviewDue;
+        if (tab === "evaluations") return row.status === "active" && row.isEvaluationDue;
+        if (tab === "completed") return row.status === "completed";
+        if (tab === "archived") return row.status === "archived";
+        return row.status === "active";
+      })
+      .filter((row) => {
+        if (filter === "mine" && !row.residentIsMine) return false;
+        if (filter === "high_risk" && !row.isHighRisk) return false;
+        if (filter === "review_due" && !row.isReviewDue) return false;
+        if (filter === "evaluation_due" && !row.isEvaluationDue) return false;
+        if (filter === "overdue" && !row.hasOverdue) return false;
+        if (filter === "completed" && row.status !== "completed") return false;
+        if (query) {
+          const haystack = `${row.resident.firstName} ${row.resident.lastName} ${row.resident.roomNumber}`.toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+        if (wingFilter !== "all" && row.resident.wingId !== wingFilter) return false;
+        if (nurseFilter !== "all" && row.resident.keyWorkers?.namedNurse !== nurseFilter) return false;
+        if (statusFilter !== "all" && row.status !== statusFilter) return false;
+        if (riskFilter !== "all") {
+          const normalizedRisk = row.highestRisk === "very_high" ? "critical" : row.highestRisk;
+          if (normalizedRisk !== riskFilter) return false;
+        }
+        if (dueFilter === "review_due" && !row.isReviewDue) return false;
+        if (dueFilter === "evaluation_due" && !row.isEvaluationDue) return false;
+        if (dueFilter === "overdue" && !row.hasOverdue) return false;
+        return true;
+      })
+      .sort((left, right) => {
+        if (left.reviewDays !== right.reviewDays) {
+          const leftOverdue = left.reviewDays !== null && left.reviewDays < 0;
+          const rightOverdue = right.reviewDays !== null && right.reviewDays < 0;
+          if (leftOverdue !== rightOverdue) return leftOverdue ? -1 : 1;
+        }
+        if (left.evaluationDays !== right.evaluationDays) {
+          const leftOverdue = left.evaluationDays !== null && left.evaluationDays < 0;
+          const rightOverdue = right.evaluationDays !== null && right.evaluationDays < 0;
+          if (leftOverdue !== rightOverdue) return leftOverdue ? -1 : 1;
+        }
+        const riskDelta = (RISK_RANK[right.highestRisk || ""] || 0) - (RISK_RANK[left.highestRisk || ""] || 0);
+        if (riskDelta !== 0) return riskDelta;
+        if (left.isReviewDue !== right.isReviewDue) return left.isReviewDue ? -1 : 1;
+        return (right.lastUpdated || "").localeCompare(left.lastUpdated || "");
+      });
+  }, [
+    dueFilter,
+    filter,
+    nurseFilter,
+    registerRows,
+    riskFilter,
+    search,
+    statusFilter,
+    tab,
+    wingFilter,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRegisterRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedRegisterRows = filteredRegisterRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const workQueueSummary = useMemo(() => {
+    const active = registerRows.filter((row) => row.status === "active");
+    return {
+      active: active.length,
+      reviewsDue: active.filter((row) => row.isReviewDue).length,
+      evaluationsDue: active.filter((row) => row.isEvaluationDue).length,
+      overdue: active.filter((row) => row.hasOverdue).length,
+      highRisk: active.filter((row) => row.isHighRisk).length,
+    };
+  }, [registerRows]);
+
   const governance = useMemo(() => {
     const overdueReviews = rows.filter(
       (row) =>
@@ -512,6 +919,73 @@ function CarePlansPage() {
         )}
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <CarePlanSummaryCard
+          label="Active Care Plans"
+          value={workQueueSummary.active}
+          onClick={() => {
+            setTab("active");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("all");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Reviews Due"
+          value={workQueueSummary.reviewsDue}
+          tone="warn"
+          onClick={() => {
+            setTab("reviews");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("review_due");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Evaluations Due"
+          value={workQueueSummary.evaluationsDue}
+          tone="warn"
+          onClick={() => {
+            setTab("evaluations");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("evaluation_due");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Overdue"
+          value={workQueueSummary.overdue}
+          tone="danger"
+          onClick={() => {
+            setTab("active");
+            setFilter("overdue");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("overdue");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="High Risk"
+          value={workQueueSummary.highRisk}
+          tone="danger"
+          onClick={() => {
+            setTab("active");
+            setFilter("high_risk");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("all");
+            setPage(1);
+          }}
+        />
+      </div>
+
       <Card>
         <CardContent className="p-4 flex flex-wrap items-center gap-3 text-sm">
           <StatusLegend toneClass="bg-emerald-500" label="On Track" />
@@ -529,16 +1003,11 @@ function CarePlansPage() {
         <TabsList className="flex-wrap h-auto">
           {visibleTabs.map((value) => (
             <TabsTrigger key={value} value={value}>
-              {value === "active" &&
-                `Active Care Plans (${rows.filter((row) => !["completed", "archived", "superseded"].includes(row.plan.status)).length})`}
-              {value === "reviews" &&
-                `Reviews Due (${rows.filter((row) => !["completed", "archived", "superseded"].includes(row.plan.status) && row.isReviewDue).length})`}
-              {value === "evaluations" &&
-                `Evaluations Due (${rows.filter((row) => !["completed", "archived", "superseded"].includes(row.plan.status) && row.isEvaluationDue).length})`}
-              {value === "completed" &&
-                `Completed Care Plans (${rows.filter((row) => row.plan.status === "completed").length})`}
-              {value === "archived" &&
-                `Archived Care Plans (${rows.filter((row) => row.plan.status === "archived" || row.plan.status === "superseded").length})`}
+              {value === "active" && "Active Care Plans"}
+              {value === "reviews" && "Reviews Due"}
+              {value === "evaluations" && "Evaluations Due"}
+              {value === "completed" && "Completed Care Plans"}
+              {value === "archived" && "Archived Care Plans"}
               {value === "governance" && "Governance"}
             </TabsTrigger>
           ))}
@@ -589,102 +1058,171 @@ function CarePlansPage() {
               </div>
 
               <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+                    <div className="relative md:col-span-2">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={search}
+                        onChange={(event) => {
+                          setSearch(event.target.value);
+                          setPage(1);
+                        }}
+                        placeholder="Search resident name or room"
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={wingFilter} onValueChange={(value) => { setWingFilter(value); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Wing" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All wings</SelectItem>
+                        {wingOptions.map((wing) => (
+                          <SelectItem key={wing} value={wing}>{wing}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={nurseFilter} onValueChange={(value) => { setNurseFilter(value); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Named nurse" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All nurses</SelectItem>
+                        {nurseOptions.map((nurse) => (
+                          <SelectItem key={nurse} value={nurse}>{nurse}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as RegisterStatusFilter); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={riskFilter} onValueChange={(value) => { setRiskFilter(value as RegisterRiskFilter); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Risk" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All risks</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={dueFilter} onValueChange={(value) => { setDueFilter(value as RegisterDueFilter); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Due" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All due dates</SelectItem>
+                        <SelectItem value="review_due">Review due</SelectItem>
+                        <SelectItem value="evaluation_due">Evaluation due</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="hidden md:block">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Resident</TableHead>
-                        <TableHead>Care Plan Name</TableHead>
+                        <TableHead>Room</TableHead>
+                        <TableHead>Risk</TableHead>
+                        <TableHead>Review</TableHead>
+                        <TableHead>Evaluation</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Next Review Date</TableHead>
-                        <TableHead>Next Evaluation Date</TableHead>
                         <TableHead>Last Updated</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRows.map((row) => (
-                        <TableRow key={row.plan.id}>
+                      {pagedRegisterRows.map((row) => (
+                        <TableRow key={row.resident.id}>
                           <TableCell>
-                            <div className="min-w-[180px]">
-                              <div className="font-medium">
-                                {row.resident.firstName} {row.resident.lastName}
-                              </div>
+                            <div className="font-medium">
+                              {row.resident.firstName} {row.resident.lastName}
+                            </div>
+                            {row.resident.keyWorkers?.namedNurse && (
                               <div className="text-xs text-muted-foreground">
-                                Room {row.resident.roomNumber}
-                                {row.resident.keyWorkers?.namedNurse
-                                  ? ` · Named nurse ${row.resident.keyWorkers.namedNurse}`
-                                  : ""}
+                                {row.resident.keyWorkers.namedNurse}
                               </div>
-                            </div>
+                            )}
                           </TableCell>
+                          <TableCell>Room {row.resident.roomNumber}</TableCell>
                           <TableCell>
-                            <div className="min-w-[220px]">
-                              {row.isUnified ? (
-                                <Link
-                                  to="/residents/$id/care-plan"
-                                  params={{ id: row.resident.id }}
-                                  className="font-medium hover:text-primary hover:underline"
-                                >
-                                  {row.plan.title}
-                                </Link>
-                              ) : (
-                                <Link
-                                  to="/care-plans/$id"
-                                  params={{ id: row.plan.id }}
-                                  className="font-medium hover:text-primary hover:underline"
-                                >
-                                  {row.plan.title}
-                                </Link>
-                              )}
-                              <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                {row.plan.problem}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`gap-2 ${row.status.tone}`}>
-                              <span className={`h-2 w-2 rounded-full ${row.status.dot}`} />
-                              {row.status.label}
+                            <Badge variant="outline" className={riskClass(row.highestRisk)}>
+                              {riskLabel(row.highestRisk)}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDate(row.plan.reviewDate)}</TableCell>
-                          <TableCell>{formatDate(row.plan.evaluationDate)}</TableCell>
+                          <TableCell>{formatDate(row.nextReviewDate)}</TableCell>
+                          <TableCell>{formatDate(row.nextEvaluationDate)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {row.status}
+                            </Badge>
+                          </TableCell>
                           <TableCell>{formatDateTime(row.lastUpdated)}</TableCell>
                           <TableCell>
-                            <div className="flex justify-end gap-2">
-                              {row.isUnified ? (
-                                <Link to="/residents/$id/care-plan" params={{ id: row.resident.id }}>
-                                  <Button size="sm">Open Care Plan</Button>
-                                </Link>
-                              ) : (
-                                <Link to="/care-plans/$id" params={{ id: row.plan.id }}>
-                                  <Button size="sm">Open Care Plan</Button>
-                                </Link>
-                              )}
-                              <Link to="/residents/$id" params={{ id: row.resident.id }}>
-                                <Button size="sm" variant="outline">
-                                  Open Resident
-                                </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                to="/residents/$id"
+                                params={{ id: row.resident.id }}
+                                search={{
+                                  carePlanId: row.primaryCarePlanId,
+                                  carePlanProblemId: row.primaryProblemId,
+                                }}
+                              >
+                                <Button size="sm">Open Care Plan</Button>
                               </Link>
-                              {!row.isUnified &&
-                                can(currentRole, "careplan.evaluate") &&
-                                row.plan.status !== "completed" &&
-                                row.plan.status !== "archived" &&
-                                row.plan.status !== "superseded" && (
-                                  <EvaluateDialog carePlanId={row.plan.id} />
-                                )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="icon" variant="ghost" aria-label="More actions">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link to="/residents/$id" params={{ id: row.resident.id }}>Open Resident</Link>
+                                  </DropdownMenuItem>
+                                  {can(currentRole, "careplan.evaluate") && row.primaryProblemId && (
+                                    <DropdownMenuItem onClick={() => setEvaluatingProblemId(row.primaryProblemId)}>
+                                      Evaluate
+                                    </DropdownMenuItem>
+                                  )}
+                                  {can(currentRole, "careplan.delete") && row.activeProblemIds.length > 0 && (
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        row.activeProblemIds.forEach((problemId) =>
+                                          archiveProblem(problemId, "Set inactive from care plan register"),
+                                        );
+                                        toast.success("Care plan set inactive");
+                                      }}
+                                    >
+                                      Set Inactive
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
                       ))}
-                      {filteredRows.length === 0 && (
+                      {pagedRegisterRows.length === 0 && (
                         <TableRow>
-                          <TableCell
-                            colSpan={7}
-                            className="py-10 text-center text-muted-foreground"
-                          >
-                            No care plans match the current workflow view.
+                          <TableCell colSpan={8} className="py-10 text-center">
+                            <div className="space-y-3">
+                              <p className="text-sm text-muted-foreground">No care plans found.</p>
+                              {can(currentRole, "careplan.create") && (
+                                <CreateCarePlanDialog
+                                  buttonLabel="Create Care Plan"
+                                  onCreated={(problem) =>
+                                    navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+                                  }
+                                />
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}
@@ -692,6 +1230,123 @@ function CarePlansPage() {
                   </Table>
                 </CardContent>
               </Card>
+
+              <div className="space-y-2 md:hidden">
+                {pagedRegisterRows.map((row) => (
+                  <Card key={row.resident.id}>
+                    <CardContent className="p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium">
+                            {row.resident.firstName} {row.resident.lastName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Room {row.resident.roomNumber}</div>
+                        </div>
+                        <Badge variant="outline" className={riskClass(row.highestRisk)}>
+                          {riskLabel(row.highestRisk)}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                        <div>Review {formatDate(row.nextReviewDate)}</div>
+                        <div>Eval {formatDate(row.nextEvaluationDate)}</div>
+                        <div className="capitalize">Status {row.status}</div>
+                        <div>Updated {formatDateTime(row.lastUpdated)}</div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Link
+                          to="/residents/$id"
+                          params={{ id: row.resident.id }}
+                          search={{
+                            carePlanId: row.primaryCarePlanId,
+                            carePlanProblemId: row.primaryProblemId,
+                          }}
+                        >
+                          <Button size="sm">Open Care Plan</Button>
+                        </Link>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" aria-label="More actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to="/residents/$id" params={{ id: row.resident.id }}>Open Resident</Link>
+                            </DropdownMenuItem>
+                            {can(currentRole, "careplan.evaluate") && row.primaryProblemId && (
+                              <DropdownMenuItem onClick={() => setEvaluatingProblemId(row.primaryProblemId)}>
+                                Evaluate
+                              </DropdownMenuItem>
+                            )}
+                            {can(currentRole, "careplan.delete") && row.activeProblemIds.length > 0 && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  row.activeProblemIds.forEach((problemId) =>
+                                    archiveProblem(problemId, "Set inactive from care plan register"),
+                                  );
+                                  toast.success("Care plan set inactive");
+                                }}
+                              >
+                                Set Inactive
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {pagedRegisterRows.length === 0 && (
+                  <Card>
+                    <CardContent className="p-6 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">No care plans found.</p>
+                      {can(currentRole, "careplan.create") && (
+                        <CreateCarePlanDialog
+                          buttonLabel="Create Care Plan"
+                          onCreated={(problem) =>
+                            navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+                          }
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredRegisterRows.length === 0 ? 0 : (safePage - 1) * pageSize + 1}-
+                  {Math.min(safePage * pageSize, filteredRegisterRows.length)} of {filteredRegisterRows.length}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={String(pageSize)} onValueChange={(value) => { setPageSize(Number(value)); setPage(1); }}>
+                    <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={String(size)}>{size} rows</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
+                    Previous
+                  </Button>
+                  <div className="text-sm tabular-nums">
+                    {safePage} / {totalPages}
+                  </div>
+                  <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>
+                    Next
+                  </Button>
+                </div>
+              </div>
+
+              <ProblemEvaluationDialog
+                problemId={evaluatingProblemId}
+                open={!!evaluatingProblemId}
+                onOpenChange={(open) => {
+                  if (!open) setEvaluatingProblemId(null);
+                }}
+              />
+
             </>
           )}
 
@@ -798,6 +1453,42 @@ function QuickFilterButton({
     <Button size="sm" variant={active ? "default" : "outline"} onClick={onClick}>
       {children}
     </Button>
+  );
+}
+
+function CarePlanSummaryCard({
+  label,
+  value,
+  tone = "default",
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "warn" | "danger";
+  onClick?: () => void;
+}) {
+  const toneClass =
+    tone === "danger"
+      ? "text-destructive"
+      : tone === "warn"
+        ? "text-warning-foreground"
+        : "";
+  const content = (
+    <CardContent className="p-4 text-left">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`text-2xl font-semibold tabular-nums mt-1 ${toneClass}`}>{value}</div>
+    </CardContent>
+  );
+  return (
+    <Card className={onClick ? "transition-colors hover:border-primary/50" : ""}>
+      {onClick ? (
+        <button type="button" className="block w-full" onClick={onClick}>
+          {content}
+        </button>
+      ) : (
+        content
+      )}
+    </Card>
   );
 }
 

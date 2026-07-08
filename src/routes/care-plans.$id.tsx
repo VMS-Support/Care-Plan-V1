@@ -915,7 +915,7 @@ function CarePlanDetail() {
                 }))}
               />
               <EvidenceSection
-                title={`Linked MDT Notes (${linkedMDT.length})`}
+                title={`Linked MDT (${linkedMDT.length})`}
                 items={linkedMDT.map((note) => ({
                   id: note.id,
                   title: note.discussion.slice(0, 60),

@@ -123,7 +123,15 @@ function MetricCard({
   );
 }
 
-export function OperationsHub() {
+export function OperationsHub({
+  title,
+  subtitle = "What do I need to do next?",
+  eyebrow = "Operations Centre",
+}: {
+  title?: string;
+  subtitle?: string;
+  eyebrow?: string;
+} = {}) {
   const {
     wings,
     residents,
@@ -343,7 +351,7 @@ export function OperationsHub() {
       items.push({
         id: `task-${task.id}`,
         timeLabel: "Today",
-        sortKey: new Date(`${task.dueDate}T23:59`).getTime(),
+        sortKey: new Date(task.dueDate.includes("T") ? task.dueDate : `${task.dueDate}T23:59`).getTime(),
         residentId: task.residentId,
         residentName: r ? `${r.firstName} ${r.lastName}` : "Unknown",
         room: r?.roomNumber || "—",
@@ -372,17 +380,18 @@ export function OperationsHub() {
         <CardContent className="p-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Operations Centre
+              {eyebrow}
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight mt-1">{shift}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight mt-1">{title || shift}</h1>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+              {title && <span>{shift}</span>}
               <span>{formatDate(now)}</span>
               <span>{formatTime(now)}</span>
               <span>{currentUserName}</span>
               <span>{roleLabels[currentRole]}</span>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground">What do I need to do next?</div>
+          <div className="text-sm text-muted-foreground">{subtitle}</div>
         </CardContent>
       </Card>
 

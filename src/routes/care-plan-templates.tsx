@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
@@ -16,8 +16,9 @@ import type { CarePlanTemplate } from "@/lib/care/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/care-plan-templates")({
-  head: () => ({ meta: [{ title: "Care Plan Templates — CarePath" }] }),
-  component: TemplatesLibrary,
+  beforeLoad: () => {
+    throw redirect({ to: "/care-plans" });
+  },
 });
 
 function TemplatesLibrary() {

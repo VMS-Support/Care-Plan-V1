@@ -26,7 +26,7 @@ const ACTIONS: Action[] = [
   { kind: "assessment", label: "Assessment", icon: Stethoscope, perm: "assessment.view" },
   { kind: "task", label: "Task", icon: CheckSquare, perm: "task.create" },
   { kind: "incident", label: "Incident", icon: AlertTriangle, perm: "incident.create" },
-  { kind: "mdt", label: "MDT Note", icon: UserCheck, perm: "mdt.create" },
+  { kind: "mdt", label: "MDT Meeting", icon: UserCheck, perm: "mdt.create" },
   { kind: "visitor", label: "Visitor Record", icon: UsersRound, perm: "visitor.create" },
   { kind: "outing", label: "Resident Outing", icon: Plane, perm: "outing.create" },
 ];

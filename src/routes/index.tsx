@@ -11,6 +11,7 @@ import {
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
 import type { Resident, UserProfile } from "@/lib/care/types";
+import { OperationsHub } from "@/components/operations/OperationsHub";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -410,8 +411,8 @@ function DonDashboard() {
         </RoleSection>
         <RoleSection title="Interventions / Care Delivery">
           <div className="grid grid-cols-2 gap-3">
-            <RoleMetric icon={Activity} label="Due Today" value={d.scheduledDue.length} href="/interventions" tone={d.scheduledDue.length ? "warn" : "good"} />
-            <RoleMetric icon={CheckCircle2} label="Completed Today" value={d.completedToday} href="/interventions" tone="good" />
+            <RoleMetric icon={Activity} label="Due Today" value={d.scheduledDue.length} href="/operations" tone={d.scheduledDue.length ? "warn" : "good"} />
+            <RoleMetric icon={CheckCircle2} label="Completed Today" value={d.completedToday} href="/operations" tone="good" />
             <KpiCard label="Daily Adherence" value={dailyAdherence} />
             <KpiCard label="Weekly Adherence" value={weeklyAdherence} />
           </div>
@@ -513,7 +514,7 @@ function DoctorDashboard() {
         <RoleMetric icon={HeartPulse} label="Clinical Reviews" value={reviewAlerts.length + abnormalVitals.length} href="/alerts" tone="danger" />
         <RoleMetric icon={Activity} label="Abnormal Vitals" value={abnormalVitals.length} href="/vitals" tone="warn" />
         <RoleMetric icon={ClipboardList} label="Treatment Reviews" value={medicalProblems.length} href="/care-plans" tone="info" />
-        <RoleMetric icon={NotebookPen} label="MDT Notes" value={mdtReview.length} href="/mdt-notes" />
+        <RoleMetric icon={NotebookPen} label="MDT" value={mdtReview.length} href="/mdt-notes" />
         <RoleMetric icon={CheckCircle2} label="Assigned Tasks" value={doctorTasks.length} href="/tasks" tone={doctorTasks.length ? "warn" : "good"} />
       </div>
       <div className="grid lg:grid-cols-2 gap-4">
@@ -522,7 +523,7 @@ function DoctorDashboard() {
           ...abnormalVitals.map((v: any) => ({ title: rdName(d.residentFor(v.residentId)), meta: `NEWS2 ${v.news2Score || v.news2Total || 0} - ${v.date} ${v.time}`, href: `/residents/${v.residentId}` })),
         ]} />
         <RoleList title="Medication / Treatment Review" empty="No medication or treatment reviews due." href="/care-plans" items={medicalProblems.map((p) => ({ title: rdName(d.residentFor(p.residentId)), meta: p.problemStatement, href: `/residents/${p.residentId}` }))} />
-        <RoleList title="MDT / Notes" empty="No doctor review notes." href="/mdt-notes" items={mdtReview.map((n: any) => ({ title: rdName(d.residentFor(n.residentId)), meta: n.date || n.createdAt || "Recent note", href: "/mdt-notes" }))} />
+        <RoleList title="MDT" empty="No doctor review meetings." href="/mdt-notes" items={mdtReview.map((n: any) => ({ title: rdName(d.residentFor(n.residentId)), meta: n.date || n.createdAt || "Recent meeting", href: "/mdt-notes" }))} />
         <RoleList title="Assigned / Follow-up Tasks" empty="No doctor-specific tasks assigned." href="/tasks" items={doctorTasks.map((t) => ({ title: t.title, meta: t.dueDate, href: t.residentId ? `/residents/${t.residentId}` : "/tasks" }))} />
       </div>
     </RolePage>
@@ -530,35 +531,7 @@ function DoctorDashboard() {
 }
 
 function NurseDashboard() {
-  const d = useRoleDashboardData("assigned");
-  const [filter, setFilter] = useState<WorkQueueFilter>("all");
-  const residents = d.myResidents.length ? d.myResidents : d.activeResidents;
-  const residentIds = d.myResidentIds.size ? d.myResidentIds : d.activeResidentIds;
-  const work = buildShiftWorkQueue(d, residentIds, false);
-  const visibleWork = filter === "all" ? work : work.filter((item) => item.status === filter);
-  const alerts = work.filter((item) => item.status === "alerts");
-  const documentation = [
-    { title: "Incident forms requiring completion", meta: String(d.incidents.filter((i) => i.status !== "closed" && residentIds.has(i.residentId)).length), href: "/incidents" },
-    { title: "Daily notes outstanding", meta: String(d.tasks.filter((t) => /note|document/i.test(t.title) && t.status !== "completed").length), href: "/daily-notes" },
-    { title: "Handovers needing acknowledgement", meta: String(d.handovers.filter((h) => h.date >= d.today && residentIds.has(h.residentId) && h.status !== "closed").length), href: "/handovers" },
-  ];
-
-  return (
-    <RolePage title="Nurse dashboard" subtitle="what needs attention on this shift">
-      <ShiftSummary filter={filter} setFilter={setFilter} counts={queueCounts(work, residents.length)} />
-      <WorkQueue title="My Shift Work Queue" items={visibleWork} empty="No shift work in this view." />
-      <div className="grid lg:grid-cols-2 gap-4">
-        <RoleList title="Clinical Alerts" empty="No active deterioration alerts." href="/alerts" items={alerts.map((item) => ({ title: item.residentName, meta: item.title, href: item.href }))} />
-        <RoleList title="Documentation" empty="No documentation requiring attention." href="/tasks" items={documentation.filter((item) => item.meta !== "0")} />
-      </div>
-      <RoleSection title="My Residents">
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
-          {residents.length === 0 && <EmptyPanel message="No residents assigned." />}
-          {residents.slice(0, 8).map((r) => <ResidentCard key={r.id} resident={r} compact />)}
-        </div>
-      </RoleSection>
-    </RolePage>
-  );
+  return <OperationsHub />;
 }
 
 function HcaDashboard() {

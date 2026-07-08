@@ -24,7 +24,7 @@ const kindMeta: Record<Kind, { title: string; perm: Permission }> = {
   intervention: { title: "Intervention", perm: "intervention.create" },
   task: { title: "Task", perm: "task.create" },
   incident: { title: "Incident", perm: "incident.create" },
-  mdt: { title: "MDT Note", perm: "mdt.create" },
+  mdt: { title: "MDT Meeting", perm: "mdt.create" },
   visitor: { title: "Visitor Record", perm: "visitor.create" },
   outing: { title: "Resident Outing", perm: "outing.create" },
 };
@@ -148,7 +148,7 @@ function MDTForm({ onSubmit }: { onSubmit: (d: any) => void }) {
       <Field label="Discussion"><Textarea value={d.discussion} onChange={e => set({ ...d, discussion: e.target.value })} /></Field>
       <Field label="Recommendations"><Textarea value={d.recommendations} onChange={e => set({ ...d, recommendations: e.target.value })} /></Field>
       <Field label="Follow-up date"><Input type="date" value={d.followUpDate} onChange={e => set({ ...d, followUpDate: e.target.value })} /></Field>
-      <Button onClick={() => onSubmit(d)}>Save MDT Note</Button>
+      <Button onClick={() => onSubmit(d)}>Save MDT Meeting</Button>
     </div>
   );
 }

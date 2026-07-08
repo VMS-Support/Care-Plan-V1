@@ -182,11 +182,11 @@ function ResidentTimeline() {
       .filter((t) => t.residentId === r.id && t.status === "completed")
       .forEach((t) => {
         list.push({
-          ts: t.dueDate,
+          ts: t.completedAt || t.dueDate,
           icon: CheckSquare,
           type: "Task Completed",
-          summary: t.title,
-          user: t.assignedTo,
+          summary: t.outcome ? `${t.title}: ${t.outcome}` : t.title,
+          user: t.completedBy || t.assignedTo,
           tone: "success",
         });
       });
@@ -196,8 +196,8 @@ function ResidentTimeline() {
         list.push({
           ts: m.date,
           icon: UserCheck,
-          type: "MDT Note",
-          summary: m.discussion.slice(0, 120),
+          type: `${m.meetingType || "MDT"} Meeting`,
+          summary: (m.clinicalDecisions || m.recommendations || m.discussion).slice(0, 120),
           user: m.authoredBy,
           role: m.role,
         });

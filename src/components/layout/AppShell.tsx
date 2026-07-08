@@ -17,7 +17,6 @@ import {
   UsersRound,
   Plane,
   ShieldCheck,
-  LibraryBig,
   Building2,
   Gauge,
 } from "lucide-react";
@@ -39,7 +38,8 @@ const nav: NavItem[] = [
     to: "/operations",
     label: "Operations",
     icon: Building2,
-    perm: (r) => can(r, "ops.edit") || can(r, "ops.edit_own"),
+    // TODO: Re-enable Operations for Nurse if Operations and Dashboard become separate workflows again.
+    perm: (r) => r !== "nurse" && (can(r, "ops.edit") || can(r, "ops.edit_own")),
   },
   { to: "/residents", label: "Residents", icon: Users, perm: (r) => can(r, "resident.view") },
   {
@@ -61,19 +61,12 @@ const nav: NavItem[] = [
     perm: (r) => can(r, "careplan.view"),
   },
   {
-    to: "/care-plan-templates",
-    label: "Care Templates",
-    icon: LibraryBig,
-    perm: (r) => can(r, "careplan.create"),
-  },
-  {
     to: "/compliance",
     label: "Compliance",
     icon: ShieldCheck,
     perm: (r) => can(r, "compliance.view"),
   },
   { to: "/daily-notes", label: "Daily Notes", icon: NotebookPen },
-  { to: "/interventions", label: "Interventions", icon: HeartPulse },
   { to: "/handovers", label: "Handovers", icon: UserCheck },
   {
     to: "/incidents",
@@ -83,7 +76,7 @@ const nav: NavItem[] = [
   },
   {
     to: "/mdt-notes",
-    label: "MDT Notes",
+    label: "MDT",
     icon: UserCheck,
     perm: (r) => can(r, "mdt.create") || can(r, "clinical.view"),
   },

@@ -1992,6 +1992,7 @@ interface CareCtx extends Store {
   submitIncident: (id: string) => void;
 
   addMDTNote: (m: Omit<MDTNote, "id">) => MDTNote;
+  updateMDTNote: (id: string, patch: Partial<MDTNote>) => void;
 
   addVisitor: (v: Omit<Visitor, "id">) => Visitor;
   updateVisitor: (id: string, patch: Partial<Visitor>) => void;
@@ -3859,16 +3860,25 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       addMDTNote: (m) => {
-        const item = { ...m, id: uid() };
+        const now = new Date().toISOString();
+        const item: MDTNote = {
+          ...m,
+          id: uid(),
+          createdAt: m.createdAt || now,
+          createdBy: m.createdBy || currentUserName,
+          createdByRole: m.createdByRole || currentRole,
+          authoredBy: m.authoredBy || currentUserName,
+          role: m.role || currentRole,
+        };
         const ev: TimelineEvent = {
           id: uid(),
           residentId: m.residentId,
           type: "mdt.created",
-          title: "MDT note created",
-          description: m.discussion,
-          createdAt: m.date,
-          createdBy: m.authoredBy,
-          role: m.role,
+          title: `${item.meetingType || "MDT"} meeting recorded`,
+          description: item.discussion,
+          createdAt: item.date,
+          createdBy: item.authoredBy,
+          role: item.role,
           linkedRecordId: item.id,
           linkedRecordKind: "mdt_note",
         };
@@ -3880,10 +3890,34 @@ export function CareProvider({ children }: { children: ReactNode }) {
         logAudit({
           user: currentUserName,
           role: currentRole,
-          action: "Created MDT note",
+          action: "Created MDT meeting",
           entity: item.id,
         });
         return item;
+      },
+      updateMDTNote: (id, patch) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          mdtNotes: s.mdtNotes.map((note) =>
+            note.id === id
+              ? {
+                  ...note,
+                  ...patch,
+                  updatedAt: now,
+                  updatedBy: currentUserName,
+                  lastModifiedAt: now,
+                  lastModifiedBy: currentUserName,
+                }
+              : note,
+          ),
+        }));
+        logAudit({
+          user: currentUserName,
+          role: currentRole,
+          action: "Edited MDT meeting",
+          entity: id,
+        });
       },
 
       // -------------------- VISITORS --------------------

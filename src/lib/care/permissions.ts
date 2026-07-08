@@ -11,7 +11,7 @@ export const roleLabels: Record<Role, string> = {
 export const roleDescriptions: Record<Role, string> = {
   carer: "Frontline care: notes, interventions, handovers",
   nurse: "Clinical: assessments, care plans, evaluations",
-  doctor: "Medical reviews, MDT notes, treatment notes",
+  doctor: "Medical reviews, MDT meetings, treatment notes",
   cnm: "Administrative oversight and approvals",
   don: "Full system access and governance",
 };

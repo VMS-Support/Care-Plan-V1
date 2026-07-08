@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta, assessmentItems, uniformScale } from "@/lib/care/scoring";
-import { suggestTemplatesFor } from "@/lib/care/templates";
 import { can } from "@/lib/care/permissions";
 import { deriveStatus, riskBadgeCls, statusBadgeCls } from "@/lib/care/assessments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   ArrowLeft, Printer, FileDown, ClipboardPlus, ListChecks, CalendarPlus, Archive,
-  TrendingUp, TrendingDown, Minus, Sparkles, Lock, GitBranch, MessageSquare, History, RotateCcw, Trash2,
+  TrendingUp, TrendingDown, Minus, Lock, GitBranch, MessageSquare, History, RotateCcw, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,11 +48,9 @@ function AssessmentDetail() {
   const {
     assessments, residents, carePlans, interventions, tasks, incidents, mdtNotes,
     currentRole, addCarePlan, addTask,
-    carePlanTemplates, addCarePlanFromTemplate,
     addAssessmentComment, archiveAssessment, restoreAssessment,
     softDeleteAssessment, createAssessmentRevision,
   } = useCare();
-  const [suggestOpen, setSuggestOpen] = useState(false);
   const [comment, setComment] = useState("");
   const a = assessments.find(x => x.id === assessmentId);
   const r = a ? residents.find(x => x.id === a.residentId) : null;
@@ -188,14 +185,9 @@ function AssessmentDetail() {
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5 mr-1.5" /> Print</Button>
             <Button variant="outline" size="sm" onClick={() => window.print()}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export PDF</Button>
             {can(currentRole, "careplan.create") && (
-              <>
-                <Button variant="default" size="sm" onClick={() => setSuggestOpen(true)}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Suggest Care Plan
-                </Button>
-                <Button variant="outline" size="sm" onClick={createCarePlanFromAssessment}>
-                  <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Blank Care Plan
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={createCarePlanFromAssessment}>
+                <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Create Care Plan
+              </Button>
             )}
             {can(currentRole, "task.create") && <Button variant="outline" size="sm" onClick={scheduleReassessment}><CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Schedule Reassessment</Button>}
             {a.status === "completed" && !a.supersededById && can(currentRole, "assessment.archive") && (
@@ -344,7 +336,7 @@ function AssessmentDetail() {
         <LinkedList title={`Linked Interventions (${linkedI.length})`} items={linkedI.map(i => ({ id: i.id, title: i.intervention, sub: `${i.date.slice(0,10)} · ${i.staff}` }))} />
         <LinkedList title={`Linked Tasks (${linkedT.length})`} items={linkedT.map(t => ({ id: t.id, title: t.title, sub: `Due ${t.dueDate} · ${t.status}` }))} />
         <LinkedList title={`Linked Incidents (${linkedIn.length})`} items={linkedIn.map(i => ({ id: i.id, title: i.type, sub: `${i.date} · ${i.severity}` }))} />
-        <LinkedList title={`Linked MDT Notes (${linkedM.length})`} items={linkedM.map(m => ({ id: m.id, title: m.discussion.slice(0, 60), sub: `${m.date} · ${m.authoredBy}` }))} />
+        <LinkedList title={`Linked MDT (${linkedM.length})`} items={linkedM.map(m => ({ id: m.id, title: (m.meetingType || m.discussion).slice(0, 60), sub: `${m.date} · ${m.authoredBy}` }))} />
       </div>
 
       {/* Audit Trail */}
@@ -365,62 +357,6 @@ function AssessmentDetail() {
         </CardContent>
       </Card>
 
-      <Dialog open={suggestOpen} onOpenChange={setSuggestOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Suggested Care Plan Templates</DialogTitle></DialogHeader>
-          {(() => {
-            const ids = suggestTemplatesFor(a.type, a.riskLevel);
-            const suggested = carePlanTemplates.filter(t => ids.includes(t.id));
-            const others = carePlanTemplates.filter(t => !ids.includes(t.id));
-            if (suggested.length === 0 && others.length === 0) return <p className="text-sm text-muted-foreground">No templates available.</p>;
-            return (
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                {suggested.length > 0 && (
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Recommended</div>
-                    <div className="space-y-2">
-                      {suggested.map(t => (
-                        <TemplateRow key={t.id} t={t} onUse={() => {
-                          const plan = addCarePlanFromTemplate(t.id, r.id, a);
-                          if (plan) { toast.success(`Care plan created from '${t.title}'`); setSuggestOpen(false); navigate({ to: "/care-plans/$id", params: { id: plan.id } }); }
-                        }} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">All templates</div>
-                  <div className="space-y-2">
-                    {others.map(t => (
-                      <TemplateRow key={t.id} t={t} onUse={() => {
-                        const plan = addCarePlanFromTemplate(t.id, r.id, a);
-                        if (plan) { toast.success(`Care plan created from '${t.title}'`); setSuggestOpen(false); navigate({ to: "/care-plans/$id", params: { id: plan.id } }); }
-                      }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          <DialogFooter><Button variant="outline" onClick={() => setSuggestOpen(false)}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function TemplateRow({ t, onUse }: { t: any; onUse: () => void }) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="font-medium text-sm">{t.title}</div>
-          <Badge variant="secondary" className="text-[10px]">{t.category}</Badge>
-          {t.builtIn && <Badge variant="outline" className="text-[10px]">Built-in</Badge>}
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5">{t.problemStatement}</p>
-      </div>
-      <Button size="sm" onClick={onUse}>Use</Button>
     </div>
   );
 }
