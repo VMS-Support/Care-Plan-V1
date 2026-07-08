@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import { CATEGORY_LABELS } from "@/lib/care/problems";
-import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel } from "@/lib/care/types";
+import { CATEGORY_TO_RLT_DOMAIN, RLT_DOMAINS } from "@/lib/care/rlt";
+import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,6 +61,7 @@ export function CreateCarePlanDialog({
   const [open, setOpen] = useState(false);
   const [residentId, setResidentId] = useState(fixedResidentId || "");
   const [category, setCategory] = useState<ProblemCategory>("pressure");
+  const [rltDomainId, setRltDomainId] = useState<RltDomainId | "auto">(CATEGORY_TO_RLT_DOMAIN.pressure);
   const [risk, setRisk] = useState<ProblemRiskLevel>("high");
   const [statement, setStatement] = useState("");
   const [goal, setGoal] = useState("");
@@ -72,6 +74,7 @@ export function CreateCarePlanDialog({
   const reset = () => {
     setResidentId(fixedResidentId || "");
     setCategory("pressure");
+    setRltDomainId(CATEGORY_TO_RLT_DOMAIN.pressure);
     setRisk("high");
     setStatement("");
     setGoal("");
@@ -90,6 +93,7 @@ export function CreateCarePlanDialog({
     const problem = addProblem({
       residentId: targetResidentId,
       category,
+      rltDomainId: rltDomainId === "auto" ? undefined : rltDomainId,
       problemStatement: statement.trim(),
       riskLevel: risk,
       evaluationDate: evalDate,
@@ -145,7 +149,14 @@ export function CreateCarePlanDialog({
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <Label>Activity / Care Area</Label>
-              <Select value={category} onValueChange={(value) => setCategory(value as ProblemCategory)}>
+              <Select
+                value={category}
+                onValueChange={(value) => {
+                  const nextCategory = value as ProblemCategory;
+                  setCategory(nextCategory);
+                  setRltDomainId(CATEGORY_TO_RLT_DOMAIN[nextCategory]);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -173,6 +184,23 @@ export function CreateCarePlanDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label>Activity of Living</Label>
+            <Select value={rltDomainId} onValueChange={(value) => setRltDomainId(value as RltDomainId | "auto")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Use care area mapping</SelectItem>
+                {RLT_DOMAINS.map((domain) => (
+                  <SelectItem key={domain.id} value={domain.id}>
+                    {domain.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

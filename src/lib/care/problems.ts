@@ -5,6 +5,7 @@ import type {
   ProblemEvaluation, ProblemReview, CarePlanEvaluation, CarePlanReview,
   InterventionLog, ProblemInterventionLog,
 } from "./types";
+import { CATEGORY_TO_RLT_DOMAIN, getRltDomainForAssessment } from "./rlt";
 
 let _seq = 0;
 const uid = (p: string) => `${p}-${(++_seq).toString(36).padStart(5, "0")}`;
@@ -232,6 +233,9 @@ export function migrateLegacy(
     const problem: CarePlanProblem = {
       id: problemId, residentCarePlanId: rcpId, residentId: plan.residentId,
       category: inferCategory(plan.category || plan.title),
+      rltDomainId:
+        getRltDomainForAssessment(plan.assessmentScoreSnapshot?.type)?.id ||
+        CATEGORY_TO_RLT_DOMAIN[inferCategory(plan.category || plan.title)],
       problemStatement: plan.problemStatement || plan.problem || plan.title,
       riskLevel: priorityToRisk(plan.priority),
       sourceAssessmentId: plan.linkedAssessmentId,

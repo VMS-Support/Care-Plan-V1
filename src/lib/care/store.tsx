@@ -81,6 +81,7 @@ import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
 import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
+import { CATEGORY_TO_RLT_DOMAIN, getRltDomainForAssessment } from "./rlt";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 
 let _uidSeq = 0;
@@ -2039,6 +2040,7 @@ interface CareCtx extends Store {
   addProblem: (input: {
     residentId: string;
     category: ProblemCategory;
+    rltDomainId?: CarePlanProblem["rltDomainId"];
     customCategoryLabel?: string;
     problemStatement: string;
     riskLevel: ProblemRiskLevel;
@@ -4959,6 +4961,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
           residentCarePlanId: rcpId!,
           residentId: input.residentId,
           category: input.category,
+          rltDomainId:
+            input.rltDomainId ||
+            getRltDomainForAssessment(input.sourceAssessmentType)?.id ||
+            CATEGORY_TO_RLT_DOMAIN[input.category],
           customCategoryLabel: input.customCategoryLabel,
           problemStatement: input.problemStatement,
           riskLevel: input.riskLevel,
@@ -5783,6 +5789,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
           residentCarePlanId: rcpId!,
           residentId: sug.residentId,
           category: edits?.category || sug.category,
+          rltDomainId:
+            getRltDomainForAssessment(sug.assessmentType)?.id ||
+            CATEGORY_TO_RLT_DOMAIN[edits?.category || sug.category],
           problemStatement: edits?.problemStatement || sug.problemStatement,
           riskLevel: edits?.riskLevel || sug.riskLevel,
           sourceAssessmentId: sug.assessmentId,

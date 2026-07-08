@@ -3,6 +3,7 @@ import { useCare, age } from "@/lib/care/store";
 import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { can } from "@/lib/care/permissions";
 import { assessmentMeta } from "@/lib/care/scoring";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -1217,6 +1218,7 @@ function ResidentDetail() {
                 (a.linkedProblemIds || []).includes(problem.id),
             ).length;
             const linkedNotesCount = rN.filter((n) => n.linkedProblemId === problem.id).length;
+            const rltDomain = getRltDomainForCarePlanProblem(problem);
 
             return (
               <div key={problem.id} className="border rounded-md p-3 space-y-2">
@@ -1229,6 +1231,11 @@ function ResidentDetail() {
                     {problem.riskLevel.replace(/_/g, " ")}
                   </Badge>
                 </div>
+                {rltDomain && (
+                  <div className="text-xs text-muted-foreground">
+                    Activity of Living: {rltDomain.title}
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   Progress: {problem.status} · Care Plan Review: {problem.reviewDate} · Review of Outcome:{" "}
                   {problem.evaluationDate}
@@ -2750,10 +2757,14 @@ function ResidentDetail() {
                   <Row label="Care need" value={selectedProblem.problemStatement} />
                   <Row label="Category" value={selectedProblem.category.replace(/_/g, " ")} />
                   <Row label="Risk level" value={selectedProblem.riskLevel.replace(/_/g, " ")} />
+                  <Row
+                    label="Activity of Living"
+                    value={getRltDomainForCarePlanProblem(selectedProblem)?.title || "Mapped from care area"}
+                  />
                   <Row label="Created date" value={selectedProblem.createdAt.slice(0, 10)} />
                   <Row label="Created by" value={selectedProblem.createdBy} />
-                  <Row label="Status" value={selectedProblem.status} />
-                  <Row label="Review date" value={selectedProblem.reviewDate} />
+                  <Row label="Progress" value={selectedProblem.status} />
+                  <Row label="Care Plan Review Date" value={selectedProblem.reviewDate} />
                   <Row label="Next Review of Outcome" value={selectedProblem.evaluationDate} />
                   <Row
                     label="Source assessment"

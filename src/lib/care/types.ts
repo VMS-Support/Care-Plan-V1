@@ -27,6 +27,19 @@ export type AssessmentType =
   | "falls"
   | "abc"
   | "abs";
+export type RltDomainId =
+  | "safe_environment"
+  | "communication"
+  | "breathing"
+  | "eating_drinking"
+  | "elimination"
+  | "personal_cleansing_dressing"
+  | "body_temperature"
+  | "mobilisation"
+  | "meaningful_activity"
+  | "expressing_sexuality"
+  | "sleeping"
+  | "dying";
 export type AssessmentStatus =
   | "draft"
   | "in_progress"
@@ -1026,6 +1039,7 @@ export interface CarePlanProblem {
   residentCarePlanId: string;
   residentId: string;
   category: ProblemCategory;
+  rltDomainId?: RltDomainId;
   customCategoryLabel?: string;
   problemStatement: string;
   riskLevel: ProblemRiskLevel;

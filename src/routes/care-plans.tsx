@@ -4,6 +4,7 @@ import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { CATEGORY_LABELS, RISK_COLORS } from "@/lib/care/problems";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -705,6 +706,7 @@ function CarePlansPage() {
         return {
           resident,
           status,
+          rltDomain: getRltDomainForCarePlanProblem(primaryProblem),
           highestRisk,
           nextReviewDate,
           nextEvaluationDate,
@@ -1149,6 +1151,11 @@ function CarePlansPage() {
                                 {row.resident.keyWorkers.namedNurse}
                               </div>
                             )}
+                            {row.rltDomain && (
+                              <div className="text-xs text-muted-foreground">
+                                {row.rltDomain.shortLabel}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>Room {row.resident.roomNumber}</TableCell>
                           <TableCell>
@@ -1241,6 +1248,9 @@ function CarePlansPage() {
                             {row.resident.firstName} {row.resident.lastName}
                           </div>
                           <div className="text-xs text-muted-foreground">Room {row.resident.roomNumber}</div>
+                          {row.rltDomain && (
+                            <div className="text-xs text-muted-foreground">{row.rltDomain.title}</div>
+                          )}
                         </div>
                         <Badge variant="outline" className={riskClass(row.highestRisk)}>
                           {riskLabel(row.highestRisk)}

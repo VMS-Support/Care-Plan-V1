@@ -4,6 +4,7 @@ import { useCare } from "@/lib/care/store";
 import {
   CATEGORY_LABELS, RISK_COLORS, PREDEFINED_GOALS, frequencyLabel,
 } from "@/lib/care/problems";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import type {
   CarePlanProblem, FrequencyType, ProblemCategory, ProblemRiskLevel,
 } from "@/lib/care/types";
@@ -210,6 +211,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
   const today = new Date().toISOString().slice(0, 10);
   const evalDue = problem.evaluationDate <= today;
   const reviewDue = problem.reviewDate <= today;
+  const rltDomain = getRltDomainForCarePlanProblem(problem);
 
   return (
     <Card>
@@ -218,6 +220,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <Badge variant="outline" className="capitalize">{CATEGORY_LABELS[problem.category]}</Badge>
+              {rltDomain && <Badge variant="secondary">{rltDomain.shortLabel}</Badge>}
               <Badge variant="outline" className={RISK_COLORS[problem.riskLevel]}>{problem.riskLevel.replace("_", " ")}</Badge>
               <Badge variant="outline" className="capitalize">{problem.status}</Badge>
               {evalDue && problem.status === "active" && <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40">Evaluation due</Badge>}
