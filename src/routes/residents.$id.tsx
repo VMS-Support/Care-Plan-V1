@@ -8,7 +8,7 @@ import {
   getRltDomainForCarePlanProblem,
   getRltDomainsForAssessment,
   RLT_DOMAINS,
-  type RltDomain,
+  RLT_DOMAIN_TO_DEFAULT_CATEGORY,
   type RltDomainId,
 } from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -318,7 +318,7 @@ function ResidentDetail() {
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [latestVitalsDialogOpen, setLatestVitalsDialogOpen] = useState(false);
   const [selectedRltDomainId, setSelectedRltDomainId] = useState<RltDomainId | null>(null);
-  const [showAllRltDomains, setShowAllRltDomains] = useState(false);
+  const [selectedCarePlanGroupDomainId, setSelectedCarePlanGroupDomainId] = useState<RltDomainId | null>(null);
   const [activeTab, setActiveTab] = useState<
     | "overview"
     | "activities"
@@ -637,11 +637,11 @@ function ResidentDetail() {
     });
   }, [activeProblems, rA, rProblems, rVitals, upcomingInterventionTasks]);
 
-  const visibleActivityWorkspaces = showAllRltDomains
-    ? activityWorkspaces
-    : activityWorkspaces.filter((workspace) => workspace.relevant);
+  const visibleActivityWorkspaces = activityWorkspaces;
   const selectedActivityWorkspace =
     activityWorkspaces.find((workspace) => workspace.domain.id === selectedRltDomainId) || null;
+  const selectedCarePlanGroup =
+    groupedActiveCarePlans.find((group) => group.domain.id === selectedCarePlanGroupDomainId) || null;
 
   const taskOps = useMemo(() => {
     const completedToday = rTasks.filter(
@@ -937,6 +937,14 @@ function ResidentDetail() {
     setNewlyCreatedProblemId(null);
     setSelectedProblemId(problemId);
     setProblemDetailOpen(true);
+  };
+
+  const openCarePlanGroup = (domainId: RltDomainId, carePlans: typeof activeProblems) => {
+    if (carePlans.length === 1) {
+      openProblemDetail(carePlans[0].id);
+      return;
+    }
+    setSelectedCarePlanGroupDomainId(domainId);
   };
 
   const openNewlyCreatedProblemDetail = (problemId: string) => {
@@ -1342,7 +1350,7 @@ function ResidentDetail() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openProblemDetail(sortedCarePlans[0].id)}
+                    onClick={() => openCarePlanGroup(domain.id, sortedCarePlans)}
                   >
                     Open Care Plan
                   </Button>
@@ -1394,6 +1402,49 @@ function ResidentDetail() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!selectedCarePlanGroup}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCarePlanGroupDomainId(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedCarePlanGroup?.domain.title} Nursing Care Plans</DialogTitle>
+            <DialogDescription>
+              Select one nursing care plan to open. Only care plans in this Activity of Living are shown.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {selectedCarePlanGroup?.carePlans
+              .slice()
+              .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
+              .map((problem) => (
+                <div
+                  key={problem.id}
+                  className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="line-clamp-1 font-medium">{problem.problemStatement}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Review {problem.reviewDate} · Outcome review {problem.evaluationDate}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedCarePlanGroupDomainId(null);
+                      openProblemDetail(problem.id);
+                    }}
+                  >
+                    Open
+                  </Button>
+                </div>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
@@ -1463,10 +1514,8 @@ function ResidentDetail() {
           {upcomingInterventionTasks.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
               <p className="text-sm text-muted-foreground">No upcoming care actions.</p>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/residents/$id/care-plan" params={{ id: r.id }}>
-                  Open Care Plans
-                </Link>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab("activities")}>
+                Open Activities of Living
               </Button>
             </div>
           )}
@@ -1523,16 +1572,9 @@ function ResidentDetail() {
             <div>
               <h2 className="text-lg font-semibold">Activities of Living</h2>
               <p className="text-sm text-muted-foreground">
-                Care needs grouped by Roper Logan Tierney activity.
+                All 12 Roper Logan Tierney activities, with care plans and clinical indicators.
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAllRltDomains((value) => !value)}
-            >
-              {showAllRltDomains ? "Show Relevant Only" : "Show All Activities of Living"}
-            </Button>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
@@ -1553,13 +1595,26 @@ function ResidentDetail() {
                             : ""}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedRltDomainId(workspace.domain.id)}
-                      >
-                        Open
-                      </Button>
+                      {workspace.carePlans.length > 0 ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedRltDomainId(workspace.domain.id)}
+                        >
+                          Open
+                        </Button>
+                      ) : (
+                        <CreateCarePlanDialog
+                          residentId={r.id}
+                          initialRltDomainId={workspace.domain.id}
+                          onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
+                          trigger={
+                            <Button size="sm" variant="outline">
+                              Create Nursing Care Plan
+                            </Button>
+                          }
+                        />
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -1598,24 +1653,16 @@ function ResidentDetail() {
                         </div>
                       </div>
                     )}
+                    {workspace.carePlans.length === 0 && (
+                      <div className="rounded-md bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                        0 Nursing Care Plans
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
             })}
           </div>
-
-          {visibleActivityWorkspaces.length === 0 && (
-            <Card>
-              <CardContent className="p-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  No Activities of Living currently need attention.
-                </p>
-                <Button variant="outline" size="sm" onClick={() => setShowAllRltDomains(true)}>
-                  Show All Activities of Living
-                </Button>
-              </CardContent>
-            </Card>
-          )}
 
           <Dialog
             open={!!selectedActivityWorkspace}
@@ -1727,12 +1774,61 @@ function ResidentDetail() {
                       {selectedActivityWorkspace.carePlans.length === 0 && (
                         <p className="text-sm text-muted-foreground">No active nursing care plan for this activity.</p>
                       )}
+                      {selectedActivityWorkspace.domain.id !== "safe_environment" &&
+                        activeProblems.some(
+                          (problem) =>
+                            getRltDomainForCarePlanProblem(problem)?.id === "safe_environment",
+                        ) && (
+                          <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
+                            <div className="text-sm font-medium">Correct misplaced care plan</div>
+                            <p className="text-xs text-muted-foreground">
+                              Use this only for a care plan that was created for this Activity of Living but was
+                              saved under Maintaining a Safe Environment.
+                            </p>
+                            <div className="space-y-2">
+                              {activeProblems
+                                .filter(
+                                  (problem) =>
+                                    getRltDomainForCarePlanProblem(problem)?.id === "safe_environment",
+                                )
+                                .map((problem) => (
+                                  <div
+                                    key={problem.id}
+                                    className="flex flex-col gap-2 rounded-md bg-background px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                                  >
+                                    <div className="line-clamp-1">{problem.problemStatement}</div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        updateProblem(
+                                          problem.id,
+                                          {
+                                            rltDomainId: selectedActivityWorkspace.domain.id,
+                                            category:
+                                              RLT_DOMAIN_TO_DEFAULT_CATEGORY[
+                                                selectedActivityWorkspace.domain.id
+                                              ],
+                                          },
+                                          `Corrected Activity of Living to ${selectedActivityWorkspace.domain.title}`,
+                                        );
+                                        toast.success("Care plan Activity of Living corrected");
+                                      }}
+                                    >
+                                      Move Here
+                                    </Button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                     </CardContent>
                   </Card>
 
                   <div className="flex flex-wrap gap-2">
                     <CreateCarePlanDialog
                       residentId={r.id}
+                      initialRltDomainId={selectedActivityWorkspace.domain.id}
                       onCreated={(problem) => {
                         setSelectedRltDomainId(null);
                         openNewlyCreatedProblemDetail(problem.id);

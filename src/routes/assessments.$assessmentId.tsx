@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
+import { getRltDomainForAssessment } from "@/lib/care/rlt";
 import {
   ArrowLeft, Printer, FileDown, ClipboardPlus, ListChecks, CalendarPlus, Archive,
   TrendingUp, TrendingDown, Minus, Lock, GitBranch, MessageSquare, History, RotateCcw, Trash2,
@@ -172,6 +173,7 @@ function AssessmentDetail() {
             {can(currentRole, "careplan.create") && (
               <CreateCarePlanDialog
                 residentId={r.id}
+                initialRltDomainId={getRltDomainForAssessment(a.type)?.id}
                 buttonLabel="Create Nursing Care Plan"
                 trigger={
                   <Button variant="outline" size="sm">

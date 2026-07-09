@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
@@ -34,6 +34,7 @@ function todayPlus(days: number) {
 
 type Props = {
   residentId?: string;
+  initialRltDomainId?: RltDomainId;
   trigger?: ReactNode;
   buttonLabel?: string;
   onCreated?: (problem: CarePlanProblem) => void;
@@ -41,14 +42,16 @@ type Props = {
 
 export function CreateCarePlanDialog({
   residentId: fixedResidentId,
+  initialRltDomainId,
   trigger,
   buttonLabel = "New Nursing Care Plan",
   onCreated,
 }: Props) {
   const { residents, assessments, addProblem, addGoal } = useCare();
   const [open, setOpen] = useState(false);
+  const defaultRltDomainId = initialRltDomainId || "safe_environment";
   const [residentId, setResidentId] = useState(fixedResidentId || "");
-  const [rltDomainId, setRltDomainId] = useState<RltDomainId>("safe_environment");
+  const [rltDomainId, setRltDomainId] = useState<RltDomainId>(defaultRltDomainId);
   const [risk, setRisk] = useState<ProblemRiskLevel>("high");
   const [statement, setStatement] = useState("");
   const [goal, setGoal] = useState("");
@@ -72,7 +75,7 @@ export function CreateCarePlanDialog({
 
   const reset = () => {
     setResidentId(fixedResidentId || "");
-    setRltDomainId("safe_environment");
+    setRltDomainId(defaultRltDomainId);
     setRisk("high");
     setStatement("");
     setGoal("");
@@ -80,6 +83,13 @@ export function CreateCarePlanDialog({
     setReviewDate(todayPlus(90));
     setNotes("");
   };
+
+  useEffect(() => {
+    if (open) {
+      setRltDomainId(defaultRltDomainId);
+      setResidentId(fixedResidentId || "");
+    }
+  }, [defaultRltDomainId, fixedResidentId, open]);
 
   const handleCreate = () => {
     const targetResidentId = fixedResidentId || residentId;
