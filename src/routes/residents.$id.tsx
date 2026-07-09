@@ -11,6 +11,11 @@ import {
   RLT_DOMAIN_TO_DEFAULT_CATEGORY,
   type RltDomainId,
 } from "@/lib/care/rlt";
+import {
+  carePlanQualityClass,
+  getCarePlanQualityStatus,
+  getResidentRltCoverageChecks,
+} from "@/lib/care/quality";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -541,6 +546,36 @@ function ResidentDetail() {
         .filter((h) => h.problemId === selectedProblem.id)
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     : [];
+  const carePlanQualityByProblemId = useMemo(() => {
+    const quality = new Map<string, ReturnType<typeof getCarePlanQualityStatus>>();
+    for (const problem of rProblems) {
+      quality.set(
+        problem.id,
+        getCarePlanQualityStatus({
+          problem,
+          goals: problemGoals.filter((goal) => goal.problemId === problem.id),
+          interventions: rProblemInterventions.filter((intervention) => intervention.problemId === problem.id),
+          evaluations: rProblemEvaluations.filter((evaluation) => evaluation.problemId === problem.id),
+        }),
+      );
+    }
+    return quality;
+  }, [problemGoals, rProblemEvaluations, rProblemInterventions, rProblems]);
+  const coverageGaps = useMemo(
+    () => getResidentRltCoverageChecks(id, { assessments: rA, carePlanProblems: activeProblems }),
+    [activeProblems, id, rA],
+  );
+  const coverageGapsByDomain = useMemo(() => {
+    return coverageGaps.reduce((map, gap) => {
+      const existing = map.get(gap.primaryDomainId) || [];
+      existing.push(gap);
+      map.set(gap.primaryDomainId, existing);
+      return map;
+    }, new Map<RltDomainId, typeof coverageGaps>());
+  }, [coverageGaps]);
+  const allActiveCarePlansComplete =
+    activeProblems.length > 0 &&
+    activeProblems.every((problem) => carePlanQualityByProblemId.get(problem.id)?.status === "complete");
 
   const now = new Date();
 
@@ -1371,6 +1406,15 @@ function ResidentDetail() {
                         <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
                           {problem.riskLevel.replace(/_/g, " ")}
                         </Badge>
+                        {carePlanQualityByProblemId.get(problem.id) && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${carePlanQualityClass(carePlanQualityByProblemId.get(problem.id)!.status)}`}
+                            title={carePlanQualityByProblemId.get(problem.id)!.issues.join(", ")}
+                          >
+                            {carePlanQualityByProblemId.get(problem.id)!.label}
+                          </Badge>
+                        )}
                         <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
                           Open
                         </Button>
@@ -1386,6 +1430,11 @@ function ResidentDetail() {
               </div>
             );
           })}
+          {allActiveCarePlansComplete && (
+            <div className="rounded-md border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">
+              All active nursing care plans are complete and up to date.
+            </div>
+          )}
           {activeProblems.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
               <p className="text-sm text-muted-foreground">No active care plans.</p>
@@ -1581,6 +1630,7 @@ function ResidentDetail() {
             {visibleActivityWorkspaces.map((workspace) => {
               const hasOverdueReview = workspace.reviewDays !== null && workspace.reviewDays < 0;
               const hasDueReview = workspace.reviewDays !== null && workspace.reviewDays <= 7;
+              const domainCoverageGaps = coverageGapsByDomain.get(workspace.domain.id) || [];
               return (
                 <Card key={workspace.domain.id}>
                   <CardContent className="p-4 space-y-3">
@@ -1643,6 +1693,30 @@ function ResidentDetail() {
                         </Badge>
                       )}
                     </div>
+
+                    {domainCoverageGaps.length > 0 && (
+                      <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+                        <div className="space-y-1 text-warning-foreground">
+                          {domainCoverageGaps.slice(0, 2).map((gap) => (
+                            <p key={gap.id}>{gap.message}</p>
+                          ))}
+                        </div>
+                        {workspace.carePlans.length === 0 && (
+                          <div className="mt-2">
+                            <CreateCarePlanDialog
+                              residentId={r.id}
+                              initialRltDomainId={workspace.domain.id}
+                              onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
+                              trigger={
+                                <Button size="sm" variant="outline">
+                                  Create Nursing Care Plan
+                                </Button>
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {workspace.carePlans[0] && (
                       <div className="rounded-md bg-muted/25 px-3 py-2 text-sm">

@@ -9,6 +9,13 @@ import {
   getRltDomainForCarePlanProblem,
   RLT_DOMAINS,
 } from "@/lib/care/rlt";
+import {
+  CARE_PLAN_QUALITY_LABELS,
+  CARE_PLAN_QUALITY_RANK,
+  carePlanQualityClass,
+  getCarePlanQualityStatus,
+  type CarePlanQualityStatus,
+} from "@/lib/care/quality";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,6 +85,7 @@ const INACTIVE_STATUSES = ["completed", "archived", "superseded"];
 type RegisterStatusFilter = "all" | "active" | "completed" | "archived";
 type RegisterRiskFilter = "all" | "critical" | "high" | "medium" | "low";
 type RegisterDueFilter = "all" | "review_due" | "evaluation_due" | "overdue";
+type RegisterQualityFilter = "all" | CarePlanQualityStatus;
 
 function startOfToday() {
   return new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00`);
@@ -449,6 +457,8 @@ function CarePlansPage() {
     residentCarePlans,
     carePlanProblems,
     problemInterventions,
+    problemGoals,
+    problemEvaluations,
     residents,
     carePlanEvaluations,
     carePlanReviews,
@@ -469,6 +479,7 @@ function CarePlansPage() {
   const [statusFilter, setStatusFilter] = useState<RegisterStatusFilter>("all");
   const [riskFilter, setRiskFilter] = useState<RegisterRiskFilter>("all");
   const [dueFilter, setDueFilter] = useState<RegisterDueFilter>("all");
+  const [qualityFilter, setQualityFilter] = useState<RegisterQualityFilter>("all");
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState(1);
   const [evaluatingProblemId, setEvaluatingProblemId] = useState<string | null>(null);
@@ -710,14 +721,32 @@ function CarePlansPage() {
             return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
           })[0] || visibleProblems[0];
         const groupedActivities = getCarePlansGroupedByRltDomain(resident.id, activeProblems);
+        const activeProblemQuality = activeProblems.map((problem) => ({
+          problemId: problem.id,
+          quality: getCarePlanQualityStatus({
+            problem,
+            goals: problemGoals.filter((goal) => goal.problemId === problem.id),
+            interventions: problemInterventions.filter((intervention) => intervention.problemId === problem.id),
+            evaluations: problemEvaluations.filter((evaluation) => evaluation.problemId === problem.id),
+          }),
+        }));
+        const worstQuality =
+          [...activeProblemQuality].sort(
+            (left, right) =>
+              CARE_PLAN_QUALITY_RANK[left.quality.status] - CARE_PLAN_QUALITY_RANK[right.quality.status],
+          )[0]?.quality || null;
         const activeProblemItems = activeProblems
-          .map((problem) => ({
-            id: problem.id,
-            statement: problem.problemStatement,
-            domain: getRltDomainForCarePlanProblem(problem),
-            riskLevel: problem.riskLevel,
-            reviewDate: problem.reviewDate,
-          }))
+          .map((problem) => {
+            const quality = activeProblemQuality.find((item) => item.problemId === problem.id)?.quality;
+            return {
+              id: problem.id,
+              statement: problem.problemStatement,
+              domain: getRltDomainForCarePlanProblem(problem),
+              riskLevel: problem.riskLevel,
+              reviewDate: problem.reviewDate,
+              quality,
+            };
+          })
           .sort((left, right) => {
             const leftReview = daysUntil(left.reviewDate) ?? 9999;
             const rightReview = daysUntil(right.reviewDate) ?? 9999;
@@ -743,6 +772,9 @@ function CarePlansPage() {
           isReviewDue,
           isEvaluationDue,
           isHighRisk: highestRisk === "high" || highestRisk === "very_high",
+          qualityStatus: worstQuality?.status || "complete",
+          qualityLabel: worstQuality?.label || CARE_PLAN_QUALITY_LABELS.complete,
+          qualityIssues: worstQuality?.issues || [],
           residentIsMine,
           primaryProblemId: primaryProblem?.id,
           primaryCarePlanId: primaryProblem?.residentCarePlanId || residentPlan?.id,
@@ -755,6 +787,8 @@ function CarePlansPage() {
     carePlanProblems,
     currentUser.assignedWings,
     currentUserName,
+    problemEvaluations,
+    problemGoals,
     residentCarePlans,
     residents,
   ]);
@@ -817,9 +851,13 @@ function CarePlansPage() {
         if (dueFilter === "review_due" && !row.isReviewDue) return false;
         if (dueFilter === "evaluation_due" && !row.isEvaluationDue) return false;
         if (dueFilter === "overdue" && !row.hasOverdue) return false;
+        if (qualityFilter !== "all" && row.qualityStatus !== qualityFilter) return false;
         return true;
       })
       .sort((left, right) => {
+        const qualityDelta =
+          CARE_PLAN_QUALITY_RANK[left.qualityStatus] - CARE_PLAN_QUALITY_RANK[right.qualityStatus];
+        if (qualityDelta !== 0) return qualityDelta;
         if (left.reviewDays !== right.reviewDays) {
           const leftOverdue = left.reviewDays !== null && left.reviewDays < 0;
           const rightOverdue = right.reviewDays !== null && right.reviewDays < 0;
@@ -840,6 +878,7 @@ function CarePlansPage() {
     filter,
     activityFilter,
     nurseFilter,
+    qualityFilter,
     registerRows,
     riskFilter,
     roomFilter,
@@ -876,10 +915,10 @@ function CarePlansPage() {
     const active = registerRows.filter((row) => row.status === "active");
     return {
       active: active.length,
-      reviewsDue: active.filter((row) => row.isReviewDue).length,
-      evaluationsDue: active.filter((row) => row.isEvaluationDue).length,
-      overdue: active.filter((row) => row.hasOverdue).length,
-      highRisk: active.filter((row) => row.isHighRisk).length,
+      reviewOverdue: active.filter((row) => row.qualityStatus === "review_overdue").length,
+      incomplete: active.filter((row) => row.qualityStatus === "incomplete").length,
+      needsAttention: active.filter((row) => row.qualityStatus === "needs_attention").length,
+      complete: active.filter((row) => row.qualityStatus === "complete").length,
     };
   }, [registerRows]);
 
@@ -989,66 +1028,70 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("all");
+            setQualityFilter("all");
             setRoomFilter("");
             setActivityFilter("all");
             setPage(1);
           }}
         />
         <CarePlanSummaryCard
-          label="Reviews Due"
-          value={workQueueSummary.reviewsDue}
-          tone="warn"
-          onClick={() => {
-            setTab("reviews");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("review_due");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Reviews of Outcome Due"
-          value={workQueueSummary.evaluationsDue}
-          tone="warn"
-          onClick={() => {
-            setTab("evaluations");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("evaluation_due");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Overdue"
-          value={workQueueSummary.overdue}
+          label="Review Overdue"
+          value={workQueueSummary.reviewOverdue}
           tone="danger"
           onClick={() => {
             setTab("active");
-            setFilter("overdue");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("overdue");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="High Risk"
-          value={workQueueSummary.highRisk}
-          tone="danger"
-          onClick={() => {
-            setTab("active");
-            setFilter("high_risk");
+            setFilter("all");
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("all");
+            setQualityFilter("review_overdue");
+            setRoomFilter("");
+            setActivityFilter("all");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Incomplete"
+          value={workQueueSummary.incomplete}
+          tone="warn"
+          onClick={() => {
+            setTab("active");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("all");
+            setQualityFilter("incomplete");
+            setRoomFilter("");
+            setActivityFilter("all");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Needs Attention"
+          value={workQueueSummary.needsAttention}
+          tone="warn"
+          onClick={() => {
+            setTab("active");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("all");
+            setQualityFilter("needs_attention");
+            setRoomFilter("");
+            setActivityFilter("all");
+            setPage(1);
+          }}
+        />
+        <CarePlanSummaryCard
+          label="Complete"
+          value={workQueueSummary.complete}
+          onClick={() => {
+            setTab("active");
+            setFilter("all");
+            setStatusFilter("all");
+            setRiskFilter("all");
+            setDueFilter("all");
+            setQualityFilter("complete");
             setRoomFilter("");
             setActivityFilter("all");
             setPage(1);
@@ -1087,33 +1130,63 @@ function CarePlansPage() {
           {tab !== "governance" && (
             <>
               <div className="flex flex-wrap gap-2">
-                <QuickFilterButton active={filter === "all"} onClick={() => setFilter("all")}>
+                <QuickFilterButton
+                  active={filter === "all"}
+                  onClick={() => {
+                    setFilter("all");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
+                >
                   All Plans
                 </QuickFilterButton>
-                <QuickFilterButton active={filter === "mine"} onClick={() => setFilter("mine")}>
+                <QuickFilterButton
+                  active={filter === "mine"}
+                  onClick={() => {
+                    setFilter("mine");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
+                >
                   My Residents
                 </QuickFilterButton>
                 <QuickFilterButton
                   active={filter === "high_risk"}
-                  onClick={() => setFilter("high_risk")}
+                  onClick={() => {
+                    setFilter("high_risk");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
                 >
                   High Risk
                 </QuickFilterButton>
                 <QuickFilterButton
                   active={filter === "review_due"}
-                  onClick={() => setFilter("review_due")}
+                  onClick={() => {
+                    setFilter("review_due");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
                 >
                   Review Due
                 </QuickFilterButton>
                 <QuickFilterButton
                   active={filter === "evaluation_due"}
-                  onClick={() => setFilter("evaluation_due")}
+                  onClick={() => {
+                    setFilter("evaluation_due");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
                 >
                   Review of Outcome Due
                 </QuickFilterButton>
                 <QuickFilterButton
                   active={filter === "overdue"}
-                  onClick={() => setFilter("overdue")}
+                  onClick={() => {
+                    setFilter("overdue");
+                    setQualityFilter("all");
+                    setPage(1);
+                  }}
                 >
                   Overdue
                 </QuickFilterButton>
@@ -1129,7 +1202,7 @@ function CarePlansPage() {
 
               <Card>
                 <CardContent className="p-4 space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-9">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-10">
                     <div className="relative md:col-span-2">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -1205,6 +1278,16 @@ function CarePlansPage() {
                         <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Select value={qualityFilter} onValueChange={(value) => { setQualityFilter(value as RegisterQualityFilter); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Quality" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All quality</SelectItem>
+                        <SelectItem value="review_overdue">Review overdue</SelectItem>
+                        <SelectItem value="incomplete">Incomplete</SelectItem>
+                        <SelectItem value="needs_attention">Needs attention</SelectItem>
+                        <SelectItem value="complete">Complete</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -1216,6 +1299,7 @@ function CarePlansPage() {
                         setStatusFilter("all");
                         setRiskFilter("all");
                         setDueFilter("all");
+                        setQualityFilter("all");
                         setFilter("all");
                         setPage(1);
                       }}
@@ -1235,6 +1319,7 @@ function CarePlansPage() {
                         <TableHead>Room</TableHead>
                         <TableHead>Activities of Living</TableHead>
                         <TableHead>Risk</TableHead>
+                        <TableHead>Quality</TableHead>
                         <TableHead>Review</TableHead>
                         <TableHead>Review of Outcome</TableHead>
                         <TableHead>Progress</TableHead>
@@ -1275,6 +1360,15 @@ function CarePlansPage() {
                           <TableCell>
                             <Badge variant="outline" className={riskClass(row.highestRisk)}>
                               {riskLabel(row.highestRisk)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={carePlanQualityClass(row.qualityStatus)}
+                              title={row.qualityIssues.join(", ")}
+                            >
+                              {row.qualityLabel}
                             </Badge>
                           </TableCell>
                           <TableCell>{formatDate(row.nextReviewDate)}</TableCell>
@@ -1324,7 +1418,7 @@ function CarePlansPage() {
                       ))}
                       {pagedRegisterRows.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-10 text-center">
+                          <TableCell colSpan={9} className="py-10 text-center">
                             <div className="space-y-3">
                               <p className="text-sm text-muted-foreground">No care plans found.</p>
                               {can(currentRole, "careplan.create") && (
@@ -1371,9 +1465,18 @@ function CarePlansPage() {
                             )}
                           </div>
                         </div>
-                        <Badge variant="outline" className={riskClass(row.highestRisk)}>
-                          {riskLabel(row.highestRisk)}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline" className={riskClass(row.highestRisk)}>
+                            {riskLabel(row.highestRisk)}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={carePlanQualityClass(row.qualityStatus)}
+                            title={row.qualityIssues.join(", ")}
+                          >
+                            {row.qualityLabel}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <div>Review {formatDate(row.nextReviewDate)}</div>
@@ -1501,6 +1604,15 @@ function CarePlansPage() {
                           <div className="text-xs text-muted-foreground">
                             Review {formatDate(problem.reviewDate)}
                           </div>
+                          {problem.quality && (
+                            <Badge
+                              variant="outline"
+                              className={`mt-2 ${carePlanQualityClass(problem.quality.status)}`}
+                              title={problem.quality.issues.join(", ")}
+                            >
+                              {problem.quality.label}
+                            </Badge>
+                          )}
                         </div>
                         <Button
                           size="sm"
