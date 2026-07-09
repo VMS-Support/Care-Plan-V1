@@ -966,7 +966,7 @@ function Dashboard() {
           </Link>
           <Link to="/care-plans">
             <Button variant="outline" size="sm">
-              <ClipboardList className="h-4 w-4 mr-1.5" /> New Care Plan
+              <ClipboardList className="h-4 w-4 mr-1.5" /> New Nursing Care Plan
             </Button>
           </Link>
           <Link to="/daily-notes">

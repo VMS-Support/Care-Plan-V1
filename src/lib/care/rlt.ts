@@ -187,6 +187,21 @@ export const CATEGORY_TO_RLT_DOMAIN: Record<ProblemCategory, RltDomainId> = {
   custom: "safe_environment",
 };
 
+export const RLT_DOMAIN_TO_DEFAULT_CATEGORY: Record<RltDomainId, ProblemCategory> = {
+  safe_environment: "falls",
+  communication: "communication",
+  breathing: "custom",
+  eating_drinking: "nutrition",
+  elimination: "continence",
+  personal_cleansing_dressing: "personal_care",
+  body_temperature: "custom",
+  mobilisation: "mobility",
+  meaningful_activity: "social",
+  expressing_sexuality: "personal_care",
+  sleeping: "sleep",
+  dying: "end_of_life",
+};
+
 export const ASSESSMENT_TO_RLT_DOMAINS: Record<AssessmentType, RltDomainId[]> = {
   waterlow: ["personal_cleansing_dressing"],
   norton: ["personal_cleansing_dressing"],

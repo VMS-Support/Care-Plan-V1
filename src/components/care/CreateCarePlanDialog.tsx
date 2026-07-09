@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
-import { CATEGORY_LABELS } from "@/lib/care/problems";
-import { CATEGORY_TO_RLT_DOMAIN, RLT_DOMAINS } from "@/lib/care/rlt";
+import { assessmentMeta } from "@/lib/care/scoring";
+import { getRltDomainsForAssessment, RLT_DOMAINS, RLT_DOMAIN_TO_DEFAULT_CATEGORY } from "@/lib/care/rlt";
 import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,18 +26,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-const CATEGORY_OPTIONS: ProblemCategory[] = [
-  "pressure",
-  "falls",
-  "nutrition",
-  "pain",
-  "cognition",
-  "continence",
-  "mobility",
-  "behaviour",
-  "custom",
-];
-
 const RISK_OPTIONS: ProblemRiskLevel[] = ["low", "moderate", "high", "very_high"];
 
 function todayPlus(days: number) {
@@ -57,11 +45,10 @@ export function CreateCarePlanDialog({
   buttonLabel = "New Nursing Care Plan",
   onCreated,
 }: Props) {
-  const { residents, addProblem, addGoal } = useCare();
+  const { residents, assessments, addProblem, addGoal } = useCare();
   const [open, setOpen] = useState(false);
   const [residentId, setResidentId] = useState(fixedResidentId || "");
-  const [category, setCategory] = useState<ProblemCategory>("pressure");
-  const [rltDomainId, setRltDomainId] = useState<RltDomainId | "auto">(CATEGORY_TO_RLT_DOMAIN.pressure);
+  const [rltDomainId, setRltDomainId] = useState<RltDomainId>("safe_environment");
   const [risk, setRisk] = useState<ProblemRiskLevel>("high");
   const [statement, setStatement] = useState("");
   const [goal, setGoal] = useState("");
@@ -70,11 +57,22 @@ export function CreateCarePlanDialog({
   const [notes, setNotes] = useState("");
 
   const selectedResident = residents.find((resident) => resident.id === (fixedResidentId || residentId));
+  const relatedAssessments = useMemo(() => {
+    const targetResidentId = fixedResidentId || residentId;
+    if (!targetResidentId) return [];
+    return assessments
+      .filter((assessment) => {
+        if (assessment.residentId !== targetResidentId) return false;
+        if (assessment.status === "deleted" || assessment.status === "archived") return false;
+        return getRltDomainsForAssessment(assessment.type).some((domain) => domain.id === rltDomainId);
+      })
+      .sort((left, right) => right.date.localeCompare(left.date))
+      .slice(0, 3);
+  }, [assessments, fixedResidentId, residentId, rltDomainId]);
 
   const reset = () => {
     setResidentId(fixedResidentId || "");
-    setCategory("pressure");
-    setRltDomainId(CATEGORY_TO_RLT_DOMAIN.pressure);
+    setRltDomainId("safe_environment");
     setRisk("high");
     setStatement("");
     setGoal("");
@@ -92,8 +90,8 @@ export function CreateCarePlanDialog({
 
     const problem = addProblem({
       residentId: targetResidentId,
-      category,
-      rltDomainId: rltDomainId === "auto" ? undefined : rltDomainId,
+      category: RLT_DOMAIN_TO_DEFAULT_CATEGORY[rltDomainId] || ("custom" as ProblemCategory),
+      rltDomainId,
       problemStatement: statement.trim(),
       riskLevel: risk,
       evaluationDate: evalDate,
@@ -103,7 +101,7 @@ export function CreateCarePlanDialog({
 
     addGoal(problem.id, goal.trim(), reviewDate);
 
-    toast.success("Care plan created");
+    toast.success("Nursing care plan created");
     setOpen(false);
     reset();
     onCreated?.(problem);
@@ -123,6 +121,22 @@ export function CreateCarePlanDialog({
           <DialogTitle>Create Nursing Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div>
+            <Label>Activity of Living *</Label>
+            <Select value={rltDomainId} onValueChange={(value) => setRltDomainId(value as RltDomainId)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RLT_DOMAINS.map((domain) => (
+                  <SelectItem key={domain.id} value={domain.id}>
+                    {domain.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div>
             <Label>Resident</Label>
             {fixedResidentId ? (
@@ -146,62 +160,35 @@ export function CreateCarePlanDialog({
             )}
           </div>
 
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <Label>Activity / Care Area</Label>
-              <Select
-                value={category}
-                onValueChange={(value) => {
-                  const nextCategory = value as ProblemCategory;
-                  setCategory(nextCategory);
-                  setRltDomainId(CATEGORY_TO_RLT_DOMAIN[nextCategory]);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {CATEGORY_LABELS[option]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Risk Level</Label>
-              <Select value={risk} onValueChange={(value) => setRisk(value as ProblemRiskLevel)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {RISK_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div>
-            <Label>Activity of Living</Label>
-            <Select value={rltDomainId} onValueChange={(value) => setRltDomainId(value as RltDomainId | "auto")}>
+            <Label>Risk Level</Label>
+            <Select value={risk} onValueChange={(value) => setRisk(value as ProblemRiskLevel)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Use care area mapping</SelectItem>
-                {RLT_DOMAINS.map((domain) => (
-                  <SelectItem key={domain.id} value={domain.id}>
-                    {domain.title}
+                {RISK_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option} className="capitalize">
+                    {option.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {relatedAssessments.length > 0 && (
+            <div className="rounded-md border bg-muted/20 p-3 text-sm">
+              <div className="font-medium">Related assessment context</div>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {relatedAssessments.map((assessment) => (
+                  <div key={assessment.id}>
+                    {assessmentMeta[assessment.type].name}: {assessment.interpretation} · Last completed{" "}
+                    {assessment.date.slice(0, 10)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <Label>Care Need</Label>
@@ -209,7 +196,7 @@ export function CreateCarePlanDialog({
               value={statement}
               onChange={(event) => setStatement(event.target.value)}
               rows={3}
-              placeholder="Describe the resident's care need"
+              placeholder="Describe the resident's care need in this Activity of Living."
             />
           </div>
 
@@ -219,7 +206,7 @@ export function CreateCarePlanDialog({
               value={goal}
               onChange={(event) => setGoal(event.target.value)}
               rows={2}
-              placeholder="Describe the nursing plan"
+              placeholder="Describe the intended nursing plan or expected outcome."
             />
           </div>
 
@@ -248,7 +235,7 @@ export function CreateCarePlanDialog({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate}>Create Care Plan</Button>
+          <Button onClick={handleCreate}>Create Nursing Care Plan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

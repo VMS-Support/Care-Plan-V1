@@ -4,7 +4,11 @@ import { useCare } from "@/lib/care/store";
 import { can } from "@/lib/care/permissions";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { CATEGORY_LABELS, RISK_COLORS } from "@/lib/care/problems";
-import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
+import {
+  getCarePlansGroupedByRltDomain,
+  getRltDomainForCarePlanProblem,
+  RLT_DOMAINS,
+} from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -458,7 +462,9 @@ function CarePlansPage() {
   const [tab, setTab] = useState<WorkflowTab>("active");
   const [filter, setFilter] = useState<QuickFilter>("all");
   const [search, setSearch] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
   const [wingFilter, setWingFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState("all");
   const [nurseFilter, setNurseFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<RegisterStatusFilter>("all");
   const [riskFilter, setRiskFilter] = useState<RegisterRiskFilter>("all");
@@ -466,6 +472,7 @@ function CarePlansPage() {
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState(1);
   const [evaluatingProblemId, setEvaluatingProblemId] = useState<string | null>(null);
+  const [selectorResidentId, setSelectorResidentId] = useState<string | null>(null);
 
   const governanceView = currentRole === "cnm" || currentRole === "don";
   const visibleTabs = governanceView
@@ -702,11 +709,26 @@ function CarePlansPage() {
             const rightReview = daysUntil(right.reviewDate) ?? 9999;
             return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
           })[0] || visibleProblems[0];
+        const groupedActivities = getCarePlansGroupedByRltDomain(resident.id, activeProblems);
+        const activeProblemItems = activeProblems
+          .map((problem) => ({
+            id: problem.id,
+            statement: problem.problemStatement,
+            domain: getRltDomainForCarePlanProblem(problem),
+            riskLevel: problem.riskLevel,
+            reviewDate: problem.reviewDate,
+          }))
+          .sort((left, right) => {
+            const leftReview = daysUntil(left.reviewDate) ?? 9999;
+            const rightReview = daysUntil(right.reviewDate) ?? 9999;
+            return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
+          });
 
         return {
           resident,
           status,
           rltDomain: getRltDomainForCarePlanProblem(primaryProblem),
+          activeDomains: groupedActivities.map((group) => group.domain),
           highestRisk,
           nextReviewDate,
           nextEvaluationDate,
@@ -725,6 +747,7 @@ function CarePlansPage() {
           primaryProblemId: primaryProblem?.id,
           primaryCarePlanId: primaryProblem?.residentCarePlanId || residentPlan?.id,
           activeProblemIds: activeProblems.map((problem) => problem.id),
+          activeProblemItems,
         };
       })
       .filter((item): item is NonNullable<typeof item> => !!item);
@@ -774,7 +797,17 @@ function CarePlansPage() {
           const haystack = `${row.resident.firstName} ${row.resident.lastName} ${row.resident.roomNumber}`.toLowerCase();
           if (!haystack.includes(query)) return false;
         }
+        if (roomFilter.trim()) {
+          const roomQuery = roomFilter.trim().toLowerCase();
+          if (!String(row.resident.roomNumber || "").toLowerCase().includes(roomQuery)) return false;
+        }
         if (wingFilter !== "all" && row.resident.wingId !== wingFilter) return false;
+        if (
+          activityFilter !== "all" &&
+          !row.activeDomains.some((domain) => domain.id === activityFilter)
+        ) {
+          return false;
+        }
         if (nurseFilter !== "all" && row.resident.keyWorkers?.namedNurse !== nurseFilter) return false;
         if (statusFilter !== "all" && row.status !== statusFilter) return false;
         if (riskFilter !== "all") {
@@ -805,9 +838,11 @@ function CarePlansPage() {
   }, [
     dueFilter,
     filter,
+    activityFilter,
     nurseFilter,
     registerRows,
     riskFilter,
+    roomFilter,
     search,
     statusFilter,
     tab,
@@ -817,6 +852,25 @@ function CarePlansPage() {
   const totalPages = Math.max(1, Math.ceil(filteredRegisterRows.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedRegisterRows = filteredRegisterRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const selectorRow =
+    filteredRegisterRows.find((row) => row.resident.id === selectorResidentId) ||
+    registerRows.find((row) => row.resident.id === selectorResidentId) ||
+    null;
+
+  const openCarePlanForRow = (row: (typeof registerRows)[number]) => {
+    if (row.activeProblemItems.length <= 1) {
+      navigate({
+        to: "/residents/$id",
+        params: { id: row.resident.id },
+        search: {
+          carePlanId: row.primaryCarePlanId,
+          carePlanProblemId: row.primaryProblemId,
+        },
+      });
+      return;
+    }
+    setSelectorResidentId(row.resident.id);
+  };
 
   const workQueueSummary = useMemo(() => {
     const active = registerRows.filter((row) => row.status === "active");
@@ -915,7 +969,11 @@ function CarePlansPage() {
           <CreateCarePlanDialog
             buttonLabel="New Nursing Care Plan"
             onCreated={(problem) =>
-              navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+              navigate({
+                to: "/residents/$id",
+                params: { id: problem.residentId },
+                search: { carePlanProblemId: problem.id },
+              })
             }
           />
         )}
@@ -931,6 +989,8 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("all");
+            setRoomFilter("");
+            setActivityFilter("all");
             setPage(1);
           }}
         />
@@ -944,6 +1004,8 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("review_due");
+            setRoomFilter("");
+            setActivityFilter("all");
             setPage(1);
           }}
         />
@@ -957,6 +1019,8 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("evaluation_due");
+            setRoomFilter("");
+            setActivityFilter("all");
             setPage(1);
           }}
         />
@@ -970,6 +1034,8 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("overdue");
+            setRoomFilter("");
+            setActivityFilter("all");
             setPage(1);
           }}
         />
@@ -983,6 +1049,8 @@ function CarePlansPage() {
             setStatusFilter("all");
             setRiskFilter("all");
             setDueFilter("all");
+            setRoomFilter("");
+            setActivityFilter("all");
             setPage(1);
           }}
         />
@@ -1061,7 +1129,7 @@ function CarePlansPage() {
 
               <Card>
                 <CardContent className="p-4 space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-9">
                     <div className="relative md:col-span-2">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -1074,12 +1142,29 @@ function CarePlansPage() {
                         className="pl-9"
                       />
                     </div>
+                    <Input
+                      value={roomFilter}
+                      onChange={(event) => {
+                        setRoomFilter(event.target.value);
+                        setPage(1);
+                      }}
+                      placeholder="Room"
+                    />
                     <Select value={wingFilter} onValueChange={(value) => { setWingFilter(value); setPage(1); }}>
                       <SelectTrigger><SelectValue placeholder="Wing" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All wings</SelectItem>
                         {wingOptions.map((wing) => (
                           <SelectItem key={wing} value={wing}>{wing}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={activityFilter} onValueChange={(value) => { setActivityFilter(value); setPage(1); }}>
+                      <SelectTrigger><SelectValue placeholder="Activity" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All activities</SelectItem>
+                        {RLT_DOMAINS.map((domain) => (
+                          <SelectItem key={domain.id} value={domain.id}>{domain.title}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1120,6 +1205,23 @@ function CarePlansPage() {
                         <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearch("");
+                        setRoomFilter("");
+                        setWingFilter("all");
+                        setActivityFilter("all");
+                        setNurseFilter("all");
+                        setStatusFilter("all");
+                        setRiskFilter("all");
+                        setDueFilter("all");
+                        setFilter("all");
+                        setPage(1);
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1131,11 +1233,11 @@ function CarePlansPage() {
                       <TableRow>
                         <TableHead>Resident</TableHead>
                         <TableHead>Room</TableHead>
+                        <TableHead>Activities of Living</TableHead>
                         <TableHead>Risk</TableHead>
                         <TableHead>Review</TableHead>
                         <TableHead>Review of Outcome</TableHead>
                         <TableHead>Progress</TableHead>
-                        <TableHead>Last Updated</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1151,13 +1253,25 @@ function CarePlansPage() {
                                 {row.resident.keyWorkers.namedNurse}
                               </div>
                             )}
-                            {row.rltDomain && (
-                              <div className="text-xs text-muted-foreground">
-                                {row.rltDomain.shortLabel}
-                              </div>
-                            )}
                           </TableCell>
                           <TableCell>Room {row.resident.roomNumber}</TableCell>
+                          <TableCell className="max-w-[260px]">
+                            <div className="flex flex-wrap gap-1">
+                              {row.activeDomains.slice(0, 3).map((domain) => (
+                                <Badge key={domain.id} variant="secondary" className="text-[10px]">
+                                  {domain.shortLabel}
+                                </Badge>
+                              ))}
+                              {row.activeDomains.length > 3 && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  +{row.activeDomains.length - 3}
+                                </Badge>
+                              )}
+                              {row.activeDomains.length === 0 && (
+                                <span className="text-xs text-muted-foreground">Mapped from legacy care plan</span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={riskClass(row.highestRisk)}>
                               {riskLabel(row.highestRisk)}
@@ -1170,19 +1284,11 @@ function CarePlansPage() {
                               {row.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDateTime(row.lastUpdated)}</TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-2">
-                              <Link
-                                to="/residents/$id"
-                                params={{ id: row.resident.id }}
-                                search={{
-                                  carePlanId: row.primaryCarePlanId,
-                                  carePlanProblemId: row.primaryProblemId,
-                                }}
-                              >
-                                <Button size="sm">Open Care Plan</Button>
-                              </Link>
+                              <Button size="sm" onClick={() => openCarePlanForRow(row)}>
+                                Open Care Plan
+                              </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button size="icon" variant="ghost" aria-label="More actions">
@@ -1225,7 +1331,11 @@ function CarePlansPage() {
                                 <CreateCarePlanDialog
                                   buttonLabel="Create Nursing Care Plan"
                                   onCreated={(problem) =>
-                                    navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+                                    navigate({
+                                      to: "/residents/$id",
+                                      params: { id: problem.residentId },
+                                      search: { carePlanProblemId: problem.id },
+                                    })
                                   }
                                 />
                               )}
@@ -1248,9 +1358,18 @@ function CarePlansPage() {
                             {row.resident.firstName} {row.resident.lastName}
                           </div>
                           <div className="text-xs text-muted-foreground">Room {row.resident.roomNumber}</div>
-                          {row.rltDomain && (
-                            <div className="text-xs text-muted-foreground">{row.rltDomain.title}</div>
-                          )}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {row.activeDomains.slice(0, 3).map((domain) => (
+                              <Badge key={domain.id} variant="secondary" className="text-[10px]">
+                                {domain.shortLabel}
+                              </Badge>
+                            ))}
+                            {row.activeDomains.length > 3 && (
+                              <Badge variant="outline" className="text-[10px]">
+                                +{row.activeDomains.length - 3}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <Badge variant="outline" className={riskClass(row.highestRisk)}>
                           {riskLabel(row.highestRisk)}
@@ -1263,16 +1382,9 @@ function CarePlansPage() {
                         <div>Updated {formatDateTime(row.lastUpdated)}</div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <Link
-                          to="/residents/$id"
-                          params={{ id: row.resident.id }}
-                          search={{
-                            carePlanId: row.primaryCarePlanId,
-                            carePlanProblemId: row.primaryProblemId,
-                          }}
-                        >
-                          <Button size="sm">Open Care Plan</Button>
-                        </Link>
+                        <Button size="sm" onClick={() => openCarePlanForRow(row)}>
+                          Open Care Plan
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button size="icon" variant="ghost" aria-label="More actions">
@@ -1314,7 +1426,11 @@ function CarePlansPage() {
                         <CreateCarePlanDialog
                           buttonLabel="Create Nursing Care Plan"
                           onCreated={(problem) =>
-                            navigate({ to: "/residents/$id/care-plan", params: { id: problem.residentId } })
+                            navigate({
+                              to: "/residents/$id",
+                              params: { id: problem.residentId },
+                              search: { carePlanProblemId: problem.id },
+                            })
                           }
                         />
                       )}
@@ -1356,6 +1472,55 @@ function CarePlansPage() {
                   if (!open) setEvaluatingProblemId(null);
                 }}
               />
+
+              <Dialog
+                open={!!selectorRow}
+                onOpenChange={(open) => {
+                  if (!open) setSelectorResidentId(null);
+                }}
+              >
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {selectorRow?.resident.firstName} {selectorRow?.resident.lastName} — Nursing Care Plans
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    {selectorRow?.activeProblemItems.map((problem) => (
+                      <div
+                        key={problem.id}
+                        className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium">
+                            {problem.domain?.title || "Nursing Care Plan"}
+                          </div>
+                          <div className="line-clamp-1 text-sm text-muted-foreground">
+                            {problem.statement}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Review {formatDate(problem.reviewDate)}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (!selectorRow) return;
+                            setSelectorResidentId(null);
+                            navigate({
+                              to: "/residents/$id",
+                              params: { id: selectorRow.resident.id },
+                              search: { carePlanProblemId: problem.id },
+                            });
+                          }}
+                        >
+                          Open
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
 
             </>
           )}

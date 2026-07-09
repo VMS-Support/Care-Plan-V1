@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import {
   ArrowLeft, Printer, FileDown, ClipboardPlus, ListChecks, CalendarPlus, Archive,
   TrendingUp, TrendingDown, Minus, Lock, GitBranch, MessageSquare, History, RotateCcw, Trash2,
@@ -47,7 +48,7 @@ function AssessmentDetail() {
   const navigate = useNavigate();
   const {
     assessments, residents, carePlans, interventions, tasks, incidents, mdtNotes,
-    currentRole, addCarePlan, addTask,
+    currentRole, addTask,
     addAssessmentComment, archiveAssessment, restoreAssessment,
     softDeleteAssessment, createAssessmentRevision,
   } = useCare();
@@ -85,22 +86,6 @@ function AssessmentDetail() {
   const audit = a.auditTrail || [];
   const comments = a.clinicalComments || [];
 
-  function createCarePlanFromAssessment() {
-    if (!a || !r) return;
-    addCarePlan({
-      residentId: r.id, title: `Care Plan from ${meta.name}`,
-      category: meta.category,
-      problem: `${meta.name} ${a.totalScore} â€” ${a.interpretation}`,
-      goal: a.recommendations || "Address risks identified in assessment.",
-      identifiedNeeds: [meta.category],
-      interventions: ["Initial review", "Targeted interventions", "Reassess at review date"],
-      assignedStaff: "Nursing team", frequency: "Per care plan",
-      reviewDate: a.reviewDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-      status: "active", priority: a.riskLevel === "very_high" ? "critical" : a.riskLevel === "high" ? "high" : "medium",
-      linkedAssessmentId: a.id,
-    });
-    toast.success("Care plan created");
-  }
   function scheduleReassessment() {
     if (!a || !r) return;
     addTask({
@@ -185,9 +170,22 @@ function AssessmentDetail() {
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5 mr-1.5" /> Print</Button>
             <Button variant="outline" size="sm" onClick={() => window.print()}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export PDF</Button>
             {can(currentRole, "careplan.create") && (
-              <Button variant="outline" size="sm" onClick={createCarePlanFromAssessment}>
-                <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Create Care Plan
-              </Button>
+              <CreateCarePlanDialog
+                residentId={r.id}
+                buttonLabel="Create Nursing Care Plan"
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Create Nursing Care Plan
+                  </Button>
+                }
+                onCreated={(problem) =>
+                  navigate({
+                    to: "/residents/$id",
+                    params: { id: problem.residentId },
+                    search: { carePlanProblemId: problem.id },
+                  })
+                }
+              />
             )}
             {can(currentRole, "task.create") && <Button variant="outline" size="sm" onClick={scheduleReassessment}><CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Schedule Reassessment</Button>}
             {a.status === "completed" && !a.supersededById && can(currentRole, "assessment.archive") && (

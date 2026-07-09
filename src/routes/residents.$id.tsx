@@ -1,9 +1,16 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCare, age } from "@/lib/care/store";
 import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { can } from "@/lib/care/permissions";
 import { assessmentMeta } from "@/lib/care/scoring";
-import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
+import {
+  getCarePlansGroupedByRltDomain,
+  getRltDomainForCarePlanProblem,
+  getRltDomainsForAssessment,
+  RLT_DOMAINS,
+  type RltDomain,
+  type RltDomainId,
+} from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +97,7 @@ export const Route = createFileRoute("/residents/$id")({
     carePlanProblemId:
       typeof search.carePlanProblemId === "string" ? search.carePlanProblemId : undefined,
   }),
-  head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} — CarePath` }] }),
+  head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} â€” CarePath` }] }),
   component: ResidentDetail,
 });
 
@@ -114,6 +121,19 @@ function statusBadgeClass(status: UpcomingTaskStatus) {
 
 function statusLabel(status: UpcomingTaskStatus) {
   return scheduledInterventionLabel(status);
+}
+
+function daysFromToday(date?: string) {
+  if (!date) return null;
+  const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00`);
+  const due = new Date(`${date}T00:00:00`);
+  return Math.floor((due.getTime() - today.getTime()) / 86400000);
+}
+
+function riskLabel(level?: string) {
+  if (!level) return "None";
+  if (level === "very_high") return "Very High";
+  return level.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function activeVitalRows(vitals: VitalSign[]) {
@@ -184,7 +204,7 @@ function DeleteAssessmentDialog({
           Assessments are soft-deleted and retained for audit. Provide a reason.
         </p>
         <Textarea
-          placeholder="Reason for deletion…"
+          placeholder="Reason for deletionâ€¦"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -297,8 +317,11 @@ function ResidentDetail() {
   const [auditDialogOpen, setAuditDialogOpen] = useState(false);
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [latestVitalsDialogOpen, setLatestVitalsDialogOpen] = useState(false);
+  const [selectedRltDomainId, setSelectedRltDomainId] = useState<RltDomainId | null>(null);
+  const [showAllRltDomains, setShowAllRltDomains] = useState(false);
   const [activeTab, setActiveTab] = useState<
     | "overview"
+    | "activities"
     | "vitals"
     | "assessments"
     | "notes"
@@ -415,6 +438,10 @@ function ResidentDetail() {
   const rHandovers = handovers.filter((x) => x.residentId === id);
   const rProblems = carePlanProblems.filter((p) => p.residentId === id);
   const activeProblems = rProblems.filter((p) => p.status === "active");
+  const groupedActiveCarePlans = useMemo(
+    () => getCarePlansGroupedByRltDomain(id, activeProblems),
+    [activeProblems, id],
+  );
   const rProblemInterventions = problemInterventions.filter((i) => i.residentId === id);
   const rProblemLogs = problemInterventionLogs.filter((l) => l.residentId === id);
   const rProblemEvaluations = problemEvaluations.filter((e) =>
@@ -521,6 +548,101 @@ function ResidentDetail() {
     return scheduledInterventions(rProblemInterventions, rProblemLogs, rProblems, now);
   }, [now, rProblemInterventions, rProblemLogs, rProblems]);
 
+  const activityWorkspaces = useMemo(() => {
+    const latestWeight = activeVitalRows(rVitals).find((vital) => typeof vital.weight === "number");
+    const recentThreshold = new Date();
+    recentThreshold.setDate(recentThreshold.getDate() - 7);
+
+    return RLT_DOMAINS.map((domain) => {
+      const carePlans = activeProblems
+        .filter((problem) => getRltDomainForCarePlanProblem(problem)?.id === domain.id)
+        .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate));
+      const assessmentsForDomain = rA
+        .filter((assessment) =>
+          getRltDomainsForAssessment(assessment.type).some((mapped) => mapped.id === domain.id),
+        )
+        .sort((left, right) => right.date.localeCompare(left.date));
+      const latestAssessmentByType = Array.from(
+        assessmentsForDomain
+          .reduce((map, assessment) => {
+            if (!map.has(assessment.type)) map.set(assessment.type, assessment);
+            return map;
+          }, new Map<string, (typeof assessmentsForDomain)[number]>())
+          .values(),
+      );
+      const dueActions = upcomingInterventionTasks.filter((task) => {
+        const problem = task.problem || rProblems.find((item) => item.id === task.intervention.problemId);
+        return problem && getRltDomainForCarePlanProblem(problem)?.id === domain.id && task.status !== "completed";
+      });
+      const nextReview = carePlans[0]?.reviewDate;
+      const nextOutcomeReview = carePlans
+        .map((problem) => problem.evaluationDate)
+        .filter(Boolean)
+        .sort()[0];
+      const reviewDays = daysFromToday(nextReview);
+      const overdueAssessmentsForDomain = assessmentsForDomain.filter((assessment) => {
+        const dueDate = assessment.nextReassessmentDate || assessment.dueDate;
+        const days = daysFromToday(dueDate);
+        return days !== null && days <= 0 && assessment.status !== "archived" && assessment.status !== "superseded";
+      });
+      const highRiskAssessments = assessmentsForDomain.filter(
+        (assessment) => assessment.riskLevel === "high" || assessment.riskLevel === "very_high",
+      );
+      const highRiskPlans = carePlans.filter(
+        (problem) => problem.riskLevel === "high" || problem.riskLevel === "very_high",
+      );
+      const recentChanges = [
+        ...assessmentsForDomain.filter((assessment) => new Date(assessment.date) >= recentThreshold),
+        ...carePlans.filter((problem) => new Date(problem.createdAt) >= recentThreshold),
+      ];
+      const indicators = [
+        ...latestAssessmentByType.map((assessment) => ({
+          label: assessmentMeta[assessment.type]?.name || assessment.type,
+          value: `${riskLabel(assessment.riskLevel)}: ${assessment.interpretation}`,
+          tone: assessment.riskLevel,
+          assessmentId: assessment.id,
+        })),
+      ];
+      if (domain.id === "eating_drinking" && latestWeight?.weight) {
+        indicators.push({
+          label: "Weight",
+          value: `${latestWeight.weight}kg`,
+          tone: "low",
+          assessmentId: "",
+        });
+      }
+      const relevant =
+        carePlans.length > 0 ||
+        highRiskAssessments.length > 0 ||
+        overdueAssessmentsForDomain.length > 0 ||
+        dueActions.length > 0 ||
+        recentChanges.length > 0;
+
+      return {
+        domain,
+        carePlans,
+        assessments: latestAssessmentByType,
+        indicators,
+        knownRisks: [
+          ...highRiskAssessments.map((assessment) => `${assessmentMeta[assessment.type]?.name || assessment.type}: ${riskLabel(assessment.riskLevel)}`),
+          ...highRiskPlans.map((problem) => `${riskLabel(problem.riskLevel)} care need`),
+        ],
+        dueActions,
+        nextReview,
+        nextOutcomeReview,
+        reviewDays,
+        overdueAssessments: overdueAssessmentsForDomain,
+        relevant,
+      };
+    });
+  }, [activeProblems, rA, rProblems, rVitals, upcomingInterventionTasks]);
+
+  const visibleActivityWorkspaces = showAllRltDomains
+    ? activityWorkspaces
+    : activityWorkspaces.filter((workspace) => workspace.relevant);
+  const selectedActivityWorkspace =
+    activityWorkspaces.find((workspace) => workspace.domain.id === selectedRltDomainId) || null;
+
   const taskOps = useMemo(() => {
     const completedToday = rTasks.filter(
       (t) => t.status === "completed" && t.dueDate === now.toISOString().slice(0, 10),
@@ -575,7 +697,7 @@ function ResidentDetail() {
         module: "interventions" as const,
         at: i.updatedAt || i.createdAt,
         title: i.name,
-        summary: `${i.frequencyType.replace(/_/g, " ")} · ${i.status.replace(/_/g, " ")}`,
+        summary: `${i.frequencyType.replace(/_/g, " ")} Â· ${i.status.replace(/_/g, " ")}`,
         by: i.updatedBy || i.createdBy,
       })),
       ...rProblemEvaluations.map((e) => ({
@@ -583,7 +705,7 @@ function ResidentDetail() {
         module: "evaluations" as const,
         at: e.date,
         title: "Care plan review",
-        summary: `${e.progress.replace(/_/g, " ")} · plan met: ${e.goalsMet}`,
+        summary: `${e.progress.replace(/_/g, " ")} Â· plan met: ${e.goalsMet}`,
         by: e.evaluatorName,
       })),
       ...rProblemReviews.map((rev) => ({
@@ -591,7 +713,7 @@ function ResidentDetail() {
         module: "careplans" as const,
         at: rev.reviewDate,
         title: "Care plan review",
-        summary: `${rev.outcome} · ${rev.comments || ""}`,
+        summary: `${rev.outcome} Â· ${rev.comments || ""}`,
         by: rev.reviewedByName,
       })),
       ...rTasks.map((t) => ({
@@ -738,7 +860,7 @@ function ResidentDetail() {
       createdBy: a.assessor,
       date: a.date,
       reason: a.revisionReason || "Initial",
-      supersededBy: a.supersededById || "—",
+      supersededBy: a.supersededById || "â€”",
     }));
 
     const carePlanRows = rProblems.map((p) => {
@@ -762,7 +884,7 @@ function ResidentDetail() {
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((e, idx) => ({
         key: `eval-${e.id}`,
-        module: "Evaluation Versions",
+        module: "Review Versions",
         name: rProblems.find((p) => p.id === e.problemId)?.problemStatement || "Problem evaluation",
         version: idx + 1,
         createdBy: e.evaluatorName,
@@ -876,12 +998,12 @@ function ResidentDetail() {
 
   const submitEvaluation = () => {
     if (!selectedProblem) {
-      toast.error("No care plan problem selected");
+      toast.error("No nursing care plan selected");
       return;
     }
 
     if (!evaluationDraft.summary.trim()) {
-      toast.error("Evaluation summary is required");
+      toast.error("Review notes are required");
       return;
     }
 
@@ -918,7 +1040,7 @@ function ResidentDetail() {
       if (evaluationDraft.revisionDiscontinueInterventionId) {
         discontinueProblemIntervention(
           evaluationDraft.revisionDiscontinueInterventionId,
-          evaluationDraft.revisionReason || "Revision required",
+          evaluationDraft.revisionReason || "Amendment required",
         );
       }
 
@@ -948,13 +1070,13 @@ function ResidentDetail() {
         problemId: selectedProblem.id,
         reviewDate: evaluationDraft.date,
         outcome: "modify",
-        comments: evaluationDraft.revisionReason || "Revision required from evaluation",
+        comments: evaluationDraft.revisionReason || "Amendment required from review",
         nextReviewDate: evaluationDraft.revisionReviewDate || selectedProblem.reviewDate,
       });
     }
 
     setEvaluationOpen(false);
-    toast.success("Evaluation saved");
+    toast.success("Review saved");
   };
 
   return (
@@ -1103,7 +1225,7 @@ function ResidentDetail() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Bed</div>
-                <span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "—"}</span>
+                <span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "â€”"}</span>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Admitted</div>
@@ -1201,67 +1323,57 @@ function ResidentDetail() {
           <CardTitle className="text-base">Active Nursing Care Plans</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {activeProblems.slice(0, 8).map((problem) => {
-            const goalsCount = problemGoals.filter((g) => g.problemId === problem.id).length;
-            const interventionsCount = rProblemInterventions.filter(
-              (i) => i.problemId === problem.id,
-            ).length;
-            const evaluationsCount = rProblemEvaluations.filter(
-              (e) => e.problemId === problem.id,
-            ).length;
-            const reviewsCount = rProblemReviews.filter(
-              (rev) => rev.problemId === problem.id,
-            ).length;
-            const linkedAssessmentsCount = rA.filter(
-              (a) =>
-                a.id === problem.sourceAssessmentId ||
-                (a.linkedProblemIds || []).includes(problem.id),
-            ).length;
-            const linkedNotesCount = rN.filter((n) => n.linkedProblemId === problem.id).length;
-            const rltDomain = getRltDomainForCarePlanProblem(problem);
+          {groupedActiveCarePlans.map(({ domain, carePlans }) => {
+            const sortedCarePlans = [...carePlans].sort((left, right) =>
+              left.reviewDate.localeCompare(right.reviewDate),
+            );
+            const nextReview = sortedCarePlans[0]?.reviewDate;
 
             return (
-              <div key={problem.id} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-medium">{problem.problemStatement}</div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${riskColor(problem.riskLevel)}`}
-                  >
-                    {problem.riskLevel.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                {rltDomain && (
-                  <div className="text-xs text-muted-foreground">
-                    Activity of Living: {rltDomain.title}
+              <div key={domain.id} className="rounded-md border p-3">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0">
+                    <div className="font-medium">{domain.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {carePlans.length} active nursing care plan{carePlans.length === 1 ? "" : "s"}
+                      {nextReview ? ` · Review due ${nextReview}` : ""}
+                    </div>
                   </div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  Progress: {problem.status} · Care Plan Review: {problem.reviewDate} · Review of Outcome:{" "}
-                  {problem.evaluationDate}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-muted-foreground">
-                  <div>Plans: {goalsCount}</div>
-                  <div>Care Actions: {interventionsCount}</div>
-                  <div>Reviews: {evaluationsCount}</div>
-                  <div>Reviews: {reviewsCount}</div>
-                  <div>Linked Assessments: {linkedAssessmentsCount}</div>
-                  <div>Linked Notes: {linkedNotesCount}</div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => openProblemDetail(problem.id)}>
-                    Open Care Plan
-                  </Button>
-                  <Button size="sm" onClick={() => openAddInterventionForProblem(problem.id)}>
-                    Add Care Action
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => openAddEvaluationForProblem(problem.id)}
+                    onClick={() => openProblemDetail(sortedCarePlans[0].id)}
                   >
-                    Add Review
+                    Open Care Plan
                   </Button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {sortedCarePlans.slice(0, 3).map((problem) => (
+                    <div
+                      key={problem.id}
+                      className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="line-clamp-1">{problem.problemStatement}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Review of Outcome {problem.evaluationDate}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
+                          {problem.riskLevel.replace(/_/g, " ")}
+                        </Badge>
+                        <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
+                          Open
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {sortedCarePlans.length > 3 && (
+                    <div className="text-xs text-muted-foreground">
+                      +{sortedCarePlans.length - 3} more nursing care plan{sortedCarePlans.length - 3 === 1 ? "" : "s"}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1274,7 +1386,7 @@ function ResidentDetail() {
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
-                  <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
+                  <ClipboardList className="h-3 w-3 mr-1" /> Create Nursing Care Plan
                   </Button>
                 }
               />
@@ -1367,9 +1479,12 @@ function ResidentDetail() {
         className="space-y-4"
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
+            <TabsList className="flex-wrap h-auto">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="activities">
+                Activities of Living ({activityWorkspaces.filter((workspace) => workspace.relevant).length})
+              </TabsTrigger>
+              <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
             <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
             <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
             <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
@@ -1402,6 +1517,280 @@ function ResidentDetail() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        <TabsContent value="activities" className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Activities of Living</h2>
+              <p className="text-sm text-muted-foreground">
+                Care needs grouped by Roper Logan Tierney activity.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAllRltDomains((value) => !value)}
+            >
+              {showAllRltDomains ? "Show Relevant Only" : "Show All Activities of Living"}
+            </Button>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {visibleActivityWorkspaces.map((workspace) => {
+              const hasOverdueReview = workspace.reviewDays !== null && workspace.reviewDays < 0;
+              const hasDueReview = workspace.reviewDays !== null && workspace.reviewDays <= 7;
+              return (
+                <Card key={workspace.domain.id}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium">{workspace.domain.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {workspace.carePlans.length} Nursing Care Plan
+                          {workspace.carePlans.length === 1 ? "" : "s"}
+                          {workspace.dueActions.length > 0
+                            ? ` · ${workspace.dueActions.length} care action${workspace.dueActions.length === 1 ? "" : "s"} due`
+                            : ""}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedRltDomainId(workspace.domain.id)}
+                      >
+                        Open
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {workspace.indicators.slice(0, 3).map((indicator) => (
+                        <Badge
+                          key={`${workspace.domain.id}-${indicator.label}`}
+                          variant="outline"
+                          className={`text-[10px] ${riskColor(indicator.tone)}`}
+                        >
+                          {indicator.label}: {indicator.value}
+                        </Badge>
+                      ))}
+                      {workspace.overdueAssessments.length > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
+                          Assessment overdue
+                        </Badge>
+                      )}
+                      {hasOverdueReview && (
+                        <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
+                          Review overdue
+                        </Badge>
+                      )}
+                      {!hasOverdueReview && hasDueReview && (
+                        <Badge variant="outline" className="text-[10px] border-warning/40 text-warning-foreground">
+                          Review due {workspace.nextReview}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {workspace.carePlans[0] && (
+                      <div className="rounded-md bg-muted/25 px-3 py-2 text-sm">
+                        <div className="line-clamp-1">{workspace.carePlans[0].problemStatement}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Review {workspace.nextReview || "not set"}
+                          {workspace.nextOutcomeReview ? ` · Outcome review ${workspace.nextOutcomeReview}` : ""}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {visibleActivityWorkspaces.length === 0 && (
+            <Card>
+              <CardContent className="p-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  No Activities of Living currently need attention.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => setShowAllRltDomains(true)}>
+                  Show All Activities of Living
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <Dialog
+            open={!!selectedActivityWorkspace}
+            onOpenChange={(open) => {
+              if (!open) setSelectedRltDomainId(null);
+            }}
+          >
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  Activity of Living: {selectedActivityWorkspace?.domain.title}
+                </DialogTitle>
+                <DialogDescription>
+                  Assessment context, known risks and active nursing care plans for this activity.
+                </DialogDescription>
+              </DialogHeader>
+
+              {selectedActivityWorkspace && (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Related Assessments</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        {selectedActivityWorkspace.assessments.map((assessment) => (
+                          <div key={assessment.id} className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="font-medium">
+                                {assessmentMeta[assessment.type]?.name || assessment.type}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {assessment.interpretation} · {assessment.date.slice(0, 10)}
+                              </div>
+                            </div>
+                            <Button asChild size="sm" variant="ghost">
+                              <Link to="/assessments/$assessmentId" params={{ assessmentId: assessment.id }}>
+                                Open
+                              </Link>
+                            </Button>
+                          </div>
+                        ))}
+                        {selectedActivityWorkspace.assessments.length === 0 && (
+                          <p className="text-sm text-muted-foreground">No related assessments recorded.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Known Risks</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        {selectedActivityWorkspace.knownRisks.map((risk, index) => (
+                          <div key={`${risk}-${index}`} className="rounded-md border px-3 py-2">
+                            {risk}
+                          </div>
+                        ))}
+                        {selectedActivityWorkspace.dueActions.length > 0 && (
+                          <div className="rounded-md border px-3 py-2">
+                            {selectedActivityWorkspace.dueActions.length} care action
+                            {selectedActivityWorkspace.dueActions.length === 1 ? "" : "s"} due
+                          </div>
+                        )}
+                        {selectedActivityWorkspace.knownRisks.length === 0 &&
+                          selectedActivityWorkspace.dueActions.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No high-risk indicators currently recorded.</p>
+                          )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Nursing Care Plans</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {selectedActivityWorkspace.carePlans.map((problem) => {
+                        const planGoals = problemGoals.filter((goal) => goal.problemId === problem.id);
+                        const actions = rProblemInterventions.filter((action) => action.problemId === problem.id);
+                        const reviews = rProblemEvaluations.filter((review) => review.problemId === problem.id);
+                        return (
+                          <div key={problem.id} className="rounded-md border p-3 space-y-2">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                              <div className="min-w-0">
+                                <div className="font-medium line-clamp-1">{problem.problemStatement}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Plan: {planGoals[0]?.statement || "No plan recorded"}
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedRltDomainId(null);
+                                  openProblemDetail(problem.id);
+                                }}
+                              >
+                                Open Care Plan
+                              </Button>
+                            </div>
+                            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+                              <div>Care Actions: {actions.length}</div>
+                              <div>Reviews: {reviews.length}</div>
+                              <div>Next Review: {problem.reviewDate}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {selectedActivityWorkspace.carePlans.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No active nursing care plan for this activity.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex flex-wrap gap-2">
+                    <CreateCarePlanDialog
+                      residentId={r.id}
+                      onCreated={(problem) => {
+                        setSelectedRltDomainId(null);
+                        openNewlyCreatedProblemDetail(problem.id);
+                      }}
+                      trigger={<Button size="sm">Create Nursing Care Plan</Button>}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!selectedActivityWorkspace.carePlans[0]}
+                      onClick={() => {
+                        const problem = selectedActivityWorkspace.carePlans[0];
+                        if (!problem) return;
+                        setSelectedRltDomainId(null);
+                        openEvaluationDialog(problem.id);
+                      }}
+                    >
+                      Record Review
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!selectedActivityWorkspace.carePlans[0]}
+                      onClick={() => {
+                        const problem = selectedActivityWorkspace.carePlans[0];
+                        if (!problem) return;
+                        setSelectedRltDomainId(null);
+                        openAddInterventionForProblem(problem.id);
+                      }}
+                    >
+                      Add Care Action
+                    </Button>
+                    {selectedActivityWorkspace.assessments[0] && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link
+                          to="/assessments/$assessmentId"
+                          params={{ assessmentId: selectedActivityWorkspace.assessments[0].id }}
+                        >
+                          Open Assessment
+                        </Link>
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedRltDomainId(null);
+                        setTimelineDialogOpen(true);
+                      }}
+                    >
+                      Open Resident Timeline
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1456,10 +1845,10 @@ function ResidentDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Row label="Bed type" value={r.bed?.bedType?.replace("_", " ") || "—"} />
-                <Row label="Mattress" value={r.bed?.mattressType?.replace("_", " ") || "—"} />
-                <Row label="Installed" value={r.bed?.installationDate || "—"} />
-                <Row label="Review date" value={r.bed?.reviewDate || "—"} />
+                <Row label="Bed type" value={r.bed?.bedType?.replace("_", " ") || "â€”"} />
+                <Row label="Mattress" value={r.bed?.mattressType?.replace("_", " ") || "â€”"} />
+                <Row label="Installed" value={r.bed?.installationDate || "â€”"} />
+                <Row label="Review date" value={r.bed?.reviewDate || "â€”"} />
               </CardContent>
             </Card>
             <Card>
@@ -1469,9 +1858,9 @@ function ResidentDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Row label="Named Nurse" value={r.keyWorkers?.namedNurse || "—"} />
-                <Row label="Named Carer" value={r.keyWorkers?.namedCarer || "—"} />
-                <Row label="Key Worker" value={r.keyWorkers?.keyWorker || "—"} />
+                <Row label="Named Nurse" value={r.keyWorkers?.namedNurse || "â€”"} />
+                <Row label="Named Carer" value={r.keyWorkers?.namedCarer || "â€”"} />
+                <Row label="Key Worker" value={r.keyWorkers?.keyWorker || "â€”"} />
               </CardContent>
             </Card>
             <Card>
@@ -1555,7 +1944,7 @@ function ResidentDetail() {
                         <div className="font-medium">{VITAL_TYPE_LABELS[type]}</div>
                         <div className="text-xs text-muted-foreground">
                           {formatVitalValues(vital, residentVitals, r)}
-                          {news.complete ? ` · NEWS2 ${news.total}` : ""}
+                          {news.complete ? ` Â· NEWS2 ${news.total}` : ""}
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[10px] shrink-0">
@@ -1597,7 +1986,7 @@ function ResidentDetail() {
                     status={temperatureStatus}
                     detail={
                       temperatureValues.length >= 2
-                        ? `${temperatureValues[0]}°C from ${temperatureValues[1]}°C`
+                        ? `${temperatureValues[0]}Â°C from ${temperatureValues[1]}Â°C`
                         : "More temperature records needed"
                     }
                   />
@@ -1714,7 +2103,7 @@ function ResidentDetail() {
                           <span className="text-muted-foreground capitalize">{a.assessorRole}</span>
                         </td>
                         <td className="p-3 text-xs">{a.date.slice(0, 10)}</td>
-                        <td className="p-3 text-xs">{a.nextReassessmentDate || "—"}</td>
+                        <td className="p-3 text-xs">{a.nextReassessmentDate || "â€”"}</td>
                         <td className="p-3 text-right">
                           <div className="inline-flex gap-1 items-center">
                             <Link to="/assessments/$assessmentId" params={{ assessmentId: a.id }}>
@@ -1764,7 +2153,7 @@ function ResidentDetail() {
           {rADeleted.length > 0 && (
             <details className="border rounded-md p-3 text-sm">
               <summary className="cursor-pointer font-medium">
-                Deleted assessments ({rADeleted.length}) — audit trail
+                Deleted assessments ({rADeleted.length}) â€” audit trail
               </summary>
               <div className="mt-2 space-y-2">
                 {rADeleted.map((a) => (
@@ -1772,9 +2161,9 @@ function ResidentDetail() {
                     key={a.id}
                     className="text-xs text-muted-foreground border-l-2 border-destructive/40 pl-3"
                   >
-                    <strong>{assessmentMeta[a.type].name}</strong> · {a.date.slice(0, 10)}
+                    <strong>{assessmentMeta[a.type].name}</strong> Â· {a.date.slice(0, 10)}
                     <br />
-                    Deleted by {a.deletedBy} on {a.deletedAt?.slice(0, 10)} — {a.deletedReason}
+                    Deleted by {a.deletedBy} on {a.deletedAt?.slice(0, 10)} â€” {a.deletedReason}
                   </div>
                 ))}
               </div>
@@ -1827,7 +2216,7 @@ function ResidentDetail() {
                     params={{ id: c.id }}
                     className="text-primary hover:underline"
                   >
-                    Open plan →
+                    Open plan â†’
                   </Link>
                 </div>
               </CardContent>
@@ -1841,7 +2230,7 @@ function ResidentDetail() {
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
-                  <ClipboardList className="h-3 w-3 mr-1" /> Create Care Plan
+                  <ClipboardList className="h-3 w-3 mr-1" /> Create Nursing Care Plan
                   </Button>
                 }
               />
@@ -1899,10 +2288,10 @@ function ResidentDetail() {
                       return (
                         <tr key={intv.id} className="hover:bg-muted/30">
                           <td className="p-3 font-medium">{intv.name}</td>
-                          <td className="p-3 text-xs">{problem?.problemStatement || "—"}</td>
+                          <td className="p-3 text-xs">{problem?.problemStatement || "â€”"}</td>
                           <td className="p-3 text-xs">{intv.frequencyType.replace(/_/g, " ")}</td>
                           <td className="p-3 text-xs">
-                            {intv.assignedStaffName || intv.assignedRole || "—"}
+                            {intv.assignedStaffName || intv.assignedRole || "â€”"}
                           </td>
                           <td className="p-3 text-xs">{intv.startDate}</td>
                           <td className="p-3 text-xs">{intv.reviewDate}</td>
@@ -1994,7 +2383,7 @@ function ResidentDetail() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="font-medium capitalize">
-                    {i.type.replace("_", " ")} — {i.date}
+                    {i.type.replace("_", " ")} â€” {i.date}
                   </div>
                   <div className="flex gap-1.5">
                     <Badge variant="outline" className="capitalize">
@@ -2007,7 +2396,7 @@ function ResidentDetail() {
                 </div>
                 <p className="text-sm mt-1">{i.description}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Action: {i.immediateAction} · Reported by {i.reportedBy}
+                  Action: {i.immediateAction} Â· Reported by {i.reportedBy}
                 </p>
               </CardContent>
             </Card>
@@ -2022,7 +2411,7 @@ function ResidentDetail() {
             <Card key={m.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium">
-                  {m.date} · {m.meetingType || "MDT"} · {m.authoredBy}
+                  {m.date} Â· {m.meetingType || "MDT"} Â· {m.authoredBy}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">Attendees: {m.attendees}</p>
                 <p className="text-sm mt-2">
@@ -2051,7 +2440,7 @@ function ResidentDetail() {
                   <span className="text-xs text-muted-foreground">({v.relationship})</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {v.date} · {v.arrivalTime}–{v.departureTime} · Signed in by {v.signedInBy}
+                  {v.date} Â· {v.arrivalTime}â€“{v.departureTime} Â· Signed in by {v.signedInBy}
                 </p>
                 {v.notes && <p className="text-sm mt-1">{v.notes}</p>}
               </CardContent>
@@ -2067,10 +2456,10 @@ function ResidentDetail() {
             <Card key={o.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium">
-                  {o.destination} — {o.date}
+                  {o.destination} â€” {o.date}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {o.departureTime}–{o.returnTime} · {o.transportMethod} · With {o.accompaniedBy}
+                  {o.departureTime}â€“{o.returnTime} Â· {o.transportMethod} Â· With {o.accompaniedBy}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Risk assessment: {o.riskAssessmentCompleted ? "Completed" : "Not completed"}
@@ -2089,7 +2478,7 @@ function ResidentDetail() {
             <Card key={h.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium capitalize">
-                  {h.shift} shift — {h.date}
+                  {h.shift} shift â€” {h.date}
                 </div>
                 <p className="text-xs text-muted-foreground">{h.staff}</p>
                 <p className="text-sm mt-1">{h.summary}</p>
@@ -2251,7 +2640,7 @@ function ResidentDetail() {
                       <span className="text-xs text-muted-foreground">({n.relationship})</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {n.phone || n.mobile} · {n.email}
+                      {n.phone || n.mobile} Â· {n.email}
                     </div>
                     {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
                   </div>
@@ -2405,7 +2794,7 @@ function ResidentDetail() {
                   <div>
                     <div className="font-medium text-sm">{t.title}</div>
                     <div className="text-xs text-muted-foreground">
-                      Assigned to {t.assignedTo} · Due {t.dueDate}
+                      Assigned to {t.assignedTo} Â· Due {t.dueDate}
                     </div>
                   </div>
                   <Badge
@@ -2428,7 +2817,7 @@ function ResidentDetail() {
                 <div>
                   <div className="font-medium">{t.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    Due {t.dueDate} · {t.assignedTo}
+                    Due {t.dueDate} Â· {t.assignedTo}
                   </div>
                 </div>
                 <Badge variant="outline" className="capitalize">
@@ -2450,7 +2839,7 @@ function ResidentDetail() {
                   <div key={t.id} className="text-xs border rounded-md p-2">
                     <div className="font-medium">{t.title}</div>
                     <div className="text-muted-foreground">
-                      Progress: {t.status} · Due: {t.dueDate} · Assigned To: {t.assignedTo}
+                      Progress: {t.status} Â· Due: {t.dueDate} Â· Assigned To: {t.assignedTo}
                     </div>
                   </div>
                 ))}
@@ -2509,7 +2898,7 @@ function ResidentDetail() {
                 </div>
                 <div className="text-sm font-medium">{e.title}</div>
                 <div className="text-xs text-muted-foreground capitalize">
-                  {e.module} · {e.summary || "—"} · {e.by || "System"}
+                  {e.module} Â· {e.summary || "â€”"} Â· {e.by || "System"}
                 </div>
               </div>
             ))}
@@ -2546,12 +2935,12 @@ function ResidentDetail() {
                     <td className="p-2 text-xs">{row.timestamp.slice(0, 10)}</td>
                     <td className="p-2 text-xs">{row.timestamp.slice(11, 16)}</td>
                     <td className="p-2 text-xs">{row.user}</td>
-                    <td className="p-2 text-xs capitalize">{row.role || "—"}</td>
+                    <td className="p-2 text-xs capitalize">{row.role || "â€”"}</td>
                     <td className="p-2 text-xs">{row.module}</td>
                     <td className="p-2 text-xs">{row.action}</td>
-                    <td className="p-2 text-xs truncate max-w-40">{row.before || "—"}</td>
-                    <td className="p-2 text-xs truncate max-w-40">{row.after || "—"}</td>
-                    <td className="p-2 text-xs">{row.reason || "—"}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.before || "â€”"}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.after || "â€”"}</td>
+                    <td className="p-2 text-xs">{row.reason || "â€”"}</td>
                   </tr>
                 ))}
                 {residentAuditRows.length === 0 && (
@@ -2593,8 +2982,8 @@ function ResidentDetail() {
                     <td className="p-2 text-xs">v{row.version}</td>
                     <td className="p-2 text-xs">{row.createdBy}</td>
                     <td className="p-2 text-xs">{`${row.date}`.slice(0, 16).replace("T", " ")}</td>
-                    <td className="p-2 text-xs">{row.reason || "—"}</td>
-                    <td className="p-2 text-xs">{row.supersededBy || "—"}</td>
+                    <td className="p-2 text-xs">{row.reason || "â€”"}</td>
+                    <td className="p-2 text-xs">{row.supersededBy || "â€”"}</td>
                   </tr>
                 ))}
                 {residentVersionRows.length === 0 && (
@@ -2771,7 +3160,7 @@ function ResidentDetail() {
                     value={
                       selectedProblem.sourceAssessmentType ||
                       selectedProblem.sourceAssessmentId ||
-                      "—"
+                      "â€”"
                     }
                   />
                 </CardContent>
@@ -2801,7 +3190,7 @@ function ResidentDetail() {
                       className="border rounded-md p-2 grid md:grid-cols-5 gap-2 items-center text-sm"
                     >
                       <div className="md:col-span-2">{goal.statement}</div>
-                      <div className="text-xs">{goal.targetDate || "—"}</div>
+                      <div className="text-xs">{goal.targetDate || "â€”"}</div>
                       <div className="text-xs capitalize">{goal.status.replace(/_/g, " ")}</div>
                       <div className="flex gap-1 justify-end">
                         <Button
@@ -2862,7 +3251,7 @@ function ResidentDetail() {
                                 {intv.frequencyType.replace(/_/g, " ")}
                               </td>
                               <td className="p-2 text-xs">
-                                {intv.assignedStaffName || intv.assignedRole || "—"}
+                                {intv.assignedStaffName || intv.assignedRole || "â€”"}
                               </td>
                               <td className="p-2 text-xs">{intv.status.replace(/_/g, " ")}</td>
                               <td className="p-2 text-xs">{intv.startDate}</td>
@@ -2922,14 +3311,14 @@ function ResidentDetail() {
                   {selectedProblemEvaluations.map((evl) => (
                     <div key={evl.id} className="border rounded-md p-2 text-sm">
                       <div className="font-medium">
-                        {evl.date.slice(0, 10)} · {evl.evaluatorName}
+                        {evl.date.slice(0, 10)} Â· {evl.evaluatorName}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Progress: {evl.progress.replace(/_/g, " ")} · Plan Met: {evl.goalsMet}
+                        Progress: {evl.progress.replace(/_/g, " ")} Â· Plan Met: {evl.goalsMet}
                       </div>
-                      <div className="text-xs">Outcome: {evl.recommendations || "—"}</div>
+                      <div className="text-xs">Outcome: {evl.recommendations || "â€”"}</div>
                       <div className="text-xs text-muted-foreground">
-                        Next Review of Outcome: {evl.nextEvaluationDate || "—"}
+                        Next Review of Outcome: {evl.nextEvaluationDate || "â€”"}
                       </div>
                     </div>
                   ))}
@@ -2977,8 +3366,8 @@ function ResidentDetail() {
             <DialogTitle>Add Review</DialogTitle>
             <DialogDescription>
               {selectedProblem
-                ? `Resident and problem are pre-linked: ${selectedProblem.problemStatement}`
-                : "Select a problem first."}
+                ? `Resident and nursing care plan are pre-linked: ${selectedProblem.problemStatement}`
+                : "Select a nursing care plan first."}
             </DialogDescription>
           </DialogHeader>
 
@@ -2992,18 +3381,18 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Evaluator</Label>
+              <Label>Reviewed By</Label>
               <Input value={currentUserName} disabled />
             </div>
             <div className="md:col-span-2">
-              <Label>Summary</Label>
+              <Label>Notes</Label>
               <Textarea
                 value={evaluationDraft.summary}
                 onChange={(e) => setEvaluationDraft((s) => ({ ...s, summary: e.target.value }))}
               />
             </div>
             <div>
-              <Label>Plan Met</Label>
+              <Label>Plan Met?</Label>
               <Select
                 value={evaluationDraft.goalsMet}
                 onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, goalsMet: v }))}
@@ -3037,7 +3426,7 @@ function ResidentDetail() {
               </Select>
             </div>
             <div className="md:col-span-2">
-              <Label>Evidence / Review Outcome</Label>
+              <Label>Outcome</Label>
               <Textarea
                 value={evaluationDraft.recommendations}
                 onChange={(e) =>
@@ -3046,7 +3435,7 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Next Review of Outcome</Label>
+              <Label>Next Review Date</Label>
               <Input
                 type="date"
                 value={evaluationDraft.nextEvaluationDate}
@@ -3056,7 +3445,7 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Revision Required?</Label>
+              <Label>Continue / Amend Plan</Label>
               <Select
                 value={evaluationDraft.revisionRequired}
                 onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, revisionRequired: v }))}
@@ -3065,8 +3454,8 @@ function ResidentDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="no">No</SelectItem>
-                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">Continue Plan</SelectItem>
+                  <SelectItem value="yes">Amend Plan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -3074,7 +3463,7 @@ function ResidentDetail() {
             {evaluationDraft.revisionRequired === "yes" && (
               <>
                 <div className="md:col-span-2">
-                  <Label>Revision Reason</Label>
+                  <Label>Amendment Notes</Label>
                   <Textarea
                     value={evaluationDraft.revisionReason}
                     onChange={(e) =>
@@ -3103,7 +3492,7 @@ function ResidentDetail() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select intervention" />
+                      <SelectValue placeholder="Select care action" />
                     </SelectTrigger>
                     <SelectContent>
                       {selectedProblemInterventions.map((intv) => (
@@ -3123,7 +3512,7 @@ function ResidentDetail() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select intervention" />
+                      <SelectValue placeholder="Select care action" />
                     </SelectTrigger>
                     <SelectContent>
                       {selectedProblemInterventions.map((intv) => (
@@ -3188,7 +3577,7 @@ function ResidentDetail() {
                   />
                 </div>
                 <div>
-                  <Label>Update Review Date</Label>
+                  <Label>Care Plan Review Date</Label>
                   <Input
                     type="date"
                     value={evaluationDraft.revisionReviewDate}
@@ -3452,7 +3841,8 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-3 gap-2">
       <div className="text-xs text-muted-foreground capitalize">{label}</div>
-      <div className="col-span-2 capitalize">{value || "—"}</div>
+      <div className="col-span-2 capitalize">{value || "â€”"}</div>
     </div>
   );
 }
+
