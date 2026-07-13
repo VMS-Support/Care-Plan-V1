@@ -237,14 +237,26 @@ import {
 import type { AnyDomainEvent } from "@/domain/events/eventTypes";
 import { DEFAULT_RULE_DEFINITIONS } from "@/domain/rules/ruleCatalog";
 import { evaluateEventAgainstRules, processRulesForEvent, replayRuleForEvent } from "@/domain/rules/ruleEngine";
+import {
+  acknowledgeRuleIssue,
+  dismissRuleIssue,
+  escalateRuleIssue,
+  resolveRuleIssue,
+} from "@/domain/rules/ruleIssueLifecycle";
 import { getApplicableRules } from "@/domain/rules/ruleRegistry";
 import type {
   RuleDefinition,
   RuleEngineState,
   RuleEvaluationResult,
   RuleGeneratedOutput,
+  RuleIssue,
+  RuleIssueActionContext,
+  RuleIssueEpisode,
+  RuleIssueTransition,
   RuleOverride,
   RuleProcessingReceipt,
+  RuleRecalculationItem,
+  RuleRecalculationRequest,
   RuleSuppression,
 } from "@/domain/rules/ruleTypes";
 
@@ -1810,6 +1822,11 @@ function seedData() {
     ruleDecisions: [] as RuleEvaluationResult[],
     ruleProcessingReceipts: [] as RuleProcessingReceipt[],
     ruleGeneratedOutputs: [] as RuleGeneratedOutput[],
+    ruleIssues: [] as RuleIssue[],
+    ruleIssueEpisodes: [] as RuleIssueEpisode[],
+    ruleIssueTransitions: [] as RuleIssueTransition[],
+    ruleRecalculationRequests: [] as RuleRecalculationRequest[],
+    ruleRecalculationItems: [] as RuleRecalculationItem[],
     ruleOverrides: [] as RuleOverride[],
     ruleSuppressions: [] as RuleSuppression[],
     shiftDefinitions: [] as ShiftDefinition[],
@@ -2265,6 +2282,11 @@ interface CareCtx extends Store {
   ruleDecisions: RuleEvaluationResult[];
   ruleProcessingReceipts: RuleProcessingReceipt[];
   ruleGeneratedOutputs: RuleGeneratedOutput[];
+  ruleIssues: RuleIssue[];
+  ruleIssueEpisodes: RuleIssueEpisode[];
+  ruleIssueTransitions: RuleIssueTransition[];
+  ruleRecalculationRequests: RuleRecalculationRequest[];
+  ruleRecalculationItems: RuleRecalculationItem[];
   ruleOverrides: RuleOverride[];
   ruleSuppressions: RuleSuppression[];
   emitDomainEvent: (event: AnyDomainEvent) => void;
@@ -2272,6 +2294,10 @@ interface CareCtx extends Store {
   evaluateRulesForEvent: (event: AnyDomainEvent) => RuleEvaluationResult[];
   replayRuleForEvent: (ruleId: string, version: number, eventId: string) => RuleEvaluationResult | undefined;
   getApplicableRulesForEvent: (event: AnyDomainEvent) => RuleDefinition[];
+  acknowledgeRuleIssue: (issueId: string, note?: string) => void;
+  escalateRuleIssue: (issueId: string, details: { level: number; reasonCode: string; reasonText?: string; toSeverity: RuleDefinition["severity"] }) => void;
+  resolveRuleIssue: (issueId: string, details: { resolutionCode: string; resolutionReason: string; evidenceRecordIds?: string[] }) => void;
+  dismissRuleIssue: (issueId: string, details: { dismissalCode: string; dismissalReason: string; dismissalExpiresAt?: string; dismissalScope?: RuleIssue["dismissalScope"] }) => void;
   getEventById: (eventId: string) => ReturnType<typeof getEventById>;
   getEventsByCorrelationId: (correlationId: string) => ReturnType<typeof getEventsByCorrelationId>;
   getEventsForResident: (residentId: string) => ReturnType<typeof getEventsForResident>;
@@ -2750,6 +2776,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
       ruleDecisions: (store as typeof store & RuleEngineState).ruleDecisions || [],
       ruleProcessingReceipts: (store as typeof store & RuleEngineState).ruleProcessingReceipts || [],
       ruleGeneratedOutputs: (store as typeof store & RuleEngineState).ruleGeneratedOutputs || [],
+      ruleIssues: (store as typeof store & RuleEngineState).ruleIssues || [],
+      ruleIssueEpisodes: (store as typeof store & RuleEngineState).ruleIssueEpisodes || [],
+      ruleIssueTransitions: (store as typeof store & RuleEngineState).ruleIssueTransitions || [],
+      ruleRecalculationRequests: (store as typeof store & RuleEngineState).ruleRecalculationRequests || [],
+      ruleRecalculationItems: (store as typeof store & RuleEngineState).ruleRecalculationItems || [],
       ruleOverrides: (store as typeof store & RuleEngineState).ruleOverrides || [],
       ruleSuppressions: (store as typeof store & RuleEngineState).ruleSuppressions || [],
       emitDomainEvent: (event) => setStore((s) => processRulesForEvent(appendEventRecord(s, event), event)),
@@ -2757,6 +2788,55 @@ export function CareProvider({ children }: { children: ReactNode }) {
       evaluateRulesForEvent: (event) => evaluateEventAgainstRules(event, store),
       replayRuleForEvent: (ruleId, version, eventId) => replayRuleForEvent(store, ruleId, version, eventId),
       getApplicableRulesForEvent: (event) => getApplicableRules((store as typeof store & RuleEngineState).ruleDefinitions || DEFAULT_RULE_DEFINITIONS, event),
+      acknowledgeRuleIssue: (issueId, note) => {
+        const context: RuleIssueActionContext = {
+          userAccountId: currentUser.id,
+          staffMemberId: operationalContext.staffMemberId,
+          nursingHomeId: operationalContext.nursingHomeId,
+          wardId: operationalContext.wardIds[0],
+          capabilities: ["rule_issue.view", "rule_issue.acknowledge", "rule_issue.escalate", "rule_issue.resolve", "rule_issue.dismiss", "rule_issue.reopen"],
+          occurredAt: new Date().toISOString(),
+        };
+        setStore((s) => {
+          const issue = ((s as typeof s & RuleEngineState).ruleIssues || []).find((item) => item.id === issueId);
+          if (!issue) return s;
+          const result = acknowledgeRuleIssue(issue, context, note);
+          return {
+            ...s,
+            ruleIssues: ((s as typeof s & RuleEngineState).ruleIssues || []).map((item) => item.id === issueId ? result.issue : item),
+            ruleIssueTransitions: result.transition ? [result.transition, ...((s as typeof s & RuleEngineState).ruleIssueTransitions || [])] : ((s as typeof s & RuleEngineState).ruleIssueTransitions || []),
+          };
+        });
+      },
+      escalateRuleIssue: (issueId, details) => {
+        const context: RuleIssueActionContext = { userAccountId: currentUser.id, staffMemberId: operationalContext.staffMemberId, nursingHomeId: operationalContext.nursingHomeId, wardId: operationalContext.wardIds[0], capabilities: ["rule_issue.escalate"], occurredAt: new Date().toISOString() };
+        setStore((s) => {
+          const issue = ((s as typeof s & RuleEngineState).ruleIssues || []).find((item) => item.id === issueId);
+          if (!issue) return s;
+          const result = escalateRuleIssue(issue, context, details);
+          return { ...s, ruleIssues: ((s as typeof s & RuleEngineState).ruleIssues || []).map((item) => item.id === issueId ? result.issue : item), ruleIssueTransitions: [result.transition, ...((s as typeof s & RuleEngineState).ruleIssueTransitions || [])] };
+        });
+      },
+      resolveRuleIssue: (issueId, details) => {
+        const context: RuleIssueActionContext = { userAccountId: currentUser.id, staffMemberId: operationalContext.staffMemberId, nursingHomeId: operationalContext.nursingHomeId, wardId: operationalContext.wardIds[0], capabilities: ["rule_issue.resolve"], occurredAt: new Date().toISOString() };
+        setStore((s) => {
+          const issue = ((s as typeof s & RuleEngineState).ruleIssues || []).find((item) => item.id === issueId);
+          const episode = ((s as typeof s & RuleEngineState).ruleIssueEpisodes || []).find((item) => item.id === issue?.currentEpisodeId);
+          if (!issue || !episode) return s;
+          const result = resolveRuleIssue(issue, episode, context, details);
+          return { ...s, ruleIssues: ((s as typeof s & RuleEngineState).ruleIssues || []).map((item) => item.id === issueId ? result.issue : item), ruleIssueEpisodes: ((s as typeof s & RuleEngineState).ruleIssueEpisodes || []).map((item) => item.id === episode.id ? result.episode : item), ruleIssueTransitions: [result.transition, ...((s as typeof s & RuleEngineState).ruleIssueTransitions || [])] };
+        });
+      },
+      dismissRuleIssue: (issueId, details) => {
+        const context: RuleIssueActionContext = { userAccountId: currentUser.id, staffMemberId: operationalContext.staffMemberId, nursingHomeId: operationalContext.nursingHomeId, wardId: operationalContext.wardIds[0], capabilities: ["rule_issue.dismiss"], occurredAt: new Date().toISOString() };
+        setStore((s) => {
+          const issue = ((s as typeof s & RuleEngineState).ruleIssues || []).find((item) => item.id === issueId);
+          const episode = ((s as typeof s & RuleEngineState).ruleIssueEpisodes || []).find((item) => item.id === issue?.currentEpisodeId);
+          if (!issue || !episode) return s;
+          const result = dismissRuleIssue(issue, episode, context, details);
+          return { ...s, ruleIssues: ((s as typeof s & RuleEngineState).ruleIssues || []).map((item) => item.id === issueId ? result.issue : item), ruleIssueEpisodes: ((s as typeof s & RuleEngineState).ruleIssueEpisodes || []).map((item) => item.id === episode.id ? result.episode : item), ruleIssueTransitions: [result.transition, ...((s as typeof s & RuleEngineState).ruleIssueTransitions || [])] };
+        });
+      },
       getEventById: (eventId) => getEventById(store, eventId),
       getEventsByCorrelationId: (correlationId) => getEventsByCorrelationId(store, correlationId),
       getEventsForResident: (residentId) => getEventsForResident(store, residentId),

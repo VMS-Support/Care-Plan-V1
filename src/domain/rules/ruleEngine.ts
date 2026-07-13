@@ -14,6 +14,7 @@ import type {
   RuleSourceRecord,
   RuleSourceReference,
 } from "./ruleTypes";
+import { reconcileRuleIssues, outputsFromIssues } from "./ruleIssueLifecycle";
 
 const outputId = (key: string) => `rule-output-${key.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
 const decisionId = (rule: RuleDefinition, event: DomainEvent<string, unknown>) => `rule-decision-${rule.id}-v${rule.version}-${event.eventId}`;
@@ -335,6 +336,9 @@ export function processRulesForEvent<TState extends RuleEngineState>(state: TSta
   let decisions = [...(state.ruleDecisions || [])];
   let receipts: RuleProcessingReceipt[] = [...(state.ruleProcessingReceipts || [])];
   let outputs = [...(state.ruleGeneratedOutputs || [])];
+  let issues = [...(state.ruleIssues || [])];
+  let episodes = [...(state.ruleIssueEpisodes || [])];
+  let transitions = [...(state.ruleIssueTransitions || [])];
   const applicable = getApplicableRules(state.ruleDefinitions || DEFAULT_RULE_DEFINITIONS, event);
   for (const rule of applicable) {
     const already = existingSuccess.some((receipt) => receipt.ruleId === rule.id && receipt.ruleVersion === rule.version);
@@ -356,13 +360,19 @@ export function processRulesForEvent<TState extends RuleEngineState>(state: TSta
         },
       });
       if (decision.status !== "not_matched") decisions = [decision, ...decisions.filter((item) => item.decisionId !== decision.decisionId)];
-      if (decision.status === "matched") outputs = executeRuleOutputs(decision, outputs, now);
+      if (decision.status === "matched") {
+        const reconciled = reconcileRuleIssues(decision, { ruleIssues: issues, ruleIssueEpisodes: episodes, ruleIssueTransitions: transitions }, now);
+        issues = reconciled.issues;
+        episodes = reconciled.episodes;
+        transitions = reconciled.transitions;
+        outputs = executeRuleOutputs(decision, outputsFromIssues(issues), now);
+      }
       receipts = [{ id: receiptId(rule, event, "completed"), ruleId: rule.id, ruleVersion: rule.version, sourceEventId: event.eventId, status: "completed", startedAt: now, completedAt: now, attempt: 1 }, ...receipts];
     } catch (error) {
       receipts = [{ id: receiptId(rule, event, "failed"), ruleId: rule.id, ruleVersion: rule.version, sourceEventId: event.eventId, status: "failed", startedAt: now, completedAt: now, attempt: 1, error: error instanceof Error ? error.message : String(error) }, ...receipts];
     }
   }
-  return { ...state, ruleDecisions: decisions, ruleProcessingReceipts: receipts, ruleGeneratedOutputs: outputs };
+  return { ...state, ruleDecisions: decisions, ruleProcessingReceipts: receipts, ruleGeneratedOutputs: outputs, ruleIssues: issues, ruleIssueEpisodes: episodes, ruleIssueTransitions: transitions };
 }
 
 export function replayRuleForEvent(state: RuleEngineState, ruleId: string, version: number, eventId: string, now = new Date().toISOString()) {

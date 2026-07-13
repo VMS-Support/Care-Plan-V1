@@ -137,3 +137,25 @@
 | REQ-DEDUPE-007 | Different output codes are not incorrectly merged. | Different output-code test |
 | REQ-RULE-AUDIT-001 | Rule lifecycle, overrides and persisted outputs are auditable. | Rule audit/security docs |
 | REQ-RULE-SCOPE-001 | Rules and source records cannot cross nursing-home boundaries. | Multi-home isolation test |
+| REQ-RULE-LIFECYCLE-001 | Rule-generated issues support open status. | `npm run test:rule-lifecycle` |
+| REQ-RULE-LIFECYCLE-002 | Acknowledgement is explicit and does not resolve the issue. | Acknowledgement lifecycle test |
+| REQ-RULE-LIFECYCLE-003 | Issues can be escalated with reason and severity history. | Escalation lifecycle test |
+| REQ-RULE-LIFECYCLE-004 | Issues can be resolved with evidence and reason. | Resolution lifecycle test |
+| REQ-RULE-LIFECYCLE-005 | Issues can be dismissed only with an authorised reason. | Dismissal lifecycle test |
+| REQ-RULE-LIFECYCLE-006 | Resolved or dismissed issues may reopen as a new episode. | Reopen lifecycle test |
+| REQ-RULE-LIFECYCLE-007 | Lifecycle transitions are append-only and auditable. | `npm run validate:rule-lifecycle` |
+| REQ-RULE-LIFECYCLE-008 | Opening a dashboard or page does not acknowledge an issue. | Dashboard no-transition test |
+| REQ-RULE-LIFECYCLE-009 | Lifecycle transitions are permission- and scope-aware. | Cross-home lifecycle test |
+| REQ-RULE-LIFECYCLE-010 | Automatic resolution requires an approved rule policy. | Rule resolution docs and validation |
+| REQ-RECALC-001 | Rules can be recalculated after corrected or voided data. | `npm run test:rule-recalculation` |
+| REQ-RECALC-002 | Rules use occurredAt for late-entered clinical records. | Late-entry recalculation docs |
+| REQ-RECALC-003 | New rule versions are prospective unless historical recalculation is explicitly approved. | Rule-version recalculation test |
+| REQ-RECALC-004 | Historical recalculation supports dry run before apply. | Dry-run/apply docs and validation |
+| REQ-RECALC-005 | Recalculation is idempotent and deduplicated. | Deterministic item test |
+| REQ-RECALC-006 | Recalculation preserves previous RuleDecisions and issue history. | Recalculation reconciliation docs |
+| REQ-RECALC-007 | Recalculation uses bounded affected windows. | Background recalculation docs |
+| REQ-RECALC-008 | Migration recalculation is resumable and home-scoped. | Migration recalculation docs |
+| REQ-RECALC-009 | Dismissals and resolutions are reconciled according to rule policy. | Reconciliation docs |
+| REQ-RECALC-010 | Recalculation cannot alter source clinical records. | Dry-run and correction docs |
+| REQ-RECALC-011 | Cross-home recalculation is prohibited without explicit permission. | Multi-home recalculation test |
+| REQ-RECALC-012 | Stale dry-run plans cannot be applied. | Source/rule hash tests |
