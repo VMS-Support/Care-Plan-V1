@@ -39,6 +39,8 @@
     "validate:rule-recalculation": "node scripts/validate-rule-recalculation.mjs",
     "test:rule-lifecycle": "node scripts/rule-lifecycle-tests.mjs",
     "test:rule-recalculation": "node scripts/rule-recalculation-tests.mjs",
+    "validate:work-item-model": "node scripts/validate-work-item-model.mjs",
+    "test:work-item-model": "node scripts/work-item-model-tests.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",

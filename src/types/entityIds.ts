@@ -34,6 +34,8 @@ export type RiskId = Brand<string, "RiskId">;
 export type IncidentId = Brand<string, "IncidentId">;
 export type HandoverId = Brand<string, "HandoverId">;
 export type DomainEventId = Brand<string, "DomainEventId">;
+export type WorkItemId = Brand<string, "WorkItemId">;
+export type WorkStatusTransitionId = Brand<string, "WorkStatusTransitionId">;
 
 export type EntityIdPrefix =
   | "enterprise"

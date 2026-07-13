@@ -159,3 +159,30 @@
 | REQ-RECALC-010 | Recalculation cannot alter source clinical records. | Dry-run and correction docs |
 | REQ-RECALC-011 | Cross-home recalculation is prohibited without explicit permission. | Multi-home recalculation test |
 | REQ-RECALC-012 | Stale dry-run plans cannot be applied. | Source/rule hash tests |
+| REQ-WORK-001 | Operational work uses one canonical Work Item projection. | `npm run test:work-item-model`; `workTypes.ts` |
+| REQ-WORK-002 | Work Item does not replace clinical source records. | Inventory and projector tests |
+| REQ-WORK-003 | Every Work Item links to one stable source entity or occurrence. | Identity/deduplication tests |
+| REQ-WORK-004 | Canonical types cover care action, task, observation, assessment, appointment, review, referral, documentation, and handover acknowledgement. | `npm run validate:work-item-model` |
+| REQ-WORK-005 | Unsupported future work types are not faked. | Unsupported Appointment test; future catalogue |
+| REQ-WORK-006 | Work Items support resident, ward and home scope. | Queue scope tests |
+| REQ-WORK-007 | Work Items support person, role, team and ward-queue assignment. | Assignment model and type validation |
+| REQ-WORK-008 | One source occurrence creates at most one Work Item. | Replay and occurrence tests |
+| REQ-WORK-009 | Work completion requires source-specific evidence. | Completion evidence tests |
+| REQ-WORK-010 | Work Items support direct source drill-down. | Handler and route validation |
+| REQ-WORK-011 | Work queues follow ward, shift, role and date context. | Queue query validation |
+| REQ-WORK-012 | Work Items are isolated by nursing home. | Multi-home test |
+| REQ-WORK-STATUS-001 | Persisted states are scheduled, in progress, completed, missed, deferred, cancelled and not applicable. | Status contract validation |
+| REQ-WORK-STATUS-002 | Due Soon, Due Now and Overdue are derived. | Display status tests |
+| REQ-WORK-STATUS-003 | Status transitions use a controlled service. | Invalid transition tests |
+| REQ-WORK-STATUS-004 | Missed requires a reason and differs from Overdue. | Missed test |
+| REQ-WORK-STATUS-005 | Deferred retains original and effective due time. | Deferral test |
+| REQ-WORK-STATUS-006 | Cancelled work retains history. | Transition/history contract |
+| REQ-WORK-STATUS-007 | Not Applicable requires a reason and is not Missed. | Not-applicable test |
+| REQ-WORK-STATUS-008 | Completed Late is a completion attribute. | Completion evidence contract |
+| REQ-WORK-STATUS-009 | Opening a workflow does not set In Progress. | No-open-transition test |
+| REQ-WORK-STATUS-010 | Derived due-state changes create no audit transitions. | Pure display service validation |
+| REQ-WORK-AUDIT-001 | Persisted Work transitions append history. | Transition service tests |
+| REQ-WORK-EVENT-001 | Work transition event contracts preserve correlation to source events. | Transition schema validation |
+| REQ-WORK-DEDUPE-001 | Refresh, replay and migration rerun cannot duplicate Work Items. | Deterministic identity tests |
+| REQ-WORK-PARITY-001 | Upcoming Care Interventions retains current behaviour. | Existing query retained; parallel-run gate |
+| REQ-WORK-PARITY-002 | Next 4 Hours retains current behaviour. | Existing query retained; parallel-run gate |
