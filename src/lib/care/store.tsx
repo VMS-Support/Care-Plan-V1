@@ -80,6 +80,8 @@ import type {
   Ward,
   Bed,
   BedAssignment,
+  Admission,
+  AbsenceEpisode,
 } from "./types";
 import {
   getBedById,
@@ -101,6 +103,30 @@ import {
   migrateEntityHierarchy,
   DEFAULT_ENTERPRISE_ID,
 } from "./entityHierarchy";
+import {
+  getActiveLongTermResidents,
+  getActiveRespiteResidents,
+  getCurrentResidents,
+  getHospitalTransferResidents,
+  getInactiveResidents,
+  getPreAdmissionRecords,
+  getResidentAdmissionType,
+  getResidentBedAssignmentHistory,
+  getResidentCurrentBedAssignment,
+  getResidentDisplayStatus,
+  getResidentLifecycleStatus,
+  getResidentPresenceStatus,
+  getScheduledAdmissions,
+  getTemporarilyAbsentResidents,
+  getOccupancyByNursingHome,
+  getOccupancyByWard,
+  isResidentActive,
+  isResidentEligibleForInHomeWork,
+  isResidentInHome,
+  isResidentOccupyingBed,
+  isResidentRespite,
+  migrateResidentLifecycle,
+} from "./residentLifecycle";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -1650,6 +1676,8 @@ function seedData() {
     wards: [] as Ward[],
     beds: [] as Bed[],
     bedAssignments: [] as BedAssignment[],
+    admissions: [] as Admission[],
+    absenceEpisodes: [] as AbsenceEpisode[],
     users,
     residents,
     assessments,
@@ -1820,6 +1848,7 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
   );
 
   normalized = migrateEntityHierarchy(normalized, defaultFacilityId).store;
+  normalized = migrateResidentLifecycle(normalized);
 
   return normalized;
 }
@@ -1847,6 +1876,7 @@ function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string)
     }),
   );
   scoped = migrateEntityHierarchy(scoped, activeFacilityId).store;
+  scoped = migrateResidentLifecycle(scoped);
   return scoped;
 }
 
@@ -1875,6 +1905,8 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
       return (room?.facilityId || room?.nursingHomeId || BALLYMORE_FACILITY_ID) === activeFacilityId;
     }),
     bedAssignments: store.bedAssignments.filter((assignment) => assignment.nursingHomeId === activeFacilityId),
+    admissions: store.admissions.filter((admission) => admission.nursingHomeId === activeFacilityId),
+    absenceEpisodes: store.absenceEpisodes.filter((absence) => absence.nursingHomeId === activeFacilityId),
     users: store.users.filter((user) => userFacilityIds(user).includes(activeFacilityId)),
     residents: store.residents.filter((record) => hasFacility(record, activeFacilityId) && record.status !== "deleted"),
     alertWorkflow: Object.fromEntries(
@@ -2204,6 +2236,27 @@ interface CareCtx extends Store {
   getResidentsForWard: (wardId: string) => ReturnType<typeof getResidentsForWard>;
   getResidentsForRoom: (roomId: string) => ReturnType<typeof getResidentsForRoom>;
   getResidentsForNursingHome: (nursingHomeId: string) => ReturnType<typeof getResidentsForNursingHome>;
+  getResidentLifecycleStatus: typeof getResidentLifecycleStatus;
+  getResidentAdmissionType: typeof getResidentAdmissionType;
+  getResidentPresenceStatus: typeof getResidentPresenceStatus;
+  getResidentDisplayStatus: typeof getResidentDisplayStatus;
+  getResidentCurrentBedAssignment: (residentId: string) => ReturnType<typeof getResidentCurrentBedAssignment>;
+  getResidentBedAssignmentHistory: (residentId: string) => ReturnType<typeof getResidentBedAssignmentHistory>;
+  isResidentActive: typeof isResidentActive;
+  isResidentInHome: typeof isResidentInHome;
+  isResidentRespite: typeof isResidentRespite;
+  isResidentEligibleForInHomeWork: typeof isResidentEligibleForInHomeWork;
+  isResidentOccupyingBed: (residentId: string) => boolean;
+  getCurrentResidents: () => ReturnType<typeof getCurrentResidents>;
+  getActiveLongTermResidents: () => ReturnType<typeof getActiveLongTermResidents>;
+  getActiveRespiteResidents: () => ReturnType<typeof getActiveRespiteResidents>;
+  getTemporarilyAbsentResidents: () => ReturnType<typeof getTemporarilyAbsentResidents>;
+  getHospitalTransferResidents: () => ReturnType<typeof getHospitalTransferResidents>;
+  getInactiveResidents: () => ReturnType<typeof getInactiveResidents>;
+  getPreAdmissionRecords: () => ReturnType<typeof getPreAdmissionRecords>;
+  getScheduledAdmissions: () => ReturnType<typeof getScheduledAdmissions>;
+  getOccupancyByNursingHome: (nursingHomeId: string) => ReturnType<typeof getOccupancyByNursingHome>;
+  getOccupancyByWard: (wardId: string) => ReturnType<typeof getOccupancyByWard>;
 }
 
 const Ctx = createContext<CareCtx | null>(null);
@@ -2380,6 +2433,27 @@ export function CareProvider({ children }: { children: ReactNode }) {
       getResidentsForWard: (wardId) => getResidentsForWard(scopedStore, wardId),
       getResidentsForRoom: (roomId) => getResidentsForRoom(scopedStore, roomId),
       getResidentsForNursingHome: (nursingHomeId) => getResidentsForNursingHome(scopedStore, nursingHomeId),
+      getResidentLifecycleStatus,
+      getResidentAdmissionType,
+      getResidentPresenceStatus,
+      getResidentDisplayStatus,
+      getResidentCurrentBedAssignment: (residentId) => getResidentCurrentBedAssignment(scopedStore, residentId),
+      getResidentBedAssignmentHistory: (residentId) => getResidentBedAssignmentHistory(scopedStore, residentId),
+      isResidentActive,
+      isResidentInHome,
+      isResidentRespite,
+      isResidentEligibleForInHomeWork,
+      isResidentOccupyingBed: (residentId) => isResidentOccupyingBed(scopedStore, residentId),
+      getCurrentResidents: () => getCurrentResidents(scopedStore),
+      getActiveLongTermResidents: () => getActiveLongTermResidents(scopedStore),
+      getActiveRespiteResidents: () => getActiveRespiteResidents(scopedStore),
+      getTemporarilyAbsentResidents: () => getTemporarilyAbsentResidents(scopedStore),
+      getHospitalTransferResidents: () => getHospitalTransferResidents(scopedStore),
+      getInactiveResidents: () => getInactiveResidents(scopedStore),
+      getPreAdmissionRecords: () => getPreAdmissionRecords(scopedStore),
+      getScheduledAdmissions: () => getScheduledAdmissions(scopedStore),
+      getOccupancyByNursingHome: (nursingHomeId) => getOccupancyByNursingHome(scopedStore, nursingHomeId),
+      getOccupancyByWard: (wardId) => getOccupancyByWard(scopedStore, wardId),
       updateUser: (id, patch) =>
         setStore((s) => ({
           ...s,

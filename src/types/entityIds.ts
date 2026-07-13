@@ -6,6 +6,8 @@ export type WardId = Brand<string, "WardId">;
 export type RoomId = Brand<string, "RoomId">;
 export type BedId = Brand<string, "BedId">;
 export type BedAssignmentId = Brand<string, "BedAssignmentId">;
+export type AdmissionId = Brand<string, "AdmissionId">;
+export type AbsenceEpisodeId = Brand<string, "AbsenceEpisodeId">;
 export type ResidentId = Brand<string, "ResidentId">;
 export type StaffMemberId = Brand<string, "StaffMemberId">;
 export type UserAccountId = Brand<string, "UserAccountId">;
@@ -29,6 +31,8 @@ export type EntityIdPrefix =
   | "room"
   | "bed"
   | "bed-assignment"
+  | "admission"
+  | "absence-episode"
   | "resident"
   | "staff-member"
   | "user-account"
@@ -70,6 +74,8 @@ export const asWardId = (value: string) => value as WardId;
 export const asRoomId = (value: string) => value as RoomId;
 export const asBedId = (value: string) => value as BedId;
 export const asBedAssignmentId = (value: string) => value as BedAssignmentId;
+export const asAdmissionId = (value: string) => value as AdmissionId;
+export const asAbsenceEpisodeId = (value: string) => value as AbsenceEpisodeId;
 
 export const createEnterpriseId = () => createEntityId("enterprise") as EnterpriseId;
 export const createNursingHomeId = () => createEntityId("nursing-home") as NursingHomeId;
@@ -77,3 +83,5 @@ export const createWardId = () => createEntityId("ward") as WardId;
 export const createRoomId = () => createEntityId("room") as RoomId;
 export const createBedId = () => createEntityId("bed") as BedId;
 export const createBedAssignmentId = () => createEntityId("bed-assignment") as BedAssignmentId;
+export const createAdmissionId = () => createEntityId("admission") as AdmissionId;
+export const createAbsenceEpisodeId = () => createEntityId("absence-episode") as AbsenceEpisodeId;

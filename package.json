@@ -16,6 +16,8 @@
     "deploy": "gh-pages -d dist",
     "validate:entity-hierarchy": "node scripts/validate-entity-hierarchy.mjs",
     "test:entity-hierarchy": "node scripts/entity-hierarchy-tests.mjs",
+    "validate:resident-lifecycle": "node scripts/validate-resident-lifecycle.mjs",
+    "test:resident-lifecycle": "node scripts/resident-lifecycle-tests.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",

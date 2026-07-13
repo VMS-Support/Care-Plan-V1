@@ -3,6 +3,8 @@ export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_
 export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
 
 import type {
+  AbsenceEpisodeId,
+  AdmissionId,
   BedAssignmentId,
   BedId,
   EnterpriseId,
@@ -10,6 +12,17 @@ import type {
   RoomId,
   WardId,
 } from "@/types/entityIds";
+
+export type ResidentLifecycleStatus =
+  | "pre_admission"
+  | "admission_scheduled"
+  | "active"
+  | "discharged"
+  | "deceased"
+  | "inactive";
+export type AdmissionType = "long_term" | "respite" | "short_stay" | "other";
+export type ResidentPresenceStatus = "in_home" | "temporarily_absent" | "in_hospital" | "unknown";
+export type AbsenceType = "temporary_leave" | "hospital_transfer";
 
 export interface Enterprise {
   id: EnterpriseId;
@@ -237,13 +250,68 @@ export interface BedAssignment {
   id: BedAssignmentId;
   bedId: BedId;
   residentId: string;
+  admissionId?: AdmissionId;
   nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  roomId?: RoomId;
   startDate: string;
+  startDateTime?: string;
   endDate?: string;
+  endDateTime?: string;
   status: "active" | "ended";
+  reason?: "admission" | "room_move" | "bed_move" | "return_from_absence" | "temporary_assignment" | "other";
+  endedReason?:
+    | "room_move"
+    | "temporary_absence"
+    | "hospital_transfer"
+    | "discharge"
+    | "deceased"
+    | "bed_out_of_service"
+    | "other";
   assignmentReason?: string;
   createdAt: string;
   updatedAt: string;
+  createdBy?: string;
+}
+
+export interface Admission {
+  id: AdmissionId;
+  residentId: string;
+  nursingHomeId: NursingHomeId;
+  admissionType: AdmissionType;
+  status: "scheduled" | "active" | "completed" | "cancelled";
+  plannedAdmissionDate?: string;
+  admissionDate?: string;
+  expectedEndDate?: string;
+  actualEndDate?: string;
+  admittedFrom?: "home" | "hospital" | "another_care_home" | "community_service" | "other";
+  dischargeReason?: string;
+  dischargeDestination?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface AbsenceEpisode {
+  id: AbsenceEpisodeId;
+  residentId: string;
+  admissionId: AdmissionId;
+  nursingHomeId: NursingHomeId;
+  type: AbsenceType;
+  status: "planned" | "active" | "returned" | "cancelled" | "converted_to_discharge";
+  startDateTime?: string;
+  expectedReturnDateTime?: string;
+  actualReturnDateTime?: string;
+  destination?: string;
+  reason?: string;
+  bedHeld: boolean;
+  heldBedAssignmentId?: BedAssignmentId;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface ClinicalContext {
@@ -328,6 +396,20 @@ export interface AKeyToMe {
 export interface Resident {
   id: string;
   facilityId?: string;
+  lifecycleStatus?: ResidentLifecycleStatus;
+  admissionType?: AdmissionType;
+  presenceStatus?: ResidentPresenceStatus;
+  currentAdmissionId?: AdmissionId;
+  lifecycleStatusReason?: string;
+  lifecycleUpdatedAt?: string;
+  inactiveReason?: string;
+  dischargeDate?: string;
+  dischargeReason?: string;
+  dischargeDestination?: string;
+  deceasedDate?: string;
+  placeOfDeath?: string;
+  expectedAdmissionDate?: string;
+  expectedDischargeDate?: string;
   deletedAt?: string;
   deletedBy?: string;
   deletedReason?: string;
