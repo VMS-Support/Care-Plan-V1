@@ -113,3 +113,27 @@
 | REQ-EVENT-018 | Existing clinical IDs and records remain unchanged. | Existing regression suites |
 | REQ-EVENT-019 | Cross-home event processing is prohibited. | Multi-home isolation test |
 | REQ-EVENT-020 | Historical backfill requires an explicit approved strategy. | Event migration docs |
+| REQ-RULE-001 | Rules are central and not embedded independently in dashboard components. | `npm run validate:rules-engine`; current rule inventory |
+| REQ-RULE-002 | Rules are versioned and historical decisions retain the evaluated version. | `npm run test:rules-engine` |
+| REQ-RULE-003 | Clinical-threshold rules require clinical approval before activation. | `npm run validate:rules-engine`; `npm run test:rules-engine` |
+| REQ-RULE-004 | Rules are configurable and support nursing-home scope. | Rule catalogue and multi-home test |
+| REQ-RULE-005 | Rule evaluation is deterministic and event-driven. | Rule engine tests and store event integration |
+| REQ-RULE-006 | Rules declare required supporting data. | Rule definition model and provider validation |
+| REQ-RULE-007 | Missing required data produces an insufficient-data result. | Rule explanation and validation tests |
+| REQ-RULE-008 | Rules do not automatically diagnose residents. | Explanation wording tests |
+| REQ-RULE-009 | Recommendations requiring clinical judgement do not auto-complete clinical decisions. | Reference rule docs and inactive clinical rules |
+| REQ-EXPLAIN-001 | Every generated alert/recommendation explains what happened. | `npm run test:rules-engine` |
+| REQ-EXPLAIN-002 | Every generated alert/recommendation identifies the threshold or condition met. | `npm run test:rules-engine` |
+| REQ-EXPLAIN-003 | Every generated alert/recommendation identifies the source records used. | `npm run test:rules-engine` |
+| REQ-EXPLAIN-004 | Every generated alert/recommendation provides recommended action. | `npm run test:rules-engine` |
+| REQ-EXPLAIN-005 | Explanations use professional nursing-home terminology. | Rule explanations docs |
+| REQ-EXPLAIN-006 | Technical rule trace is permission-restricted. | Explanation model test |
+| REQ-DEDUPE-001 | The same rule and event are processed idempotently. | Duplicate event test |
+| REQ-DEDUPE-002 | Rule-generated outputs use deterministic deduplication keys. | Dedupe key tests |
+| REQ-DEDUPE-003 | Page loads and dashboard refreshes never generate duplicate alerts/tasks. | Page refresh test |
+| REQ-DEDUPE-004 | Concurrent rule processing cannot create duplicate active issues. | Dedupe docs; future DB unique constraints |
+| REQ-DEDUPE-005 | Repeated matching events update one active issue where configured. | Output dedupe test |
+| REQ-DEDUPE-006 | Resolved recurring issues preserve episode history. | Recurrence test |
+| REQ-DEDUPE-007 | Different output codes are not incorrectly merged. | Different output-code test |
+| REQ-RULE-AUDIT-001 | Rule lifecycle, overrides and persisted outputs are auditable. | Rule audit/security docs |
+| REQ-RULE-SCOPE-001 | Rules and source records cannot cross nursing-home boundaries. | Multi-home isolation test |

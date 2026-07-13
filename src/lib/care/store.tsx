@@ -235,6 +235,18 @@ import {
   type EventStoreRecord,
 } from "@/domain/events/eventBus";
 import type { AnyDomainEvent } from "@/domain/events/eventTypes";
+import { DEFAULT_RULE_DEFINITIONS } from "@/domain/rules/ruleCatalog";
+import { evaluateEventAgainstRules, processRulesForEvent, replayRuleForEvent } from "@/domain/rules/ruleEngine";
+import { getApplicableRules } from "@/domain/rules/ruleRegistry";
+import type {
+  RuleDefinition,
+  RuleEngineState,
+  RuleEvaluationResult,
+  RuleGeneratedOutput,
+  RuleOverride,
+  RuleProcessingReceipt,
+  RuleSuppression,
+} from "@/domain/rules/ruleTypes";
 
 let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
@@ -1794,6 +1806,12 @@ function seedData() {
     eventStore: [] as EventStoreRecord[],
     eventOutbox: [] as EventStoreRecord[],
     eventProcessingReceipts: [] as EventProcessingReceipt[],
+    ruleDefinitions: DEFAULT_RULE_DEFINITIONS as RuleDefinition[],
+    ruleDecisions: [] as RuleEvaluationResult[],
+    ruleProcessingReceipts: [] as RuleProcessingReceipt[],
+    ruleGeneratedOutputs: [] as RuleGeneratedOutput[],
+    ruleOverrides: [] as RuleOverride[],
+    ruleSuppressions: [] as RuleSuppression[],
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2243,8 +2261,17 @@ interface CareCtx extends Store {
   eventStore: EventStoreRecord[];
   eventOutbox: EventStoreRecord[];
   eventProcessingReceipts: EventProcessingReceipt[];
+  ruleDefinitions: RuleDefinition[];
+  ruleDecisions: RuleEvaluationResult[];
+  ruleProcessingReceipts: RuleProcessingReceipt[];
+  ruleGeneratedOutputs: RuleGeneratedOutput[];
+  ruleOverrides: RuleOverride[];
+  ruleSuppressions: RuleSuppression[];
   emitDomainEvent: (event: AnyDomainEvent) => void;
   publishPendingDomainEvents: (handlers?: EventHandlerRegistration[]) => void;
+  evaluateRulesForEvent: (event: AnyDomainEvent) => RuleEvaluationResult[];
+  replayRuleForEvent: (ruleId: string, version: number, eventId: string) => RuleEvaluationResult | undefined;
+  getApplicableRulesForEvent: (event: AnyDomainEvent) => RuleDefinition[];
   getEventById: (eventId: string) => ReturnType<typeof getEventById>;
   getEventsByCorrelationId: (correlationId: string) => ReturnType<typeof getEventsByCorrelationId>;
   getEventsForResident: (residentId: string) => ReturnType<typeof getEventsForResident>;
@@ -2719,8 +2746,17 @@ export function CareProvider({ children }: { children: ReactNode }) {
       eventStore: (store as typeof store & EventArchitectureState).eventStore || [],
       eventOutbox: (store as typeof store & EventArchitectureState).eventOutbox || [],
       eventProcessingReceipts: (store as typeof store & EventArchitectureState).eventProcessingReceipts || [],
-      emitDomainEvent: (event) => setStore((s) => appendEventRecord(s, event)),
+      ruleDefinitions: (store as typeof store & RuleEngineState).ruleDefinitions || DEFAULT_RULE_DEFINITIONS,
+      ruleDecisions: (store as typeof store & RuleEngineState).ruleDecisions || [],
+      ruleProcessingReceipts: (store as typeof store & RuleEngineState).ruleProcessingReceipts || [],
+      ruleGeneratedOutputs: (store as typeof store & RuleEngineState).ruleGeneratedOutputs || [],
+      ruleOverrides: (store as typeof store & RuleEngineState).ruleOverrides || [],
+      ruleSuppressions: (store as typeof store & RuleEngineState).ruleSuppressions || [],
+      emitDomainEvent: (event) => setStore((s) => processRulesForEvent(appendEventRecord(s, event), event)),
       publishPendingDomainEvents: (handlers) => setStore((s) => publishPendingEvents(s, handlers)),
+      evaluateRulesForEvent: (event) => evaluateEventAgainstRules(event, store),
+      replayRuleForEvent: (ruleId, version, eventId) => replayRuleForEvent(store, ruleId, version, eventId),
+      getApplicableRulesForEvent: (event) => getApplicableRules((store as typeof store & RuleEngineState).ruleDefinitions || DEFAULT_RULE_DEFINITIONS, event),
       getEventById: (eventId) => getEventById(store, eventId),
       getEventsByCorrelationId: (correlationId) => getEventsByCorrelationId(store, correlationId),
       getEventsForResident: (residentId) => getEventsForResident(store, residentId),
@@ -4914,11 +4950,14 @@ export function CareProvider({ children }: { children: ReactNode }) {
           },
           correlationId: createCorrelationId("handover"),
         });
-        setStore((s) => appendEventRecord({
-          ...s,
-          handovers: [item, ...s.handovers],
-          timelineEvents: [ev, ...s.timelineEvents],
-        }, domainEvent));
+        setStore((s) => {
+          const next = appendEventRecord({
+            ...s,
+            handovers: [item, ...s.handovers],
+            timelineEvents: [ev, ...s.timelineEvents],
+          }, domainEvent);
+          return processRulesForEvent(next, domainEvent);
+        });
         logAudit({
           user: currentUserName,
           role: currentRole,
@@ -6274,7 +6313,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             timelineEvents: [ev, ...s.timelineEvents],
             problemHistory: [hist, ...s.problemHistory],
           };
-          return careActionEvent ? appendEventRecord(next, careActionEvent) : next;
+          return careActionEvent ? processRulesForEvent(appendEventRecord(next, careActionEvent), careActionEvent) : next;
         });
         logAudit({
           user: currentUserName,
