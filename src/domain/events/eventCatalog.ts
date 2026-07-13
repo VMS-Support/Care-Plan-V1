@@ -1,0 +1,159 @@
+import type { DomainEventType } from "./eventTypes";
+
+export interface EventCatalogueEntry {
+  eventType: DomainEventType;
+  eventVersion: 1;
+  meaning: string;
+  sourceModule: string;
+  primaryEntity: string;
+  requiredPayloadFields: string[];
+  sensitiveFieldsProhibited: string[];
+  emitsOnlyAfterPersistedChange: boolean;
+}
+
+export const EVENT_CATALOGUE: Record<DomainEventType, EventCatalogueEntry> = {
+  ResidentAdmitted: {
+    eventType: "ResidentAdmitted",
+    eventVersion: 1,
+    meaning: "A resident admission became active.",
+    sourceModule: "resident_lifecycle",
+    primaryEntity: "Admission",
+    requiredPayloadFields: ["residentId", "admissionId", "admissionType", "admittedAt", "nursingHomeId"],
+    sensitiveFieldsProhibited: ["fullCarePlan", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  ResidentReturnedFromHospital: {
+    eventType: "ResidentReturnedFromHospital",
+    eventVersion: 1,
+    meaning: "An active resident returned from a hospital-transfer absence.",
+    sourceModule: "resident_lifecycle",
+    primaryEntity: "AbsenceEpisode",
+    requiredPayloadFields: ["residentId", "admissionId", "absenceEpisodeId", "returnedAt", "nursingHomeId"],
+    sensitiveFieldsProhibited: ["dischargeSummary", "medicationList"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  ObservationRecorded: {
+    eventType: "ObservationRecorded",
+    eventVersion: 1,
+    meaning: "A new clinical observation was persisted.",
+    sourceModule: "observations",
+    primaryEntity: "ClinicalObservation",
+    requiredPayloadFields: ["observationId", "residentId", "observationType", "observedAt", "values", "nursingHomeId"],
+    sensitiveFieldsProhibited: ["note", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  WeightRecorded: {
+    eventType: "WeightRecorded",
+    eventVersion: 1,
+    meaning: "A weight measurement was persisted.",
+    sourceModule: "observations",
+    primaryEntity: "WeightRecord",
+    requiredPayloadFields: ["residentId", "weightValue", "unit", "observedAt"],
+    sensitiveFieldsProhibited: ["note", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  AssessmentCompleted: {
+    eventType: "AssessmentCompleted",
+    eventVersion: 1,
+    meaning: "An assessment changed into a clinically completed state.",
+    sourceModule: "assessments",
+    primaryEntity: "Assessment",
+    requiredPayloadFields: ["assessmentId", "residentId", "assessmentType", "completedAt"],
+    sensitiveFieldsProhibited: ["fullAssessmentAnswers", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  AssessmentRiskChanged: {
+    eventType: "AssessmentRiskChanged",
+    eventVersion: 1,
+    meaning: "A completed or reassessed assessment resulted in a meaningful risk-level change.",
+    sourceModule: "assessments",
+    primaryEntity: "Assessment",
+    requiredPayloadFields: ["assessmentId", "residentId", "assessmentType", "currentRiskLevel"],
+    sensitiveFieldsProhibited: ["fullAssessmentAnswers", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  CarePlanCreated: {
+    eventType: "CarePlanCreated",
+    eventVersion: 1,
+    meaning: "A new nursing care-plan item was created under the resident unified care plan.",
+    sourceModule: "care_plans",
+    primaryEntity: "CarePlanProblem",
+    requiredPayloadFields: ["carePlanId", "carePlanItemId", "residentId"],
+    sensitiveFieldsProhibited: ["problemStatement", "notes", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  CarePlanReviewed: {
+    eventType: "CarePlanReviewed",
+    eventVersion: 1,
+    meaning: "A formal review was persisted for one nursing care-plan item.",
+    sourceModule: "care_plans",
+    primaryEntity: "ProblemEvaluation",
+    requiredPayloadFields: ["reviewId", "carePlanId", "carePlanItemId", "residentId", "outcome"],
+    sensitiveFieldsProhibited: ["summary", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  CareActionCompleted: {
+    eventType: "CareActionCompleted",
+    eventVersion: 1,
+    meaning: "A scheduled or one-off care action was completed.",
+    sourceModule: "care_actions",
+    primaryEntity: "ProblemInterventionLog",
+    requiredPayloadFields: ["careActionId", "residentId", "effectiveCompletedAt", "recordedAt", "outcome"],
+    sensitiveFieldsProhibited: ["comments", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  CareActionMissed: {
+    eventType: "CareActionMissed",
+    eventVersion: 1,
+    meaning: "A care-action occurrence was explicitly or validly classified as missed.",
+    sourceModule: "care_actions",
+    primaryEntity: "ProblemInterventionLog",
+    requiredPayloadFields: ["careActionId", "occurrenceId", "residentId", "dueAt", "missedAt", "missedReason"],
+    sensitiveFieldsProhibited: ["comments", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  MedicationRefused: {
+    eventType: "MedicationRefused",
+    eventVersion: 1,
+    meaning: "A resident refused a scheduled medication dose.",
+    sourceModule: "medication_integration",
+    primaryEntity: "MedicationRecord",
+    requiredPayloadFields: ["residentId", "medicationReferenceId", "scheduledDoseOccurrenceId", "refusedAt", "medicationNameOrCode"],
+    sensitiveFieldsProhibited: ["fullMedicationAdministrationRecord", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  IncidentRecorded: {
+    eventType: "IncidentRecorded",
+    eventVersion: 1,
+    meaning: "An incident was initially persisted.",
+    sourceModule: "incidents",
+    primaryEntity: "Incident",
+    requiredPayloadFields: ["incidentId", "incidentType", "occurredAt", "nursingHomeId"],
+    sensitiveFieldsProhibited: ["description", "immediateAction", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  HandoverCreated: {
+    eventType: "HandoverCreated",
+    eventVersion: 1,
+    meaning: "A resident or ward handover was activated.",
+    sourceModule: "handovers",
+    primaryEntity: "HandoverNote",
+    requiredPayloadFields: ["handoverId", "wardId", "scope", "category", "priority", "sourceShiftId", "targetShiftId", "effectiveFrom"],
+    sensitiveFieldsProhibited: ["summary", "outstandingActions", "note", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+  DailyCareRecorded: {
+    eventType: "DailyCareRecorded",
+    eventVersion: 1,
+    meaning: "A structured daily-care record was persisted.",
+    sourceModule: "daily_care",
+    primaryEntity: "DailyNote",
+    requiredPayloadFields: ["dailyCareRecordId", "residentId", "careType", "effectiveAt", "outcomeCode"],
+    sensitiveFieldsProhibited: ["observation", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  },
+};
+
+export const SUPPORTED_EVENT_VERSIONS = Object.fromEntries(
+  Object.keys(EVENT_CATALOGUE).map((eventType) => [eventType, [1]]),
+) as Record<DomainEventType, number[]>;

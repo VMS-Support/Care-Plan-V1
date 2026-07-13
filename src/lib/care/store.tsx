@@ -216,6 +216,25 @@ import { BUILT_IN_TEMPLATES } from "./templates";
 import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
 import { CATEGORY_TO_RLT_DOMAIN, getRltDomainForAssessment } from "./rlt";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
+import {
+  appendEventRecord,
+  createCorrelationId,
+  createDomainEvent,
+  getDeadLetterEvents,
+  getEventById,
+  getEventsByCorrelationId,
+  getEventsForEntity,
+  getEventsForResident,
+  getFailedEvents,
+  getProcessingReceipts,
+  publishPendingEvents,
+  validateDomainEvent,
+  type EventArchitectureState,
+  type EventHandlerRegistration,
+  type EventProcessingReceipt,
+  type EventStoreRecord,
+} from "@/domain/events/eventBus";
+import type { AnyDomainEvent } from "@/domain/events/eventTypes";
 
 let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
@@ -1772,6 +1791,9 @@ function seedData() {
     permissionGrants: [] as PermissionGrant[],
     roleTemplates: [] as RoleTemplate[],
     auditRecords: [] as AuditRecord[],
+    eventStore: [] as EventStoreRecord[],
+    eventOutbox: [] as EventStoreRecord[],
+    eventProcessingReceipts: [] as EventProcessingReceipt[],
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2218,6 +2240,19 @@ interface CareCtx extends Store {
   getAuditForWard: typeof getAuditForWard;
   searchAudit: (filters?: AuditSearchFilters) => ReturnType<typeof searchAudit>;
   validateAuditFramework: () => ReturnType<typeof validateAuditFramework>;
+  eventStore: EventStoreRecord[];
+  eventOutbox: EventStoreRecord[];
+  eventProcessingReceipts: EventProcessingReceipt[];
+  emitDomainEvent: (event: AnyDomainEvent) => void;
+  publishPendingDomainEvents: (handlers?: EventHandlerRegistration[]) => void;
+  getEventById: (eventId: string) => ReturnType<typeof getEventById>;
+  getEventsByCorrelationId: (correlationId: string) => ReturnType<typeof getEventsByCorrelationId>;
+  getEventsForResident: (residentId: string) => ReturnType<typeof getEventsForResident>;
+  getEventsForEntity: (entityType: string, entityId: string) => ReturnType<typeof getEventsForEntity>;
+  getFailedEvents: () => ReturnType<typeof getFailedEvents>;
+  getDeadLetterEvents: () => ReturnType<typeof getDeadLetterEvents>;
+  getProcessingReceipts: (eventId: string) => ReturnType<typeof getProcessingReceipts>;
+  validateDomainEvent: (event: AnyDomainEvent) => ReturnType<typeof validateDomainEvent>;
   operationalContext: OperationalContext;
   getConfiguredShifts: (nursingHomeId?: string) => ShiftDefinition[];
   getCurrentShift: (nursingHomeId?: string, dateTime?: string) => ReturnType<typeof getCurrentShift>;
@@ -2681,6 +2716,19 @@ export function CareProvider({ children }: { children: ReactNode }) {
       getAuditForWard: (wardId) => getAuditForWard(scopedStore, wardId),
       searchAudit: (filters) => searchAudit(scopedStore, filters),
       validateAuditFramework: () => validateAuditFramework(store),
+      eventStore: (store as typeof store & EventArchitectureState).eventStore || [],
+      eventOutbox: (store as typeof store & EventArchitectureState).eventOutbox || [],
+      eventProcessingReceipts: (store as typeof store & EventArchitectureState).eventProcessingReceipts || [],
+      emitDomainEvent: (event) => setStore((s) => appendEventRecord(s, event)),
+      publishPendingDomainEvents: (handlers) => setStore((s) => publishPendingEvents(s, handlers)),
+      getEventById: (eventId) => getEventById(store, eventId),
+      getEventsByCorrelationId: (correlationId) => getEventsByCorrelationId(store, correlationId),
+      getEventsForResident: (residentId) => getEventsForResident(store, residentId),
+      getEventsForEntity: (entityType, entityId) => getEventsForEntity(store, entityType, entityId),
+      getFailedEvents: () => getFailedEvents(store),
+      getDeadLetterEvents: () => getDeadLetterEvents(store),
+      getProcessingReceipts: (eventId) => getProcessingReceipts(store, eventId),
+      validateDomainEvent: (event) => validateDomainEvent(event, store),
       operationalContext,
       getConfiguredShifts: (nursingHomeId) => getConfiguredShifts(store, nursingHomeId || activeFacilityId),
       getCurrentShift: (nursingHomeId, dateTime) => getCurrentShift(store, nursingHomeId || activeFacilityId, dateTime),
@@ -4832,11 +4880,45 @@ export function CareProvider({ children }: { children: ReactNode }) {
           linkedRecordKind: "handover",
           priority: h.priority,
         };
-        setStore((s) => ({
+        const domainEvent = createDomainEvent({
+          eventType: "HandoverCreated",
+          occurredAt: item.effectiveFrom || item.createdAt || new Date().toISOString(),
+          recordedAt: item.createdAt || new Date().toISOString(),
+          actor: {
+            actorType: "user",
+            userAccountId: currentUser.id,
+            staffMemberId: operationalContext.staffMemberId,
+            displayName: currentUserName,
+            effectiveRoleKey: currentRole,
+          },
+          scope: {
+            nursingHomeId: item.nursingHomeId || item.facilityId || operationalContext.nursingHomeId,
+            wardId: item.wardId,
+            shiftId: item.targetShiftId,
+            operationalDate: item.operationalDate,
+            timezone: operationalContext.timezone,
+          },
+          subject: { entityType: "HandoverNote", entityId: item.id, residentId: item.residentId },
+          source: { module: "handovers", service: "handover_service", operation: "create" },
+          payload: {
+            handoverId: item.id,
+            residentId: item.residentId,
+            wardId: item.wardId || operationalContext.wardIds[0],
+            scope: item.scope || "resident",
+            category: item.category || "clinical",
+            priority: item.handoverPriority || "routine",
+            sourceShiftId: item.sourceShiftId || operationalContext.shiftId,
+            targetShiftId: item.targetShiftId || operationalContext.shiftId,
+            effectiveFrom: item.effectiveFrom || item.createdAt || new Date().toISOString(),
+            expiresAt: item.expiresAt,
+          },
+          correlationId: createCorrelationId("handover"),
+        });
+        setStore((s) => appendEventRecord({
           ...s,
           handovers: [item, ...s.handovers],
           timelineEvents: [ev, ...s.timelineEvents],
-        }));
+        }, domainEvent));
         logAudit({
           user: currentUserName,
           role: currentRole,
@@ -6115,14 +6197,85 @@ export function CareProvider({ children }: { children: ReactNode }) {
           action: "intervention_logged",
           newValue: `${intv.name}: ${input.outcome}`,
         };
+        const resident = store.residents.find((item) => item.id === intv.residentId);
+        const effectiveAt = `${date}T${time}:00.000`;
+        const careActionEvent =
+          input.outcome === "missed"
+            ? createDomainEvent({
+                eventType: "CareActionMissed",
+                occurredAt: effectiveAt,
+                recordedAt: now.toISOString(),
+                actor: {
+                  actorType: "user",
+                  userAccountId: currentUser.id,
+                  staffMemberId: operationalContext.staffMemberId,
+                  displayName: currentUserName,
+                  effectiveRoleKey: currentRole,
+                },
+                scope: {
+                  nursingHomeId: intv.facilityId || resident?.facilityId || operationalContext.nursingHomeId,
+                  wardId: resident?.wardId as any,
+                  shiftId: operationalContext.shiftId,
+                  operationalDate: operationalContext.operationalDate,
+                  timezone: operationalContext.timezone,
+                },
+                subject: { entityType: "ProblemInterventionLog", entityId: log.id, residentId: intv.residentId },
+                source: { module: "care_actions", service: "care_action_service", operation: "miss" },
+                payload: {
+                  careActionId: intv.id,
+                  occurrenceId: log.id,
+                  residentId: intv.residentId,
+                  dueAt: effectiveAt,
+                  missedAt: effectiveAt,
+                  missedReason: input.comments || input.residentResponse || "not_completed",
+                },
+                correlationId: createCorrelationId("care-action"),
+              })
+            : ["completed", "partially_completed"].includes(input.outcome)
+              ? createDomainEvent({
+                  eventType: "CareActionCompleted",
+                  occurredAt: effectiveAt,
+                  recordedAt: now.toISOString(),
+                  actor: {
+                    actorType: "user",
+                    userAccountId: currentUser.id,
+                    staffMemberId: operationalContext.staffMemberId,
+                    displayName: currentUserName,
+                    effectiveRoleKey: currentRole,
+                  },
+                  scope: {
+                    nursingHomeId: intv.facilityId || resident?.facilityId || operationalContext.nursingHomeId,
+                    wardId: resident?.wardId as any,
+                    shiftId: operationalContext.shiftId,
+                    operationalDate: operationalContext.operationalDate,
+                    timezone: operationalContext.timezone,
+                  },
+                  subject: { entityType: "ProblemInterventionLog", entityId: log.id, residentId: intv.residentId },
+                  source: { module: "care_actions", service: "care_action_service", operation: "complete" },
+                  payload: {
+                    careActionId: intv.id,
+                    carePlanItemId: intv.problemId,
+                    residentId: intv.residentId,
+                    scheduledOccurrenceId: log.id,
+                    effectiveCompletedAt: effectiveAt,
+                    recordedAt: now.toISOString(),
+                    outcome: input.outcome,
+                    response: input.residentResponse,
+                  },
+                  correlationId: createCorrelationId("care-action"),
+                })
+              : undefined;
 
-        setStore((s) => ({
-          ...s,
-          problemInterventionLogs: [log, ...s.problemInterventionLogs],
-          notes: [note, ...s.notes],
-          timelineEvents: [ev, ...s.timelineEvents],
-          problemHistory: [hist, ...s.problemHistory],
-        }));
+        setStore((s) => {
+          const next = {
+            ...s,
+            problemInterventionLogs: [log, ...s.problemInterventionLogs],
+            notes: [note, ...s.notes],
+            timelineEvents: [ev, ...s.timelineEvents],
+            problemHistory: [hist, ...s.problemHistory],
+          };
+          return careActionEvent ? appendEventRecord(next, careActionEvent) : next;
+        });
         logAudit({
           user: currentUserName,
           role: currentRole,

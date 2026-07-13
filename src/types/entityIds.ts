@@ -33,6 +33,7 @@ export type AlertId = Brand<string, "AlertId">;
 export type RiskId = Brand<string, "RiskId">;
 export type IncidentId = Brand<string, "IncidentId">;
 export type HandoverId = Brand<string, "HandoverId">;
+export type DomainEventId = Brand<string, "DomainEventId">;
 
 export type EntityIdPrefix =
   | "enterprise"
@@ -68,6 +69,7 @@ export type EntityIdPrefix =
   | "risk"
   | "incident"
   | "handover";
+// Domain events intentionally use a hyphenated prefix outside clinical entity IDs.
 
 const randomSegment = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -109,6 +111,7 @@ export const asRoleTemplateId = (value: string) => value as RoleTemplateId;
 export const asAuditRecordId = (value: string) => value as AuditRecordId;
 export const asOperationalContextId = (value: string) => value as OperationalContextId;
 export const asShiftId = (value: string) => value as ShiftId;
+export const asDomainEventId = (value: string) => value as DomainEventId;
 
 export const createEnterpriseId = () => createEntityId("enterprise") as EnterpriseId;
 export const createNursingHomeId = () => createEntityId("nursing-home") as NursingHomeId;
@@ -131,3 +134,4 @@ export const createRoleTemplateId = () => createEntityId("role-template") as Rol
 export const createAuditRecordId = () => createEntityId("audit-record") as AuditRecordId;
 export const createOperationalContextId = () => createEntityId("operational-context") as OperationalContextId;
 export const createShiftId = () => createEntityId("shift") as ShiftId;
+export const createDomainEventId = () => `domain-event-${randomSegment()}` as DomainEventId;

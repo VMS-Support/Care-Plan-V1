@@ -93,3 +93,23 @@
 | REQ-HANDOVER-008 | Cross-home and cross-ward handover leakage is prohibited. | Cross-home and ward visibility tests |
 | REQ-HANDOVER-009 | Shift targeting uses stable shift IDs. | Day/Late/Night target tests |
 | REQ-HANDOVER-010 | Handover actions are audited but visibility recalculation is not. | Handover audit docs |
+| REQ-EVENT-001 | Meaningful persisted changes create canonical domain events. | `npm run test:event-architecture` |
+| REQ-EVENT-002 | Events use immutable unique event IDs. | Unique event ID test |
+| REQ-EVENT-003 | Events are versioned. | Unsupported version test |
+| REQ-EVENT-004 | Every event includes nursing-home scope. | Missing home scope test |
+| REQ-EVENT-005 | Resident clinical events include resident ID. | Envelope and payload validation |
+| REQ-EVENT-006 | Every event includes occurredAt and recordedAt. | occurredAt/recordedAt test |
+| REQ-EVENT-007 | Every event includes actor and source module. | Envelope validation |
+| REQ-EVENT-008 | Every event includes correlation ID. | Missing correlation test |
+| REQ-EVENT-009 | Downstream events may include causation ID. | Causation ID test |
+| REQ-EVENT-010 | Rule-generated events include rule ID and rule version. | Event envelope schema |
+| REQ-EVENT-011 | Events minimise sensitive clinical data. | Sensitive field rejection test |
+| REQ-EVENT-012 | Event consumers are idempotent. | Duplicate delivery test |
+| REQ-EVENT-013 | Publication uses a durable outbox where supported. | Outbox commit/publish tests |
+| REQ-EVENT-014 | Event-processing failures are retryable and observable. | Publication failure test |
+| REQ-EVENT-015 | Dead-letter events can be diagnosed and safely replayed. | Invalid event dead-letter test |
+| REQ-EVENT-016 | Clinical events are distinct from audit records. | Event/audit correlation docs |
+| REQ-EVENT-017 | Calculated dashboard changes do not produce domain events. | Dashboard refresh no-event test |
+| REQ-EVENT-018 | Existing clinical IDs and records remain unchanged. | Existing regression suites |
+| REQ-EVENT-019 | Cross-home event processing is prohibited. | Multi-home isolation test |
+| REQ-EVENT-020 | Historical backfill requires an explicit approved strategy. | Event migration docs |

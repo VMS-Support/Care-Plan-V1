@@ -31,6 +31,8 @@
     "test:due-time": "node scripts/due-time-classifier-tests.mjs",
     "validate:handover-context": "node scripts/validate-handover-context.mjs",
     "test:handover-context": "node scripts/handover-context-tests.mjs",
+    "validate:event-architecture": "node scripts/validate-event-architecture.mjs",
+    "test:event-architecture": "node scripts/event-architecture-tests.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
