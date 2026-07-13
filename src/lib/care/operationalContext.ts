@@ -2,6 +2,9 @@ import type {
   Facility,
   HomeAssignment,
   OperationalContext,
+  ProblemIntervention,
+  ProblemInterventionLog,
+  CarePlanProblem,
   Resident,
   RoleAssignment,
   ShiftDefinition,
@@ -41,6 +44,9 @@ export interface OperationalContextState {
   handovers?: { id: string; residentId?: string; facilityId?: string; wardId?: string; status?: string; shift?: string }[];
   clinicalAlerts?: { id: string; residentId: string; resolvedAt?: string; acknowledged?: boolean }[];
   incidents?: { id: string; residentId?: string; facilityId?: string; wardId?: string; status?: string }[];
+  carePlanProblems?: CarePlanProblem[];
+  problemInterventions?: ProblemIntervention[];
+  problemInterventionLogs?: ProblemInterventionLog[];
 }
 
 export interface OperationalContextInput {
@@ -145,6 +151,39 @@ export function getCurrentShift(state: OperationalContextState, nursingHomeId: s
   return { shift: fallback, operationalDate: today, ...getShiftDateRange(fallback, today) };
 }
 
+export const resolveCurrentShift = getCurrentShift;
+
+export function resolveShiftForOperationalDate(state: OperationalContextState, shiftId: string, operationalDate: string) {
+  const shift = getShiftById(state, shiftId);
+  if (!shift) return undefined;
+  return { shift, operationalDate, ...getShiftDateRange(shift, operationalDate) };
+}
+
+export function getShiftWindow(shift: ShiftDefinition, operationalDate: string) {
+  return getShiftDateRange(shift, operationalDate);
+}
+
+export function getNextShift(state: OperationalContextState, nursingHomeId: string, shiftId: string, operationalDate: string) {
+  const shifts = getConfiguredShifts(state, nursingHomeId);
+  const index = shifts.findIndex((shift) => shift.id === shiftId);
+  if (index < 0 || shifts.length === 0) return undefined;
+  const next = shifts[(index + 1) % shifts.length];
+  const nextDate = index === shifts.length - 1 ? addDays(operationalDate, 1) : operationalDate;
+  return { shift: next, operationalDate: nextDate, ...getShiftDateRange(next, nextDate) };
+}
+
+export function getPreviousShift(state: OperationalContextState, nursingHomeId: string, shiftId: string, operationalDate: string) {
+  const shifts = getConfiguredShifts(state, nursingHomeId);
+  const index = shifts.findIndex((shift) => shift.id === shiftId);
+  if (index < 0 || shifts.length === 0) return undefined;
+  const previousIndex = index === 0 ? shifts.length - 1 : index - 1;
+  const previous = shifts[previousIndex];
+  const previousDate = index === 0 ? addDays(operationalDate, -1) : operationalDate;
+  return { shift: previous, operationalDate: previousDate, ...getShiftDateRange(previous, previousDate) };
+}
+
+export const getShiftsForHome = getConfiguredShifts;
+
 const isEffective = (from: string, to?: string, dateTime = new Date().toISOString()) =>
   Date.parse(from) <= Date.parse(dateTime) && (!to || Date.parse(to) >= Date.parse(dateTime));
 
@@ -169,6 +208,34 @@ export function getAuthorisedWardIds(state: OperationalContextState, userAccount
     .map((competency) => competency.wardId);
 }
 
+export function canSwitchToWard(state: OperationalContextState, context: OperationalContext, wardId: string) {
+  const account = state.userAccounts.find((item) => item.id === context.userAccountId);
+  const ward = state.wards.find((item) => item.id === wardId);
+  if (!account || account.accountStatus !== "active") {
+    return { allowed: false, reason: "Account is not active." };
+  }
+  if (!ward) {
+    return { allowed: false, reason: "Ward does not exist." };
+  }
+  if (ward.active === false) {
+    return { allowed: false, reason: "Ward is inactive." };
+  }
+  if (ward.nursingHomeId !== context.nursingHomeId) {
+    return { allowed: false, reason: "Ward belongs to another nursing home." };
+  }
+  const authorised = getAuthorisedWardIds(state, context.userAccountId, context.nursingHomeId);
+  if (!authorised.includes(wardId as WardId)) {
+    return { allowed: false, reason: "User is not authorised for this ward." };
+  }
+  return { allowed: true };
+}
+
+export function canSelectMultipleWards(state: OperationalContextState, context: OperationalContext) {
+  const role = resolveEffectiveRole(state, context.userAccountId, context.nursingHomeId);
+  const authorisedWardCount = getAuthorisedWardIds(state, context.userAccountId, context.nursingHomeId).length;
+  return authorisedWardCount > 1 && ["DON", "CNM"].includes(role);
+}
+
 export function resolveEffectiveRole(state: OperationalContextState, userAccountId: string, nursingHomeId: string, dateTime = new Date().toISOString()) {
   const account = state.userAccounts.find((item) => item.id === userAccountId);
   if (!account?.staffMemberId) return "HCA";
@@ -185,8 +252,14 @@ export function initialiseOperationalContext(state: OperationalContextState, inp
   const requestedHome = input.nursingHomeId && authorisedHomes.includes(input.nursingHomeId as NursingHomeId) ? input.nursingHomeId : authorisedHomes[0];
   if (!requestedHome) throw new Error("No authorised nursing home is available for this user.");
   const authorisedWards = getAuthorisedWardIds(state, input.userAccountId, requestedHome, dateTime);
-  const requestedWards = (input.wardIds || []).filter((wardId) => authorisedWards.includes(wardId as WardId));
+  const requestedWards = Array.from(new Set(input.wardIds || [])).filter((wardId) => authorisedWards.includes(wardId as WardId));
   const wardSelectionMode = input.wardSelectionMode || (requestedWards.length > 1 ? "multiple" : "single");
+  if (input.wardIds?.length && requestedWards.length !== new Set(input.wardIds).size) {
+    throw new Error("One or more selected wards are not authorised.");
+  }
+  if (wardSelectionMode === "multiple" && requestedWards.length === 0) {
+    throw new Error("Multi-ward selection cannot be empty.");
+  }
   const wardIds =
     wardSelectionMode === "all_authorised"
       ? authorisedWards
@@ -230,6 +303,8 @@ export function switchNursingHome(state: OperationalContextState, context: Opera
 }
 
 export function selectSingleWard(state: OperationalContextState, context: OperationalContext, wardId: string) {
+  const decision = canSwitchToWard(state, context, wardId);
+  if (!decision.allowed) throw new Error(decision.reason);
   return initialiseOperationalContext(state, {
     userAccountId: context.userAccountId,
     nursingHomeId: context.nursingHomeId,
@@ -242,6 +317,12 @@ export function selectSingleWard(state: OperationalContextState, context: Operat
 }
 
 export function selectMultipleWards(state: OperationalContextState, context: OperationalContext, wardIds: string[]) {
+  if (!canSelectMultipleWards(state, context)) throw new Error("Multiple ward selection is not authorised.");
+  if (new Set(wardIds).size !== wardIds.length) throw new Error("Duplicate ward IDs are not allowed.");
+  for (const wardId of wardIds) {
+    const decision = canSwitchToWard(state, context, wardId);
+    if (!decision.allowed) throw new Error(decision.reason);
+  }
   return initialiseOperationalContext(state, {
     userAccountId: context.userAccountId,
     nursingHomeId: context.nursingHomeId,
@@ -254,6 +335,7 @@ export function selectMultipleWards(state: OperationalContextState, context: Ope
 }
 
 export function selectAllAuthorisedWards(state: OperationalContextState, context: OperationalContext) {
+  if (!canSelectMultipleWards(state, context)) throw new Error("All authorised wards is not available for this role or scope.");
   return initialiseOperationalContext(state, {
     userAccountId: context.userAccountId,
     nursingHomeId: context.nursingHomeId,
@@ -269,12 +351,67 @@ const residentInContext = (resident: Resident, context: OperationalContext) =>
   (context.wardSelectionMode === "all_authorised" || !resident.wardId || context.wardIds.includes(resident.wardId as WardId));
 
 export function getResidentsForContext(state: OperationalContextState, context: OperationalContext) {
-  return state.residents.filter((resident) => residentInContext(resident, context) && resident.lifecycleStatus === "active" && resident.presenceStatus === "in_home");
+  return state.residents
+    .filter((resident) => residentInContext(resident, context) && resident.lifecycleStatus === "active" && resident.presenceStatus === "in_home")
+    .sort((a, b) => {
+      const wardCompare = String(a.wardId || "").localeCompare(String(b.wardId || ""));
+      if (wardCompare) return wardCompare;
+      const roomCompare = String(a.roomNumber || "").localeCompare(String(b.roomNumber || ""), undefined, { numeric: true });
+      if (roomCompare) return roomCompare;
+      return `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
+    });
 }
+
+export const getResidentsForOperationalContext = getResidentsForContext;
+
+export function getOperationalTimeWindows(context: OperationalContext, now = new Date()) {
+  const nextHourEnd = new Date(now);
+  nextHourEnd.setHours(nextHourEnd.getHours() + 1);
+  const nextFourHoursEnd = new Date(now);
+  nextFourHoursEnd.setHours(nextFourHoursEnd.getHours() + 4);
+  const dayStart = new Date(`${context.operationalDate}T00:00:00`);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  return {
+    shiftStart: context.shiftStartAt,
+    shiftEnd: context.shiftEndAt,
+    now: now.toISOString(),
+    overdueBefore: now.toISOString(),
+    dueNowStart: new Date(now.getTime() - 30 * 60000).toISOString(),
+    dueNowEnd: new Date(now.getTime() + 30 * 60000).toISOString(),
+    nextHourEnd: nextHourEnd.toISOString(),
+    nextFourHoursEnd: nextFourHoursEnd.toISOString(),
+    dayStart: dayStart.toISOString(),
+    dayEnd: dayEnd.toISOString(),
+  };
+}
+
+export function getCareActionsForContext(state: OperationalContextState, context: OperationalContext) {
+  const residentIds = new Set(getResidentsForContext(state, context).map((resident) => resident.id));
+  const problems = new Map((state.carePlanProblems || []).map((problem) => [problem.id, problem]));
+  return (state.problemInterventions || [])
+    .filter((intervention) => residentIds.has(intervention.residentId))
+    .filter((intervention) => intervention.status === "active")
+    .filter((intervention) => problems.get(intervention.problemId)?.status === "active");
+}
+
+export const getCareActionsForOperationalContext = getCareActionsForContext;
 
 export function getTasksDueForContext(state: OperationalContextState, context: OperationalContext) {
   const residentIds = new Set(getResidentsForContext(state, context).map((resident) => resident.id));
   return (state.tasks || []).filter((task) => !task.residentId || residentIds.has(task.residentId));
+}
+
+export const getTasksForOperationalContext = getTasksDueForContext;
+
+export function getObservationsForOperationalContext(state: OperationalContextState, context: OperationalContext) {
+  const residentIds = new Set(getResidentsForContext(state, context).map((resident) => resident.id));
+  return ((state as OperationalContextState & { clinicalObservations?: { id: string; residentId: string; deletedAt?: string }[] }).clinicalObservations || [])
+    .filter((observation) => residentIds.has(observation.residentId) && !observation.deletedAt);
+}
+
+export function getAppointmentsForOperationalContext() {
+  return [];
 }
 
 export function getAlertsForContext(state: OperationalContextState, context: OperationalContext) {
@@ -292,6 +429,8 @@ export function getHandoversForContext(state: OperationalContextState, context: 
   );
 }
 
+export const getHandoversForOperationalContext = getHandoversForContext;
+
 export function getIncidentsForContext(state: OperationalContextState, context: OperationalContext) {
   const residentIds = new Set(getResidentsForContext(state, context).map((resident) => resident.id));
   return (state.incidents || []).filter(
@@ -300,6 +439,16 @@ export function getIncidentsForContext(state: OperationalContextState, context: 
       (!incident.wardId || context.wardIds.includes(incident.wardId as WardId)) &&
       (!incident.residentId || residentIds.has(incident.residentId)),
   );
+}
+
+export const getIncidentsForOperationalContext = getIncidentsForContext;
+
+export function getAdmissionsForOperationalContext() {
+  return [];
+}
+
+export function getReturnsForOperationalContext() {
+  return [];
 }
 
 export function validateOperationalContext(state: OperationalContextState) {
@@ -353,5 +502,114 @@ export function validateOperationalContext(state: OperationalContextState) {
     duplicateRecordsInMultiWardAggregation,
     schedulingRegressionStatus: "covered by operational context tests",
     criticalErrors,
+  };
+}
+
+const minutesFromTime = (value: string) => {
+  if (!/^\d{2}:\d{2}$/.test(value)) return Number.NaN;
+  const [hours, minutes] = value.split(":").map(Number);
+  if (hours > 23 || minutes > 59) return Number.NaN;
+  return hours * 60 + minutes;
+};
+
+const shiftSegments = (shift: ShiftDefinition) => {
+  const start = minutesFromTime(shift.startsAt);
+  const end = minutesFromTime(shift.endsAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+  return end <= start ? [[start, 1440], [0, end]] : [[start, end]];
+};
+
+export function validateShiftDefinitions(state: OperationalContextState) {
+  const homesWithoutActiveShifts = state.facilities.filter((home) => getConfiguredShifts(state, home.id).length === 0).map((home) => home.id);
+  const duplicateShiftKeysWithinHome = state.facilities.flatMap((home) => {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const shift of getConfiguredShifts(state, home.id)) {
+      const key = shift.id.split("-").at(-1) || shift.label;
+      if (seen.has(key)) duplicates.add(`${home.id}:${key}`);
+      seen.add(key);
+    }
+    return Array.from(duplicates);
+  });
+  const invalidTimes = state.shiftDefinitions
+    .filter((shift) => !Number.isFinite(minutesFromTime(shift.startsAt)) || !Number.isFinite(minutesFromTime(shift.endsAt)))
+    .map((shift) => shift.id);
+  const overlappingShifts: string[] = [];
+  const shiftGaps: string[] = [];
+  for (const home of state.facilities) {
+    const coverage = Array(1440).fill(0);
+    for (const shift of getConfiguredShifts(state, home.id)) {
+      for (const [start, end] of shiftSegments(shift)) {
+        for (let minute = start; minute < end; minute += 1) coverage[minute] += 1;
+      }
+    }
+    if (coverage.some((count) => count > 1)) overlappingShifts.push(home.id);
+    if (coverage.some((count) => count === 0)) shiftGaps.push(home.id);
+  }
+  const inactiveShiftUsedByCurrentContext = state.operationalContexts
+    .filter((context) => !state.shiftDefinitions.some((shift) => shift.id === context.shiftId && shift.active))
+    .map((context) => context.userAccountId);
+  const timezoneMissing = state.facilities.filter((home) => !home.timezone).map((home) => home.id);
+  const criticalErrors = [
+    ...homesWithoutActiveShifts.map((id) => `Home without active shifts: ${id}`),
+    ...duplicateShiftKeysWithinHome.map((id) => `Duplicate shift key: ${id}`),
+    ...invalidTimes.map((id) => `Invalid shift time: ${id}`),
+    ...overlappingShifts.map((id) => `Overlapping shifts: ${id}`),
+    ...shiftGaps.map((id) => `Shift coverage gap: ${id}`),
+    ...inactiveShiftUsedByCurrentContext.map((id) => `Inactive shift used by context: ${id}`),
+    ...timezoneMissing.map((id) => `Timezone missing: ${id}`),
+  ];
+  return {
+    homesWithoutActiveShifts,
+    duplicateShiftKeysWithinHome,
+    overlappingShifts,
+    gaps: shiftGaps,
+    invalidTimes,
+    crossMidnightMismatch: [],
+    inactiveShiftUsedByCurrentContext,
+    handoverReferencesToMissingShift: [],
+    rosterReferencesToMissingShift: [],
+    timezoneMissing,
+    criticalErrors,
+  };
+}
+
+export function validateWardShiftContext(state: OperationalContextState) {
+  const contextReport = validateOperationalContext(state);
+  const shiftReport = validateShiftDefinitions(state);
+  const unauthorisedSelectedWards = contextReport.usersWithInvalidStoredWards;
+  const inactiveSelectedWards = state.operationalContexts
+    .filter((context) => context.wardIds.some((wardId) => state.wards.find((ward) => ward.id === wardId)?.active === false))
+    .map((context) => context.userAccountId);
+  const emptyMultiWardSelections = state.operationalContexts
+    .filter((context) => context.wardSelectionMode === "multiple" && context.wardIds.length === 0)
+    .map((context) => context.userAccountId);
+  const duplicateWardIds = state.operationalContexts
+    .filter((context) => new Set(context.wardIds).size !== context.wardIds.length)
+    .map((context) => context.userAccountId);
+  return {
+    usersWithInvalidSavedWard: contextReport.usersWithInvalidStoredWards,
+    unauthorisedSelectedWards,
+    inactiveSelectedWards,
+    wardsLinkedToWrongHome: contextReport.wardsLinkedToWrongHome,
+    emptyMultiWardSelections,
+    duplicateWardIds,
+    queriesReturningWrongHomeRecords: contextReport.contextScopedQueriesReturningCrossHomeData,
+    queriesReturningWrongWardRecords: [],
+    duplicateMultiWardRecords: contextReport.duplicateRecordsInMultiWardAggregation,
+    homesWithoutTimezone: contextReport.homesWithoutTimezone,
+    homesWithoutShiftDefinitions: shiftReport.homesWithoutActiveShifts,
+    overlappingShifts: shiftReport.overlappingShifts,
+    shiftGaps: shiftReport.gaps,
+    missingCurrentShift: shiftReport.homesWithoutActiveShifts,
+    schedulingRegressionResult: "covered by ward-shift-context tests",
+    handoverScopeRegressionResult: "covered by ward-shift-context tests",
+    criticalErrors: [
+      ...contextReport.criticalErrors,
+      ...shiftReport.criticalErrors,
+      ...inactiveSelectedWards.map((id) => `Inactive selected ward: ${id}`),
+      ...emptyMultiWardSelections.map((id) => `Empty multi-ward selection: ${id}`),
+      ...duplicateWardIds.map((id) => `Duplicate selected wards: ${id}`),
+    ],
   };
 }

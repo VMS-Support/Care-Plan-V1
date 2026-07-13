@@ -56,3 +56,20 @@
 | REQ-CONTEXT-008 | Context changes do not create clinical audit entries. | Home-switching docs and no filter/page audit test |
 | REQ-CONTEXT-009 | Denied or overridden context access may create security audit events. | Context permission docs |
 | REQ-SCHEDULE-CONTEXT-001 | Upcoming Care Interventions and Next 4 Hours respect ward context without changing approved behaviour. | Operational context regression tests |
+| REQ-WARD-SWITCH-001 | Switching ward refreshes all current operational data. | `npm run test:ward-shift-context` |
+| REQ-WARD-SWITCH-002 | Old-ward data must not remain visible after a switch. | Single ward and wrong-ward tests |
+| REQ-WARD-SWITCH-003 | Ward switching is permission-aware. | Unauthorised ward test |
+| REQ-WARD-SWITCH-004 | Ward switching does not permanently assign residents to the user. | Ward switcher docs and tests |
+| REQ-MULTIWARD-001 | Authorised users can select multiple wards. | CNM and night nurse tests |
+| REQ-MULTIWARD-002 | Multi-ward aggregation must not duplicate records. | Multi-ward deduplication test |
+| REQ-MULTIWARD-003 | All Wards means all authorised wards only. | DON all wards test |
+| REQ-MULTIWARD-004 | Ward labels are visible when multi-ward context creates ambiguity. | Switcher component and docs |
+| REQ-SHIFT-001 | Every nursing home has central shift definitions. | `npm run validate:shift-definitions` |
+| REQ-SHIFT-002 | Shift labels are preserved, including Late Shift where established. | Shift resolution tests |
+| REQ-SHIFT-003 | Night shifts crossing midnight are resolved correctly. | Night shift test |
+| REQ-SHIFT-004 | Home timezone drives shift boundaries. | Shift definition validation |
+| REQ-SHIFT-005 | Operational date for cross-midnight shift uses the documented policy. | Night shift boundaries docs |
+| REQ-SHIFT-006 | Manual shift view does not alter roster or work records. | Manual shift view test |
+| REQ-SCHEDULE-WARD-001 | Upcoming Care Interventions respects ward selection without changing approved behaviour. | Upcoming Care Interventions ward test |
+| REQ-SCHEDULE-WARD-002 | Next 4 Hours respects ward selection and central time windows. | Next 4 Hours ward test |
+| REQ-HANDOVER-WARD-001 | Handover follows selected ward(s) and shift. | Handover ward switch test |

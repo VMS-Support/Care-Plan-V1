@@ -5,7 +5,6 @@ import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/ale
 import { deriveStatus } from "@/lib/care/assessments";
 import { complianceForResident } from "@/lib/care/vitals";
 import {
-  endOfCurrentShift,
   getUpcomingScheduledInterventions,
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
@@ -70,6 +69,13 @@ function currentHandoverShift(now: Date) {
   if (hour < 14) return "morning";
   if (hour < 22) return "afternoon";
   return "night";
+}
+
+function handoverShiftFromContext(label: string, now: Date) {
+  if (label.toLowerCase().includes("day")) return "morning";
+  if (label.toLowerCase().includes("late") || label.toLowerCase().includes("evening")) return "afternoon";
+  if (label.toLowerCase().includes("night")) return "night";
+  return currentHandoverShift(now);
 }
 
 function interventionStatusClass(status: ScheduledInterventionStatus) {
@@ -148,6 +154,9 @@ export function OperationsHub({
     currentRole,
     currentUser,
     currentUserName,
+    operationalContext,
+    getResidentsForContext,
+    getOperationalTimeWindows,
     markHandoverRead,
     acknowledgeHandover,
   } = useCare();
@@ -166,7 +175,11 @@ export function OperationsHub({
     return () => window.clearInterval(timer);
   }, []);
 
-  const shift = deriveShift(now);
+  const shift = operationalContext.shiftLabel || deriveShift(now);
+  const operationalWindows = useMemo(
+    () => getOperationalTimeWindows(operationalContext, now),
+    [getOperationalTimeWindows, now, operationalContext],
+  );
 
   const myWings = useMemo(
     () =>
@@ -177,14 +190,15 @@ export function OperationsHub({
   );
 
   const baseResidents = useMemo(() => {
-    if (isManagement) return residents;
-    return residents.filter(
+    const contextResidents = getResidentsForContext();
+    if (isManagement) return contextResidents;
+    return contextResidents.filter(
       (resident) =>
         !resident.wingId ||
         myWings.some((wing) => wing.id === resident.wingId) ||
         staffNameMatches(resident.keyWorkers?.namedNurse, currentUserName),
     );
-  }, [currentUserName, isManagement, myWings, residents]);
+  }, [currentUserName, getResidentsForContext, isManagement, myWings]);
 
   const rooms = useMemo(
     () => [...new Set(baseResidents.map((r) => r.roomNumber))].sort((a, b) => a.localeCompare(b)),
@@ -270,13 +284,13 @@ export function OperationsHub({
       problemInterventionLogs,
       carePlanProblems,
       now,
-      { residentIds: filteredResidentIds, currentUser, until: endOfCurrentShift(now) },
+      { residentIds: filteredResidentIds, currentUser, until: new Date(operationalContext.shiftEndAt) },
     );
-  }, [carePlanProblems, currentUser, filteredResidentIds, now, problemInterventionLogs, problemInterventions]);
+  }, [carePlanProblems, currentUser, filteredResidentIds, now, operationalContext.shiftEndAt, problemInterventionLogs, problemInterventions]);
 
   const handoverRows = useMemo(() => {
-    const today = now.toISOString().slice(0, 10);
-    const currentShift = currentHandoverShift(now);
+    const today = operationalContext.operationalDate;
+    const currentShift = handoverShiftFromContext(operationalContext.shiftLabel, now);
     return handovers.filter(
       (handover) =>
         filteredResidentIds.has(handover.residentId) &&
@@ -285,7 +299,7 @@ export function OperationsHub({
         !["archived", "completed", "closed"].includes(handover.status || "active") &&
         handover.recordStatus !== "deleted",
     );
-  }, [filteredResidentIds, handovers, now]);
+  }, [filteredResidentIds, handovers, now, operationalContext.operationalDate, operationalContext.shiftLabel]);
 
   const handoversNeedingAttention = useMemo(
     () =>
@@ -311,7 +325,7 @@ export function OperationsHub({
   );
 
   const next4HoursItems = useMemo(() => {
-    const cutoff = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+    const cutoff = new Date(operationalWindows.nextFourHoursEnd);
     type N4H = {
       id: string;
       timeLabel: string;
@@ -360,7 +374,7 @@ export function OperationsHub({
       });
     }
     return items.sort((a, b) => a.sortKey - b.sortKey);
-  }, [dueInterventions, dueTasks, now, residentById]);
+  }, [dueInterventions, dueTasks, now, operationalWindows.nextFourHoursEnd, residentById]);
 
   const INTV_DISPLAY_LIMIT = 8;
   const INTV_GROUPS: { status: ScheduledInterventionStatus; label: string; cls: string }[] = [

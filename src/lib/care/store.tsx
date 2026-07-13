@@ -179,14 +179,23 @@ import {
 } from "./auditFramework";
 import {
   getAlertsForContext,
+  getCareActionsForContext,
   getConfiguredShifts,
   getCurrentShift,
   getHandoversForContext,
   getIncidentsForContext,
+  getNextShift,
+  getObservationsForOperationalContext,
+  getOperationalTimeWindows,
+  getPreviousShift,
   getResidentsForContext,
   getShiftById,
   getShiftDateRange,
   getTasksDueForContext,
+  validateShiftDefinitions,
+  validateWardShiftContext,
+  canSwitchToWard,
+  canSelectMultipleWards,
   initialiseOperationalContext,
   migrateOperationalContext,
   selectAllAuthorisedWards,
@@ -2212,12 +2221,22 @@ interface CareCtx extends Store {
   selectSingleWard: (wardId: string) => void;
   selectMultipleWards: (wardIds: string[]) => void;
   selectAllAuthorisedWards: () => void;
+  setOperationalShift: (shiftId: string) => void;
   getResidentsForContext: () => Resident[];
   getTasksDueForContext: () => Task[];
   getAlertsForContext: () => ClinicalAlert[];
+  getCareActionsForContext: () => ProblemIntervention[];
+  getObservationsForOperationalContext: () => ClinicalObservation[];
   getHandoversForContext: () => HandoverNote[];
   getIncidentsForContext: () => Incident[];
+  getOperationalTimeWindows: typeof getOperationalTimeWindows;
+  getNextShift: (shiftId?: string, operationalDate?: string) => ReturnType<typeof getNextShift>;
+  getPreviousShift: (shiftId?: string, operationalDate?: string) => ReturnType<typeof getPreviousShift>;
+  canSwitchToWard: (wardId: string) => ReturnType<typeof canSwitchToWard>;
+  canSelectMultipleWards: () => boolean;
   validateOperationalContext: () => ReturnType<typeof validateOperationalContext>;
+  validateShiftDefinitions: () => ReturnType<typeof validateShiftDefinitions>;
+  validateWardShiftContext: () => ReturnType<typeof validateWardShiftContext>;
   // Phase 5 charts
   addObservation: (o: Omit<Observation, "id">) => Observation;
   addWeight: (w: Omit<WeightRecord, "id">) => WeightRecord;
@@ -2660,6 +2679,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
       getCurrentShift: (nursingHomeId, dateTime) => getCurrentShift(store, nursingHomeId || activeFacilityId, dateTime),
       getShiftById: (shiftId) => getShiftById(store, shiftId),
       getShiftDateRange,
+      getOperationalTimeWindows,
+      getNextShift: (shiftId, operationalDate) =>
+        getNextShift(store, operationalContext.nursingHomeId, shiftId || operationalContext.shiftId, operationalDate || operationalContext.operationalDate),
+      getPreviousShift: (shiftId, operationalDate) =>
+        getPreviousShift(store, operationalContext.nursingHomeId, shiftId || operationalContext.shiftId, operationalDate || operationalContext.operationalDate),
+      canSwitchToWard: (wardId) => canSwitchToWard(store, operationalContext, wardId),
+      canSelectMultipleWards: () => canSelectMultipleWards(store, operationalContext),
       switchNursingHome: (nursingHomeId) => {
         const nextContext = switchNursingHome(store, operationalContext, nursingHomeId);
         setActiveFacilityId(nursingHomeId);
@@ -2701,12 +2727,34 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ],
         }));
       },
+      setOperationalShift: (shiftId) => {
+        const nextContext = initialiseOperationalContext(store, {
+          userAccountId: operationalContext.userAccountId,
+          nursingHomeId: operationalContext.nursingHomeId,
+          wardIds: operationalContext.wardIds,
+          wardSelectionMode: operationalContext.wardSelectionMode,
+          shiftId,
+          operationalDate: operationalContext.operationalDate,
+          source: "manual_override",
+        });
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
       getResidentsForContext: () => getResidentsForContext(store, operationalContext),
       getTasksDueForContext: () => getTasksDueForContext(store, operationalContext),
       getAlertsForContext: () => getAlertsForContext(store, operationalContext),
+      getCareActionsForContext: () => getCareActionsForContext(store, operationalContext),
+      getObservationsForOperationalContext: () => getObservationsForOperationalContext(store, operationalContext) as ClinicalObservation[],
       getHandoversForContext: () => getHandoversForContext(store, operationalContext) as HandoverNote[],
       getIncidentsForContext: () => getIncidentsForContext(store, operationalContext) as Incident[],
       validateOperationalContext: () => validateOperationalContext(store),
+      validateShiftDefinitions: () => validateShiftDefinitions(store),
+      validateWardShiftContext: () => validateWardShiftContext(store),
       updateUser: (id, patch) =>
         setStore((s) => ({
           ...s,
