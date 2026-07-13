@@ -5,6 +5,7 @@ export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
 import type {
   AbsenceEpisodeId,
   AdmissionId,
+  AuditRecordId,
   BedAssignmentId,
   BedId,
   EmploymentRecordId,
@@ -12,12 +13,15 @@ import type {
   HomeAssignmentId,
   PermissionGrantId,
   ProfessionalRegistrationId,
+  ResidentId,
   RoleAssignmentId,
   RoleTemplateId,
   RosterAssignmentId,
   NursingHomeId,
+  OperationalContextId,
   RoomId,
   StaffMemberId,
+  ShiftId,
   UserAccountId,
   WardId,
   WardCompetencyId,
@@ -222,6 +226,120 @@ export interface RoleTemplate {
   updatedAt: string;
 }
 
+export type AuditActorType = "user" | "system" | "integration" | "migration" | "anonymous";
+export type AuditAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "inactivate"
+  | "reactivate"
+  | "archive"
+  | "restore"
+  | "complete"
+  | "cancel"
+  | "defer"
+  | "void"
+  | "correct"
+  | "acknowledge"
+  | "resolve"
+  | "dismiss"
+  | "assign"
+  | "unassign"
+  | "move"
+  | "admit"
+  | "transfer"
+  | "return"
+  | "discharge"
+  | "mark_deceased"
+  | "grant_permission"
+  | "deny_permission"
+  | "login"
+  | "logout"
+  | "access_denied"
+  | "export"
+  | "import"
+  | "migrate";
+export type AuditSource =
+  | "user_interface"
+  | "api"
+  | "integration"
+  | "migration"
+  | "background_job"
+  | "rule_engine"
+  | "system";
+export type AuditDataClassification = "standard" | "sensitive" | "highly_sensitive";
+
+export interface AuditFieldChange {
+  field: string;
+  displayName?: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  dataClassification?: AuditDataClassification;
+}
+
+export interface AuditRecord {
+  id: AuditRecordId;
+  occurredAt: string;
+  recordedAt: string;
+  effectiveAt?: string;
+  actorType: AuditActorType;
+  actorUserAccountId?: UserAccountId;
+  actorStaffMemberId?: StaffMemberId;
+  actorDisplayName?: string;
+  action: AuditAction;
+  entityType: string;
+  entityId: string;
+  parentEntityType?: string;
+  parentEntityId?: string;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  roomId?: RoomId;
+  bedId?: BedId;
+  residentId?: ResidentId;
+  summary: string;
+  changes?: AuditFieldChange[];
+  reasonCode?: string;
+  reasonText?: string;
+  source: AuditSource;
+  requestId?: string;
+  correlationId?: string;
+  sessionId?: string;
+  metadata?: Record<string, unknown>;
+  schemaVersion: number;
+}
+
+export interface ShiftDefinition {
+  id: ShiftId;
+  nursingHomeId: NursingHomeId;
+  label: "Day Shift" | "Late Shift" | "Night Shift" | string;
+  startsAt: string;
+  endsAt: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export type WardSelectionMode = "single" | "multiple" | "all_authorised";
+export type ContextSource = "default" | "stored" | "manual_override" | "system_repair";
+
+export interface OperationalContext {
+  id: OperationalContextId;
+  userAccountId: UserAccountId;
+  staffMemberId?: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  wardSelectionMode: WardSelectionMode;
+  wardIds: WardId[];
+  shiftId: ShiftId;
+  shiftLabel: string;
+  shiftStartAt: string;
+  shiftEndAt: string;
+  operationalDate: string;
+  timezone: string;
+  effectiveRoleKey: string;
+  source: ContextSource;
+  updatedAt: string;
+}
+
 export interface Enterprise {
   id: EnterpriseId;
   name: string;
@@ -236,6 +354,7 @@ export interface Facility {
   enterpriseId?: EnterpriseId;
   name: string;
   status: "active" | "inactive";
+  timezone?: string;
   createdAt: string;
   updatedAt?: string;
   createdBy: string;
@@ -1206,6 +1325,7 @@ export interface AuditLog {
   role?: Role;
   action: string;
   entity: string;
+  entityType?: string;
   timestamp: string;
   before?: string;
   after?: string;

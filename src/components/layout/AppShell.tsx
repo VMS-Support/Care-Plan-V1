@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { RoleSwitcher } from "@/components/care/RoleSwitcher";
 import { UserMenu } from "@/components/care/UserMenu";
 import { GlobalFilter } from "@/components/care/GlobalFilter";
+import { OperationalContextSwitcher } from "@/components/care/OperationalContextSwitcher";
 
 type CapabilityCheck = (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
 type NavItem = { to: any; label: string; icon: any; exact?: boolean; capability?: string; visible?: (canAccess: CapabilityCheck) => boolean };
@@ -166,6 +167,7 @@ function TopBar() {
         </Badge>
         <div className="flex-1" />
         <GlobalFilter />
+        <OperationalContextSwitcher />
         <div className="relative w-full max-w-[200px] hidden xl:block">
           <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
           <Input placeholder="Search…" className="pl-8 h-9" />

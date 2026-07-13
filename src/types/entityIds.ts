@@ -19,6 +19,8 @@ export type WardCompetencyId = Brand<string, "WardCompetencyId">;
 export type RosterAssignmentId = Brand<string, "RosterAssignmentId">;
 export type PermissionGrantId = Brand<string, "PermissionGrantId">;
 export type RoleTemplateId = Brand<string, "RoleTemplateId">;
+export type AuditRecordId = Brand<string, "AuditRecordId">;
+export type OperationalContextId = Brand<string, "OperationalContextId">;
 export type ShiftId = Brand<string, "ShiftId">;
 export type AssessmentId = Brand<string, "AssessmentId">;
 export type ObservationId = Brand<string, "ObservationId">;
@@ -52,6 +54,8 @@ export type EntityIdPrefix =
   | "roster-assignment"
   | "permission-grant"
   | "role-template"
+  | "audit-record"
+  | "operational-context"
   | "shift"
   | "assessment"
   | "observation"
@@ -102,6 +106,9 @@ export const asWardCompetencyId = (value: string) => value as WardCompetencyId;
 export const asRosterAssignmentId = (value: string) => value as RosterAssignmentId;
 export const asPermissionGrantId = (value: string) => value as PermissionGrantId;
 export const asRoleTemplateId = (value: string) => value as RoleTemplateId;
+export const asAuditRecordId = (value: string) => value as AuditRecordId;
+export const asOperationalContextId = (value: string) => value as OperationalContextId;
+export const asShiftId = (value: string) => value as ShiftId;
 
 export const createEnterpriseId = () => createEntityId("enterprise") as EnterpriseId;
 export const createNursingHomeId = () => createEntityId("nursing-home") as NursingHomeId;
@@ -121,3 +128,6 @@ export const createWardCompetencyId = () => createEntityId("ward-competency") as
 export const createRosterAssignmentId = () => createEntityId("roster-assignment") as RosterAssignmentId;
 export const createPermissionGrantId = () => createEntityId("permission-grant") as PermissionGrantId;
 export const createRoleTemplateId = () => createEntityId("role-template") as RoleTemplateId;
+export const createAuditRecordId = () => createEntityId("audit-record") as AuditRecordId;
+export const createOperationalContextId = () => createEntityId("operational-context") as OperationalContextId;
+export const createShiftId = () => createEntityId("shift") as ShiftId;

@@ -1,0 +1,13 @@
+# Current Audit Inventory
+
+| Mechanism | Path | Model/type | Trigger | Actor | Target | Previous/new values | Scope | Reason support | Weakness | Migration risk |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Legacy session audit list | `src/lib/care/store.tsx` | `AuditLog` | Many store mutation methods call `logAudit()` | Display name and legacy role | Free-text `entity` ID | Optional `before` and `after` strings | Optional `facilityId` | Optional text | Not canonical, not field-level, not immutable outside local-store limits | Preserved and adapted into `AuditRecord` |
+| Audit Logs page | `src/routes/audit-logs.tsx` | `AuditLog[]` | Reads store audit list | Legacy user string | Legacy entity string | Displays legacy fields | Current home filter through store | Displays reason | Page does not prove audit completeness | Kept for compatibility |
+| Assessment audit trail | `src/lib/care/types.ts`, `src/lib/care/store.tsx` | `AssessmentAuditEntry[]` | Assessment create/edit/review/archive/delete paths | User ID, name, role | Assessment ID | Patch summaries in some paths | Resident/home indirect | Some high-impact actions require reason | Per-record trail separate from global log | Preserved |
+| Vital sign audit trail | `src/lib/care/types.ts`, `src/lib/care/store.tsx`, `src/routes/vitals.audit.tsx` | `VitalAuditEntry[]` | Vital create/edit/delete/restore | User ID, name, role | Vital ID | Reason and patch summary | Resident indirect | Delete/edit reason supported | Separate report surface | Preserved |
+| Clinical observation audit trail | `src/lib/care/types.ts`, `src/lib/care/store.tsx` | `ObservationAuditEntry[]` | Observation create/edit/delete | User ID, name, role | Observation ID | Patch summary/reason | Resident indirect | Correction/delete reason supported | Not yet canonical-only | Preserved |
+| Soft delete/archive fields | Multiple models in `src/lib/care/types.ts` | `deletedAt`, `deletedBy`, `deletedReason`, `archivedAt`, `recordStatus` | Soft delete/archive operations | Display name/role | Domain entity | State change mostly implicit | Entity scope | Often required | Scattered fields | Canonical audit added alongside |
+| System-derived alerts | `src/lib/care/vitals.ts`, `src/lib/care/store.tsx` | `ClinicalAlert` | Observation/vital-derived alert reconciliation | System implied | Alert ID | Source vital/observation link | Resident indirect | No human reason | Recalculation can be noisy if audited incorrectly | Tests ensure correlated persisted alert events only |
+
+No backend/database triggers were found. Persistence is frontend/local-store based, so atomic write-plus-audit is a foundation contract rather than a database guarantee in this phase.

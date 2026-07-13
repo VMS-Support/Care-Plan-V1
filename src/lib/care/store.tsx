@@ -92,6 +92,9 @@ import type {
   RosterAssignment,
   PermissionGrant,
   RoleTemplate,
+  AuditRecord,
+  ShiftDefinition,
+  OperationalContext,
 } from "./types";
 import {
   getBedById,
@@ -162,6 +165,36 @@ import {
   getUserAccountById,
   migrateStaffAccess,
 } from "./staffAccess";
+import {
+  getAuditForEntity,
+  getAuditForNursingHome,
+  getAuditForResident,
+  getAuditForUser,
+  getAuditForWard,
+  migrateLegacyAuditRecords,
+  recordAuditEvent,
+  searchAudit,
+  validateAuditFramework,
+  type AuditSearchFilters,
+} from "./auditFramework";
+import {
+  getAlertsForContext,
+  getConfiguredShifts,
+  getCurrentShift,
+  getHandoversForContext,
+  getIncidentsForContext,
+  getResidentsForContext,
+  getShiftById,
+  getShiftDateRange,
+  getTasksDueForContext,
+  initialiseOperationalContext,
+  migrateOperationalContext,
+  selectAllAuthorisedWards,
+  selectMultipleWards,
+  selectSingleWard,
+  switchNursingHome,
+  validateOperationalContext,
+} from "./operationalContext";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -1723,6 +1756,9 @@ function seedData() {
     rosterAssignments: [] as RosterAssignment[],
     permissionGrants: [] as PermissionGrant[],
     roleTemplates: [] as RoleTemplate[],
+    auditRecords: [] as AuditRecord[],
+    shiftDefinitions: [] as ShiftDefinition[],
+    operationalContexts: [] as OperationalContext[],
     users,
     residents,
     assessments,
@@ -1895,6 +1931,8 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
   normalized = migrateEntityHierarchy(normalized, defaultFacilityId).store;
   normalized = migrateResidentLifecycle(normalized);
   normalized = migrateStaffAccess(normalized);
+  normalized = migrateOperationalContext(normalized);
+  normalized.auditRecords = migrateLegacyAuditRecords(normalized);
 
   return normalized;
 }
@@ -1924,6 +1962,8 @@ function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string)
   scoped = migrateEntityHierarchy(scoped, activeFacilityId).store;
   scoped = migrateResidentLifecycle(scoped);
   scoped = migrateStaffAccess(scoped);
+  scoped = migrateOperationalContext(scoped);
+  scoped.auditRecords = migrateLegacyAuditRecords(scoped);
   return scoped;
 }
 
@@ -2155,6 +2195,29 @@ interface CareCtx extends Store {
   closeHandover: (id: string) => void;
   duplicateHandover: (id: string) => HandoverNote | undefined;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
+  recordAuditEvent: typeof recordAuditEvent;
+  getAuditForEntity: typeof getAuditForEntity;
+  getAuditForResident: typeof getAuditForResident;
+  getAuditForUser: typeof getAuditForUser;
+  getAuditForNursingHome: typeof getAuditForNursingHome;
+  getAuditForWard: typeof getAuditForWard;
+  searchAudit: (filters?: AuditSearchFilters) => ReturnType<typeof searchAudit>;
+  validateAuditFramework: () => ReturnType<typeof validateAuditFramework>;
+  operationalContext: OperationalContext;
+  getConfiguredShifts: (nursingHomeId?: string) => ShiftDefinition[];
+  getCurrentShift: (nursingHomeId?: string, dateTime?: string) => ReturnType<typeof getCurrentShift>;
+  getShiftById: typeof getShiftById;
+  getShiftDateRange: typeof getShiftDateRange;
+  switchNursingHome: (nursingHomeId: string) => void;
+  selectSingleWard: (wardId: string) => void;
+  selectMultipleWards: (wardIds: string[]) => void;
+  selectAllAuthorisedWards: () => void;
+  getResidentsForContext: () => Resident[];
+  getTasksDueForContext: () => Task[];
+  getAlertsForContext: () => ClinicalAlert[];
+  getHandoversForContext: () => HandoverNote[];
+  getIncidentsForContext: () => Incident[];
+  validateOperationalContext: () => ReturnType<typeof validateOperationalContext>;
   // Phase 5 charts
   addObservation: (o: Omit<Observation, "id">) => Observation;
   addWeight: (w: Omit<WeightRecord, "id">) => WeightRecord;
@@ -2382,6 +2445,26 @@ export function CareProvider({ children }: { children: ReactNode }) {
     [store.facilities, activeFacilityId],
   );
   const scopedStore = useMemo(() => filterByFacility(store, activeFacilityId), [store, activeFacilityId]);
+  const operationalContext = useMemo(() => {
+    try {
+      const stored = store.operationalContexts.find((context) => context.userAccountId === currentUser.id);
+      return initialiseOperationalContext(store, {
+        userAccountId: currentUser.id,
+        nursingHomeId: activeFacilityId,
+        wardIds: stored?.nursingHomeId === activeFacilityId ? stored.wardIds : undefined,
+        wardSelectionMode: stored?.nursingHomeId === activeFacilityId ? stored.wardSelectionMode : undefined,
+        shiftId: stored?.shiftId,
+        operationalDate: stored?.operationalDate,
+        source: stored ? "stored" : "default",
+      });
+    } catch {
+      return initialiseOperationalContext(store, {
+        userAccountId: currentUser.id,
+        nursingHomeId: userFacilityIds(currentUser)[0] || BALLYMORE_FACILITY_ID,
+        source: "system_repair",
+      });
+    }
+  }, [activeFacilityId, currentUser, store]);
 
   useEffect(() => {
     const currentStaff = getCurrentStaffMember(store, currentUser);
@@ -2398,28 +2481,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
       const currentStaff = getCurrentStaffMember(store, currentUser);
       const accessibleHomeIds = (currentStaff ? getStaffAccessibleHomes(store, currentStaff.id) : userFacilityIds(currentUser)) as string[];
       if (!accessibleHomeIds.includes(id)) return;
-      const from = activeFacilityId;
       setActiveFacilityIdState(id);
       setFilter({});
-      setStore((s) => ({
-        ...s,
-        auditLogs: [
-          {
-            id: uid(),
-            facilityId: id,
-            user: currentUserName,
-            role: currentRole,
-            action: "Switched nursing home",
-            entity: id,
-            before: from,
-            after: id,
-            timestamp: new Date().toISOString(),
-          },
-          ...s.auditLogs,
-        ].slice(0, 500),
-      }));
     },
-    [activeFacilityId, currentRole, currentUser, currentUserName, setStore, store.facilities, store.users],
+    [currentUser, store],
   );
 
   const setCurrentRole = useCallback(
@@ -2451,12 +2516,28 @@ export function CareProvider({ children }: { children: ReactNode }) {
   const logAudit = useCallback((a: Omit<AuditLog, "id" | "timestamp">) => {
     setStore((s) => ({
       ...s,
-      auditLogs: [{ ...a, id: uid(), timestamp: new Date().toISOString() }, ...s.auditLogs].slice(
-        0,
-        500,
-      ),
+      auditLogs: [{ ...a, id: uid(), timestamp: new Date().toISOString() }, ...s.auditLogs].slice(0, 500),
+      auditRecords: [
+        recordAuditEvent({
+          actor: { user: currentUser },
+          action: a.action.toLowerCase().includes("delete")
+            ? "delete"
+            : a.action.toLowerCase().includes("create") || a.action.toLowerCase().includes("add")
+              ? "create"
+              : "update",
+          entityType: a.entityType || "legacy_record",
+          entityId: a.entity,
+          summary: a.action,
+          reasonText: a.reason,
+          scope: { nursingHomeId: a.facilityId || activeFacilityId },
+          changes: a.before || a.after
+            ? [{ field: "legacyValue", previousValue: a.before, newValue: a.after }]
+            : [{ field: "legacyAction", previousValue: undefined, newValue: a.action }],
+        }),
+        ...s.auditRecords,
+      ],
     }));
-  }, []);
+  }, [activeFacilityId, currentUser]);
 
   const filteredResidentIds = useMemo(() => {
     return scopedStore.residents
@@ -2566,6 +2647,66 @@ export function CareProvider({ children }: { children: ReactNode }) {
           capability,
           resource || { nursingHomeId: activeFacilityId },
         ),
+      recordAuditEvent,
+      getAuditForEntity: (entityType, entityId) => getAuditForEntity(scopedStore, entityType, entityId),
+      getAuditForResident: (residentId) => getAuditForResident(scopedStore, residentId),
+      getAuditForUser: (userAccountId) => getAuditForUser(scopedStore, userAccountId),
+      getAuditForNursingHome: (nursingHomeId) => getAuditForNursingHome(scopedStore, nursingHomeId),
+      getAuditForWard: (wardId) => getAuditForWard(scopedStore, wardId),
+      searchAudit: (filters) => searchAudit(scopedStore, filters),
+      validateAuditFramework: () => validateAuditFramework(store),
+      operationalContext,
+      getConfiguredShifts: (nursingHomeId) => getConfiguredShifts(store, nursingHomeId || activeFacilityId),
+      getCurrentShift: (nursingHomeId, dateTime) => getCurrentShift(store, nursingHomeId || activeFacilityId, dateTime),
+      getShiftById: (shiftId) => getShiftById(store, shiftId),
+      getShiftDateRange,
+      switchNursingHome: (nursingHomeId) => {
+        const nextContext = switchNursingHome(store, operationalContext, nursingHomeId);
+        setActiveFacilityId(nursingHomeId);
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
+      selectSingleWard: (wardId) => {
+        const nextContext = selectSingleWard(store, operationalContext, wardId);
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
+      selectMultipleWards: (wardIds) => {
+        const nextContext = selectMultipleWards(store, operationalContext, wardIds);
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
+      selectAllAuthorisedWards: () => {
+        const nextContext = selectAllAuthorisedWards(store, operationalContext);
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
+      getResidentsForContext: () => getResidentsForContext(store, operationalContext),
+      getTasksDueForContext: () => getTasksDueForContext(store, operationalContext),
+      getAlertsForContext: () => getAlertsForContext(store, operationalContext),
+      getHandoversForContext: () => getHandoversForContext(store, operationalContext) as HandoverNote[],
+      getIncidentsForContext: () => getIncidentsForContext(store, operationalContext) as Incident[],
+      validateOperationalContext: () => validateOperationalContext(store),
       updateUser: (id, patch) =>
         setStore((s) => ({
           ...s,
