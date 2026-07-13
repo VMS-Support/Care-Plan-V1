@@ -1,4 +1,12 @@
 import type { CarePlanProblem, ProblemIntervention, ProblemInterventionLog, UserProfile } from "./types";
+import type { OperationalContext } from "./types";
+import {
+  adaptCareActionToScheduledWork,
+  classifyDueTime,
+  defaultDueTimePolicy,
+  type Clock,
+  type DueTimeClassification,
+} from "./dueTime";
 
 export type ScheduledInterventionStatus =
   | "overdue"
@@ -15,6 +23,7 @@ export interface ScheduledIntervention {
   dueAt: Date | null;
   status: ScheduledInterventionStatus;
   completion?: ProblemInterventionLog;
+  dueTime?: DueTimeClassification;
 }
 
 export interface UpcomingScheduledInterventionScope {
@@ -23,6 +32,8 @@ export interface UpcomingScheduledInterventionScope {
   until?: Date;
   includeUpcoming?: boolean;
   roleAppropriateOnly?: boolean;
+  operationalContext?: OperationalContext;
+  clock?: Clock;
 }
 
 export function interventionFrequencyMinutes(frequency: ProblemIntervention["frequencyType"]) {
@@ -56,6 +67,7 @@ export function scheduledInterventions(
   logs: ProblemInterventionLog[],
   problems: CarePlanProblem[],
   now: Date,
+  operationalContext?: OperationalContext,
 ): ScheduledIntervention[] {
   const nowMs = now.getTime();
   const problemById = new Map(problems.map((problem) => [problem.id, problem]));
@@ -85,20 +97,34 @@ export function scheduledInterventions(
         : baseTimestamp;
       const dueAt = Number.isFinite(dueTimestamp) ? new Date(dueTimestamp) : null;
 
+      let dueTime: DueTimeClassification | undefined;
       let status: ScheduledInterventionStatus = "upcoming";
       if (["cancelled", "discontinued", "superseded"].includes(intervention.status)) {
         status = "cancelled";
       } else if (intervention.status === "completed") {
         status = "completed";
       } else if (dueAt) {
-        const minutesUntilDue = Math.floor((dueAt.getTime() - nowMs) / 60000);
-        if (minutesUntilDue < 0) status = "overdue";
-        else if (minutesUntilDue <= 30) status = "due_now";
-        else if (minutesUntilDue <= 60) status = "due_next_hour";
-        else if (dueAt.toDateString() === now.toDateString()) status = "due_today";
+        if (operationalContext) {
+          dueTime = classifyDueTime(
+            adaptCareActionToScheduledWork(intervention, dueAt, undefined, completion),
+            operationalContext,
+            defaultDueTimePolicy,
+            { now: () => now.toISOString() },
+          );
+          if (dueTime.primaryStatus === "overdue") status = "overdue";
+          else if (dueTime.primaryStatus === "due_now") status = "due_now";
+          else if (dueTime.primaryStatus === "next_hour") status = "due_next_hour";
+          else if (dueTime.isDueToday || dueTime.isDueThisShift) status = "due_today";
+        } else {
+          const minutesUntilDue = Math.floor((dueAt.getTime() - nowMs) / 60000);
+          if (minutesUntilDue < 0) status = "overdue";
+          else if (minutesUntilDue <= 30) status = "due_now";
+          else if (minutesUntilDue <= 60) status = "due_next_hour";
+          else if (dueAt.toDateString() === now.toDateString()) status = "due_today";
+        }
       }
 
-      return { intervention, problem: problemById.get(intervention.problemId), dueAt, status, completion };
+      return { intervention, problem: problemById.get(intervention.problemId), dueAt, status, completion, dueTime };
     })
     .sort((a, b) => {
       const rank: Record<ScheduledInterventionStatus, number> = {
@@ -124,7 +150,7 @@ export function getUpcomingScheduledInterventions(
   const currentUser = scope.currentUser;
   const until = scope.until ?? endOfCurrentShift(now);
 
-  return scheduledInterventions(interventions, logs, problems, now).filter((scheduled) => {
+  return scheduledInterventions(interventions, logs, problems, now, scope.operationalContext).filter((scheduled) => {
     const intervention = scheduled.intervention;
     if (!scheduled.dueAt) return false;
     if (["cancelled", "completed"].includes(scheduled.status)) return false;

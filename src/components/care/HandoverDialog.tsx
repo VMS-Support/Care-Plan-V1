@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,22 +18,45 @@ interface Props {
   defaultResidentId?: string;
 }
 
-const empty = (uid: string, residentId: string): HandoverNote => ({
-  id: "", residentId, date: new Date().toISOString().slice(0, 10),
-  shift: "morning", staff: uid, summary: "", outstandingActions: "",
+const shiftFromLabel = (label: string): HandoverNote["shift"] => {
+  if (label.toLowerCase().includes("night")) return "night";
+  if (label.toLowerCase().includes("late") || label.toLowerCase().includes("evening")) return "afternoon";
+  return "morning";
+};
+
+const empty = (uid: string, residentId: string, context?: ReturnType<typeof useCare>["operationalContext"]): HandoverNote => ({
+  id: "", residentId, date: context?.operationalDate || new Date().toISOString().slice(0, 10),
+  shift: context ? shiftFromLabel(context.shiftLabel) : "morning", staff: uid, summary: "", outstandingActions: "",
+  nursingHomeId: context?.nursingHomeId,
+  wardId: context?.wardIds[0],
+  sourceShiftId: context?.shiftId,
+  operationalDate: context?.operationalDate,
   priority: "medium", status: "open", recordStatus: "active",
 });
 
 export function HandoverDialog({ open, onOpenChange, mode, record, defaultResidentId }: Props) {
-  const { residents, addHandover, updateHandover, currentUserName } = useCare();
-  const [form, setForm] = useState<HandoverNote>(empty(currentUserName, defaultResidentId || residents[0]?.id || ""));
+  const { addHandover, updateHandover, currentUserName, operationalContext, getResidentsForContext } = useCare();
+  const wardKey = operationalContext.wardIds.join("|");
+  const residents = useMemo(() => getResidentsForContext(), [getResidentsForContext, operationalContext.nursingHomeId, wardKey]);
+  const residentFallbackId = defaultResidentId || residents[0]?.id || "";
+  const [form, setForm] = useState<HandoverNote>(empty(currentUserName, residentFallbackId, operationalContext));
 
   useEffect(() => {
-    if (open) setForm(record ? { ...record } : empty(currentUserName, defaultResidentId || residents[0]?.id || ""));
-  }, [open, record, currentUserName, defaultResidentId, residents]);
+    if (open) setForm(record ? { ...record } : empty(currentUserName, residentFallbackId, operationalContext));
+  }, [
+    open,
+    record,
+    currentUserName,
+    residentFallbackId,
+    operationalContext.nursingHomeId,
+    operationalContext.shiftId,
+    operationalContext.operationalDate,
+    wardKey,
+  ]);
 
   const readOnly = mode === "view";
   function save() {
+    if (!form.residentId) { toast.error("Resident required"); return; }
     if (!form.summary.trim()) { toast.error("Summary required"); return; }
     if (mode === "create") { addHandover(form); toast.success("Handover created"); }
     else if (record) { updateHandover(record.id, form); toast.success("Handover updated"); }
@@ -50,8 +73,8 @@ export function HandoverDialog({ open, onOpenChange, mode, record, defaultReside
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1.5">
             <Label>Resident *</Label>
-            <Select value={form.residentId} onValueChange={v => setForm({ ...form, residentId: v })} disabled={readOnly}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={form.residentId || undefined} onValueChange={v => setForm({ ...form, residentId: v })} disabled={readOnly || residents.length === 0}>
+              <SelectTrigger><SelectValue placeholder={residents.length === 0 ? "No residents in current context" : "Select resident"} /></SelectTrigger>
               <SelectContent>{residents.map(r => <SelectItem key={r.id} value={r.id}>{r.firstName} {r.lastName} — Room {r.roomNumber}</SelectItem>)}</SelectContent>
             </Select>
           </div>

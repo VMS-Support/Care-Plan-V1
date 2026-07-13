@@ -73,3 +73,23 @@
 | REQ-SCHEDULE-WARD-001 | Upcoming Care Interventions respects ward selection without changing approved behaviour. | Upcoming Care Interventions ward test |
 | REQ-SCHEDULE-WARD-002 | Next 4 Hours respects ward selection and central time windows. | Next 4 Hours ward test |
 | REQ-HANDOVER-WARD-001 | Handover follows selected ward(s) and shift. | Handover ward switch test |
+| REQ-DUE-001 | All migrated scheduled work uses one due-time classification service. | `npm run test:due-time` |
+| REQ-DUE-002 | Due-time calculations use the nursing-home timezone. | `npm run validate:due-time` |
+| REQ-DUE-003 | Overdue is distinct from missed. | Due-time overdue/missed tests |
+| REQ-DUE-004 | Completed late uses effective completion time where available. | Completed late test |
+| REQ-DUE-005 | Next Hour is centrally defined. | Next hour boundary test |
+| REQ-DUE-006 | Next 4 Hours is centrally defined and preserves current behaviour. | Next four hours test |
+| REQ-DUE-007 | Due This Shift uses configured shift boundaries. | Due this shift test |
+| REQ-DUE-008 | Due Today uses the nursing-home local day. | Due-time docs and validator |
+| REQ-DUE-009 | Derived time changes do not create audit entries. | Due-time classifier docs |
+| REQ-DUE-010 | Missed status requires an approved transition and reason. | Missed status test and docs |
+| REQ-HANDOVER-001 | Handover visibility follows nursing home, ward and shift context. | `npm run test:handover-context` |
+| REQ-HANDOVER-002 | Opening a handover does not acknowledge it. | Opening page test |
+| REQ-HANDOVER-003 | Acknowledgement is user-specific. | Current-user and another-nurse acknowledgement tests |
+| REQ-HANDOVER-004 | Resident and ward handovers are distinct. | Handover model docs and tests |
+| REQ-HANDOVER-005 | Unresolved important handovers may be carried forward without duplication. | Carry-forward dedupe tests |
+| REQ-HANDOVER-006 | Resolved handovers remain historically available. | Resolved/history validation |
+| REQ-HANDOVER-007 | Multi-ward handover counts are deduplicated. | Multi-ward count test |
+| REQ-HANDOVER-008 | Cross-home and cross-ward handover leakage is prohibited. | Cross-home and ward visibility tests |
+| REQ-HANDOVER-009 | Shift targeting uses stable shift IDs. | Day/Late/Night target tests |
+| REQ-HANDOVER-010 | Handover actions are audited but visibility recalculation is not. | Handover audit docs |

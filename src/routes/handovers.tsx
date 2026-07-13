@@ -20,7 +20,7 @@ export const Route = createFileRoute("/handovers")({
 
 function HandoversPage() {
   const care = useCare();
-  const { handovers, residents, filteredResidentIds, filter, currentRole } = care;
+  const { handovers, residents, filteredResidentIds, filter, currentRole, getHandoversForOperationalContext } = care;
   const [statusTab, setStatusTab] = useState<"active" | "archived" | "deleted">("active");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("date-desc");
@@ -29,16 +29,21 @@ function HandoversPage() {
   const [dateTo, setDateTo] = useState("");
   const [dialog, setDialog] = useState<{ open: boolean; mode: "create" | "edit" | "view"; record?: HandoverNote }>({ open: false, mode: "create" });
 
+  const contextHandovers = useMemo(
+    () => getHandoversForOperationalContext({ mode: statusTab === "active" ? "active" : "history" }).map((row) => row.handover),
+    [getHandoversForOperationalContext, statusTab],
+  );
+
   const counts = useMemo(() => ({
-    active: handovers.filter(h => (h.recordStatus || "active") === "active").length,
+    active: getHandoversForOperationalContext({ mode: "active" }).length,
     archived: handovers.filter(h => h.recordStatus === "archived").length,
     deleted: handovers.filter(h => h.recordStatus === "deleted").length,
-  }), [handovers]);
+  }), [getHandoversForOperationalContext, handovers]);
 
   const filtered = useMemo(() => {
     const filterIds = new Set(filteredResidentIds);
     const q = search.toLowerCase();
-    let arr = handovers.filter(h => {
+    let arr = contextHandovers.filter(h => {
       const rs = h.recordStatus || "active";
       if (rs !== statusTab) return false;
       if ((filter.wingId || filter.residentId) && !filterIds.has(h.residentId)) return false;
@@ -54,7 +59,7 @@ function HandoversPage() {
     });
     arr.sort((a, b) => sort === "date-asc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
     return arr;
-  }, [handovers, statusTab, filteredResidentIds, filter, residents, search, sort, workflowStatus, dateFrom, dateTo]);
+  }, [contextHandovers, statusTab, filteredResidentIds, filter, residents, search, sort, workflowStatus, dateFrom, dateTo]);
 
   return (
     <div className="p-4 md:p-8 space-y-4 max-w-6xl">

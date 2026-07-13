@@ -1428,9 +1428,21 @@ export interface Outing extends LifecycleFields {
 export interface HandoverNote extends LifecycleFields {
   id: string;
   facilityId?: string;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  originWardId?: WardId;
+  currentVisibilityWardId?: WardId;
+  scope?: "resident" | "ward";
   residentId: string;
+  category?: string;
+  handoverPriority?: "routine" | "important" | "urgent";
   date: string;
   shift: "morning" | "afternoon" | "night";
+  sourceShiftId?: ShiftId;
+  targetShiftId?: ShiftId;
+  operationalDate?: string;
+  effectiveFrom?: string;
+  expiresAt?: string;
   staff: string;
   summary: string;
   outstandingActions: string;
@@ -1445,6 +1457,20 @@ export interface HandoverNote extends LifecycleFields {
   completedAt?: string;
   closedBy?: string;
   closedAt?: string;
+  resolvedAt?: string;
+  resolvedBy?: UserAccountId;
+  carriedForwardFromHandoverId?: HandoverId;
+  carryForwardCount?: number;
+  handoverAcknowledgements?: {
+    id: string;
+    handoverId: HandoverId | string;
+    userAccountId: UserAccountId | string;
+    staffMemberId?: StaffMemberId | string;
+    acknowledgedAt: string;
+    shiftId: ShiftId | string;
+    nursingHomeId: NursingHomeId | string;
+    wardId: WardId | string;
+  }[];
   status?: "active" | "read" | "acknowledged" | "archived" | "open" | "completed" | "closed";
 }
 

@@ -64,20 +64,6 @@ function formatTime(now: Date) {
   return now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-function currentHandoverShift(now: Date) {
-  const hour = now.getHours();
-  if (hour < 14) return "morning";
-  if (hour < 22) return "afternoon";
-  return "night";
-}
-
-function handoverShiftFromContext(label: string, now: Date) {
-  if (label.toLowerCase().includes("day")) return "morning";
-  if (label.toLowerCase().includes("late") || label.toLowerCase().includes("evening")) return "afternoon";
-  if (label.toLowerCase().includes("night")) return "night";
-  return currentHandoverShift(now);
-}
-
 function interventionStatusClass(status: ScheduledInterventionStatus) {
   if (status === "overdue") return "border-destructive/40 text-destructive bg-destructive/5";
   if (status === "due_now") return "border-warning/50 text-warning-foreground bg-warning/10";
@@ -146,7 +132,6 @@ export function OperationsHub({
     vitals,
     alerts,
     clinicalAlerts,
-    handovers,
     observationPlans,
     problemInterventions,
     problemInterventionLogs,
@@ -157,6 +142,7 @@ export function OperationsHub({
     operationalContext,
     getResidentsForContext,
     getOperationalTimeWindows,
+    getHandoversForOperationalContext,
     markHandoverRead,
     acknowledgeHandover,
   } = useCare();
@@ -284,22 +270,15 @@ export function OperationsHub({
       problemInterventionLogs,
       carePlanProblems,
       now,
-      { residentIds: filteredResidentIds, currentUser, until: new Date(operationalContext.shiftEndAt) },
+      { residentIds: filteredResidentIds, currentUser, until: new Date(operationalContext.shiftEndAt), operationalContext },
     );
-  }, [carePlanProblems, currentUser, filteredResidentIds, now, operationalContext.shiftEndAt, problemInterventionLogs, problemInterventions]);
+  }, [carePlanProblems, currentUser, filteredResidentIds, now, operationalContext, problemInterventionLogs, problemInterventions]);
 
   const handoverRows = useMemo(() => {
-    const today = operationalContext.operationalDate;
-    const currentShift = handoverShiftFromContext(operationalContext.shiftLabel, now);
-    return handovers.filter(
-      (handover) =>
-        filteredResidentIds.has(handover.residentId) &&
-        handover.date.slice(0, 10) === today &&
-        handover.shift === currentShift &&
-        !["archived", "completed", "closed"].includes(handover.status || "active") &&
-        handover.recordStatus !== "deleted",
-    );
-  }, [filteredResidentIds, handovers, now, operationalContext.operationalDate, operationalContext.shiftLabel]);
+    return getHandoversForOperationalContext({ acknowledgement: "unread", now: now.toISOString() })
+      .map((row) => row.handover)
+      .filter((handover) => !handover.residentId || filteredResidentIds.has(handover.residentId));
+  }, [filteredResidentIds, getHandoversForOperationalContext, now]);
 
   const handoversNeedingAttention = useMemo(
     () =>

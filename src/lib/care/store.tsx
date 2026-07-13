@@ -204,6 +204,12 @@ import {
   switchNursingHome,
   validateOperationalContext,
 } from "./operationalContext";
+import {
+  getHandoversForOperationalContext as getContextualHandovers,
+  resolveHandoverContextFields,
+  type HandoverContextFilters,
+  type ContextualHandover,
+} from "./handoverContext";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -2228,6 +2234,7 @@ interface CareCtx extends Store {
   getCareActionsForContext: () => ProblemIntervention[];
   getObservationsForOperationalContext: () => ClinicalObservation[];
   getHandoversForContext: () => HandoverNote[];
+  getHandoversForOperationalContext: (filters?: HandoverContextFilters) => ContextualHandover[];
   getIncidentsForContext: () => Incident[];
   getOperationalTimeWindows: typeof getOperationalTimeWindows;
   getNextShift: (shiftId?: string, operationalDate?: string) => ReturnType<typeof getNextShift>;
@@ -2751,6 +2758,18 @@ export function CareProvider({ children }: { children: ReactNode }) {
       getCareActionsForContext: () => getCareActionsForContext(store, operationalContext),
       getObservationsForOperationalContext: () => getObservationsForOperationalContext(store, operationalContext) as ClinicalObservation[],
       getHandoversForContext: () => getHandoversForContext(store, operationalContext) as HandoverNote[],
+      getHandoversForOperationalContext: (filters) =>
+        getContextualHandovers(
+          store,
+          operationalContext,
+          {
+            userAccountId: currentUser.id,
+            staffMemberId: operationalContext.staffMemberId,
+            role: currentRole,
+            userName: currentUserName,
+          } as any,
+          filters,
+        ),
       getIncidentsForContext: () => getIncidentsForContext(store, operationalContext) as Incident[],
       validateOperationalContext: () => validateOperationalContext(store),
       validateShiftDefinitions: () => validateShiftDefinitions(store),
@@ -4777,9 +4796,23 @@ export function CareProvider({ children }: { children: ReactNode }) {
 
       // -------------------- HANDOVERS --------------------
       addHandover: (h) => {
+        const resident = store.residents.find((item) => item.id === h.residentId);
+        const nextShift = getNextShift(store, operationalContext.nursingHomeId, operationalContext.shiftId, operationalContext.operationalDate);
         const item: HandoverNote = {
           ...h,
           id: uid(),
+          facilityId: h.facilityId || resident?.facilityId || operationalContext.nursingHomeId,
+          nursingHomeId: h.nursingHomeId || (resident?.facilityId as any) || operationalContext.nursingHomeId,
+          wardId: h.wardId || (resident?.wardId as any) || operationalContext.wardIds[0],
+          originWardId: h.originWardId || (resident?.wardId as any) || operationalContext.wardIds[0],
+          scope: h.scope || "resident",
+          category: h.category || "clinical",
+          handoverPriority: h.handoverPriority || (h.priority === "critical" || h.priority === "high" ? "urgent" : h.priority === "medium" ? "important" : "routine"),
+          sourceShiftId: h.sourceShiftId || operationalContext.shiftId,
+          targetShiftId: h.targetShiftId || nextShift?.shift.id || operationalContext.shiftId,
+          operationalDate: h.operationalDate || operationalContext.operationalDate,
+          effectiveFrom: h.effectiveFrom || nextShift?.start || operationalContext.shiftStartAt,
+          expiresAt: h.expiresAt || nextShift?.end || operationalContext.shiftEndAt,
           recordStatus: h.recordStatus || "active",
           status: h.status || "active",
           createdAt: h.createdAt || new Date().toISOString(),
@@ -4934,12 +4967,14 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const now = new Date().toISOString();
         setStore((s) => {
           const h = s.handovers.find((x) => x.id === id);
+          const fields = h ? resolveHandoverContextFields(s, h) : undefined;
           const existingAcknowledgedBy = Array.isArray(h?.acknowledgedBy)
             ? h?.acknowledgedBy || []
             : h?.acknowledgedBy
               ? [h.acknowledgedBy]
               : [];
           const alreadyAcknowledged = existingAcknowledgedBy.includes(currentUserName);
+          const alreadyAcknowledgedById = (h?.handoverAcknowledgements || []).some((ack) => ack.userAccountId === currentUser.id);
           const existingReadBy = Array.isArray(h?.readBy)
             ? h?.readBy || []
             : h?.readBy
@@ -4983,6 +5018,21 @@ export function CareProvider({ children }: { children: ReactNode }) {
                           ...(x.acknowledgements || []),
                           { user: currentUserName, role: currentRole, at: now },
                         ],
+                    handoverAcknowledgements: alreadyAcknowledgedById || !fields
+                      ? x.handoverAcknowledgements
+                      : [
+                          ...(x.handoverAcknowledgements || []),
+                          {
+                            id: uid(),
+                            handoverId: x.id,
+                            userAccountId: currentUser.id,
+                            staffMemberId: operationalContext.staffMemberId,
+                            acknowledgedAt: now,
+                            shiftId: fields.targetShiftId || operationalContext.shiftId,
+                            nursingHomeId: fields.nursingHomeId || operationalContext.nursingHomeId,
+                            wardId: fields.wardId || operationalContext.wardIds[0],
+                          },
+                        ],
                     status: "acknowledged" as const,
                   }
                 : x,
@@ -5007,6 +5057,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
                   status: "completed" as const,
                   completedAt: new Date().toISOString(),
                   completedBy: currentUserName,
+                  resolvedAt: new Date().toISOString(),
+                  resolvedBy: currentUser.id as any,
                 }
               : h,
           ),
@@ -5028,6 +5080,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
                   status: "closed" as const,
                   closedAt: new Date().toISOString(),
                   closedBy: currentUserName,
+                  resolvedAt: new Date().toISOString(),
+                  resolvedBy: currentUser.id as any,
                 }
               : h,
           ),

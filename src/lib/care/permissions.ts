@@ -18,7 +18,7 @@ export const roleDescriptions: Record<Role, string> = {
 
 export type Permission =
   | "resident.view" | "resident.create" | "resident.edit" | "resident.discharge"
-  | "note.create" | "intervention.create" | "handover.create"
+  | "note.create" | "intervention.create" | "handover.view" | "handover.create" | "handover.acknowledge" | "handover.resolve" | "handover.carry_forward" | "handover.view_history" | "handover.manage"
   | "visitor.create" | "outing.create" | "task.create"
   | "assessment.view" | "assessment.create" | "assessment.edit"
   | "assessment.review" | "assessment.approve" | "assessment.delete" | "assessment.archive"
@@ -42,7 +42,7 @@ export type Permission =
 const matrix: Record<Role, Permission[]> = {
   carer: [
     "resident.view",
-    "note.create", "intervention.create", "handover.create",
+    "note.create", "intervention.create", "handover.view", "handover.create", "handover.acknowledge",
     "visitor.create", "outing.create", "task.create",
     "assessment.view", "careplan.view",
     "vital.view", "vital.record",
@@ -51,7 +51,7 @@ const matrix: Record<Role, Permission[]> = {
   ],
   nurse: [
     "resident.view", "resident.edit",
-    "note.create", "intervention.create", "handover.create",
+    "note.create", "intervention.create", "handover.view", "handover.create", "handover.acknowledge", "handover.resolve",
     "visitor.create", "outing.create", "task.create",
     "assessment.view", "assessment.create", "assessment.edit", "assessment.review",
     "assessment.create_revision", "assessment.comment", "assessment.archive",
@@ -65,7 +65,7 @@ const matrix: Record<Role, Permission[]> = {
   doctor: [
     "resident.view", "clinical.view",
     "mdt.create", "medical_review.create",
-    "recommendation.create", "treatment_note.create",
+    "recommendation.create", "treatment_note.create", "handover.view",
     "assessment.view", "assessment.comment", "careplan.view",
     "vital.view", "vital.comment", "vital.escalate",
     "observation.view", "observation.escalate",
@@ -73,7 +73,7 @@ const matrix: Record<Role, Permission[]> = {
   ],
   cnm: [
     "resident.view", "resident.create", "resident.edit",
-    "note.create", "intervention.create", "handover.create",
+    "note.create", "intervention.create", "handover.view", "handover.create", "handover.acknowledge", "handover.resolve", "handover.carry_forward", "handover.view_history",
     "visitor.create", "outing.create", "task.create",
     "assessment.view", "assessment.create", "assessment.edit",
     "assessment.review", "assessment.approve", "assessment.archive",
@@ -93,7 +93,7 @@ const matrix: Record<Role, Permission[]> = {
   ],
   don: [
     "resident.view", "resident.create", "resident.edit", "resident.discharge",
-    "note.create", "intervention.create", "handover.create",
+    "note.create", "intervention.create", "handover.view", "handover.create", "handover.acknowledge", "handover.resolve", "handover.carry_forward", "handover.view_history", "handover.manage",
     "visitor.create", "outing.create", "task.create",
     "assessment.view", "assessment.create", "assessment.edit",
     "assessment.review", "assessment.approve", "assessment.delete", "assessment.archive",
@@ -118,7 +118,7 @@ const matrix: Record<Role, Permission[]> = {
 };
 
 export function can(role: Role, perm: Permission): boolean {
-  return matrix[role].includes(perm);
+  return Boolean(matrix[role]?.includes(perm));
 }
 export function canAny(role: Role, perms: Permission[]): boolean {
   return perms.some(p => can(role, p));
