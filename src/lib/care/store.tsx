@@ -76,7 +76,31 @@ import type {
   ObservationScheduleItem,
   ObservationAuditEntry,
   Facility,
+  Enterprise,
+  Ward,
+  Bed,
+  BedAssignment,
 } from "./types";
+import {
+  getBedById,
+  getBedsForRoom,
+  getEnterpriseById,
+  getNursingHomeById,
+  getResidentCurrentBed,
+  getResidentCurrentNursingHome,
+  getResidentCurrentPlacement,
+  getResidentCurrentRoom,
+  getResidentCurrentWard,
+  getResidentsForNursingHome,
+  getResidentsForRoom,
+  getResidentsForWard,
+  getRoomById,
+  getRoomsForWard,
+  getWardById,
+  getWardsForNursingHome,
+  migrateEntityHierarchy,
+  DEFAULT_ENTERPRISE_ID,
+} from "./entityHierarchy";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -92,19 +116,32 @@ export const BALLYMORE_FACILITY_ID = "facility-ballymore-haven";
 export const HAZELWOOD_FACILITY_ID = "facility-hazelwood-care";
 const ACTIVE_FACILITY_STORAGE_KEY = "carepath-pro-active-facility";
 const CURRENT_USER_STORAGE_KEY = "carepath-pro-current-user";
+const ENTERPRISES_SEED: Enterprise[] = [
+  {
+    id: DEFAULT_ENTERPRISE_ID,
+    name: "NuCare Organisation",
+    active: true,
+    createdAt: "2026-07-13T00:00:00.000Z",
+    updatedAt: "2026-07-13T00:00:00.000Z",
+  },
+];
 const FACILITIES_SEED: Facility[] = [
   {
     id: BALLYMORE_FACILITY_ID,
+    enterpriseId: DEFAULT_ENTERPRISE_ID,
     name: "Ballymore Haven",
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-07-13T00:00:00.000Z",
     createdBy: "System",
   },
   {
     id: HAZELWOOD_FACILITY_ID,
+    enterpriseId: DEFAULT_ENTERPRISE_ID,
     name: "Hazelwood Care",
     status: "active",
     createdAt: "2026-07-06T00:00:00.000Z",
+    updatedAt: "2026-07-13T00:00:00.000Z",
     createdBy: "System",
   },
 ];
@@ -1605,10 +1642,14 @@ function seedData() {
   }
 
   return {
+    enterprises: ENTERPRISES_SEED,
     facilities: FACILITIES_SEED,
     wings,
     units,
     rooms,
+    wards: [] as Ward[],
+    beds: [] as Bed[],
+    bedAssignments: [] as BedAssignment[],
     users,
     residents,
     assessments,
@@ -1747,8 +1788,9 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
     return { ...user, facilityId: ids[0], facilityIds: ids };
   });
   const hasHazelwoodDon = users.some((user) => user.id === "u-hazelwood-don");
-  const normalized: Store = {
+  let normalized: Store = {
     ...store,
+    enterprises: store.enterprises?.length ? store.enterprises : ENTERPRISES_SEED,
     facilities: FACILITIES_SEED,
     users: hasHazelwoodDon
       ? users
@@ -1759,7 +1801,7 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
             facilityId: HAZELWOOD_FACILITY_ID,
             facilityIds: [HAZELWOOD_FACILITY_ID],
           },
-        ],
+    ],
   };
 
   for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
@@ -1777,11 +1819,13 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
     ]),
   );
 
+  normalized = migrateEntityHierarchy(normalized, defaultFacilityId).store;
+
   return normalized;
 }
 
 function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string): Store {
-  const scoped = { ...next };
+  let scoped = { ...next };
   for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
     const previousIds = new Set((previous[key] as ScopedItem[]).map((record) => record.id));
     const records = scoped[key] as ScopedItem[];
@@ -1802,6 +1846,7 @@ function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string)
       ];
     }),
   );
+  scoped = migrateEntityHierarchy(scoped, activeFacilityId).store;
   return scoped;
 }
 
@@ -1823,6 +1868,13 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
   );
   const scoped: Store = {
     ...store,
+    wards: store.wards.filter((ward) => ward.nursingHomeId === activeFacilityId),
+    rooms: store.rooms.filter((room) => (room.facilityId || room.nursingHomeId || BALLYMORE_FACILITY_ID) === activeFacilityId),
+    beds: store.beds.filter((bed) => {
+      const room = store.rooms.find((candidate) => candidate.id === bed.roomId);
+      return (room?.facilityId || room?.nursingHomeId || BALLYMORE_FACILITY_ID) === activeFacilityId;
+    }),
+    bedAssignments: store.bedAssignments.filter((assignment) => assignment.nursingHomeId === activeFacilityId),
     users: store.users.filter((user) => userFacilityIds(user).includes(activeFacilityId)),
     residents: store.residents.filter((record) => hasFacility(record, activeFacilityId) && record.status !== "deleted"),
     alertWorkflow: Object.fromEntries(
@@ -2135,6 +2187,23 @@ interface CareCtx extends Store {
   ) => void;
   softDeleteObservation: (id: string, reason: string) => void;
   setObservationSchedule: (residentId: string, items: ObservationScheduleItem[]) => void;
+  // Canonical entity hierarchy selectors
+  getEnterpriseById: (id: string) => ReturnType<typeof getEnterpriseById>;
+  getNursingHomeById: (id: string) => ReturnType<typeof getNursingHomeById>;
+  getWardsForNursingHome: (nursingHomeId: string, includeInactive?: boolean) => ReturnType<typeof getWardsForNursingHome>;
+  getWardById: (id: string) => ReturnType<typeof getWardById>;
+  getRoomsForWard: (wardId: string, includeInactive?: boolean) => ReturnType<typeof getRoomsForWard>;
+  getRoomById: (id: string) => ReturnType<typeof getRoomById>;
+  getBedsForRoom: (roomId: string, includeInactive?: boolean) => ReturnType<typeof getBedsForRoom>;
+  getBedById: (id: string) => ReturnType<typeof getBedById>;
+  getResidentCurrentPlacement: (residentId: string) => ReturnType<typeof getResidentCurrentPlacement>;
+  getResidentCurrentBed: (residentId: string) => ReturnType<typeof getResidentCurrentBed>;
+  getResidentCurrentRoom: (residentId: string) => ReturnType<typeof getResidentCurrentRoom>;
+  getResidentCurrentWard: (residentId: string) => ReturnType<typeof getResidentCurrentWard>;
+  getResidentCurrentNursingHome: (residentId: string) => ReturnType<typeof getResidentCurrentNursingHome>;
+  getResidentsForWard: (wardId: string) => ReturnType<typeof getResidentsForWard>;
+  getResidentsForRoom: (roomId: string) => ReturnType<typeof getResidentsForRoom>;
+  getResidentsForNursingHome: (nursingHomeId: string) => ReturnType<typeof getResidentsForNursingHome>;
 }
 
 const Ctx = createContext<CareCtx | null>(null);
@@ -2294,6 +2363,23 @@ export function CareProvider({ children }: { children: ReactNode }) {
       filter,
       setFilter,
       filteredResidentIds,
+      getEnterpriseById: (id) => getEnterpriseById(scopedStore, id),
+      getNursingHomeById: (id) => getNursingHomeById(scopedStore, id),
+      getWardsForNursingHome: (nursingHomeId, includeInactive) =>
+        getWardsForNursingHome(scopedStore, nursingHomeId, includeInactive),
+      getWardById: (id) => getWardById(scopedStore, id),
+      getRoomsForWard: (wardId, includeInactive) => getRoomsForWard(scopedStore, wardId, includeInactive),
+      getRoomById: (id) => getRoomById(scopedStore, id),
+      getBedsForRoom: (roomId, includeInactive) => getBedsForRoom(scopedStore, roomId, includeInactive),
+      getBedById: (id) => getBedById(scopedStore, id),
+      getResidentCurrentPlacement: (residentId) => getResidentCurrentPlacement(scopedStore, residentId),
+      getResidentCurrentBed: (residentId) => getResidentCurrentBed(scopedStore, residentId),
+      getResidentCurrentRoom: (residentId) => getResidentCurrentRoom(scopedStore, residentId),
+      getResidentCurrentWard: (residentId) => getResidentCurrentWard(scopedStore, residentId),
+      getResidentCurrentNursingHome: (residentId) => getResidentCurrentNursingHome(scopedStore, residentId),
+      getResidentsForWard: (wardId) => getResidentsForWard(scopedStore, wardId),
+      getResidentsForRoom: (roomId) => getResidentsForRoom(scopedStore, roomId),
+      getResidentsForNursingHome: (nursingHomeId) => getResidentsForNursingHome(scopedStore, nursingHomeId),
       updateUser: (id, patch) =>
         setStore((s) => ({
           ...s,

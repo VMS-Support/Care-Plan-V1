@@ -2,11 +2,31 @@ export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
 export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
 
+import type {
+  BedAssignmentId,
+  BedId,
+  EnterpriseId,
+  NursingHomeId,
+  RoomId,
+  WardId,
+} from "@/types/entityIds";
+
+export interface Enterprise {
+  id: EnterpriseId;
+  name: string;
+  legalName?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Facility {
   id: string;
+  enterpriseId?: EnterpriseId;
   name: string;
   status: "active" | "inactive";
   createdAt: string;
+  updatedAt?: string;
   createdBy: string;
 }
 export type AssessmentType =
@@ -157,20 +177,80 @@ export type MattressType =
 
 export interface Wing {
   id: string;
+  facilityId?: string;
   name: string;
   floor?: string;
   kind: "wing" | "unit";
 }
 export interface Unit {
   id: string;
+  facilityId?: string;
   wingId: string;
   name: string;
 }
 export interface Room {
-  id: string;
+  id: string | RoomId;
+  nursingHomeId?: NursingHomeId;
+  facilityId?: string;
+  wardId?: WardId;
   wingId: string;
   unitId?: string;
   number: string;
+  name?: string;
+  roomNumber?: string;
+  active?: boolean;
+  roomType?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Ward {
+  id: WardId;
+  nursingHomeId: NursingHomeId;
+  name: string;
+  code?: string;
+  description?: string;
+  active: boolean;
+  displayOrder?: number;
+  legacyWingId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Bed {
+  id: BedId;
+  roomId: RoomId;
+  label: string;
+  active: boolean;
+  status?: "available" | "occupied" | "reserved" | "out_of_service";
+  bedType?: BedType | string;
+  mattressType?: MattressType | string;
+  installedDate?: string;
+  reviewDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BedAssignment {
+  id: BedAssignmentId;
+  bedId: BedId;
+  residentId: string;
+  nursingHomeId: NursingHomeId;
+  startDate: string;
+  endDate?: string;
+  status: "active" | "ended";
+  assignmentReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClinicalContext {
+  enterpriseId: EnterpriseId;
+  nursingHomeId: NursingHomeId;
+  wardIds?: WardId[];
+  shiftId?: string;
 }
 
 export interface UserProfile {

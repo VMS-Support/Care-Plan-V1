@@ -14,6 +14,8 @@
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "predeploy": "npm run build:pages",
     "deploy": "gh-pages -d dist",
+    "validate:entity-hierarchy": "node scripts/validate-entity-hierarchy.mjs",
+    "test:entity-hierarchy": "node scripts/entity-hierarchy-tests.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
