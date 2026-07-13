@@ -8,7 +8,14 @@ export function getWorkSourceKey(
   discriminator?: string,
 ) {
   const occurrence = source.sourceOccurrenceId || discriminator || "definition";
-  return [workType, source.sourceModule, source.sourceEntityType, source.sourceEntityId, occurrence]
+  return [
+    workType,
+    source.sourceType,
+    source.sourceModule,
+    source.sourceEntityType,
+    source.sourceEntityId,
+    occurrence,
+  ]
     .map(normalise)
     .join(":");
 }

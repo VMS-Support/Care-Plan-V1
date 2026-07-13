@@ -38,7 +38,28 @@ export type WorkPriority = "routine" | "important" | "urgent" | "critical";
 export type ClinicalUrgency = "routine" | "time_sensitive" | "urgent_review" | "immediate";
 export type WorkAssignmentType = "unassigned" | "person" | "role" | "ward_queue" | "team" | "self";
 
+export type WorkSourceType =
+  | "care_plan"
+  | "assessment"
+  | "incident"
+  | "doctor_request"
+  | "admission"
+  | "hospital_return"
+  | "manual_task"
+  | "clinical_rule"
+  | "observation_schedule"
+  | "documentation_requirement"
+  | "handover"
+  | "appointment"
+  | "referral"
+  | "maintenance"
+  | "medication"
+  | "training"
+  | "audit"
+  | "family_request";
+
 export interface WorkSourceReference {
+  sourceType: WorkSourceType;
   sourceModule:
     | "care_plans"
     | "tasks"
@@ -55,7 +76,15 @@ export interface WorkSourceReference {
   sourceOccurrenceId?: string;
   parentEntityType?: string;
   parentEntityId?: string;
+  createdByRuleId?: string;
+  createdByRuleVersion?: number;
+  sourceEventId?: DomainEventId | string;
+  createdFromEventId?: DomainEventId | string;
+  correlationId?: string;
   route?: string;
+  completionOwner: string;
+  recreationPolicy: "deterministic" | "event_replay" | "manual_only";
+  createdAt: string;
 }
 
 export interface WorkSchedule {

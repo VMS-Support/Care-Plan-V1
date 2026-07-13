@@ -17,6 +17,7 @@ export function getWorkItemDueTimeClassification(
   policy: DueTimePolicy = defaultDueTimePolicy,
   clock?: Clock,
 ) {
+  if (item.schedule.scheduleType === "prn") return undefined;
   const dueAt = item.schedule.effectiveDueAt || item.deferral?.deferredUntil || item.schedule.dueAt;
   if (!dueAt) return undefined;
   const scheduledWorkType: ScheduledWorkReference["workType"] =

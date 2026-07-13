@@ -41,6 +41,8 @@
     "test:rule-recalculation": "node scripts/rule-recalculation-tests.mjs",
     "validate:work-item-model": "node scripts/validate-work-item-model.mjs",
     "test:work-item-model": "node scripts/work-item-model-tests.mjs",
+    "validate:recurrence": "node scripts/validate-recurrence.mjs",
+    "test:recurrence": "node scripts/recurrence-tests.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",

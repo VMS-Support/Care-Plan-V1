@@ -37,6 +37,10 @@ export interface ObservationReminder {
   priority?: WorkPriority;
   completedObservationId?: string;
   completedAt?: string;
+  sourceEventId?: string;
+  correlationId?: string;
+  createdByRuleId?: string;
+  createdByRuleVersion?: number;
 }
 export interface AssessmentReminder {
   id: string;
@@ -63,6 +67,10 @@ export interface DocumentationRequirement {
   evidenceEntityType?: string;
   evidenceEntityId?: string;
   completedAt?: string;
+  sourceEventId?: string;
+  correlationId?: string;
+  createdByRuleId?: string;
+  createdByRuleVersion?: number;
 }
 export interface HandoverAcknowledgementRequirement {
   handover: HandoverNote;
@@ -127,6 +135,7 @@ export function projectCareActionOccurrenceToWorkItem(
   completion?: ProblemInterventionLog,
 ): WorkItem {
   const source: WorkSourceReference = {
+    sourceType: "care_plan",
     sourceModule: "care_plans",
     sourceEntityType: "care_action_occurrence",
     sourceEntityId: occurrence.id,
@@ -134,6 +143,9 @@ export function projectCareActionOccurrenceToWorkItem(
     parentEntityType: "care_action",
     parentEntityId: intervention.id,
     route: `/residents/${intervention.residentId}/care-plan`,
+    completionOwner: "care_plan_service",
+    recreationPolicy: "deterministic",
+    createdAt: intervention.createdAt,
   };
   const item = residentScope(
     base(
@@ -205,10 +217,14 @@ export function projectCareActionOccurrenceToWorkItem(
 
 export function projectTaskToWorkItem(task: Task, context: ProjectionContext): WorkItem {
   const source: WorkSourceReference = {
+    sourceType: "manual_task",
     sourceModule: "tasks",
     sourceEntityType: "task",
     sourceEntityId: task.id,
     route: "/tasks",
+    completionOwner: "task_service",
+    recreationPolicy: "manual_only",
+    createdAt: task.createdAt || context.now,
   };
   const item = residentScope(
     base(
@@ -277,13 +293,22 @@ export function projectObservationReminderToWorkItem(
   context: ProjectionContext,
 ): WorkItem {
   const source: WorkSourceReference = {
+    sourceType: "observation_schedule",
     sourceModule: "observations",
     sourceEntityType: "observation_reminder",
     sourceEntityId: reminder.id,
     sourceOccurrenceId: reminder.id,
     parentEntityType: "observation_schedule",
     parentEntityId: reminder.scheduleId,
+    createdByRuleId: reminder.createdByRuleId,
+    createdByRuleVersion: reminder.createdByRuleVersion,
+    sourceEventId: reminder.sourceEventId,
+    createdFromEventId: reminder.sourceEventId,
+    correlationId: reminder.correlationId,
     route: `/vitals?residentId=${reminder.residentId}`,
+    completionOwner: "observation_service",
+    recreationPolicy: reminder.sourceEventId ? "event_replay" : "deterministic",
+    createdAt: context.now,
   };
   const item = residentScope(
     base(
@@ -330,12 +355,16 @@ export function projectAssessmentReminderToWorkItem(
 ): WorkItem {
   const assessment = reminder.assessment;
   const source: WorkSourceReference = {
+    sourceType: "assessment",
     sourceModule: "assessments",
     sourceEntityType: "assessment_reminder",
     sourceEntityId: reminder.id,
     parentEntityType: "assessment",
     parentEntityId: assessment.id,
     route: `/assessments/${assessment.id}`,
+    completionOwner: "assessment_service",
+    recreationPolicy: "deterministic",
+    createdAt: context.now,
   };
   const item = residentScope(
     base(
@@ -385,12 +414,16 @@ export function projectCarePlanReviewToWorkItem(
 ): WorkItem {
   const problem = requirement.problem;
   const source: WorkSourceReference = {
+    sourceType: "care_plan",
     sourceModule: "care_plans",
     sourceEntityType: "care_plan_review_requirement",
     sourceEntityId: requirement.id,
     parentEntityType: "care_plan_problem",
     parentEntityId: problem.id,
     route: `/residents/${problem.residentId}/care-plan`,
+    completionOwner: "care_plan_service",
+    recreationPolicy: "deterministic",
+    createdAt: context.now,
   };
   const item = residentScope(
     base(
@@ -437,10 +470,19 @@ export function projectDocumentationRequirementToWorkItem(
   context: ProjectionContext,
 ): WorkItem {
   const source: WorkSourceReference = {
+    sourceType: requirement.createdByRuleId ? "clinical_rule" : "documentation_requirement",
     sourceModule: "documentation",
     sourceEntityType: "documentation_requirement",
     sourceEntityId: requirement.id,
+    createdByRuleId: requirement.createdByRuleId,
+    createdByRuleVersion: requirement.createdByRuleVersion,
+    sourceEventId: requirement.sourceEventId,
+    createdFromEventId: requirement.sourceEventId,
+    correlationId: requirement.correlationId,
     route: requirement.residentId ? `/residents/${requirement.residentId}/record` : "/daily-notes",
+    completionOwner: "documentation_service",
+    recreationPolicy: requirement.sourceEventId ? "event_replay" : "deterministic",
+    createdAt: context.now,
   };
   const item = residentScope(
     base(
@@ -486,11 +528,15 @@ export function projectHandoverAcknowledgementToWorkItem(
   const h = requirement.handover;
   const occurrence = `${requirement.userAccountId}:${requirement.targetShiftId}`;
   const source: WorkSourceReference = {
+    sourceType: "handover",
     sourceModule: "handovers",
     sourceEntityType: "handover_acknowledgement_requirement",
     sourceEntityId: h.id,
     sourceOccurrenceId: occurrence,
     route: "/handovers",
+    completionOwner: "handover_service",
+    recreationPolicy: "deterministic",
+    createdAt: h.createdAt || context.now,
   };
   const item = residentScope(
     base(

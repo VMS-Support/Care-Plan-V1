@@ -36,6 +36,8 @@ export type HandoverId = Brand<string, "HandoverId">;
 export type DomainEventId = Brand<string, "DomainEventId">;
 export type WorkItemId = Brand<string, "WorkItemId">;
 export type WorkStatusTransitionId = Brand<string, "WorkStatusTransitionId">;
+export type RecurrenceRuleId = Brand<string, "RecurrenceRuleId">;
+export type OccurrenceId = Brand<string, "OccurrenceId">;
 
 export type EntityIdPrefix =
   | "enterprise"

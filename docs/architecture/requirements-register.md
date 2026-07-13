@@ -186,3 +186,19 @@
 | REQ-WORK-DEDUPE-001 | Refresh, replay and migration rerun cannot duplicate Work Items. | Deterministic identity tests |
 | REQ-WORK-PARITY-001 | Upcoming Care Interventions retains current behaviour. | Existing query retained; parallel-run gate |
 | REQ-WORK-PARITY-002 | Next 4 Hours retains current behaviour. | Existing query retained; parallel-run gate |
+| REQ-WORK-SOURCE-001 | Every Work Item has a typed, stable and existing source reference. | `npm run test:recurrence`; source traceability validator |
+| REQ-WORK-SOURCE-002 | Source linkage records module, completion owner, direct route and recreation policy. | Source-linkage documentation and contract validation |
+| REQ-WORK-SOURCE-003 | Event-created work retains creating event and correlation identifiers. | WorkSourceReference schema and event-replay validation |
+| REQ-WORK-SOURCE-004 | Source resident and nursing-home scope must match the Work Item. | Wrong-resident and cross-home source validation |
+| REQ-WORK-SOURCE-005 | One source occurrence cannot link to duplicate Work Items. | Source occurrence key validation |
+| REQ-RECURRENCE-001 | One canonical engine supports hourly, daily, weekly, monthly, custom interval, selected days, each shift, PRN, triggered and one-off schedules. | `npm run test:recurrence`; `npm run validate:recurrence` |
+| REQ-RECURRENCE-002 | Occurrence IDs derive from source, rule and occurrence time or immutable trigger. | Deterministic/replay tests |
+| REQ-RECURRENCE-003 | Generation is bounded by an approved horizon and maximum count. | Horizon test |
+| REQ-RECURRENCE-004 | Calendar schedules use the nursing-home IANA timezone and documented DST policy. | DST/timezone tests |
+| REQ-RECURRENCE-005 | Each-shift recurrence uses configured Shift Definitions and stable Shift IDs. | Shift recurrence test |
+| REQ-RECURRENCE-006 | PRN produces no untriggered occurrence and never derives overdue. | PRN generation/display tests |
+| REQ-RECURRENCE-007 | Triggered recurrence creates work only from configured event types. | Triggered-event test |
+| REQ-RECURRENCE-008 | Replay produces the same IDs and retains completed history. | Replay/completion tests |
+| REQ-RECURRENCE-009 | Source inactivation and resident discharge/death cancel future occurrences without deleting history. | Eligibility tests |
+| REQ-RECURRENCE-010 | Hospital/temporary absence suspends future bedside work and return resumes eligible work. | Hospital/return test |
+| REQ-RECURRENCE-011 | Duplicate, orphan, cross-home, timezone and invalid-rule faults fail validation. | Recurrence validation test |

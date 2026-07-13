@@ -8,3 +8,4 @@ export * from "./workQueue";
 export * from "./workValidation";
 export * from "./workLifecycle";
 export * from "./workParity";
+export * from "./sourceTraceability";
