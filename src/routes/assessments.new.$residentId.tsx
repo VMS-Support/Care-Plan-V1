@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { assessmentMeta, assessmentItems, uniformScale, scoreAssessment } from "@/lib/care/scoring";
-import { can } from "@/lib/care/permissions";
 import { toast } from "sonner";
 import type { AssessmentType } from "@/lib/care/types";
 
@@ -24,7 +23,7 @@ export const Route = createFileRoute("/assessments/new/$residentId")({
 function NewAssessment() {
   const { residentId } = Route.useParams();
   const { type } = Route.useSearch() as { type: AssessmentType };
-  const { residents, addAssessment, addCarePlan, currentRole, currentUserName } = useCare();
+  const { residents, addAssessment, addCarePlan, currentRole, currentUserName, canAccess } = useCare();
   const navigate = useNavigate();
   const resident = residents.find(r => r.id === residentId);
 
@@ -39,10 +38,10 @@ function NewAssessment() {
   const result = useMemo(() => scoreAssessment(type, scores), [type, scores]);
 
   if (!resident) return <div className="p-8">Resident not found.</div>;
-  if (!can(currentRole, "assessment.create")) {
+  if (!canAccess("assessment.create", { nursingHomeId: resident.facilityId, wardId: resident.wardId, residentId })) {
     return (
       <div className="p-8">
-        <p className="text-sm text-muted-foreground">Your current role ({currentRole}) cannot create assessments.</p>
+        <p className="text-sm text-muted-foreground">Access denied. You cannot create assessments for this resident in the current scope.</p>
         <Link to="/residents/$id" params={{ id: residentId }} className="text-primary underline text-sm">Back to resident</Link>
       </div>
     );

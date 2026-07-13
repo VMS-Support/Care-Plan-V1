@@ -82,6 +82,16 @@ import type {
   BedAssignment,
   Admission,
   AbsenceEpisode,
+  UserAccount,
+  StaffMember,
+  EmploymentRecord,
+  RoleAssignment,
+  ProfessionalRegistration,
+  HomeAssignment,
+  WardCompetency,
+  RosterAssignment,
+  PermissionGrant,
+  RoleTemplate,
 } from "./types";
 import {
   getBedById,
@@ -127,6 +137,31 @@ import {
   isResidentRespite,
   migrateResidentLifecycle,
 } from "./residentLifecycle";
+import {
+  canAccess,
+  createStaffAccessContext,
+  explainAuthorizationDecision,
+  getCurrentEmployment,
+  getCurrentStaffMember,
+  getEffectivePermissions,
+  getExpiredRegistrations,
+  getRegistrationStatus,
+  getRegistrationsExpiringWithin,
+  getStaffAccessibleHomes,
+  getStaffAccessibleWards,
+  getStaffEmploymentRecords,
+  getStaffForWard,
+  getStaffHomeAssignments,
+  getStaffMemberById,
+  getStaffOnDuty,
+  getStaffProfessionalRegistrations,
+  getStaffRoleAssignments,
+  getStaffRosterAssignments,
+  getStaffWardCompetencies,
+  getStaffWithoutRequiredRegistration,
+  getUserAccountById,
+  migrateStaffAccess,
+} from "./staffAccess";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -1678,6 +1713,16 @@ function seedData() {
     bedAssignments: [] as BedAssignment[],
     admissions: [] as Admission[],
     absenceEpisodes: [] as AbsenceEpisode[],
+    userAccounts: [] as UserAccount[],
+    staffMembers: [] as StaffMember[],
+    employmentRecords: [] as EmploymentRecord[],
+    roleAssignments: [] as RoleAssignment[],
+    professionalRegistrations: [] as ProfessionalRegistration[],
+    homeAssignments: [] as HomeAssignment[],
+    wardCompetencies: [] as WardCompetency[],
+    rosterAssignments: [] as RosterAssignment[],
+    permissionGrants: [] as PermissionGrant[],
+    roleTemplates: [] as RoleTemplate[],
     users,
     residents,
     assessments,
@@ -1849,6 +1894,7 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
 
   normalized = migrateEntityHierarchy(normalized, defaultFacilityId).store;
   normalized = migrateResidentLifecycle(normalized);
+  normalized = migrateStaffAccess(normalized);
 
   return normalized;
 }
@@ -1877,6 +1923,7 @@ function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string)
   );
   scoped = migrateEntityHierarchy(scoped, activeFacilityId).store;
   scoped = migrateResidentLifecycle(scoped);
+  scoped = migrateStaffAccess(scoped);
   return scoped;
 }
 
@@ -2257,6 +2304,27 @@ interface CareCtx extends Store {
   getScheduledAdmissions: () => ReturnType<typeof getScheduledAdmissions>;
   getOccupancyByNursingHome: (nursingHomeId: string) => ReturnType<typeof getOccupancyByNursingHome>;
   getOccupancyByWard: (wardId: string) => ReturnType<typeof getOccupancyByWard>;
+  getStaffMemberById: typeof getStaffMemberById;
+  getUserAccountById: typeof getUserAccountById;
+  getCurrentStaffMember: () => ReturnType<typeof getCurrentStaffMember>;
+  getStaffEmploymentRecords: typeof getStaffEmploymentRecords;
+  getCurrentEmployment: (staffMemberId: string, nursingHomeId?: string) => ReturnType<typeof getCurrentEmployment>;
+  getStaffRoleAssignments: typeof getStaffRoleAssignments;
+  getStaffHomeAssignments: typeof getStaffHomeAssignments;
+  getStaffWardCompetencies: typeof getStaffWardCompetencies;
+  getStaffProfessionalRegistrations: typeof getStaffProfessionalRegistrations;
+  getStaffRosterAssignments: typeof getStaffRosterAssignments;
+  getEffectivePermissions: (capabilityScope?: { nursingHomeId?: string; wardId?: string }) => ReturnType<typeof getEffectivePermissions>;
+  getStaffAccessibleHomes: typeof getStaffAccessibleHomes;
+  getStaffAccessibleWards: typeof getStaffAccessibleWards;
+  getStaffOnDuty: typeof getStaffOnDuty;
+  getStaffForWard: typeof getStaffForWard;
+  getRegistrationStatus: typeof getRegistrationStatus;
+  getRegistrationsExpiringWithin: typeof getRegistrationsExpiringWithin;
+  getExpiredRegistrations: typeof getExpiredRegistrations;
+  getStaffWithoutRequiredRegistration: typeof getStaffWithoutRequiredRegistration;
+  canAccess: (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
+  explainAuthorizationDecision: (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => ReturnType<typeof explainAuthorizationDecision>;
 }
 
 const Ctx = createContext<CareCtx | null>(null);
@@ -2316,17 +2384,20 @@ export function CareProvider({ children }: { children: ReactNode }) {
   const scopedStore = useMemo(() => filterByFacility(store, activeFacilityId), [store, activeFacilityId]);
 
   useEffect(() => {
-    const ids = userFacilityIds(currentUser);
+    const currentStaff = getCurrentStaffMember(store, currentUser);
+    const ids = (currentStaff ? getStaffAccessibleHomes(store, currentStaff.id) : userFacilityIds(currentUser)) as string[];
     if (ids.includes(activeFacilityId)) return;
     setActiveFacilityIdState(ids[0] || BALLYMORE_FACILITY_ID);
     setFilter({});
-  }, [activeFacilityId, currentUser]);
+  }, [activeFacilityId, currentUser, store]);
 
   const setActiveFacilityId = useCallback(
     (id: string) => {
       const nextFacility = store.facilities.find((facility) => facility.id === id);
       if (!nextFacility) return;
-      if (!userFacilityIds(currentUser).includes(id)) return;
+      const currentStaff = getCurrentStaffMember(store, currentUser);
+      const accessibleHomeIds = (currentStaff ? getStaffAccessibleHomes(store, currentStaff.id) : userFacilityIds(currentUser)) as string[];
+      if (!accessibleHomeIds.includes(id)) return;
       const from = activeFacilityId;
       setActiveFacilityIdState(id);
       setFilter({});
@@ -2454,6 +2525,47 @@ export function CareProvider({ children }: { children: ReactNode }) {
       getScheduledAdmissions: () => getScheduledAdmissions(scopedStore),
       getOccupancyByNursingHome: (nursingHomeId) => getOccupancyByNursingHome(scopedStore, nursingHomeId),
       getOccupancyByWard: (wardId) => getOccupancyByWard(scopedStore, wardId),
+      getStaffMemberById: (id) => getStaffMemberById(scopedStore, id),
+      getUserAccountById: (id) => getUserAccountById(scopedStore, id),
+      getCurrentStaffMember: () => getCurrentStaffMember(scopedStore, currentUser),
+      getStaffEmploymentRecords: (staffMemberId) => getStaffEmploymentRecords(scopedStore, staffMemberId),
+      getCurrentEmployment: (staffMemberId, nursingHomeId) =>
+        getCurrentEmployment(scopedStore, staffMemberId, nursingHomeId),
+      getStaffRoleAssignments: (staffMemberId) => getStaffRoleAssignments(scopedStore, staffMemberId),
+      getStaffHomeAssignments: (staffMemberId) => getStaffHomeAssignments(scopedStore, staffMemberId),
+      getStaffWardCompetencies: (staffMemberId) => getStaffWardCompetencies(scopedStore, staffMemberId),
+      getStaffProfessionalRegistrations: (staffMemberId) =>
+        getStaffProfessionalRegistrations(scopedStore, staffMemberId),
+      getStaffRosterAssignments: (staffMemberId) => getStaffRosterAssignments(scopedStore, staffMemberId),
+      getEffectivePermissions: (capabilityScope) =>
+        getEffectivePermissions(
+          scopedStore,
+          createStaffAccessContext(currentUser, activeFacilityId),
+          capabilityScope || { nursingHomeId: activeFacilityId },
+        ),
+      getStaffAccessibleHomes: (staffMemberId) => getStaffAccessibleHomes(scopedStore, staffMemberId),
+      getStaffAccessibleWards: (staffMemberId, nursingHomeId) =>
+        getStaffAccessibleWards(scopedStore, staffMemberId, nursingHomeId),
+      getStaffOnDuty: (nursingHomeId, wardId) => getStaffOnDuty(scopedStore, nursingHomeId, wardId),
+      getStaffForWard: (nursingHomeId, wardId) => getStaffForWard(scopedStore, nursingHomeId, wardId),
+      getRegistrationStatus,
+      getRegistrationsExpiringWithin: (days) => getRegistrationsExpiringWithin(scopedStore, days),
+      getExpiredRegistrations: () => getExpiredRegistrations(scopedStore),
+      getStaffWithoutRequiredRegistration: () => getStaffWithoutRequiredRegistration(scopedStore),
+      canAccess: (capability, resource) =>
+        canAccess(
+          scopedStore,
+          createStaffAccessContext(currentUser, activeFacilityId, resource?.wardId),
+          capability,
+          resource || { nursingHomeId: activeFacilityId },
+        ),
+      explainAuthorizationDecision: (capability, resource) =>
+        explainAuthorizationDecision(
+          scopedStore,
+          createStaffAccessContext(currentUser, activeFacilityId, resource?.wardId),
+          capability,
+          resource || { nursingHomeId: activeFacilityId },
+        ),
       updateUser: (id, patch) =>
         setStore((s) => ({
           ...s,

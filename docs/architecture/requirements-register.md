@@ -25,3 +25,17 @@
 | REQ-INACTIVE-001 | Inactive is administrative and requires a reason. | Inactive administrative record test |
 | REQ-SCHEDULE-ABSENCE-001 | Residents not physically in home are excluded from ordinary bedside work. | Absence eligibility tests |
 | REQ-DATA-MIGRATION-003 | Existing resident and clinical record IDs remain unchanged. | Migration counts and RLT/scheduling regression tests |
+| REQ-STAFF-IDENTITY-001 | Login account is separate from staff identity. | `npm run test:staff-access-model` |
+| REQ-EMPLOYMENT-001 | Employment records are home-specific and historical. | `npm run test:staff-access-model`, `npm run validate:staff-access-model` |
+| REQ-ROLE-001 | Clinical role assignment is scope-specific. | Different roles in different homes test |
+| REQ-REGISTRATION-001 | Professional registration is independently tracked. | Registration expiry test |
+| REQ-HOME-ASSIGNMENT-001 | Staff home access is explicitly assigned. | Multi-home user and home-scope tests |
+| REQ-WARD-COMPETENCY-001 | Ward competency is separate from current ward selection. | Ward competency test |
+| REQ-ROSTER-001 | Roster assignment is separate from role and competency. | Roster foundation validation test |
+| REQ-PERMISSION-001 | Authorization uses capabilities, not role strings alone. | Permission tests and migrated route guards |
+| REQ-PERMISSION-SCOPE-001 | Permissions are scoped to ward/home/enterprise as applicable. | Cross-home and ward-scope tests |
+| REQ-PERMISSION-DENY-001 | Explicit deny overrides allow. | Explicit deny test |
+| REQ-SAFEGUARD-ACCESS-001 | Safeguarding access is restricted and audited-ready. | Safeguarding restriction test |
+| REQ-FINANCE-ACCESS-001 | Finance access requires explicit capability. | Finance explicit grant test |
+| REQ-MULTIHOME-ACCESS-001 | Multi-home access requires valid assignment or enterprise permission. | Multi-home switching test |
+| REQ-ACCOUNT-LIFECYCLE-001 | Disabling an account preserves staff and clinical history. | Disabled account test |

@@ -7,10 +7,20 @@ import type {
   AdmissionId,
   BedAssignmentId,
   BedId,
+  EmploymentRecordId,
   EnterpriseId,
+  HomeAssignmentId,
+  PermissionGrantId,
+  ProfessionalRegistrationId,
+  RoleAssignmentId,
+  RoleTemplateId,
+  RosterAssignmentId,
   NursingHomeId,
   RoomId,
+  StaffMemberId,
+  UserAccountId,
   WardId,
+  WardCompetencyId,
 } from "@/types/entityIds";
 
 export type ResidentLifecycleStatus =
@@ -23,6 +33,194 @@ export type ResidentLifecycleStatus =
 export type AdmissionType = "long_term" | "respite" | "short_stay" | "other";
 export type ResidentPresenceStatus = "in_home" | "temporarily_absent" | "in_hospital" | "unknown";
 export type AbsenceType = "temporary_leave" | "hospital_transfer";
+export type EmploymentType =
+  | "permanent"
+  | "fixed_term"
+  | "temporary"
+  | "agency"
+  | "bank"
+  | "contractor"
+  | "volunteer"
+  | "other";
+export type EmploymentStatus = "planned" | "active" | "on_leave" | "suspended" | "ended";
+export type RegistrationStatus =
+  | "active"
+  | "expiring"
+  | "expired"
+  | "suspended"
+  | "not_required"
+  | "unknown";
+export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
+export type PermissionScopeType =
+  | "self"
+  | "ward"
+  | "nursing_home"
+  | "multiple_homes"
+  | "enterprise"
+  | "global_system";
+
+export interface UserAccount {
+  id: UserAccountId;
+  email?: string;
+  username?: string;
+  authenticationProvider?: string;
+  externalAuthId?: string;
+  staffMemberId?: StaffMemberId;
+  accountStatus: "invited" | "active" | "suspended" | "locked" | "disabled";
+  lastLoginAt?: string;
+  passwordChangedAt?: string;
+  defaultNursingHomeId?: NursingHomeId;
+  defaultWardId?: WardId;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+  updatedBy?: UserAccountId;
+}
+
+export interface StaffMember {
+  id: StaffMemberId;
+  firstName: string;
+  lastName: string;
+  preferredName?: string;
+  displayName: string;
+  title?: string;
+  phone?: string;
+  email?: string;
+  active: boolean;
+  staffNumber?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+  updatedBy?: UserAccountId;
+}
+
+export interface EmploymentRecord {
+  id: EmploymentRecordId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  enterpriseId?: EnterpriseId;
+  employmentType: EmploymentType;
+  employmentStatus: EmploymentStatus;
+  jobTitle: string;
+  department?: string;
+  startDate: string;
+  endDate?: string;
+  contractedHoursPerWeek?: number;
+  managerStaffMemberId?: StaffMemberId;
+  agencyName?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+  updatedBy?: UserAccountId;
+}
+
+export interface RoleAssignment {
+  id: RoleAssignmentId;
+  staffMemberId: StaffMemberId;
+  userAccountId?: UserAccountId;
+  roleKey: "DON" | "CNM" | "NURSE" | "HCA" | "DOCTOR" | string;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  status: "active" | "inactive" | "expired";
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+  updatedBy?: UserAccountId;
+}
+
+export interface ProfessionalRegistration {
+  id: ProfessionalRegistrationId;
+  staffMemberId: StaffMemberId;
+  profession: "nurse" | "doctor" | "allied_health" | "other";
+  registrationBody: string;
+  registrationNumber?: string;
+  registrationStatus: RegistrationStatus;
+  issueDate?: string;
+  expiryDate?: string;
+  verifiedAt?: string;
+  verifiedBy?: UserAccountId;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HomeAssignment {
+  id: HomeAssignmentId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  status: "active" | "inactive";
+  validFrom: string;
+  validTo?: string;
+  assignmentType: "primary" | "secondary" | "temporary" | "agency" | "enterprise_oversight";
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+}
+
+export interface WardCompetency {
+  id: WardCompetencyId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  wardId: WardId;
+  status: WardCompetencyStatus;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  competencyAreas?: string[];
+  approvedBy?: StaffMemberId;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RosterAssignment {
+  id: RosterAssignmentId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  shiftId?: string;
+  startDateTime: string;
+  endDateTime: string;
+  roleKey: string;
+  status: "planned" | "confirmed" | "in_progress" | "completed" | "cancelled" | "absent";
+  source: "manual" | "roster" | "agency" | "temporary_cover";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionGrant {
+  id: PermissionGrantId;
+  userAccountId?: UserAccountId;
+  staffMemberId?: StaffMemberId;
+  roleAssignmentId?: RoleAssignmentId;
+  capability: string;
+  scopeType: PermissionScopeType;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  effect: "allow" | "deny";
+  effectiveFrom: string;
+  effectiveTo?: string;
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserAccountId;
+}
+
+export interface RoleTemplate {
+  id: RoleTemplateId;
+  key: "DON" | "CNM" | "NURSE" | "HCA" | "DOCTOR" | string;
+  name: string;
+  description?: string;
+  capabilities: string[];
+  active: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Enterprise {
   id: EnterpriseId;

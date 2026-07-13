@@ -27,10 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { RoleSwitcher } from "@/components/care/RoleSwitcher";
 import { UserMenu } from "@/components/care/UserMenu";
 import { GlobalFilter } from "@/components/care/GlobalFilter";
-import { can } from "@/lib/care/permissions";
-import type { Role } from "@/lib/care/types";
 
-type NavItem = { to: any; label: string; icon: any; exact?: boolean; perm?: (r: Role) => boolean };
+type CapabilityCheck = (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
+type NavItem = { to: any; label: string; icon: any; exact?: boolean; capability?: string; visible?: (canAccess: CapabilityCheck) => boolean };
 
 const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -39,32 +38,32 @@ const nav: NavItem[] = [
     label: "Operations",
     icon: Building2,
     // TODO: Re-enable Operations for Nurse if Operations and Dashboard become separate workflows again.
-    perm: (r) => r !== "nurse" && (can(r, "ops.edit") || can(r, "ops.edit_own")),
+    visible: (canAccess) => canAccess("ops.edit") || canAccess("ops.edit_own"),
   },
-  { to: "/residents", label: "Residents", icon: Users, perm: (r) => can(r, "resident.view") },
+  { to: "/residents", label: "Residents", icon: Users, capability: "resident.view" },
   {
     to: "/assessments",
     label: "Assessments",
     icon: Stethoscope,
-    perm: (r) => can(r, "assessment.view"),
+    capability: "assessment.view",
   },
   {
     to: "/vitals",
     label: "Vitals",
     icon: HeartPulse,
-    perm: (r) => r === "cnm" || r === "don",
+    visible: (canAccess) => canAccess("vital.report") || canAccess("vital.audit"),
   },
   {
     to: "/care-plans",
     label: "Care Plans",
     icon: ClipboardList,
-    perm: (r) => can(r, "careplan.view"),
+    capability: "careplan.view",
   },
   {
     to: "/compliance",
     label: "Compliance",
     icon: ShieldCheck,
-    perm: (r) => can(r, "compliance.view"),
+    capability: "compliance.view",
   },
   { to: "/daily-notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/handovers", label: "Handovers", icon: UserCheck },
@@ -72,26 +71,26 @@ const nav: NavItem[] = [
     to: "/incidents",
     label: "Incidents",
     icon: ShieldAlert,
-    perm: (r) => can(r, "incident.view") || can(r, "incident.create"),
+    visible: (canAccess) => canAccess("incident.view") || canAccess("incident.create"),
   },
   {
     to: "/mdt-notes",
     label: "MDT",
     icon: UserCheck,
-    perm: (r) => can(r, "mdt.create") || can(r, "clinical.view"),
+    visible: (canAccess) => canAccess("mdt.create") || canAccess("clinical.view"),
   },
   { to: "/visitors", label: "Visitors", icon: UsersRound },
   { to: "/outings", label: "Outings", icon: Plane },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/risks", label: "Risks", icon: Gauge },
   { to: "/tasks", label: "Actions", icon: CheckSquare },
-  { to: "/reports", label: "Reports", icon: BarChart3, perm: (r) => can(r, "report.view") },
-  { to: "/audit-logs", label: "Audit Trail", icon: History, perm: (r) => can(r, "audit.view") },
+  { to: "/reports", label: "Reports", icon: BarChart3, capability: "report.view" },
+  { to: "/audit-logs", label: "Audit Trail", icon: History, capability: "audit.view" },
 ];
 
 function SidebarInner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { tasks, currentRole } = useCare();
+  const { tasks, canAccess } = useCare();
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -105,7 +104,7 @@ function SidebarInner() {
     overdueTasks > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
-  const visible = nav.filter((i) => !i.perm || i.perm(currentRole));
+  const visible = nav.filter((i) => !i.capability || canAccess(i.capability)).filter((i) => !i.visible || i.visible(canAccess));
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -180,7 +179,7 @@ function TopBar() {
 
 function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { currentRole, tasks } = useCare();
+  const { tasks, canAccess } = useCare();
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -194,7 +193,7 @@ function MobileNav() {
     overdueTasks > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
-  const visible = nav.filter((i) => !i.perm || i.perm(currentRole)).slice(0, 5);
+  const visible = nav.filter((i) => !i.capability || canAccess(i.capability)).filter((i) => !i.visible || i.visible(canAccess)).slice(0, 5);
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar text-sidebar-foreground border-t border-sidebar-border flex justify-around py-1.5">
       {visible.map((item) => {

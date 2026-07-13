@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { can, type Permission } from "@/lib/care/permissions";
+import type { Permission } from "@/lib/care/permissions";
 
 type Kind = "note" | "intervention" | "task" | "incident" | "mdt" | "visitor" | "outing";
 
@@ -35,11 +35,12 @@ function RecordPage() {
   const {
     residents, currentRole, currentUserName,
     addNote, addIntervention, addTask, addIncident, addMDTNote, addVisitor, addOuting,
+    canAccess,
   } = useCare();
   const navigate = useNavigate();
   const r = residents.find(x => x.id === id);
   const meta = kindMeta[kind];
-  const allowed = can(currentRole, meta.perm);
+  const allowed = r ? canAccess(meta.perm, { nursingHomeId: r.facilityId, wardId: r.wardId, residentId: id }) : false;
 
   if (!r) return <div className="p-8">Resident not found.</div>;
 
@@ -55,7 +56,7 @@ function RecordPage() {
         </CardHeader>
         <CardContent>
           {!allowed ? (
-            <p className="text-sm text-destructive">Your current role ({currentRole}) cannot create {meta.title.toLowerCase()}.</p>
+            <p className="text-sm text-destructive">Access denied. You cannot create {meta.title.toLowerCase()} for this resident in the current scope.</p>
           ) : (
             <>
               {kind === "note" && <NoteForm onSubmit={(data) => { addNote({ ...data, residentId: id, staff: currentUserName, date: new Date().toISOString() } as any); done(); }} />}

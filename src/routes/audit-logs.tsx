@@ -2,7 +2,6 @@
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { can } from "@/lib/care/permissions";
 
 export const Route = createFileRoute("/audit-logs")({
   head: () => ({ meta: [{ title: "Audit Trail â€” CarePath" }] }),
@@ -10,9 +9,9 @@ export const Route = createFileRoute("/audit-logs")({
 });
 
 function AuditLogsPage() {
-  const { auditLogs, currentRole } = useCare();
-  if (!can(currentRole, "audit.view")) {
-    return <div className="p-8 text-sm text-muted-foreground">Audit trail are only visible to the Director of Nursing.</div>;
+  const { auditLogs, canAccess } = useCare();
+  if (!canAccess("audit.view")) {
+    return <div className="p-8 text-sm text-muted-foreground">Access denied. Audit records are restricted to authorised governance users.</div>;
   }
   return (
     <div className="p-4 md:p-8 space-y-4 max-w-5xl">

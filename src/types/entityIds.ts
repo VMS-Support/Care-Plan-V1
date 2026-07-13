@@ -11,6 +11,14 @@ export type AbsenceEpisodeId = Brand<string, "AbsenceEpisodeId">;
 export type ResidentId = Brand<string, "ResidentId">;
 export type StaffMemberId = Brand<string, "StaffMemberId">;
 export type UserAccountId = Brand<string, "UserAccountId">;
+export type EmploymentRecordId = Brand<string, "EmploymentRecordId">;
+export type RoleAssignmentId = Brand<string, "RoleAssignmentId">;
+export type ProfessionalRegistrationId = Brand<string, "ProfessionalRegistrationId">;
+export type HomeAssignmentId = Brand<string, "HomeAssignmentId">;
+export type WardCompetencyId = Brand<string, "WardCompetencyId">;
+export type RosterAssignmentId = Brand<string, "RosterAssignmentId">;
+export type PermissionGrantId = Brand<string, "PermissionGrantId">;
+export type RoleTemplateId = Brand<string, "RoleTemplateId">;
 export type ShiftId = Brand<string, "ShiftId">;
 export type AssessmentId = Brand<string, "AssessmentId">;
 export type ObservationId = Brand<string, "ObservationId">;
@@ -36,6 +44,14 @@ export type EntityIdPrefix =
   | "resident"
   | "staff-member"
   | "user-account"
+  | "employment-record"
+  | "role-assignment"
+  | "professional-registration"
+  | "home-assignment"
+  | "ward-competency"
+  | "roster-assignment"
+  | "permission-grant"
+  | "role-template"
   | "shift"
   | "assessment"
   | "observation"
@@ -76,6 +92,16 @@ export const asBedId = (value: string) => value as BedId;
 export const asBedAssignmentId = (value: string) => value as BedAssignmentId;
 export const asAdmissionId = (value: string) => value as AdmissionId;
 export const asAbsenceEpisodeId = (value: string) => value as AbsenceEpisodeId;
+export const asStaffMemberId = (value: string) => value as StaffMemberId;
+export const asUserAccountId = (value: string) => value as UserAccountId;
+export const asEmploymentRecordId = (value: string) => value as EmploymentRecordId;
+export const asRoleAssignmentId = (value: string) => value as RoleAssignmentId;
+export const asProfessionalRegistrationId = (value: string) => value as ProfessionalRegistrationId;
+export const asHomeAssignmentId = (value: string) => value as HomeAssignmentId;
+export const asWardCompetencyId = (value: string) => value as WardCompetencyId;
+export const asRosterAssignmentId = (value: string) => value as RosterAssignmentId;
+export const asPermissionGrantId = (value: string) => value as PermissionGrantId;
+export const asRoleTemplateId = (value: string) => value as RoleTemplateId;
 
 export const createEnterpriseId = () => createEntityId("enterprise") as EnterpriseId;
 export const createNursingHomeId = () => createEntityId("nursing-home") as NursingHomeId;
@@ -85,3 +111,13 @@ export const createBedId = () => createEntityId("bed") as BedId;
 export const createBedAssignmentId = () => createEntityId("bed-assignment") as BedAssignmentId;
 export const createAdmissionId = () => createEntityId("admission") as AdmissionId;
 export const createAbsenceEpisodeId = () => createEntityId("absence-episode") as AbsenceEpisodeId;
+export const createStaffMemberId = () => createEntityId("staff-member") as StaffMemberId;
+export const createUserAccountId = () => createEntityId("user-account") as UserAccountId;
+export const createEmploymentRecordId = () => createEntityId("employment-record") as EmploymentRecordId;
+export const createRoleAssignmentId = () => createEntityId("role-assignment") as RoleAssignmentId;
+export const createProfessionalRegistrationId = () => createEntityId("professional-registration") as ProfessionalRegistrationId;
+export const createHomeAssignmentId = () => createEntityId("home-assignment") as HomeAssignmentId;
+export const createWardCompetencyId = () => createEntityId("ward-competency") as WardCompetencyId;
+export const createRosterAssignmentId = () => createEntityId("roster-assignment") as RosterAssignmentId;
+export const createPermissionGrantId = () => createEntityId("permission-grant") as PermissionGrantId;
+export const createRoleTemplateId = () => createEntityId("role-template") as RoleTemplateId;

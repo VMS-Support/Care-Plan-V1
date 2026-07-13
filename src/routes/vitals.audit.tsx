@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
-import { can } from "@/lib/care/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,12 +14,12 @@ export const Route = createFileRoute("/vitals/audit")({
 });
 
 function VitalsAuditReport() {
-  const { vitals, residents, currentRole } = useCare();
+  const { vitals, residents, canAccess } = useCare();
   const [search, setSearch] = useState("");
   const [action, setAction] = useState<string>("all");
 
-  if (!can(currentRole, "vital.audit")) {
-    return <div className="p-8"><p>You do not have permission to view audit records.</p></div>;
+  if (!canAccess("vital.audit")) {
+    return <div className="p-8"><p>Access denied. Observation audit records are restricted to authorised users.</p></div>;
   }
 
   const entries = useMemo(() => {
