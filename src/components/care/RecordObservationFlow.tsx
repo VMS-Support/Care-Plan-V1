@@ -8,7 +8,9 @@ import { VITAL_TYPE_LABELS } from "@/lib/care/vital-records";
 import { can } from "@/lib/care/permissions";
 import { getResidentBaselineSummary } from "@/domain/baselines/residentBaselineService";
 import type { ResidentBaselineType } from "@/domain/baselines/residentBaselineTypes";
+import { canonicalObservationFromVital } from "@/domain/observations/observationService";
 import type { ObservationEntryLaunchContext } from "@/domain/observations/observationEntryTypes";
+import { calculateResidentWeightIntelligence } from "@/domain/weight/weightIntelligenceCalculator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -70,6 +72,18 @@ export function RecordObservationFlow({ residentId: residentIdProp, launchContex
     });
   }, [currentRole, observedAt, operationalContext.nursingHomeId, residentBaselines, selectedResidentId]);
   const relevantBaselines = baselineSummary?.baselines.filter((baseline) => type && BASELINES_BY_TYPE[type].includes(baseline.baselineType)) ?? [];
+  const weightIntelligence = useMemo(() => {
+    if (type !== "weight_bmi" || !selectedResidentId || !can(currentRole, "weight_intelligence.view")) return undefined;
+    const records = vitals
+      .filter((item) => item.residentId === selectedResidentId)
+      .map((item) => canonicalObservationFromVital(item, item.facilityId ?? operationalContext.nursingHomeId));
+    return calculateResidentWeightIntelligence({
+      residentId: selectedResidentId,
+      nursingHomeId: operationalContext.nursingHomeId,
+      records,
+      generatedAt: observedAt,
+    });
+  }, [currentRole, observedAt, operationalContext.nursingHomeId, selectedResidentId, type, vitals]);
   const set = (key: string, value: string | boolean) => setValues((current) => ({ ...current, [key]: value }));
 
   const bmi = useMemo(() => calcBMI(
@@ -136,6 +150,13 @@ export function RecordObservationFlow({ residentId: residentIdProp, launchContex
     numericByType[type].forEach(addNumber);
     if (["full_news2", "oxygen_saturation", "respiratory"].includes(type)) payload.onOxygen = !!values.onOxygen;
     if (["full_news2", "oxygen_saturation", "respiratory"].includes(type)) payload.observationDetails = { oxygenMethod: String(values.oxygenMethod ?? "room_air"), venturiPercentage: numberValue(values.venturiPercentage) };
+    if (type === "weight_bmi") payload.observationDetails = {
+      ...(payload.observationDetails as Record<string, unknown> ?? {}),
+      measurementMethod: String(values.weightMeasurementMethod ?? "standing_scale"),
+      estimated: values.weightMeasurementMethod === "estimated",
+      clothing: typeof values.weightClothing === "string" && values.weightClothing.trim() ? values.weightClothing.trim() : undefined,
+      equipment: typeof values.weightEquipment === "string" && values.weightEquipment.trim() ? values.weightEquipment.trim() : undefined,
+    };
     if (type === "full_news2") addText("consciousness");
     if (type === "blood_glucose") { addText("glucoseContext"); addText("insulinGiven"); }
     if (type === "pain_score") { addText("painLocation"); addText("painIntervention"); addText("painOutcome"); }
@@ -182,6 +203,7 @@ export function RecordObservationFlow({ residentId: residentIdProp, launchContex
               {launchContext && launchContext.sourceType !== "resident_profile" && <div className="rounded-md border p-3 text-sm"><div className="font-medium">{launchContext.sourceLabel ?? "Observation requested"}</div>{launchContext.requestedDueAt && <div>Due {new Date(launchContext.requestedDueAt).toLocaleString("en-IE")}</div>}{launchContext.requestReason && <div className="text-muted-foreground">{launchContext.requestReason}</div>}</div>}
               {!fixedResidentId && <Field label="Resident"><Select value={residentId} onValueChange={setResidentId}><SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{residents.map((item) => <SelectItem key={item.id} value={item.id}>{item.firstName} {item.lastName} · Room {item.roomNumber}</SelectItem>)}</SelectContent></Select></Field>}
               <div className="grid sm:grid-cols-3 gap-3"><Field label="Date Observed" required><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Time Observed" required><Input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></Field><Field label="Date/Time Recorded"><Input value="Set automatically on save" readOnly /></Field></div>
+              {type === "weight_bmi" && weightIntelligence && <WeightEntryContext intelligence={weightIntelligence} />}
               <ObservationFields type={type} values={values} set={set} bmi={bmi} news={news} />
               <Field label="Notes"><Textarea value={String(values.observationNotes ?? "")} onChange={(event) => set("observationNotes", event.target.value)} /></Field>
               {!(["weight_bmi", "pain_score", "fluid_balance"] as VitalRecordType[]).includes(type) && <Field label="Device Used"><Input value={String(values.deviceUsed ?? "")} onChange={(event) => set("deviceUsed", event.target.value)} placeholder="Optional" /></Field>}
@@ -202,7 +224,7 @@ function ObservationFields({ type, values, set, bmi, news }: { type: VitalRecord
   if (type === "blood_pressure") return <div className="grid sm:grid-cols-3 gap-3">{input("systolicBP", "Systolic BP", { required: true })}{input("diastolicBP", "Diastolic BP", { required: true })}{input("pulse", "Pulse optional")}</div>;
   if (type === "oxygen_saturation") return <div className="grid sm:grid-cols-2 gap-3">{input("spo2", "SpO2 %", { required: true })}{oxygen}{input("respiratoryRate", "Respiratory Rate optional")}</div>;
   if (type === "blood_glucose") return <div className="grid sm:grid-cols-2 gap-3">{input("bloodGlucose", "Blood Glucose mmol/L", { required: true, step: "0.1" })}<Field label="Meal Context" required><Select value={String(values.glucoseContext ?? "")} onValueChange={(value) => set("glucoseContext", value)}><SelectTrigger><SelectValue placeholder="Select context" /></SelectTrigger><SelectContent><SelectItem value="before_meal">Before meal</SelectItem><SelectItem value="after_meal">After meal</SelectItem><SelectItem value="random">Random</SelectItem><SelectItem value="fasting">Fasting</SelectItem></SelectContent></Select></Field><Field label="Insulin Given"><Input value={String(values.insulinGiven ?? "")} onChange={(event) => set("insulinGiven", event.target.value)} placeholder="Optional dose/type" /></Field></div>;
-  if (type === "weight_bmi") return <><div className="grid sm:grid-cols-2 gap-3">{input("weight", "Weight kg", { required: true, step: "0.1" })}{input("height", "Height cm optional", { step: "0.1" })}</div><Derived label="BMI" value={bmi !== undefined ? String(bmi) : "Enter weight; stored resident height is used when available"} /></>;
+  if (type === "weight_bmi") return <><div className="grid sm:grid-cols-2 gap-3">{input("weight", "Weight kg", { required: true, step: "0.1" })}{input("height", "Height cm optional", { step: "0.1" })}<Field label="Measurement Method"><Select value={String(values.weightMeasurementMethod ?? "standing_scale")} onValueChange={(value) => set("weightMeasurementMethod", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standing_scale">Standing scale</SelectItem><SelectItem value="chair_scale">Chair scale</SelectItem><SelectItem value="hoist_scale">Hoist scale</SelectItem><SelectItem value="bed_scale">Bed scale</SelectItem><SelectItem value="estimated">Estimated</SelectItem></SelectContent></Select></Field><Field label="Clothing"><Input value={String(values.weightClothing ?? "")} onChange={(event) => set("weightClothing", event.target.value)} placeholder="Optional" /></Field><Field label="Equipment"><Input value={String(values.weightEquipment ?? "")} onChange={(event) => set("weightEquipment", event.target.value)} placeholder="Optional" /></Field></div><Derived label="BMI" value={bmi !== undefined ? String(bmi) : "Enter weight; stored resident height is used when available"} /></>;
   if (type === "pain_score") return <div className="grid sm:grid-cols-2 gap-3">{input("painScore", "Pain Score 0-10", { required: true, min: 0, max: 10 })}<Field label="Location"><Input value={String(values.painLocation ?? "")} onChange={(event) => set("painLocation", event.target.value)} /></Field><Field label="Intervention Given"><Textarea value={String(values.painIntervention ?? "")} onChange={(event) => set("painIntervention", event.target.value)} /></Field><Field label="Outcome"><Textarea value={String(values.painOutcome ?? "")} onChange={(event) => set("painOutcome", event.target.value)} /></Field></div>;
   if (type === "fluid_balance") return <><div className="grid sm:grid-cols-3 gap-3">{input("fluidIntakeMl", "Intake ml")}{input("fluidOutputMl", "Output ml")}<Field label="Route / Type"><Input value={String(values.fluidRoute ?? "")} onChange={(event) => set("fluidRoute", event.target.value)} placeholder="Optional" /></Field></div><Derived label="Balance" value={`${(numberValue(values.fluidIntakeMl) ?? 0) - (numberValue(values.fluidOutputMl) ?? 0)} ml`} /></>;
   if (type === "neurological_observations") return <div className="grid sm:grid-cols-2 gap-3"><Field label="Consciousness" required><Select value={String(values.neuroConsciousness ?? "")} onValueChange={(value) => set("neuroConsciousness", value)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{["alert", "new_confusion", "responds_to_voice", "responds_to_pain", "unresponsive"].map((value) => <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></Field><Field label="Pupils" required><Select value={String(values.pupils ?? "")} onValueChange={(value) => set("pupils", value)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{["equal_reactive", "unequal", "sluggish", "fixed", "not_assessed"].map((value) => <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></Field>{input("gcsEyes", "GCS eyes (1–4)")}{input("gcsVerbal", "GCS verbal (1–5)")}{input("gcsMotor", "GCS motor (1–6)")}<Field label="Limb Movement"><Input value={String(values.limbMovement ?? "")} onChange={(event) => set("limbMovement", event.target.value)} /></Field><Field label="Neurological Symptoms"><Textarea value={String(values.neurologicalSymptoms ?? "")} onChange={(event) => set("neurologicalSymptoms", event.target.value)} /></Field></div>;
@@ -215,6 +237,21 @@ function NEWS2Live({ news }: { news: ReturnType<typeof calcNEWS2> }) {
   if (!news.complete) return <Derived label="NEWS2" value="Complete full observations to calculate NEWS2" />;
   return <div className="rounded-md border bg-muted/30 p-3 space-y-2"><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">NEWS2 Live</span><span className="text-xl font-semibold tabular-nums">{news.total}</span><Badge variant="outline" className="capitalize">{news.risk}</Badge></div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">{Object.entries(news.breakdown).map(([label, score]) => <span key={label}><span className="text-muted-foreground">{label}</span> +{score}</span>)}</div></div>;
 }
+function WeightEntryContext({ intelligence }: { intelligence: ReturnType<typeof calculateResidentWeightIntelligence> }) {
+  const latest = intelligence.latestWeight;
+  return <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-2">
+    <div className="font-medium">Weight context</div>
+    {latest ? (
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Derived label="Latest" value={`${latest.weightKg.toFixed(1)} kg · ${new Date(latest.observedAt).toLocaleDateString("en-IE")}`} />
+        <Derived label="Previous" value={intelligence.changeFromPrevious ? `${signed(intelligence.changeFromPrevious.changeKg)} kg (${signed(intelligence.changeFromPrevious.changePercent)}%)` : "No valid comparison"} />
+        <Derived label="30 days" value={intelligence.thirtyDayChange?.status === "calculated" ? `${signed(intelligence.thirtyDayChange.changeKg)} kg (${signed(intelligence.thirtyDayChange.changePercent)}%)` : intelligence.thirtyDayChange?.status.replaceAll("_", " ") ?? "No comparison"} />
+      </div>
+    ) : <p className="text-muted-foreground">No previous valid structured weight is available for comparison.</p>}
+    <p className="text-xs text-muted-foreground">{intelligence.missingOrOverdue.explanation}</p>
+  </div>;
+}
+function signed(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(1)}`; }
 function BaselineContext({ baselines }: { baselines: Array<{ baselineId: string; baselineType: ResidentBaselineType; displayValue: string; sourceLabel: string; effectiveFrom: string; reviewDate: string; reviewState: string }> }) {
   return <div className="rounded-md border border-blue-200 bg-blue-50/40 p-3 text-sm">
     <div className="font-medium">Resident baseline context</div>

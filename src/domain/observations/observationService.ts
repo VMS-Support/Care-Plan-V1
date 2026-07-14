@@ -104,7 +104,16 @@ export function canonicalObservationFromVital(vital: VitalSign, nursingHomeId = 
   add("respirations", vital.respiratoryRate, "breaths_per_minute");
   if (vital.systolicBP !== undefined || vital.diastolicBP !== undefined) add("blood_pressure", vital.systolicBP, "mmHg", { secondaryValue: vital.diastolicBP, secondaryUnit: "mmHg" });
   add("spo2", vital.spo2, "percent"); add("blood_glucose", vital.bloodGlucose, "mmol_per_litre");
-  add("weight", vital.weight, "kilograms"); add("pain", vital.painScore, "score");
+  add("weight", vital.weight, "kilograms", vital.weight !== undefined ? {
+    measurementMethod: typeof vital.observationDetails?.measurementMethod === "string" ? vital.observationDetails.measurementMethod : undefined,
+    details: {
+      measurementMethod: typeof vital.observationDetails?.measurementMethod === "string" ? vital.observationDetails.measurementMethod : undefined,
+      estimated: vital.observationDetails?.estimated === true,
+      clothing: typeof vital.observationDetails?.clothing === "string" ? vital.observationDetails.clothing : undefined,
+      equipment: typeof vital.observationDetails?.equipment === "string" ? vital.observationDetails.equipment : undefined,
+    },
+  } : {});
+  add("pain", vital.painScore, "score");
   if (vital.onOxygen !== undefined) components.push({ id: `${vital.id}-oxygen`, observationType: "oxygen_delivery", value: vital.oxygenLpm, codedValue: vital.onOxygen ? String(vital.observationDetails?.oxygenMethod ?? "other") : "room_air", unit: vital.onOxygen ? "litres_per_minute" : "none", clinicallySignificant: false, details: vital.observationDetails });
   if (vital.consciousness) components.push({ id: `${vital.id}-consciousness`, observationType: "consciousness", codedValue: ({ A: "alert", C: "new_confusion", V: "responds_to_voice", P: "responds_to_pain", U: "unresponsive" } as Record<string, ConsciousnessLevel>)[vital.consciousness], unit: "none", clinicallySignificant: false });
   if (vital.observationDetails?.neurological === true) components.push({ id: `${vital.id}-neurological`, observationType: "neurological", value: typeof vital.observationDetails.gcsTotal === "number" ? vital.observationDetails.gcsTotal : undefined, textValue: typeof vital.observationDetails.neurologicalSymptoms === "string" ? vital.observationDetails.neurologicalSymptoms : undefined, codedValue: typeof vital.observationDetails.neuroConsciousness === "string" ? vital.observationDetails.neuroConsciousness : undefined, unit: typeof vital.observationDetails.gcsTotal === "number" ? "score" : "none", clinicallySignificant: false, details: vital.observationDetails });
