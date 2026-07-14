@@ -75,12 +75,16 @@ import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
 import { ResidentHeader } from "@/components/resident/ResidentHeader";
 import { EditResidentProfileDialog } from "@/components/resident/EditResidentProfileDialog";
 import { ResidentClinicalOverview } from "@/components/resident/ResidentClinicalOverview";
+import { ResidentWorkDue } from "@/components/resident/ResidentWorkDue";
+import { ResidentRltOverview } from "@/components/resident/ResidentRltOverview";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
 import { CARE_ACTION_TYPE_LABELS, getCanonicalCareActionType } from "@/lib/care/flexibleCareActions";
 import { getResidentHeader } from "@/lib/care/residentHeader";
 import { getResidentClinicalOverview } from "@/lib/care/residentClinicalOverview";
 import { getEndOfLifeSummary } from "@/lib/care/endOfLifePathway";
 import { getResidentRltClinicalOverview } from "@/lib/care/rltClinicalOverview";
+import { getResidentRltOverview } from "@/lib/care/residentRltOverview";
+import { getResidentWorkDue } from "@/lib/care/residentWorkDue";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
 import {
   getResidentPreferencesByDomain,
@@ -285,6 +289,7 @@ function ResidentDetail() {
     weights,
     handovers,
     currentRole,
+    currentUser,
     currentUserName,
     activeFacilityId,
     canAccess,
@@ -495,6 +500,32 @@ function ResidentDetail() {
     clinicalAlerts,
     tasks,
   }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
+  const residentRltCapabilities = [
+    "resident_rlt_overview.view", "resident_rlt_overview.view_risks", "resident_rlt_overview.view_care_plans",
+    "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences", "resident_rlt_overview.view_sensitive",
+  ].filter((capability) => canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
+  // Persisted role templates from older installations may predate the two additive
+  // capability families; their equivalent existing RLT grants remain authoritative.
+  if (!residentRltCapabilities.includes("resident_rlt_overview.view") && rltReadCapabilities.includes("rlt_overview.view")) residentRltCapabilities.push("resident_rlt_overview.view");
+  if (!residentRltCapabilities.includes("resident_rlt_overview.view_risks") && rltReadCapabilities.includes("rlt_overview.view_risks")) residentRltCapabilities.push("resident_rlt_overview.view_risks");
+  if (!residentRltCapabilities.includes("resident_rlt_overview.view_care_plans") && rltReadCapabilities.includes("rlt_overview.view_care_plans")) residentRltCapabilities.push("resident_rlt_overview.view_care_plans");
+  if (rltReadCapabilities.includes("rlt_overview.view")) residentRltCapabilities.push("resident_rlt_overview.view_dependency");
+  if (rltReadCapabilities.includes("rlt_overview.view_preferences")) residentRltCapabilities.push("resident_rlt_overview.view_preferences");
+  const residentRltOverview = getResidentRltOverview(rltClinicalOverview, [...new Set(residentRltCapabilities)], flexibleCareActionState.workItems);
+  const residentWorkCapabilities = ["resident_work_due.view", "resident_work_due.open_source", "resident_work_due.complete", "resident_work_due.defer", "resident_work_due.mark_missed"].filter((capability) => canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
+  if (!residentWorkCapabilities.includes("resident_work_due.view") && canAccess("resident_profile.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentWorkCapabilities.push("resident_work_due.view");
+  if (!residentWorkCapabilities.includes("resident_work_due.open_source") && canAccess("care_action.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentWorkCapabilities.push("resident_work_due.open_source");
+  const workAuthCapabilities = [...residentWorkCapabilities, "work_item.view", "care_action.view", "work_item.start"];
+  if (residentWorkCapabilities.includes("resident_work_due.complete")) workAuthCapabilities.push("care_action.complete", "work_item.complete");
+  if (residentWorkCapabilities.includes("resident_work_due.defer")) workAuthCapabilities.push("care_action.defer", "work_item.defer");
+  if (residentWorkCapabilities.includes("resident_work_due.mark_missed")) workAuthCapabilities.push("work_item.mark_missed");
+  const residentWorkDue = getResidentWorkDue({
+    items: flexibleCareActionState.workItems,
+    references: { residents, wards, rooms: rooms.map((room) => ({ id: String(room.id), label: room.name || room.number, nursingHomeId: String(room.nursingHomeId || room.facilityId || activeFacilityId), wardId: room.wardId ? String(room.wardId) : undefined })), beds: beds.map((bed) => ({ id: String(bed.id), label: bed.label })) },
+    sourceExists: (item) => flexibleCareActionState.occurrences.some((occurrence) => occurrence.id === item.source.sourceEntityId),
+    sourceIsActive: (item) => flexibleCareActionState.occurrences.some((occurrence) => occurrence.id === item.source.sourceEntityId && occurrence.status === "active"),
+    resolvePersonLabel: (_staffId, userId) => users.find((user) => user.id === userId)?.name,
+  }, r.id, operationalContext, { userAccountId: currentUser.id, staffMemberId: String(operationalContext.staffMemberId || currentUser.id), roleKeys: [String(operationalContext.effectiveRoleKey), currentUser.role], authorisedNursingHomeIds: [String(r.facilityId || activeFacilityId)], authorisedWardIds: operationalContext.wardIds.map(String), capabilities: [...new Set(workAuthCapabilities)], sourceCapabilities: ["care_action.view"] });
   const rltTimelineItems = projectResidentRltTimeline({
     residents,
     assessments,
@@ -1471,6 +1502,8 @@ function ResidentDetail() {
       </Dialog>
 
       <ResidentClinicalOverview overview={residentClinicalOverview} onOpenSection={(section) => { if (section === "dying") { setSelectedRltDomainId("dying"); setActiveTab("activities"); } else if (["activities", "assessments", "vitals", "alerts", "tasks", "incidents"].includes(section)) setActiveTab(section as any); else if (typeof window !== "undefined" && section.startsWith("/")) window.location.assign(section); }} />
+      <ResidentWorkDue model={residentWorkDue} onOpen={(route) => { if (typeof window !== "undefined") window.location.assign(route); }} />
+      <ResidentRltOverview model={residentRltOverview} onOpen={(route) => { if (route.includes("rltDomainId=")) { const domainId = new URL(route, window.location.origin).searchParams.get("rltDomainId") as RltDomainId | null; if (domainId) { setSelectedRltDomainId(domainId); setActiveTab("activities"); return; } } if (typeof window !== "undefined") window.location.assign(route); }} />
       <ClinicalSnapshot residentId={r.id} showLatestVitals={false} />
 
       <Card>

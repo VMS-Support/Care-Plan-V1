@@ -47,6 +47,8 @@ export type Permission =
   | "end_of_life.view" | "end_of_life.view_sensitive" | "end_of_life.view_highly_sensitive" | "end_of_life.create" | "end_of_life.activate" | "end_of_life.review" | "end_of_life.record_wishes" | "end_of_life.view_advance_decisions" | "end_of_life.manage_family_support" | "end_of_life.manage_spiritual_support" | "end_of_life.record_death" | "end_of_life.manage_after_death_care"
   | "resident_profile.view" | "resident_profile.edit" | "resident_profile.edit_identity" | "resident_profile.edit_demographics" | "resident_profile.edit_photo" | "resident_profile.manage_contacts" | "resident_profile.assign_named_nurse" | "resident_profile.assign_key_worker" | "resident_profile.assign_gp" | "resident_profile.view_sensitive_identifiers" | "resident_profile.edit_sensitive_identifiers"
   | "resident_clinical_overview.view" | "resident_clinical_overview.view_assessments" | "resident_clinical_overview.view_risks" | "resident_clinical_overview.view_incidents" | "resident_clinical_overview.view_medication" | "resident_clinical_overview.view_sensitive" | "resident_clinical_overview.view_end_of_life"
+  | "resident_work_due.view" | "resident_work_due.open_source" | "resident_work_due.complete" | "resident_work_due.defer" | "resident_work_due.mark_missed"
+  | "resident_rlt_overview.view" | "resident_rlt_overview.view_risks" | "resident_rlt_overview.view_care_plans" | "resident_rlt_overview.view_dependency" | "resident_rlt_overview.view_preferences" | "resident_rlt_overview.view_sensitive"
   | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate";
 
 const matrix: Record<Role, Permission[]> = {
