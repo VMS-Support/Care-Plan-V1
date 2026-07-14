@@ -30,6 +30,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: RLT clinical regression gates
+        run: |
+          npm run test:rlt
+          npm run test:assessment-rlt-mapping
+          npm run validate:rlt-regression
+          npm run validate:assessment-rlt-mappings
+
       - name: Build static site
         run: npm run build:pages
 

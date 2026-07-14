@@ -6,11 +6,11 @@ import { assessmentMeta } from "@/lib/care/scoring";
 import {
   getCarePlansGroupedByRltDomain,
   getRltDomainForCarePlanProblem,
-  getRltDomainsForAssessment,
   RLT_DOMAINS,
   RLT_DOMAIN_TO_DEFAULT_CATEGORY,
   type RltDomainId,
 } from "@/lib/care/rlt";
+import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import {
   carePlanQualityClass,
   getCarePlanQualityStatus,
@@ -594,7 +594,7 @@ function ResidentDetail() {
         .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate));
       const assessmentsForDomain = rA
         .filter((assessment) =>
-          getRltDomainsForAssessment(assessment.type).some((mapped) => mapped.id === domain.id),
+          getApprovedRltDomainsForAssessmentRecord(assessment).some((mapped) => mapped.id === domain.id),
         )
         .sort((left, right) => right.date.localeCompare(left.date));
       const latestAssessmentByType = Array.from(

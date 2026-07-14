@@ -14,8 +14,25 @@ export type RltDomainId =
   | "sleeping"
   | "dying";
 
+export type RltDomainKey =
+  | "maintaining_safe_environment"
+  | "communication"
+  | "breathing"
+  | "eating_and_drinking"
+  | "elimination"
+  | "personal_cleansing_and_dressing"
+  | "controlling_body_temperature"
+  | "mobilising"
+  | "working_and_playing"
+  | "expressing_sexuality"
+  | "sleeping"
+  | "dying";
+
 export interface RltDomain {
   id: RltDomainId;
+  key: RltDomainKey;
+  label: string;
+  active: boolean;
   title: string;
   shortLabel: string;
   description: string;
@@ -29,50 +46,95 @@ export interface RltDomain {
 export const RLT_DOMAINS: RltDomain[] = [
   {
     id: "safe_environment",
+    key: "maintaining_safe_environment",
+    label: "Maintaining a Safe Environment",
+    active: true,
     title: "Maintaining a Safe Environment",
     shortLabel: "Safety",
-    description: "Supporting the resident to remain safe while preserving choice, dignity and independence.",
+    description:
+      "Supporting the resident to remain safe while preserving choice, dignity and independence.",
     examples: ["Falls prevention", "bedrail review", "wandering support", "medication safety"],
     relatedAssessmentTypes: ["falls", "four_at", "abc", "abs"],
-    relatedRiskTypes: ["falls", "medication_refusal", "infection", "behaviour", "wandering", "bedrail", "peep"],
-    commonCareNeeds: ["Risk of falls", "Risk of harm during periods of distress", "Support required to maintain safety"],
+    relatedRiskTypes: [
+      "falls",
+      "medication_refusal",
+      "infection",
+      "behaviour",
+      "wandering",
+      "bedrail",
+      "peep",
+    ],
+    commonCareNeeds: [
+      "Risk of falls",
+      "Risk of harm during periods of distress",
+      "Support required to maintain safety",
+    ],
     displayOrder: 1,
   },
   {
     id: "communication",
+    key: "communication",
+    label: "Communication",
+    active: true,
     title: "Communication",
     shortLabel: "Communication",
-    description: "Supporting the resident to express needs, understand information and maintain relationships.",
-    examples: ["cognitive support", "sensory aids", "communication preferences", "capacity support"],
+    description:
+      "Supporting the resident to express needs, understand information and maintain relationships.",
+    examples: [
+      "cognitive support",
+      "sensory aids",
+      "communication preferences",
+      "capacity support",
+    ],
     relatedAssessmentTypes: ["mmse", "four_at"],
     relatedRiskTypes: ["cognition", "communication", "sensory"],
-    commonCareNeeds: ["Communication support required", "Cognitive impairment affecting understanding"],
+    commonCareNeeds: [
+      "Communication support required",
+      "Cognitive impairment affecting understanding",
+    ],
     displayOrder: 2,
   },
   {
     id: "breathing",
+    key: "breathing",
+    label: "Breathing",
+    active: true,
     title: "Breathing",
     shortLabel: "Breathing",
     description: "Monitoring and supporting respiratory comfort and oxygenation.",
     examples: ["respiratory observations", "oxygen saturation monitoring", "smoking assessment"],
     relatedAssessmentTypes: [],
     relatedRiskTypes: ["respiratory", "smoking", "oxygen_saturation"],
-    commonCareNeeds: ["Respiratory monitoring required", "Breathlessness or reduced oxygen saturation"],
+    commonCareNeeds: [
+      "Respiratory monitoring required",
+      "Breathlessness or reduced oxygen saturation",
+    ],
     displayOrder: 3,
   },
   {
     id: "eating_drinking",
+    key: "eating_and_drinking",
+    label: "Eating and Drinking",
+    active: true,
     title: "Eating and Drinking",
     shortLabel: "Nutrition",
     description: "Supporting safe eating, drinking, nutrition, hydration and weight stability.",
     examples: ["MUST", "MNA", "dysphagia support", "weight monitoring", "fluid intake"],
     relatedAssessmentTypes: ["must", "mna", "nutrition"],
     relatedRiskTypes: ["nutrition", "weight_loss", "dysphagia", "choking", "hydration"],
-    commonCareNeeds: ["Risk of malnutrition", "Weight loss", "Dysphagia or choking risk", "Hydration support"],
+    commonCareNeeds: [
+      "Risk of malnutrition",
+      "Weight loss",
+      "Dysphagia or choking risk",
+      "Hydration support",
+    ],
     displayOrder: 4,
   },
   {
     id: "elimination",
+    key: "elimination",
+    label: "Elimination",
+    active: true,
     title: "Elimination",
     shortLabel: "Elimination",
     description: "Supporting bladder and bowel health, continence, comfort and dignity.",
@@ -84,17 +146,27 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "personal_cleansing_dressing",
+    key: "personal_cleansing_and_dressing",
+    label: "Personal Cleansing and Dressing",
+    active: true,
     title: "Personal Cleansing and Dressing",
     shortLabel: "Personal Care",
     description: "Supporting personal care, skin integrity, hygiene, dressing and comfort.",
     examples: ["Waterlow", "Norton", "wound care", "skin inspection", "personal care preferences"],
     relatedAssessmentTypes: ["waterlow", "norton", "barthel", "abbey_pain", "pain_chart"],
     relatedRiskTypes: ["pressure_damage", "skin_integrity", "wound", "pain", "personal_care"],
-    commonCareNeeds: ["Pressure damage risk", "Skin integrity support", "Pain affecting personal care"],
+    commonCareNeeds: [
+      "Pressure damage risk",
+      "Skin integrity support",
+      "Pain affecting personal care",
+    ],
     displayOrder: 6,
   },
   {
     id: "body_temperature",
+    key: "controlling_body_temperature",
+    label: "Controlling Body Temperature",
+    active: true,
     title: "Controlling Body Temperature",
     shortLabel: "Temperature",
     description: "Monitoring signs of infection, raised temperature or clinical deterioration.",
@@ -106,9 +178,13 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "mobilisation",
+    key: "mobilising",
+    label: "Mobilising",
+    active: true,
     title: "Mobilisation",
     shortLabel: "Mobility",
-    description: "Supporting safe movement, transfers, posture, mobility and functional independence.",
+    description:
+      "Supporting safe movement, transfers, posture, mobility and functional independence.",
     examples: ["Barthel Index", "falls assessment", "transfer support", "walking aid use"],
     relatedAssessmentTypes: ["barthel", "falls", "abbey_pain", "pain_chart"],
     relatedRiskTypes: ["falls", "mobility", "transfer", "pain"],
@@ -117,9 +193,13 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "meaningful_activity",
-    title: "Working and Playing / Meaningful Activity",
+    key: "working_and_playing",
+    label: "Working and Playing",
+    active: true,
+    title: "Working and Playing",
     shortLabel: "Activity",
-    description: "Supporting occupation, recreation, social connection and meaningful daily activity.",
+    description:
+      "Supporting occupation, recreation, social connection and meaningful daily activity.",
     examples: ["social engagement", "activities", "occupation history", "wellbeing routines"],
     relatedAssessmentTypes: ["gds15", "cornell"],
     relatedRiskTypes: ["social_isolation", "low_mood", "activity", "wellbeing"],
@@ -128,9 +208,13 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "expressing_sexuality",
+    key: "expressing_sexuality",
+    label: "Expressing Sexuality",
+    active: true,
     title: "Expressing Sexuality",
     shortLabel: "Identity",
-    description: "Respecting identity, relationships, privacy, presentation and personal expression.",
+    description:
+      "Respecting identity, relationships, privacy, presentation and personal expression.",
     examples: ["privacy", "relationships", "identity", "preferred presentation"],
     relatedAssessmentTypes: [],
     relatedRiskTypes: ["privacy", "identity", "relationship"],
@@ -139,6 +223,9 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "sleeping",
+    key: "sleeping",
+    label: "Sleeping",
+    active: true,
     title: "Sleeping",
     shortLabel: "Sleep",
     description: "Supporting rest, sleep routines, comfort and night-time wellbeing.",
@@ -150,9 +237,13 @@ export const RLT_DOMAINS: RltDomain[] = [
   },
   {
     id: "dying",
+    key: "dying",
+    label: "Dying",
+    active: true,
     title: "Dying",
     shortLabel: "End of Life",
-    description: "Supporting comfort, dignity, advance wishes and family communication at end of life.",
+    description:
+      "Supporting comfort, dignity, advance wishes and family communication at end of life.",
     examples: ["advance care planning", "DNAR", "palliative care", "comfort care"],
     relatedAssessmentTypes: [],
     relatedRiskTypes: ["end_of_life", "palliative", "dnar", "advance_care_plan"],
@@ -165,6 +256,33 @@ export const RLT_DOMAIN_BY_ID = RLT_DOMAINS.reduce(
   (map, domain) => ({ ...map, [domain.id]: domain }),
   {} as Record<RltDomainId, RltDomain>,
 );
+
+export const RLT_DOMAIN_BY_KEY = RLT_DOMAINS.reduce(
+  (map, domain) => ({ ...map, [domain.key]: domain }),
+  {} as Record<RltDomainKey, RltDomain>,
+);
+
+export type RltDomainResolutionSource =
+  | "explicit_domain_id"
+  | "explicit_domain_key"
+  | "legacy_mapping"
+  | "legacy_care_plan_type"
+  | "manual_review_required"
+  | "unmapped";
+
+export interface RltDomainResolution {
+  domainId?: RltDomainId;
+  domainKey?: RltDomainKey;
+  source: RltDomainResolutionSource;
+  confidence: "high" | "medium" | "low";
+  requiresManualReview: boolean;
+}
+
+export type LegacyCarePlanRltRecord = Partial<CarePlanProblem> & {
+  rltDomainKey?: string;
+  legacyDomainKey?: string;
+  carePlanType?: string;
+};
 
 export const CATEGORY_TO_RLT_DOMAIN: Record<ProblemCategory, RltDomainId> = {
   pressure: "personal_cleansing_dressing",
@@ -250,10 +368,90 @@ const RISK_TO_RLT_DOMAIN: Record<string, RltDomainId[]> = {
 };
 
 function normaliseRiskType(riskType: string) {
-  return riskType.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return riskType
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
-export function getRltDomainForAssessment(assessmentType?: AssessmentType | string): RltDomain | undefined {
+export function resolveCarePlanRltDomain(record: LegacyCarePlanRltRecord): RltDomainResolution {
+  if (record.rltDomainId && RLT_DOMAIN_BY_ID[record.rltDomainId]) {
+    const domain = RLT_DOMAIN_BY_ID[record.rltDomainId];
+    return {
+      domainId: domain.id,
+      domainKey: domain.key,
+      source: "explicit_domain_id",
+      confidence: "high",
+      requiresManualReview: false,
+    };
+  }
+  const explicitKey = record.rltDomainKey as RltDomainKey | undefined;
+  if (explicitKey && RLT_DOMAIN_BY_KEY[explicitKey]) {
+    const domain = RLT_DOMAIN_BY_KEY[explicitKey];
+    return {
+      domainId: domain.id,
+      domainKey: domain.key,
+      source: "explicit_domain_key",
+      confidence: "high",
+      requiresManualReview: false,
+    };
+  }
+  const legacyKey = record.legacyDomainKey as RltDomainKey | undefined;
+  if (legacyKey && RLT_DOMAIN_BY_KEY[legacyKey]) {
+    const domain = RLT_DOMAIN_BY_KEY[legacyKey];
+    return {
+      domainId: domain.id,
+      domainKey: domain.key,
+      source: "legacy_mapping",
+      confidence: "high",
+      requiresManualReview: false,
+    };
+  }
+  if (record.category && record.category !== "custom") {
+    const domain = RLT_DOMAIN_BY_ID[CATEGORY_TO_RLT_DOMAIN[record.category]];
+    return {
+      domainId: domain.id,
+      domainKey: domain.key,
+      source: "legacy_care_plan_type",
+      confidence: "high",
+      requiresManualReview: false,
+    };
+  }
+  const structuredType = normaliseRiskType(record.carePlanType || "");
+  const structuredDomainId = structuredType ? RISK_TO_RLT_DOMAIN[structuredType]?.[0] : undefined;
+  if (structuredDomainId) {
+    const domain = RLT_DOMAIN_BY_ID[structuredDomainId];
+    return {
+      domainId: domain.id,
+      domainKey: domain.key,
+      source: "legacy_mapping",
+      confidence: "medium",
+      requiresManualReview: false,
+    };
+  }
+  const titleCandidate = getRltDomainForRisk(
+    record.problemStatement || record.customCategoryLabel || "",
+  );
+  if (titleCandidate) {
+    return {
+      domainId: titleCandidate.id,
+      domainKey: titleCandidate.key,
+      source: "manual_review_required",
+      confidence: "low",
+      requiresManualReview: true,
+    };
+  }
+  return {
+    source: "unmapped",
+    confidence: "low",
+    requiresManualReview: true,
+  };
+}
+
+export function getRltDomainForAssessment(
+  assessmentType?: AssessmentType | string,
+): RltDomain | undefined {
   if (!assessmentType) return undefined;
   const domains = ASSESSMENT_TO_RLT_DOMAINS[assessmentType as AssessmentType];
   return domains?.[0] ? RLT_DOMAIN_BY_ID[domains[0]] : undefined;
@@ -261,7 +459,9 @@ export function getRltDomainForAssessment(assessmentType?: AssessmentType | stri
 
 export function getRltDomainsForAssessment(assessmentType?: AssessmentType | string): RltDomain[] {
   if (!assessmentType) return [];
-  return (ASSESSMENT_TO_RLT_DOMAINS[assessmentType as AssessmentType] || []).map((id) => RLT_DOMAIN_BY_ID[id]);
+  return (ASSESSMENT_TO_RLT_DOMAINS[assessmentType as AssessmentType] || []).map(
+    (id) => RLT_DOMAIN_BY_ID[id],
+  );
 }
 
 export function getRltDomainForRisk(riskType?: string): RltDomain | undefined {
@@ -276,21 +476,20 @@ export function getRltDomainForRisk(riskType?: string): RltDomain | undefined {
 export function getRltDomainsForRisk(riskType?: string): RltDomain[] {
   if (!riskType) return [];
   const key = normaliseRiskType(riskType);
-  const domains = RISK_TO_RLT_DOMAIN[key] || Object.entries(RISK_TO_RLT_DOMAIN).find(([riskKey]) => key.includes(riskKey))?.[1] || [];
+  const domains =
+    RISK_TO_RLT_DOMAIN[key] ||
+    Object.entries(RISK_TO_RLT_DOMAIN).find(([riskKey]) => key.includes(riskKey))?.[1] ||
+    [];
   return domains.map((id) => RLT_DOMAIN_BY_ID[id]);
 }
 
-export function getRltDomainForCarePlanProblem(problem?: Partial<CarePlanProblem>): RltDomain | undefined {
+export function getRltDomainForCarePlanProblem(
+  problem?: Partial<CarePlanProblem>,
+): RltDomain | undefined {
   if (!problem) return undefined;
-  if (problem.rltDomainId && RLT_DOMAIN_BY_ID[problem.rltDomainId]) {
-    return RLT_DOMAIN_BY_ID[problem.rltDomainId];
-  }
-  const byAssessment = getRltDomainForAssessment(problem.sourceAssessmentType);
-  if (byAssessment) return byAssessment;
-  if (problem.category && CATEGORY_TO_RLT_DOMAIN[problem.category]) {
-    return RLT_DOMAIN_BY_ID[CATEGORY_TO_RLT_DOMAIN[problem.category]];
-  }
-  return getRltDomainForRisk(problem.problemStatement || problem.customCategoryLabel || "");
+  const resolution = resolveCarePlanRltDomain(problem);
+  if (resolution.requiresManualReview || !resolution.domainId) return undefined;
+  return RLT_DOMAIN_BY_ID[resolution.domainId];
 }
 
 export function getCarePlansGroupedByRltDomain(
@@ -299,7 +498,7 @@ export function getCarePlansGroupedByRltDomain(
 ) {
   const groups = new Map<RltDomainId, { domain: RltDomain; carePlans: CarePlanProblem[] }>();
   for (const problem of carePlanProblems) {
-    if (problem.residentId !== residentId || problem.status === "archived") continue;
+    if (problem.residentId !== residentId || problem.status !== "active") continue;
     const domain = getRltDomainForCarePlanProblem(problem);
     if (!domain) continue;
     const existing = groups.get(domain.id);
@@ -325,13 +524,20 @@ export function getResidentRltSummary(
     domainIds.add(group.domain.id);
   }
   for (const assessment of inputs.assessments || []) {
-    if (assessment.residentId !== residentId || assessment.status === "deleted" || assessment.status === "archived") continue;
+    if (
+      assessment.residentId !== residentId ||
+      assessment.status === "deleted" ||
+      assessment.status === "archived"
+    )
+      continue;
     getRltDomainsForAssessment(assessment.type).forEach((domain) => domainIds.add(domain.id));
   }
   for (const riskType of inputs.riskTypes || []) {
     getRltDomainsForRisk(riskType).forEach((domain) => domainIds.add(domain.id));
   }
-  const domains = Array.from(domainIds).map((id) => RLT_DOMAIN_BY_ID[id]).sort((a, b) => a.displayOrder - b.displayOrder);
+  const domains = Array.from(domainIds)
+    .map((id) => RLT_DOMAIN_BY_ID[id])
+    .sort((a, b) => a.displayOrder - b.displayOrder);
   return {
     domains,
     activeDomainCount: domains.length,

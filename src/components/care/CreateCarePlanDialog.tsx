@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
-import { getRltDomainsForAssessment, RLT_DOMAINS, RLT_DOMAIN_TO_DEFAULT_CATEGORY } from "@/lib/care/rlt";
+import { RLT_DOMAINS, RLT_DOMAIN_TO_DEFAULT_CATEGORY } from "@/lib/care/rlt";
+import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,9 +50,9 @@ export function CreateCarePlanDialog({
 }: Props) {
   const { residents, assessments, addProblem, addGoal } = useCare();
   const [open, setOpen] = useState(false);
-  const defaultRltDomainId = initialRltDomainId || "safe_environment";
+  const defaultRltDomainId = initialRltDomainId || "";
   const [residentId, setResidentId] = useState(fixedResidentId || "");
-  const [rltDomainId, setRltDomainId] = useState<RltDomainId>(defaultRltDomainId);
+  const [rltDomainId, setRltDomainId] = useState<RltDomainId | "">(defaultRltDomainId);
   const [risk, setRisk] = useState<ProblemRiskLevel>("high");
   const [statement, setStatement] = useState("");
   const [goal, setGoal] = useState("");
@@ -67,7 +68,7 @@ export function CreateCarePlanDialog({
       .filter((assessment) => {
         if (assessment.residentId !== targetResidentId) return false;
         if (assessment.status === "deleted" || assessment.status === "archived") return false;
-        return getRltDomainsForAssessment(assessment.type).some((domain) => domain.id === rltDomainId);
+        return getApprovedRltDomainsForAssessmentRecord(assessment).some((domain) => domain.id === rltDomainId);
       })
       .sort((left, right) => right.date.localeCompare(left.date))
       .slice(0, 3);
@@ -93,8 +94,8 @@ export function CreateCarePlanDialog({
 
   const handleCreate = () => {
     const targetResidentId = fixedResidentId || residentId;
-    if (!targetResidentId || !statement.trim() || !goal.trim() || !evalDate || !reviewDate) {
-      toast.error("Resident, care need, plan, review of outcome and care plan review date required");
+    if (!targetResidentId || !rltDomainId || !statement.trim() || !goal.trim() || !evalDate || !reviewDate) {
+      toast.error("Resident, Activity of Living, care need, plan, review of outcome and care plan review date required");
       return;
     }
 
@@ -135,7 +136,7 @@ export function CreateCarePlanDialog({
             <Label>Activity of Living *</Label>
             <Select value={rltDomainId} onValueChange={(value) => setRltDomainId(value as RltDomainId)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Choose Activity of Living" />
               </SelectTrigger>
               <SelectContent>
                 {RLT_DOMAINS.map((domain) => (

@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
-import { getRltDomainForAssessment } from "@/lib/care/rlt";
+import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { deriveStatus, riskBadgeCls } from "@/lib/care/assessments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -233,9 +233,9 @@ function QueueTable({
               </td>
               <td className="p-3">
                 <div>{assessmentMeta[row.assessment.type].name}</div>
-                {getRltDomainForAssessment(row.assessment.type) && (
+                {getApprovedRltDomainsForAssessmentRecord(row.assessment)[0] && (
                   <div className="text-xs text-muted-foreground">
-                    {getRltDomainForAssessment(row.assessment.type)?.shortLabel}
+                    {getApprovedRltDomainsForAssessmentRecord(row.assessment)[0]?.shortLabel}
                   </div>
                 )}
               </td>

@@ -6,12 +6,11 @@ import type {
   ProblemIntervention,
 } from "./types";
 import {
-  getRltDomainForAssessment,
   getRltDomainForCarePlanProblem,
-  RLT_DOMAIN_BY_ID,
   type RltDomain,
   type RltDomainId,
 } from "./rlt";
+import { getApprovedRltDomainsForAssessmentRecord } from "./assessmentRltMappings";
 
 export type CarePlanQualityStatus =
   | "complete"
@@ -173,73 +172,6 @@ export function getCarePlanQualityStatus({
   };
 }
 
-const HIGH_RISK_ASSESSMENT_COVERAGE: Partial<
-  Record<
-    Assessment["type"],
-    {
-      label: string;
-      acceptedDomainIds: RltDomainId[];
-      primaryDomainId: RltDomainId;
-      message: string;
-    }
-  >
-> = {
-  must: {
-    label: "MUST",
-    primaryDomainId: "eating_drinking",
-    acceptedDomainIds: ["eating_drinking"],
-    message: "High nutrition risk identified. No Eating and Drinking nursing care plan found.",
-  },
-  mna: {
-    label: "MNA",
-    primaryDomainId: "eating_drinking",
-    acceptedDomainIds: ["eating_drinking"],
-    message: "High nutrition risk identified. No Eating and Drinking nursing care plan found.",
-  },
-  nutrition: {
-    label: "Nutrition",
-    primaryDomainId: "eating_drinking",
-    acceptedDomainIds: ["eating_drinking"],
-    message: "High nutrition risk identified. No Eating and Drinking nursing care plan found.",
-  },
-  waterlow: {
-    label: "Waterlow",
-    primaryDomainId: "personal_cleansing_dressing",
-    acceptedDomainIds: ["personal_cleansing_dressing"],
-    message: "High pressure risk identified. No Personal Cleansing and Dressing nursing care plan found.",
-  },
-  norton: {
-    label: "Norton",
-    primaryDomainId: "personal_cleansing_dressing",
-    acceptedDomainIds: ["personal_cleansing_dressing"],
-    message: "High pressure risk identified. No Personal Cleansing and Dressing nursing care plan found.",
-  },
-  falls: {
-    label: "Falls",
-    primaryDomainId: "safe_environment",
-    acceptedDomainIds: ["safe_environment", "mobilisation"],
-    message: "High falls risk identified. No related nursing care plan found.",
-  },
-  barthel: {
-    label: "Barthel",
-    primaryDomainId: "mobilisation",
-    acceptedDomainIds: ["mobilisation", "personal_cleansing_dressing"],
-    message: "High mobility or dependency risk identified. No related nursing care plan found.",
-  },
-  abbey_pain: {
-    label: "Abbey Pain",
-    primaryDomainId: "personal_cleansing_dressing",
-    acceptedDomainIds: ["personal_cleansing_dressing", "mobilisation"],
-    message: "High pain risk identified. No related nursing care plan found.",
-  },
-  pain_chart: {
-    label: "Pain Chart",
-    primaryDomainId: "personal_cleansing_dressing",
-    acceptedDomainIds: ["personal_cleansing_dressing", "mobilisation"],
-    message: "High pain risk identified. No related nursing care plan found.",
-  },
-};
-
 function isHighRiskAssessment(assessment: Assessment) {
   return assessment.riskLevel === "high" || assessment.riskLevel === "very_high";
 }
@@ -271,29 +203,18 @@ export function getResidentRltCoverageChecks(
         assessment.status !== "superseded",
     )
     .map((assessment) => {
-      const coverage = HIGH_RISK_ASSESSMENT_COVERAGE[assessment.type];
-      if (!coverage) {
-        const domain = getRltDomainForAssessment(assessment.type);
-        if (!domain || activeDomainIds.has(domain.id)) return null;
-        return {
-          id: `${assessment.id}-${domain.id}`,
-          assessmentId: assessment.id,
-          assessmentName: domain.title,
-          message: `High ${domain.shortLabel.toLowerCase()} risk identified. No related nursing care plan found.`,
-          primaryDomainId: domain.id,
-          acceptedDomainIds: [domain.id],
-          domains: [domain],
-        };
-      }
-      if (coverage.acceptedDomainIds.some((domainId) => activeDomainIds.has(domainId))) return null;
+      const domains = getApprovedRltDomainsForAssessmentRecord(assessment);
+      if (domains.length === 0 || domains.some((domain) => activeDomainIds.has(domain.id))) return null;
+      const primaryDomain = domains[0];
+      const acceptedDomainIds = domains.map((domain) => domain.id);
       return {
-        id: `${assessment.id}-${coverage.primaryDomainId}`,
+        id: `${assessment.id}-${primaryDomain.id}`,
         assessmentId: assessment.id,
-        assessmentName: coverage.label,
-        message: coverage.message,
-        primaryDomainId: coverage.primaryDomainId,
-        acceptedDomainIds: coverage.acceptedDomainIds,
-        domains: coverage.acceptedDomainIds.map((domainId) => RLT_DOMAIN_BY_ID[domainId]),
+        assessmentName: primaryDomain.title,
+        message: `High-risk assessment has an approved Activity of Living mapping, but no related nursing care plan was found. Clinical review is required.`,
+        primaryDomainId: primaryDomain.id,
+        acceptedDomainIds,
+        domains,
       };
     })
     .filter((gap): gap is ResidentCoverageGap => !!gap);

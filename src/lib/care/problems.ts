@@ -5,7 +5,7 @@ import type {
   ProblemEvaluation, ProblemReview, CarePlanEvaluation, CarePlanReview,
   InterventionLog, ProblemInterventionLog,
 } from "./types";
-import { CATEGORY_TO_RLT_DOMAIN, getRltDomainForAssessment } from "./rlt";
+import { resolveCarePlanRltDomain } from "./rlt";
 
 let _seq = 0;
 const uid = (p: string) => `${p}-${(++_seq).toString(36).padStart(5, "0")}`;
@@ -230,12 +230,15 @@ export function migrateLegacy(
     const problemId = uid("prob");
     legacyCarePlanIdToProblemId[plan.id] = problemId;
     const isActive = plan.status === "active" || plan.status === "draft" || plan.status === "review_due" || plan.status === "evaluation_due";
+    const category = inferCategory(plan.category || plan.title);
+    const rltResolution = resolveCarePlanRltDomain({
+      category: plan.category ? category : "custom",
+      problemStatement: plan.problemStatement || plan.problem || plan.title,
+    });
     const problem: CarePlanProblem = {
       id: problemId, residentCarePlanId: rcpId, residentId: plan.residentId,
-      category: inferCategory(plan.category || plan.title),
-      rltDomainId:
-        getRltDomainForAssessment(plan.assessmentScoreSnapshot?.type)?.id ||
-        CATEGORY_TO_RLT_DOMAIN[inferCategory(plan.category || plan.title)],
+      category,
+      rltDomainId: rltResolution.requiresManualReview ? undefined : rltResolution.domainId,
       problemStatement: plan.problemStatement || plan.problem || plan.title,
       riskLevel: priorityToRisk(plan.priority),
       sourceAssessmentId: plan.linkedAssessmentId,

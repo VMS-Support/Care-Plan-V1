@@ -214,7 +214,7 @@ import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
 import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
-import { CATEGORY_TO_RLT_DOMAIN, getRltDomainForAssessment } from "./rlt";
+import { CATEGORY_TO_RLT_DOMAIN } from "./rlt";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -5679,8 +5679,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           category: input.category,
           rltDomainId:
             input.rltDomainId ||
-            getRltDomainForAssessment(input.sourceAssessmentType)?.id ||
-            CATEGORY_TO_RLT_DOMAIN[input.category],
+            (input.category !== "custom" ? CATEGORY_TO_RLT_DOMAIN[input.category] : undefined),
           customCategoryLabel: input.customCategoryLabel,
           problemStatement: input.problemStatement,
           riskLevel: input.riskLevel,
@@ -6577,8 +6576,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
           residentId: sug.residentId,
           category: edits?.category || sug.category,
           rltDomainId:
-            getRltDomainForAssessment(sug.assessmentType)?.id ||
-            CATEGORY_TO_RLT_DOMAIN[edits?.category || sug.category],
+            (edits?.category || sug.category) !== "custom"
+              ? CATEGORY_TO_RLT_DOMAIN[edits?.category || sug.category]
+              : undefined,
           problemStatement: edits?.problemStatement || sug.problemStatement,
           riskLevel: edits?.riskLevel || sug.riskLevel,
           sourceAssessmentId: sug.assessmentId,
