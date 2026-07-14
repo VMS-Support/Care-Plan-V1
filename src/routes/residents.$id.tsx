@@ -71,6 +71,9 @@ import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
 import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
+import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
+import { getResidentRltClinicalOverview } from "@/lib/care/rltClinicalOverview";
+import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
 import {
   getResidentPreferencesByDomain,
   getResidentStrengthPreferenceSummary,
@@ -259,6 +262,7 @@ function ResidentDetail() {
     auditLogs,
     notes,
     alerts,
+    clinicalAlerts,
     tasks,
     incidents,
     mdtNotes,
@@ -275,6 +279,7 @@ function ResidentDetail() {
     strengthPreferenceState,
     saveResidentStrength,
     saveResidentPreference,
+    rltTimelineTagState,
     softDeleteAssessment,
     addNextOfKin,
     addGoal,
@@ -450,6 +455,47 @@ function ResidentDetail() {
     r.facilityId || activeFacilityId,
     summaryPreferenceCapabilities,
   );
+  const rltReadCapabilities = [
+    "rlt_overview.view", "rlt_overview.view_risks", "rlt_overview.view_care_plans",
+    "rlt_overview.view_preferences", "rlt_overview.view_sensitive_preferences",
+    "rlt_timeline.view", "rlt_timeline.view_sensitive", "rlt_timeline.view_highly_sensitive",
+    "assessment.view", "careplan.view", "incident.view", "resident_preference.view",
+    "resident_preference.view_sensitive", "resident_preference.view_highly_sensitive",
+  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
+    nursingHomeId: r.facilityId || activeFacilityId,
+    residentId: r.id,
+  }));
+  const rltClinicalOverview = getResidentRltClinicalOverview({
+    residents,
+    dependencyState: rltDependencyState,
+    strengthPreferenceState,
+    carePlanProblems,
+    interventions: problemInterventions,
+    evaluations: problemEvaluations,
+    reviews: problemReviews,
+    assessments,
+    alerts,
+    clinicalAlerts,
+    tasks,
+  }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
+  const rltTimelineItems = projectResidentRltTimeline({
+    residents,
+    assessments,
+    carePlanProblems,
+    interventions: problemInterventions,
+    interventionLogs: problemInterventionLogs,
+    evaluations: problemEvaluations,
+    reviews: problemReviews,
+    problemHistory,
+    dependencyState: rltDependencyState,
+    strengthPreferenceState,
+    incidents,
+    alerts,
+    clinicalAlerts,
+    handovers,
+    timelineEvents,
+    manualTagState: rltTimelineTagState,
+  }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
   const canDeleteResident = currentRole === "don" || currentRole === "cnm";
   const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
 
@@ -1645,13 +1691,16 @@ function ResidentDetail() {
         </div>
 
         <TabsContent value="activities" className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Activities of Living</h2>
-              <p className="text-sm text-muted-foreground">
-                All 12 Roper Logan Tierney activities, with care plans and clinical indicators.
-              </p>
-            </div>
+          <RltClinicalWorkspace
+            overview={rltClinicalOverview}
+            timelineItems={rltTimelineItems}
+            onOpenDomain={(domainId) => setSelectedRltDomainId(domainId)}
+            onOpenCarePlan={(carePlanItemId) => openProblemDetail(carePlanItemId)}
+          />
+
+          <div className="border-t pt-4">
+            <h2 className="text-lg font-semibold">Detailed Activity Records</h2>
+            <p className="text-sm text-muted-foreground">Record dependency, strengths and preferences or open the full domain workflow.</p>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">

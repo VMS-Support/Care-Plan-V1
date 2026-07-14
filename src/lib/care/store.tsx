@@ -230,6 +230,7 @@ import {
   type StrengthPreferenceContext,
   type StrengthPreferenceState,
 } from "./residentStrengthPreferences";
+import type { RltTimelineTagState } from "./rltTimeline";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -1859,6 +1860,7 @@ function seedData() {
       audit: [],
       events: [],
     } as StrengthPreferenceState,
+    rltTimelineTagState: { tags: [], audit: [] } as RltTimelineTagState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2140,6 +2142,14 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
       ),
       events: store.strengthPreferenceState.events.filter(
         (event) => event.nursingHomeId === activeFacilityId && residentIds.has(event.residentId),
+      ),
+    },
+    rltTimelineTagState: {
+      tags: store.rltTimelineTagState.tags.filter(
+        (tag) => tag.nursingHomeId === activeFacilityId && residentIds.has(tag.residentId),
+      ),
+      audit: store.rltTimelineTagState.audit.filter(
+        (entry) => entry.nursingHomeId === activeFacilityId && residentIds.has(entry.residentId),
       ),
     },
     alertWorkflow: Object.fromEntries(
