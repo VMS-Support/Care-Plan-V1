@@ -248,6 +248,8 @@ import {
   type EndOfLifeContext,
   type EndOfLifeState,
 } from "./endOfLifePathway";
+import { EMPTY_RESIDENT_DOCUMENT_STATE, uploadResidentDocument as uploadResidentDocumentService, uploadNewResidentDocumentVersion as uploadNewResidentDocumentVersionService, changeResidentDocumentStatus as changeResidentDocumentStatusService, type ResidentDocumentState, type UploadDocumentMetadata, type ResidentDocumentStatus, type ResidentDocumentVersion } from "./residentDocuments";
+import { storeResidentFile } from "./residentFileStorage";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -1881,6 +1883,7 @@ function seedData() {
     flexibleCareActionState: structuredClone(EMPTY_FLEXIBLE_CARE_ACTION_STATE) as FlexibleCareActionState,
     endOfLifeState: structuredClone(EMPTY_END_OF_LIFE_STATE) as EndOfLifeState,
     residentProfileState: structuredClone(EMPTY_RESIDENT_PROFILE_STATE) as ResidentProfileState,
+    residentDocumentState: structuredClone(EMPTY_RESIDENT_DOCUMENT_STATE) as ResidentDocumentState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2202,6 +2205,12 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
       audit: store.residentProfileState.audit.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
       events: store.residentProfileState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
     },
+    residentDocumentState: {
+      documents: store.residentDocumentState.documents.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      versions: store.residentDocumentState.versions.filter((item) => store.residentDocumentState.documents.some((document) => document.id === item.documentId && document.nursingHomeId === activeFacilityId && residentIds.has(document.residentId))),
+      audit: store.residentDocumentState.audit.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      events: store.residentDocumentState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+    },
     alertWorkflow: Object.fromEntries(
       Object.entries(store.alertWorkflow || {}).filter(
         ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
@@ -2317,6 +2326,9 @@ interface CareCtx extends Store {
   addNextOfKin: (residentId: string, nok: Omit<NextOfKin, "id">) => void;
   updateNextOfKin: (residentId: string, id: string, patch: Partial<NextOfKin>) => void;
   removeNextOfKin: (residentId: string, id: string) => void;
+  uploadResidentDocument: (residentId: string, metadata: UploadDocumentMetadata, file: File) => Promise<void>;
+  uploadResidentDocumentVersion: (documentId: string, file: File, reason: ResidentDocumentVersion["changeReasonCode"], reasonText?: string) => Promise<void>;
+  changeResidentDocumentStatus: (documentId: string, status: ResidentDocumentStatus) => void;
   // assessments
   addAssessment: (a: Omit<Assessment, "id">) => Assessment;
   updateAssessment: (id: string, patch: Partial<Assessment>) => void;
@@ -2829,6 +2841,22 @@ export function CareProvider({ children }: { children: ReactNode }) {
       currentUserName,
       currentUser,
       setCurrentUserId,
+      uploadResidentDocument: async (residentId, metadata, file) => {
+        const resident = store.residents.find((item) => item.id === residentId); if (!resident) throw new Error("Resident not found.");
+        const nursingHomeId = resident.facilityId || activeFacilityId; const now = new Date().toISOString();
+        const capabilities = ["resident_documents.upload","resident_documents.view_sensitive","resident_documents.view_highly_sensitive","resident_documents.view_legal","resident_documents.view_safeguarding","resident_documents.view_medication"].filter((capability) => canAccess(store, createStaffAccessContext(currentUser, nursingHomeId), capability, { nursingHomeId, residentId }));
+        const next = structuredClone(store.residentDocumentState);
+        await uploadResidentDocumentService(next, residentId, metadata, file, { nursingHomeId, userAccountId: currentUser.id, staffMemberId: String(operationalContext.staffMemberId || currentUser.id), capabilities, occurredAt: now, residentExists: (id) => store.residents.some((item) => item.id === id), residentBelongsToHome: (id, home) => store.residents.some((item) => item.id === id && (item.facilityId || activeFacilityId) === home), storeFile: storeResidentFile });
+        setStore((state) => ({ ...state, residentDocumentState: next }));
+      },
+      uploadResidentDocumentVersion: async (documentId, file, reason, reasonText) => {
+        const document = store.residentDocumentState.documents.find((item) => item.id === documentId); if (!document) throw new Error("Document not found."); const now = new Date().toISOString();
+        const capabilities = ["resident_documents.upload_version"].filter((capability) => canAccess(store, createStaffAccessContext(currentUser, document.nursingHomeId), capability, { nursingHomeId: document.nursingHomeId, residentId: document.residentId }));
+        const next = structuredClone(store.residentDocumentState); await uploadNewResidentDocumentVersionService(next, documentId, file, reason, reasonText, { nursingHomeId: document.nursingHomeId, userAccountId: currentUser.id, capabilities, occurredAt: now, residentExists: () => true, residentBelongsToHome: () => true, storeFile: storeResidentFile }); setStore((state) => ({ ...state, residentDocumentState: next }));
+      },
+      changeResidentDocumentStatus: (documentId, status) => {
+        const document = store.residentDocumentState.documents.find((item) => item.id === documentId); if (!document) throw new Error("Document not found."); const now = new Date().toISOString(); const capabilities = canAccess(store, createStaffAccessContext(currentUser, document.nursingHomeId), "resident_documents.change_status", { nursingHomeId: document.nursingHomeId, residentId: document.residentId }) ? ["resident_documents.change_status"] : []; const next = structuredClone(store.residentDocumentState); changeResidentDocumentStatusService(next, documentId, status, { nursingHomeId: document.nursingHomeId, userAccountId: currentUser.id, capabilities, occurredAt: now, residentExists: () => true, residentBelongsToHome: () => true, storeFile: storeResidentFile }); setStore((state) => ({ ...state, residentDocumentState: next }));
+      },
       filter,
       setFilter,
       filteredResidentIds,

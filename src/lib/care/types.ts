@@ -785,6 +785,17 @@ export interface Resident {
   consultantSpecialty?: string;
   otherPreferences?: string;
   admissionSource?: "home" | "hospital" | "another_care_home" | "other" | "";
+  hospitalNumber?: string;
+  healthInsuranceProvider?: string;
+  healthInsurancePolicyNumber?: string;
+  healthInsuranceExpiry?: string;
+  medicalCardNumber?: string;
+  medicalCardExpiry?: string;
+  gpVisitCardNumber?: string;
+  gpVisitCardExpiry?: string;
+  contractStatus?: string;
+  contractSignedDate?: string;
+  contractReviewDate?: string;
 }
 
 export interface Assessment {

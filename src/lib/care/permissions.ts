@@ -52,6 +52,8 @@ export type Permission =
   | "resident_recent_changes.view" | "resident_recent_changes.view_medication" | "resident_recent_changes.view_incidents" | "resident_recent_changes.view_sensitive"
   | "resident_timeline.view" | "resident_timeline.view_sensitive" | "resident_timeline.view_highly_sensitive"
   | "resident_contacts.view" | "resident_contacts.create" | "resident_contacts.edit_relationship" | "resident_contacts.set_primary" | "resident_contacts.manage_authority" | "resident_contacts.view_history" | "resident_contacts.edit_contact"
+  | "resident_documents.view" | "resident_documents.upload" | "resident_documents.edit_metadata" | "resident_documents.upload_version" | "resident_documents.download" | "resident_documents.view_history" | "resident_documents.change_status" | "resident_documents.delete_draft" | "resident_documents.view_sensitive" | "resident_documents.view_highly_sensitive" | "resident_documents.manage_access" | "resident_documents.view_legal" | "resident_documents.view_safeguarding" | "resident_documents.view_medication"
+  | "resident_administration.view" | "resident_administration.edit" | "resident_administration.view_identifiers" | "resident_administration.edit_identifiers" | "resident_administration.view_funding" | "resident_administration.edit_funding_metadata" | "resident_administration.view_contract" | "resident_administration.edit_contract_metadata" | "resident_administration.view_insurance" | "resident_administration.edit_insurance" | "resident_administration.view_property_summary" | "resident_administration.view_internal_references"
   | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate";
 
 const matrix: Record<Role, Permission[]> = {

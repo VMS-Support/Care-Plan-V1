@@ -80,6 +80,8 @@ import { ResidentRltOverview } from "@/components/resident/ResidentRltOverview";
 import { ResidentRecentClinicalChanges } from "@/components/resident/ResidentRecentClinicalChanges";
 import { ResidentTimeline } from "@/components/resident/ResidentTimeline";
 import { ResidentContacts } from "@/components/resident/ResidentContacts";
+import { ResidentDocuments } from "@/components/resident/ResidentDocuments";
+import { ResidentAdministrativeDetails } from "@/components/resident/ResidentAdministrativeDetails";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
 import { CARE_ACTION_TYPE_LABELS, getCanonicalCareActionType } from "@/lib/care/flexibleCareActions";
 import { getResidentHeader } from "@/lib/care/residentHeader";
@@ -90,6 +92,8 @@ import { getResidentRltOverview } from "@/lib/care/residentRltOverview";
 import { getResidentWorkDue } from "@/lib/care/residentWorkDue";
 import { getResidentTimeline } from "@/lib/care/residentTimeline";
 import { getResidentContacts } from "@/lib/care/residentContacts";
+import { getResidentDocuments } from "@/lib/care/residentDocuments";
+import { getResidentAdministrativeDetails } from "@/lib/care/residentAdministrativeDetails";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
 import {
   getResidentPreferencesByDomain,
@@ -303,7 +307,11 @@ function ResidentDetail() {
     strengthPreferenceState,
     endOfLifeState,
     flexibleCareActionState,
+    residentDocumentState,
     operationalContext,
+    uploadResidentDocument,
+    uploadResidentDocumentVersion,
+    changeResidentDocumentStatus,
     saveResidentStrength,
     saveResidentPreference,
     rltTimelineTagState,
@@ -532,6 +540,12 @@ function ResidentDetail() {
   const residentContactCapabilities = ["resident_contacts.view", "resident_contacts.create", "resident_contacts.edit_relationship", "resident_contacts.set_primary", "resident_contacts.manage_authority", "resident_contacts.view_history", "resident_contacts.edit_contact"].filter((capability) => canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
   if (!residentContactCapabilities.includes("resident_contacts.view") && canAccess("resident_profile.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentContactCapabilities.push("resident_contacts.view");
   const residentContacts = getResidentContacts(r, r.facilityId || activeFacilityId, users, residentContactCapabilities);
+  const residentDocumentCapabilities = ["resident_documents.view","resident_documents.upload","resident_documents.edit_metadata","resident_documents.upload_version","resident_documents.download","resident_documents.view_history","resident_documents.change_status","resident_documents.delete_draft","resident_documents.view_sensitive","resident_documents.view_highly_sensitive","resident_documents.manage_access","resident_documents.view_legal","resident_documents.view_safeguarding","resident_documents.view_medication"].filter((capability) => canAccess(capability,{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id}));
+  if(!residentDocumentCapabilities.includes("resident_documents.view")&&canAccess("resident_profile.view",{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id})) residentDocumentCapabilities.push("resident_documents.view");
+  const administrativeDocumentRows=getResidentDocuments(residentDocumentState,r.id,r.facilityId||activeFacilityId,residentDocumentCapabilities,{category:"all"},{offset:0,limit:100}).items.filter((item)=>["administrative","identity","insurance_and_funding","legal_and_consent","contacts_and_representatives"].includes(item.document.category));
+  const residentAdministrationCapabilities=["resident_administration.view","resident_administration.edit","resident_administration.view_identifiers","resident_administration.edit_identifiers","resident_administration.view_funding","resident_administration.edit_funding_metadata","resident_administration.view_contract","resident_administration.edit_contract_metadata","resident_administration.view_insurance","resident_administration.edit_insurance","resident_administration.view_property_summary","resident_administration.view_internal_references"].filter((capability)=>canAccess(capability,{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id}));
+  if(!residentAdministrationCapabilities.includes("resident_administration.view")&&canAccess("resident_profile.view",{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id})) residentAdministrationCapabilities.push("resident_administration.view");
+  const residentAdministrativeDetails=getResidentAdministrativeDetails({resident:r,nursingHomeId:r.facilityId||activeFacilityId,contacts:residentContacts,documents:administrativeDocumentRows,capabilities:residentAdministrationCapabilities});
   const residentWorkCapabilities = ["resident_work_due.view", "resident_work_due.open_source", "resident_work_due.complete", "resident_work_due.defer", "resident_work_due.mark_missed"].filter((capability) => canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
   if (!residentWorkCapabilities.includes("resident_work_due.view") && canAccess("resident_profile.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentWorkCapabilities.push("resident_work_due.view");
   if (!residentWorkCapabilities.includes("resident_work_due.open_source") && canAccess("care_action.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentWorkCapabilities.push("resident_work_due.open_source");
@@ -3766,6 +3780,9 @@ function ResidentDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ResidentDocuments residentId={r.id} nursingHomeId={r.facilityId || activeFacilityId} state={residentDocumentState} capabilities={residentDocumentCapabilities} onUpload={(metadata,file)=>uploadResidentDocument(r.id,metadata,file)} onUploadVersion={(documentId,file)=>uploadResidentDocumentVersion(documentId,file,"replacement")} onStatus={changeResidentDocumentStatus} onOpenSource={(route)=>{if(typeof window!=="undefined")window.location.assign(route)}} />
+      <ResidentAdministrativeDetails model={residentAdministrativeDetails} canEdit={residentAdministrationCapabilities.includes("resident_administration.edit")} onEdit={()=>setProfileEditOpen(true)} onOpenContacts={()=>setActiveTab("nok")} />
 
       <Dialog open={evaluationOpen} onOpenChange={setEvaluationOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
