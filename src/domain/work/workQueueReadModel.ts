@@ -2,6 +2,7 @@ import type { Clock, DueTimeClassification, DueTimePolicy } from "@/lib/care/due
 import { defaultDueTimePolicy, systemClock } from "@/lib/care/dueTime";
 import type { OperationalContext } from "@/lib/care/types";
 import { getWorkTypeHandler } from "./workHandlers";
+import { getWorkExceptionReasonLabel } from "./workExceptionReasons";
 import {
   getWorkDisplayStatus,
   getWorkItemDueTimeClassification,
@@ -14,6 +15,7 @@ import type {
   WorkPriority,
   WorkQueueFilters,
   WorkQueueItem,
+  WorkTeam,
   WorkType,
 } from "./workTypes";
 
@@ -37,6 +39,16 @@ export interface WorkQueueSummary {
   inProgress: number;
   missed: number;
   deferred: number;
+  unassigned: number;
+  assignedToMe: number;
+  assignedToRole: number;
+  assignedToWard: number;
+  assignedToTeam: number;
+  declined: number;
+  notApplicable: number;
+  cancelled: number;
+  followUpRequired: number;
+  escalationRequired: number;
   byWorkType: Partial<Record<WorkType, number>>;
   byPriority: Partial<Record<WorkPriority, number>>;
   byWard: Record<string, number>;
@@ -85,6 +97,8 @@ export interface WorkQueueReadOptions {
   sourceIsActive?: (item: WorkItem) => boolean;
   residentAllowed?: (residentId: string, item: WorkItem) => boolean;
   sensitivityAllowed?: (item: WorkItem) => boolean;
+  teams?: WorkTeam[];
+  resolvePersonLabel?: (staffMemberId?: string, userAccountId?: string) => string | undefined;
 }
 
 interface ClassifiedRow {
@@ -123,15 +137,66 @@ const requestedAssignment = (
   if (!filter || filter === "all") return true;
   if (filter === "mine")
     return (
-      item.assignment.assignedUserAccountId === auth.userAccountId ||
-      item.assignment.assignedStaffMemberId === auth.staffMemberId
+      (item.assignment.assignmentType === "person" &&
+        item.assignment.assignmentStatus === "active" &&
+        item.assignment.assignedUserAccountId === auth.userAccountId) ||
+      (item.assignment.assignmentType === "person" &&
+        item.assignment.assignmentStatus === "active" &&
+        Boolean(auth.staffMemberId && item.assignment.assignedStaffMemberId === auth.staffMemberId))
     );
   if (filter === "role")
     return (
       !!item.assignment.assignedRoleKey && auth.roleKeys.includes(item.assignment.assignedRoleKey)
     );
-  if (filter === "ward") return item.assignment.type === "ward_queue";
-  return item.assignment.type === "unassigned";
+  if (filter === "ward") return item.assignment.assignmentType === "ward";
+  if (filter === "team") return item.assignment.assignmentType === "team";
+  if (filter === "person") return item.assignment.assignmentType === "person";
+  return item.assignment.assignmentType === "unassigned";
+};
+
+const assignmentVisible = (
+  item: WorkItem,
+  context: OperationalContext,
+  auth: WorkAuthContext,
+  options: WorkQueueReadOptions,
+) => {
+  const assignment = item.assignment;
+  const manager = auth.capabilities.some((capability) =>
+    ["work_assignment.view_all", "work_assignment.manage_home"].includes(capability),
+  );
+  const now = Date.parse(options.filters?.now || options.clock?.now() || new Date().toISOString());
+  if (assignment.effectiveFrom && Date.parse(assignment.effectiveFrom) > now) return manager;
+  if (assignment.effectiveTo && Date.parse(assignment.effectiveTo) <= now) return manager;
+  if (assignment.targetShiftId && String(assignment.targetShiftId) !== String(context.shiftId))
+    return manager;
+  if (assignment.assignmentType === "unassigned") return true;
+  if (assignment.assignmentType === "role")
+    return (
+      manager ||
+      (auth.roleKeys.includes(String(assignment.assignedRoleKey)) &&
+        String(context.effectiveRoleKey) === String(assignment.assignedRoleKey))
+    );
+  if (assignment.assignmentType === "ward")
+    return manager || auth.authorisedWardIds.includes(String(assignment.assignedWardId));
+  if (assignment.assignmentType === "person")
+    return (
+      manager ||
+      assignment.assignedUserAccountId === auth.userAccountId ||
+      Boolean(auth.staffMemberId && assignment.assignedStaffMemberId === auth.staffMemberId)
+    );
+  const team = options.teams?.find(
+    (candidate) => String(candidate.id) === String(assignment.assignedTeamId),
+  );
+  return Boolean(
+    manager ||
+    (team?.active &&
+      String(team.nursingHomeId) === String(context.nursingHomeId) &&
+      (!item.wardId ||
+        !team.wardIds?.length ||
+        team.wardIds.map(String).includes(String(item.wardId))) &&
+      auth.staffMemberId &&
+      team.memberStaffMemberIds.map(String).includes(String(auth.staffMemberId))),
+  );
 };
 
 const sourceAllowed = (item: WorkItem, auth: WorkAuthContext) => {
@@ -175,6 +240,7 @@ function isVisibleWork(
   if (options.sourceExists && !options.sourceExists(item)) return false;
   if (!sourceAllowed(item, auth)) return false;
   if (options.sensitivityAllowed && !options.sensitivityAllowed(item)) return false;
+  if (!assignmentVisible(item, context, auth, options)) return false;
   if (!requestedAssignment(item, auth, options.filters?.assignment)) return false;
   if (item.wardId) {
     const wardId = String(item.wardId);
@@ -229,6 +295,47 @@ const matchesFilters = (item: WorkItem, filters: WorkQueueFilters = {}) => {
     return false;
   if (filters.sourceTypes && !filters.sourceTypes.includes(item.source.sourceType)) return false;
   if (
+    filters.assignedRoleKeys &&
+    (!item.assignment.assignedRoleKey ||
+      !filters.assignedRoleKeys.includes(item.assignment.assignedRoleKey))
+  )
+    return false;
+  if (
+    filters.assignedWardIds &&
+    (!item.assignment.assignedWardId ||
+      !filters.assignedWardIds.includes(String(item.assignment.assignedWardId)))
+  )
+    return false;
+  if (
+    filters.assignedPersonIds &&
+    ![item.assignment.assignedStaffMemberId, item.assignment.assignedUserAccountId]
+      .filter(Boolean)
+      .map(String)
+      .some((value) => filters.assignedPersonIds!.includes(value))
+  )
+    return false;
+  if (
+    filters.assignedTeamIds &&
+    (!item.assignment.assignedTeamId ||
+      !filters.assignedTeamIds.includes(String(item.assignment.assignedTeamId)))
+  )
+    return false;
+  if (
+    filters.exceptionTypes &&
+    (!item.latestException || !filters.exceptionTypes.includes(item.latestException.exceptionType))
+  )
+    return false;
+  if (
+    filters.followUpRequired !== undefined &&
+    Boolean(item.latestException?.followUpRequired) !== filters.followUpRequired
+  )
+    return false;
+  if (
+    filters.escalationRequired !== undefined &&
+    Boolean(item.latestException?.escalationRequired) !== filters.escalationRequired
+  )
+    return false;
+  if (
     filters.origin &&
     (filters.origin === "rule_generated") !== Boolean(item.source.createdByRuleId)
   )
@@ -246,6 +353,7 @@ const toRow = (
   due: DueTimeClassification | undefined,
   auth: WorkAuthContext,
   lookup: WorkQueueLookup,
+  options: WorkQueueReadOptions,
 ): WorkQueueItem => {
   const resident = item.residentId ? lookup.residents.get(String(item.residentId)) : undefined;
   const ward = item.wardId ? lookup.wards.get(String(item.wardId)) : undefined;
@@ -258,13 +366,27 @@ const toRow = (
   const active = !historyStatuses.has(item.persistedStatus);
   const can = (capability: string) => active && actionAllowed(auth, capability);
   const markMissed = can("work_item.mark_missed") && handler.supportsMissed(item);
+  const team = options.teams?.find(
+    (candidate) => String(candidate.id) === String(item.assignment.assignedTeamId),
+  );
+  const personLabel = options.resolvePersonLabel?.(
+    item.assignment.assignedStaffMemberId && String(item.assignment.assignedStaffMemberId),
+    item.assignment.assignedUserAccountId && String(item.assignment.assignedUserAccountId),
+  );
+  const roleLabel = item.assignment.assignedRoleKey
+    ?.replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (value) => value.toUpperCase());
   const assignmentLabel =
-    item.assignment.assignedRoleKey ||
-    String(
-      item.assignment.assignedStaffMemberId ||
-        item.assignment.assignedUserAccountId ||
-        (item.assignment.type === "ward_queue" ? "Ward queue" : "Unassigned"),
-    );
+    item.assignment.assignmentType === "role"
+      ? `Role Queue · ${roleLabel || "Assigned role"}`
+      : item.assignment.assignmentType === "ward"
+        ? `Ward Queue · ${ward?.name || "Assigned ward"}`
+        : item.assignment.assignmentType === "person"
+          ? `Assigned to ${personLabel || "staff member"}`
+          : item.assignment.assignmentType === "team"
+            ? `Team · ${team?.name || "Assigned team"}`
+            : "Unassigned";
   return {
     workItemId: String(item.id),
     workType: item.workType,
@@ -301,7 +423,25 @@ const toRow = (
       parentEntityId: item.source.parentEntityId,
       route: item.source.route,
     },
-    assignment: { type: item.assignment.type, label: assignmentLabel },
+    assignment: { assignmentType: item.assignment.assignmentType, label: assignmentLabel },
+    exception: item.latestException
+      ? {
+          exceptionType: item.latestException.exceptionType,
+          reasonCode: item.latestException.reasonCode,
+          reasonLabel: getWorkExceptionReasonLabel(item.latestException.reasonCode),
+          reasonText: item.latestException.reasonText,
+          effectiveAt: item.latestException.effectiveAt,
+          recordedAt: item.latestException.recordedAt,
+          recordedByUserAccountId: item.latestException.recordedByUserAccountId
+            ? String(item.latestException.recordedByUserAccountId)
+            : undefined,
+          recordedByStaffMemberId: item.latestException.recordedByStaffMemberId
+            ? String(item.latestException.recordedByStaffMemberId)
+            : undefined,
+          followUpRequired: item.latestException.followUpRequired,
+          escalationRequired: item.latestException.escalationRequired,
+        }
+      : undefined,
     assignmentLabel,
     route: handler.getRoute(item),
     allowedActions: {
@@ -430,7 +570,7 @@ export function buildWorkQueueReadModel(
       !options.filters.displayStatuses.includes(displayStatus)
     )
       continue;
-    classified.push({ item, due, row: toRow(item, due, auth, lookup) });
+    classified.push({ item, due, row: toRow(item, due, auth, lookup, options) });
   }
   const sectionKeys: WorkQueueSectionKey[] = [
     "overdue",
@@ -488,6 +628,32 @@ export function buildWorkQueueReadModel(
       inProgress: classified.filter((value) => value.item.persistedStatus === "in_progress").length,
       missed: visible.filter((value) => value.persistedStatus === "missed").length,
       deferred: classified.filter((value) => value.item.persistedStatus === "deferred").length,
+      unassigned: classified.filter(
+        (value) => value.item.assignment.assignmentType === "unassigned",
+      ).length,
+      assignedToMe: classified.filter(
+        (value) =>
+          value.item.assignment.assignmentType === "person" &&
+          value.item.assignment.assignmentStatus === "active" &&
+          (value.item.assignment.assignedUserAccountId === auth.userAccountId ||
+            Boolean(
+              auth.staffMemberId &&
+              value.item.assignment.assignedStaffMemberId === auth.staffMemberId,
+            )),
+      ).length,
+      assignedToRole: classified.filter((value) => value.item.assignment.assignmentType === "role")
+        .length,
+      assignedToWard: classified.filter((value) => value.item.assignment.assignmentType === "ward")
+        .length,
+      assignedToTeam: classified.filter((value) => value.item.assignment.assignmentType === "team")
+        .length,
+      declined: visible.filter((value) => value.latestException?.exceptionType === "declined")
+        .length,
+      notApplicable: visible.filter((value) => value.persistedStatus === "not_applicable").length,
+      cancelled: visible.filter((value) => value.persistedStatus === "cancelled").length,
+      followUpRequired: visible.filter((value) => value.latestException?.followUpRequired).length,
+      escalationRequired: visible.filter((value) => value.latestException?.escalationRequired)
+        .length,
       byWorkType: countBy(classified.map((value) => value.item.workType)),
       byPriority: countBy(classified.map((value) => value.item.priority)),
       byWard: classified.reduce<Record<string, number>>((result, value) => {

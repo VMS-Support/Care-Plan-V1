@@ -104,7 +104,7 @@ const base = (
   nursingHomeId,
   schedule: { scheduleType: "one_off", timeZone: context.timeZone },
   persistedStatus: "scheduled",
-  assignment: { type: "unassigned" },
+  assignment: { assignmentType: "unassigned", assignmentStatus: "active" },
   priority: "routine",
   createdAt: context.now,
   updatedAt: context.now,
@@ -123,10 +123,14 @@ const residentScope = (
 });
 const roleAssignment = (role?: string, staffId?: string): WorkAssignment =>
   staffId
-    ? { type: "person", assignedStaffMemberId: staffId }
+    ? { assignmentType: "person", assignedStaffMemberId: staffId, assignmentStatus: "active" }
     : role
-      ? { type: "role", assignedRoleKey: role }
-      : { type: "unassigned" };
+      ? {
+          assignmentType: "role",
+          assignedRoleKey: role.trim().replace(/[\s-]+/g, "_").toUpperCase(),
+          assignmentStatus: "active",
+        }
+      : { assignmentType: "unassigned", assignmentStatus: "active" };
 
 export function projectCareActionOccurrenceToWorkItem(
   intervention: ProblemIntervention,
@@ -263,8 +267,12 @@ export function projectTaskToWorkItem(task: Task, context: ProjectionContext): W
       task.assignedToType === "role"
         ? roleAssignment(task.assignedRole)
         : task.assignedToType === "unassigned"
-          ? { type: "unassigned" }
-          : { type: "person", assignedStaffMemberId: task.assignedTo },
+          ? { assignmentType: "unassigned", assignmentStatus: "active" }
+          : {
+              assignmentType: "person",
+              assignedStaffMemberId: task.assignedTo,
+              assignmentStatus: "active",
+            },
     priority: priority(task.priority),
     completion: task.completedAt
       ? {
@@ -572,9 +580,10 @@ export function projectHandoverAcknowledgementToWorkItem(
       timeZone: context.timeZone,
     },
     assignment: {
-      type: "person",
+      assignmentType: "person",
       assignedUserAccountId: requirement.userAccountId,
       assignedStaffMemberId: requirement.staffMemberId,
+      assignmentStatus: "active",
     },
     priority: priority(h.handoverPriority || h.priority),
     persistedStatus: acknowledgement ? "completed" : inactive ? "not_applicable" : "scheduled",

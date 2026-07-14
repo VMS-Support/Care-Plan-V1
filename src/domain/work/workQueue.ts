@@ -6,40 +6,74 @@ import {
   getWorkStatusDescription,
   getWorkStatusSortRank,
 } from "./workStatus";
-import type { WorkAuthContext, WorkItem, WorkQueueFilters, WorkQueueItem } from "./workTypes";
+import type {
+  WorkAuthContext,
+  WorkItem,
+  WorkQueueFilters,
+  WorkQueueItem,
+  WorkTeam,
+} from "./workTypes";
 
 export interface WorkQueueReferenceData {
   residents: Resident[];
   wards: Ward[];
   rooms?: { id: string; label: string; nursingHomeId?: string; wardId?: string }[];
   beds?: { id: string; label: string }[];
+  teams?: WorkTeam[];
 }
 const historyStatuses = new Set(["completed", "missed", "cancelled", "not_applicable"]);
-const assignmentVisible = (item: WorkItem, auth: WorkAuthContext) => {
+const assignmentVisible = (item: WorkItem, auth: WorkAuthContext, teams: WorkTeam[] = []) => {
   const a = item.assignment;
-  if (a.type === "unassigned" || a.type === "ward_queue" || a.type === "team") return true;
-  if (a.type === "person" || a.type === "self")
-    return (
-      a.assignedUserAccountId === auth.userAccountId ||
-      a.assignedStaffMemberId === auth.staffMemberId
+  if (a.assignmentStatus !== "active") return false;
+  const manager = auth.capabilities.some((capability) =>
+    ["work_assignment.view_all", "work_assignment.manage_home"].includes(capability),
+  );
+  if (a.assignmentType === "unassigned") return true;
+  if (a.assignmentType === "ward")
+    return manager || auth.authorisedWardIds.includes(String(a.assignedWardId));
+  if (a.assignmentType === "team") {
+    const team = teams.find((candidate) => String(candidate.id) === String(a.assignedTeamId));
+    return Boolean(
+      manager ||
+      (team?.active &&
+        String(team.nursingHomeId) === String(item.nursingHomeId) &&
+        (!item.wardId ||
+          !team.wardIds?.length ||
+          team.wardIds.map(String).includes(String(item.wardId))) &&
+        auth.staffMemberId &&
+        team.memberStaffMemberIds.map(String).includes(String(auth.staffMemberId))),
     );
-  return a.type === "role" && !!a.assignedRoleKey && auth.roleKeys.includes(a.assignedRoleKey);
+  }
+  if (a.assignmentType === "person")
+    return (
+      manager ||
+      a.assignedUserAccountId === auth.userAccountId ||
+      Boolean(auth.staffMemberId && a.assignedStaffMemberId === auth.staffMemberId)
+    );
+  return (
+    a.assignmentType === "role" &&
+    (manager || (!!a.assignedRoleKey && auth.roleKeys.includes(a.assignedRoleKey)))
+  );
 };
 const requestedAssignment = (item: WorkItem, filters: WorkQueueFilters, auth: WorkAuthContext) => {
   if (!filters.assignment || filters.assignment === "all") return true;
   if (filters.assignment === "mine")
     return (
-      item.assignment.assignedUserAccountId === auth.userAccountId ||
-      item.assignment.assignedStaffMemberId === auth.staffMemberId
+      item.assignment.assignmentType === "person" &&
+      item.assignment.assignmentStatus === "active" &&
+      (item.assignment.assignedUserAccountId === auth.userAccountId ||
+        Boolean(auth.staffMemberId && item.assignment.assignedStaffMemberId === auth.staffMemberId))
     );
   if (filters.assignment === "role")
     return (
-      item.assignment.type === "role" &&
+      item.assignment.assignmentType === "role" &&
       !!item.assignment.assignedRoleKey &&
       auth.roleKeys.includes(item.assignment.assignedRoleKey)
     );
-  if (filters.assignment === "ward") return item.assignment.type === "ward_queue";
-  return item.assignment.type === "unassigned";
+  if (filters.assignment === "ward") return item.assignment.assignmentType === "ward";
+  if (filters.assignment === "team") return item.assignment.assignmentType === "team";
+  if (filters.assignment === "person") return item.assignment.assignmentType === "person";
+  return item.assignment.assignmentType === "unassigned";
 };
 
 export function getWorkItemsForOperationalContext(
@@ -61,7 +95,8 @@ export function getWorkItemsForOperationalContext(
     if (item.wardId && !selectedWards.has(String(item.wardId))) continue;
     if (item.shiftId && String(item.shiftId) !== String(context.shiftId)) continue;
     if (item.operationalDate && item.operationalDate !== context.operationalDate) continue;
-    if (!assignmentVisible(item, auth) || !requestedAssignment(item, filters, auth)) continue;
+    if (!assignmentVisible(item, auth, refs.teams) || !requestedAssignment(item, filters, auth))
+      continue;
     const isHistory = historyStatuses.has(item.persistedStatus);
     if ((filters.mode || "active") === "active" ? isHistory : !isHistory) continue;
     if (filters.workTypes && !filters.workTypes.includes(item.workType)) continue;
@@ -148,13 +183,13 @@ export function getWorkItemsForOperationalContext(
         route: item.source.route,
       },
       assignment: {
-        type: item.assignment.type,
+        assignmentType: item.assignment.assignmentType,
         label:
           item.assignment.assignedRoleKey ||
           String(
             item.assignment.assignedStaffMemberId ||
               item.assignment.assignedUserAccountId ||
-              (item.assignment.type === "ward_queue" ? "Ward queue" : "Unassigned"),
+              (item.assignment.assignmentType === "ward" ? "Ward queue" : "Unassigned"),
           ),
       },
       assignmentLabel:
@@ -162,7 +197,7 @@ export function getWorkItemsForOperationalContext(
         String(
           item.assignment.assignedStaffMemberId ||
             item.assignment.assignedUserAccountId ||
-            (item.assignment.type === "ward_queue" ? "Ward queue" : "Unassigned"),
+            (item.assignment.assignmentType === "ward" ? "Ward queue" : "Unassigned"),
         ),
       route: handler.getRoute(item),
       allowedActions: {

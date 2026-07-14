@@ -1,5 +1,5 @@
 import type { DueTimeClassification } from "@/lib/care/dueTime";
-import type { OperationalContext } from "@/lib/care/types";
+import type { AuditRecord, OperationalContext } from "@/lib/care/types";
 import type {
   DomainEventId,
   EnterpriseId,
@@ -8,9 +8,12 @@ import type {
   RoomId,
   ShiftId,
   StaffMemberId,
+  TeamId,
   UserAccountId,
   WardId,
   WorkItemId,
+  WorkAssignmentHistoryId,
+  WorkExceptionId,
 } from "@/types/entityIds";
 
 export type WorkType =
@@ -36,7 +39,8 @@ export type WorkPersistedStatus =
 export type WorkDisplayStatus = WorkPersistedStatus | "due_soon" | "due_now" | "overdue";
 export type WorkPriority = "routine" | "important" | "urgent" | "critical";
 export type ClinicalUrgency = "routine" | "time_sensitive" | "urgent_review" | "immediate";
-export type WorkAssignmentType = "unassigned" | "person" | "role" | "ward_queue" | "team" | "self";
+export type WorkAssignmentType = "unassigned" | "role" | "ward" | "person" | "team";
+export type WorkAssignmentStatus = "active" | "expired" | "replaced" | "cancelled";
 
 export type WorkSourceType =
   | "care_plan"
@@ -101,14 +105,33 @@ export interface WorkSchedule {
 }
 
 export interface WorkAssignment {
-  type: WorkAssignmentType;
+  assignmentType: WorkAssignmentType;
   assignedUserAccountId?: UserAccountId | string;
   assignedStaffMemberId?: StaffMemberId | string;
   assignedRoleKey?: string;
   assignedWardId?: WardId | string;
-  assignedTeamId?: string;
+  assignedTeamId?: TeamId | string;
   assignedAt?: string;
-  assignedBy?: UserAccountId | string;
+  assignedByUserAccountId?: UserAccountId | string;
+  assignedByStaffMemberId?: StaffMemberId | string;
+  assignmentReasonCode?: string;
+  assignmentReasonText?: string;
+  targetShiftId?: ShiftId | string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  assignmentStatus: WorkAssignmentStatus;
+}
+
+export interface WorkTeam {
+  id: TeamId | string;
+  nursingHomeId: NursingHomeId | string;
+  name: string;
+  teamType: "clinical" | "management" | "allied_health" | "operational" | "temporary" | "other";
+  active: boolean;
+  memberStaffMemberIds: (StaffMemberId | string)[];
+  wardIds?: (WardId | string)[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkCompletion {
@@ -170,6 +193,7 @@ export interface WorkItem {
   cancellation?: WorkCancellation;
   notApplicable?: WorkNotApplicable;
   missed?: WorkMissedDetails;
+  latestException?: WorkException;
   dueTimeClassification?: DueTimeClassification;
   recommendedActions?: { code: string; label: string; route?: string }[];
   ruleContext?: {
@@ -191,6 +215,7 @@ export type WorkTransitionType =
   | "started"
   | "completed"
   | "missed"
+  | "declined"
   | "deferred"
   | "cancelled"
   | "not_applicable"
@@ -212,13 +237,57 @@ export interface WorkStatusTransition {
   correlationId?: string;
 }
 export interface WorkAssignmentHistory {
-  id: string;
+  id: WorkAssignmentHistoryId | string;
   workItemId: string;
   previousAssignment?: WorkAssignment;
-  assignment: WorkAssignment;
-  assignedAt: string;
-  assignedBy: string;
+  newAssignment: WorkAssignment;
+  transitionType:
+    | "initial_assignment"
+    | "assigned"
+    | "claimed"
+    | "reassigned"
+    | "unassigned"
+    | "expired"
+    | "cancelled";
+  occurredAt: string;
+  actorType: "user" | "system" | "rule" | "migration";
+  actorUserAccountId?: UserAccountId | string;
+  actorStaffMemberId?: StaffMemberId | string;
+  reasonCode?: string;
+  reasonText?: string;
   correlationId?: string;
+  sourceEventId?: DomainEventId | string;
+}
+
+export type WorkExceptionType = "deferred" | "missed" | "declined" | "not_applicable" | "cancelled";
+export type WorkDeclinedByType =
+  | "resident"
+  | "family"
+  | "staff"
+  | "doctor"
+  | "external_service"
+  | "other";
+export interface WorkException {
+  id: WorkExceptionId | string;
+  workItemId: WorkItemId | string;
+  exceptionType: WorkExceptionType;
+  reasonCode: string;
+  reasonText?: string;
+  effectiveAt: string;
+  recordedAt: string;
+  recordedByUserAccountId?: UserAccountId | string;
+  recordedByStaffMemberId?: StaffMemberId | string;
+  declinedByType?: WorkDeclinedByType;
+  declinedByName?: string;
+  followUpRequired: boolean;
+  escalationRequired: boolean;
+  deferredUntil?: string;
+  sourceEvidenceEntityType?: string;
+  sourceEvidenceEntityId?: string;
+  correlationId?: string;
+  sourceEventId?: DomainEventId | string;
+  correctionOfExceptionId?: WorkExceptionId | string;
+  correctionReason?: string;
 }
 
 export interface WorkAuthContext {
@@ -240,7 +309,14 @@ export interface WorkQueueFilters {
   wardIds?: string[];
   residentId?: string;
   roomIds?: string[];
-  assignment?: "mine" | "role" | "ward" | "unassigned" | "all";
+  assignment?: "all" | "unassigned" | "mine" | "role" | "ward" | "team" | "person";
+  assignedRoleKeys?: string[];
+  assignedWardIds?: string[];
+  assignedPersonIds?: string[];
+  assignedTeamIds?: string[];
+  exceptionTypes?: WorkExceptionType[];
+  followUpRequired?: boolean;
+  escalationRequired?: boolean;
   dueFrom?: string;
   dueTo?: string;
   sourceModules?: WorkSourceReference["sourceModule"][];
@@ -279,7 +355,19 @@ export interface WorkQueueItem {
     | "parentEntityId"
     | "route"
   >;
-  assignment: { type: WorkAssignmentType; label?: string };
+  assignment: { assignmentType: WorkAssignmentType; label?: string };
+  exception?: {
+    exceptionType: WorkExceptionType;
+    reasonCode: string;
+    reasonLabel: string;
+    reasonText?: string;
+    effectiveAt: string;
+    recordedAt: string;
+    recordedByUserAccountId?: string;
+    recordedByStaffMemberId?: string;
+    followUpRequired: boolean;
+    escalationRequired: boolean;
+  };
   assignmentLabel?: string;
   route: string;
   allowedActions: {
@@ -297,9 +385,15 @@ export interface WorkQueueItem {
 export type WorkDomainEventType =
   | "WorkItemCreated"
   | "WorkItemAssigned"
+  | "WorkItemClaimed"
+  | "WorkItemReassigned"
+  | "WorkItemReleased"
+  | "WorkItemUnassigned"
+  | "WorkAssignmentExpired"
   | "WorkItemStarted"
   | "WorkItemCompleted"
   | "WorkItemMissed"
+  | "WorkItemDeclined"
   | "WorkItemDeferred"
   | "WorkItemCancelled"
   | "WorkItemMarkedNotApplicable";
@@ -322,13 +416,22 @@ export interface WorkDomainEvent {
     reasonCode?: string;
     evidenceEntityType?: string;
     evidenceEntityId?: string;
+    previousAssignment?: WorkAssignment;
+    newAssignment?: WorkAssignment;
+    effectiveAt?: string;
+    recordedAt?: string;
+    followUpRequired?: boolean;
+    escalationRequired?: boolean;
   };
 }
 export interface WorkProjectionState {
   workItems: WorkItem[];
   workStatusTransitions: WorkStatusTransition[];
   workAssignmentHistory?: WorkAssignmentHistory[];
+  workExceptions?: WorkException[];
+  workAuditRecords?: AuditRecord[];
   workEvents?: WorkDomainEvent[];
+  workQueueInvalidationKeys?: string[];
 }
 export interface WorkOperationalQuery {
   context: OperationalContext;

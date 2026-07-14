@@ -1,13 +1,13 @@
 import { getWorkSourceKey } from "./workIdentity";
 import type {
   WorkAssignment,
-  WorkAssignmentHistory,
   WorkAuthContext,
   WorkDomainEvent,
   WorkItem,
   WorkProjectionState,
   WorkStatusTransition,
 } from "./workTypes";
+import { reassignWorkItem } from "./workAssignments";
 
 const event = (
   item: WorkItem,
@@ -88,58 +88,19 @@ export function assignWorkItem(
   occurredAt = new Date().toISOString(),
   correlationId?: string,
 ) {
-  const item = state.workItems.find((candidate) => candidate.id === workItemId);
-  if (!item) throw new Error("Work item not found.");
-  if (
-    !auth.capabilities.includes("work_item.assign") &&
-    !auth.capabilities.includes("work_item.reassign")
-  )
-    throw new Error("Missing Work Item assignment capability.");
-  if (!auth.authorisedNursingHomeIds.includes(String(item.nursingHomeId)))
-    throw new Error("Cross-home assignment is prohibited.");
-  if (
-    assignment.assignedWardId &&
-    !auth.authorisedWardIds.includes(String(assignment.assignedWardId))
-  )
-    throw new Error("Assignment ward is not authorised.");
-  const history: WorkAssignmentHistory = {
-    id: `work-assignment:${workItemId}:${(state.workAssignmentHistory || []).length + 1}`,
-    workItemId,
-    previousAssignment: item.assignment,
-    assignment,
-    assignedAt: occurredAt,
-    assignedBy: auth.userAccountId,
-    correlationId,
+  const hasLegacyCapability =
+    auth.capabilities.includes("work_item.assign") ||
+    auth.capabilities.includes("work_item.reassign");
+  const compatibleAuth = {
+    ...auth,
+    capabilities:
+      auth.capabilities.includes("work_assignment.reassign") || !hasLegacyCapability
+        ? auth.capabilities
+        : [...auth.capabilities, "work_assignment.reassign"],
   };
-  const updated = {
-    ...item,
-    assignment: {
-      ...assignment,
-      assignedAt: occurrenceOr(assignment.assignedAt, occurredAt),
-      assignedBy: assignment.assignedBy || auth.userAccountId,
-    },
-    updatedAt: occurredAt,
-    updatedBy: auth.userAccountId,
-  };
-  const corr = correlationId || `work-correlation:${workItemId}:assignment:${occurredAt}`;
-  return {
-    ...state,
-    workItems: state.workItems.map((candidate) =>
-      candidate.id === workItemId ? updated : candidate,
-    ),
-    workAssignmentHistory: [...(state.workAssignmentHistory || []), history],
-    workEvents: [
-      ...(state.workEvents || []),
-      event(
-        updated,
-        "WorkItemAssigned",
-        `work-event:${workItemId}:assignment:${(state.workAssignmentHistory || []).length + 1}`,
-        occurredAt,
-        auth.userAccountId,
-        corr,
-      ),
-    ],
-  };
+  return reassignWorkItem(state, workItemId, assignment, {
+    auth: compatibleAuth,
+    occurredAt,
+    correlationId: correlationId || `work-correlation:${workItemId}:assignment:${occurredAt}`,
+  });
 }
-
-const occurrenceOr = (value: string | undefined, fallback: string) => value || fallback;

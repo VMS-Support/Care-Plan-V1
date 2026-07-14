@@ -101,7 +101,11 @@ const item = (id, dueAt, patch = {}) => ({
     timeZone: "Europe/Dublin",
   },
   persistedStatus: "scheduled",
-  assignment: { type: "ward_queue", assignedWardId: "ward-1" },
+  assignment: {
+    assignmentType: "ward",
+    assignedWardId: "ward-1",
+    assignmentStatus: "active",
+  },
   priority: "routine",
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",

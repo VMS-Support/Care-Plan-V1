@@ -36,6 +36,9 @@ export type HandoverId = Brand<string, "HandoverId">;
 export type DomainEventId = Brand<string, "DomainEventId">;
 export type WorkItemId = Brand<string, "WorkItemId">;
 export type WorkStatusTransitionId = Brand<string, "WorkStatusTransitionId">;
+export type WorkAssignmentHistoryId = Brand<string, "WorkAssignmentHistoryId">;
+export type WorkExceptionId = Brand<string, "WorkExceptionId">;
+export type TeamId = Brand<string, "TeamId">;
 export type RecurrenceRuleId = Brand<string, "RecurrenceRuleId">;
 export type OccurrenceId = Brand<string, "OccurrenceId">;
 
@@ -127,15 +130,20 @@ export const createAdmissionId = () => createEntityId("admission") as AdmissionI
 export const createAbsenceEpisodeId = () => createEntityId("absence-episode") as AbsenceEpisodeId;
 export const createStaffMemberId = () => createEntityId("staff-member") as StaffMemberId;
 export const createUserAccountId = () => createEntityId("user-account") as UserAccountId;
-export const createEmploymentRecordId = () => createEntityId("employment-record") as EmploymentRecordId;
+export const createEmploymentRecordId = () =>
+  createEntityId("employment-record") as EmploymentRecordId;
 export const createRoleAssignmentId = () => createEntityId("role-assignment") as RoleAssignmentId;
-export const createProfessionalRegistrationId = () => createEntityId("professional-registration") as ProfessionalRegistrationId;
+export const createProfessionalRegistrationId = () =>
+  createEntityId("professional-registration") as ProfessionalRegistrationId;
 export const createHomeAssignmentId = () => createEntityId("home-assignment") as HomeAssignmentId;
 export const createWardCompetencyId = () => createEntityId("ward-competency") as WardCompetencyId;
-export const createRosterAssignmentId = () => createEntityId("roster-assignment") as RosterAssignmentId;
-export const createPermissionGrantId = () => createEntityId("permission-grant") as PermissionGrantId;
+export const createRosterAssignmentId = () =>
+  createEntityId("roster-assignment") as RosterAssignmentId;
+export const createPermissionGrantId = () =>
+  createEntityId("permission-grant") as PermissionGrantId;
 export const createRoleTemplateId = () => createEntityId("role-template") as RoleTemplateId;
 export const createAuditRecordId = () => createEntityId("audit-record") as AuditRecordId;
-export const createOperationalContextId = () => createEntityId("operational-context") as OperationalContextId;
+export const createOperationalContextId = () =>
+  createEntityId("operational-context") as OperationalContextId;
 export const createShiftId = () => createEntityId("shift") as ShiftId;
 export const createDomainEventId = () => `domain-event-${randomSegment()}` as DomainEventId;

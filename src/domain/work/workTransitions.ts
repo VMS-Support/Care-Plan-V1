@@ -194,7 +194,7 @@ function transition(
     correlationId: request.correlationId,
   };
   const eventTypes: Record<
-    Exclude<WorkTransitionType, "created" | "restored">,
+    Exclude<WorkTransitionType, "created" | "restored" | "declined">,
     WorkDomainEventType
   > = {
     started: "WorkItemStarted",
@@ -207,7 +207,7 @@ function transition(
   const correlationId = request.correlationId || `work-correlation:${id}:${occurredAt}`;
   const event: WorkDomainEvent = {
     eventId: `work-event:${id}:${state.workStatusTransitions.length + 1}`,
-    eventType: eventTypes[type as Exclude<WorkTransitionType, "created" | "restored">],
+    eventType: eventTypes[type as Exclude<WorkTransitionType, "created" | "restored" | "declined">],
     eventVersion: 1,
     workItemId: id,
     source: item.source,
@@ -227,6 +227,7 @@ function transition(
     },
   };
   return {
+    ...state,
     workItems: state.workItems.map((candidate) => (candidate.id === id ? updated : candidate)),
     workStatusTransitions: [...state.workStatusTransitions, history],
     workEvents: [...(state.workEvents || []), event],
@@ -244,25 +245,25 @@ export const completeWorkItem = (
   auth: WorkAuthContext,
   request: TransitionRequest,
 ) => transition(state, id, "completed", "completed", auth, request, "work_item.complete");
-export const markWorkItemMissed = (
+export const legacyMarkWorkItemMissed = (
   state: WorkProjectionState,
   id: string,
   auth: WorkAuthContext,
   request: TransitionRequest,
 ) => transition(state, id, "missed", "missed", auth, request, "work_item.mark_missed");
-export const deferWorkItem = (
+export const legacyDeferWorkItem = (
   state: WorkProjectionState,
   id: string,
   auth: WorkAuthContext,
   request: TransitionRequest,
 ) => transition(state, id, "deferred", "deferred", auth, request, "work_item.defer");
-export const cancelWorkItem = (
+export const legacyCancelWorkItem = (
   state: WorkProjectionState,
   id: string,
   auth: WorkAuthContext,
   request: TransitionRequest,
 ) => transition(state, id, "cancelled", "cancelled", auth, request, "work_item.cancel");
-export const markWorkItemNotApplicable = (
+export const legacyMarkWorkItemNotApplicable = (
   state: WorkProjectionState,
   id: string,
   auth: WorkAuthContext,

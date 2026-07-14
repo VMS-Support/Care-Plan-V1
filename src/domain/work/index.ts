@@ -12,3 +12,6 @@ export * from "./sourceTraceability";
 export * from "./careActionQueueAdapter";
 export * from "./interventionParity";
 export * from "./workQueueReadModel";
+export * from "./workAssignments";
+export * from "./workExceptionReasons";
+export * from "./workExceptions";
