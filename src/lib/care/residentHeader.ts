@@ -1,6 +1,7 @@
 import type { Bed, BedAssignment, Resident, Room, UserProfile, Ward } from "./types";
 import { RLT_DEPENDENCY_LABELS, RLT_DEPENDENCY_LEVELS, type RltDependencyLevel, type RltDependencyState } from "./rltDependency";
 import type { EndOfLifeState } from "./endOfLifePathway";
+import type { ResidentContactsViewModel } from "./residentContacts";
 
 export interface ResidentHeaderAllergySummary { allergyId: string; substance: string; reaction?: string; severity?: "mild" | "moderate" | "severe" | "life_threatening" | "unknown"; status: "active"; sourceRoute?: string; }
 export interface ResidentProfessionalSummary { id: string; displayName: string; roleLabel?: string; phone?: string; email?: string; active: boolean; sourceRoute?: string; }
@@ -24,7 +25,7 @@ export interface ResidentHeaderViewModel {
   updatedAt: string;
 }
 
-export interface ResidentHeaderData { residents: Resident[]; wards: Ward[]; rooms: Room[]; beds: Bed[]; bedAssignments: BedAssignment[]; users: UserProfile[]; dependencyState: RltDependencyState; endOfLifeState: EndOfLifeState; }
+export interface ResidentHeaderData { residents: Resident[]; wards: Ward[]; rooms: Room[]; beds: Bed[]; bedAssignments: BedAssignment[]; users: UserProfile[]; dependencyState: RltDependencyState; endOfLifeState: EndOfLifeState; contacts?: ResidentContactsViewModel; }
 export interface ResidentHeaderAuthorization { nursingHomeId: string; capabilities: string[]; generatedAt?: string; }
 
 const clean = (value?: string) => value?.trim() || undefined;
@@ -67,8 +68,8 @@ export function getResidentHeader(data: ResidentHeaderData, residentId: string, 
     advanceCare: { dnarStatus: !canAdvance ? "unknown" : dnar === "under_review" ? "under_review" : dnar === "revoked" ? "revoked" : dnar === "available" || resident.dnarStatus === "yes" ? "recorded" : resident.dnarStatus === "no" ? "not_recorded" : "unknown", advanceDirectiveStatus: !canAdvance ? "unknown" : advance === "under_review" ? "under_review" : advance === "available" ? "available" : "not_available", treatmentEscalationPlanStatus: !canAdvance ? "unknown" : escalation === "under_review" ? "under_review" : escalation === "available" ? "available" : "not_available", sourceRecordIds: decisions.map((item) => item.id) },
     isolation: { status: "not_recorded", active: false },
     dependency: { summaryLabel: dependencyLabel, highestCurrentLevel: highest, domainsRecorded: dependencies.length, domainsUnassessed: Math.max(0, 12 - dependencies.length) },
-    namedNurse: professional(resident.keyWorkers?.namedNurse, "Named Nurse", data.users), keyWorker: professional(resident.keyWorkers?.keyWorker, "Key Worker", data.users), gp: professional(resident.gp, "GP", data.users),
-    primaryContact: primary ? { contactId: primary.id, displayName: primary.name, relationship: primary.relationship, phone: primary.mobile || primary.phone, email: primary.email, nominatedRepresentative: primary.legalRepresentative, powerOfAttorney: primary.powerOfAttorney, sourceRoute: `/residents/${resident.id}?careSection=nok` } : undefined,
+    namedNurse: professional(resident.keyWorkers?.namedNurse, "Named Nurse", data.users), keyWorker: professional(resident.keyWorkers?.keyWorker, "Key Worker", data.users), gp: data.contacts?.primary.gp ? { id: data.contacts.primary.gp.contactId, displayName: data.contacts.primary.gp.displayName, roleLabel: "GP", phone: data.contacts.primary.gp.phone || data.contacts.primary.gp.mobile, email: data.contacts.primary.gp.email, active: data.contacts.primary.gp.active, sourceRoute: data.contacts.primary.gp.route } : professional(resident.gp, "GP", data.users),
+    primaryContact: data.contacts?.primary.firstContact ? { contactId: data.contacts.primary.firstContact.contactId, displayName: data.contacts.primary.firstContact.displayName, relationship: data.contacts.primary.firstContact.relationshipToResident, phone: data.contacts.primary.firstContact.mobile || data.contacts.primary.firstContact.phone, email: data.contacts.primary.firstContact.email, nominatedRepresentative: Boolean(data.contacts.primary.nominatedRepresentative?.contactId === data.contacts.primary.firstContact.contactId), powerOfAttorney: data.contacts.primary.firstContact.authorityLabel?.includes("Power of Attorney"), sourceRoute: data.contacts.primary.firstContact.route } : primary ? { contactId: primary.id, displayName: primary.name, relationship: primary.relationship, phone: primary.mobile || primary.phone, email: primary.email, nominatedRepresentative: primary.legalRepresentative, powerOfAttorney: primary.powerOfAttorney, sourceRoute: `/residents/${resident.id}?careSection=nok` } : undefined,
     lifecycleStatus: resident.lifecycleStatus || resident.residentType || resident.status,
     updatedAt: resident.profileUpdatedAt || resident.lifecycleUpdatedAt || resident.admissionDate || authorization.generatedAt || new Date().toISOString(),
   };

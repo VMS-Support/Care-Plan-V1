@@ -679,6 +679,12 @@ export interface NextOfKin {
   powerOfAttorney: boolean;
   legalRepresentative: boolean;
   notes: string;
+  active?: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  preferredContactMethod?: "phone" | "mobile" | "email" | "post";
+  communicationPermission?: "general_updates" | "clinical_updates" | "emergency_only" | "none";
+  authorityReference?: string;
 }
 
 export interface BedInfo {
@@ -1224,7 +1230,10 @@ export type TimelineEventType =
   | "chart.behaviour"
   | "chart.observation"
   | "handover.created"
-  | "handover.acknowledged";
+  | "handover.acknowledged"
+  | "contact.assigned"
+  | "contact.changed"
+  | "contact.inactivated";
 
 export interface TimelineEvent {
   id: string;

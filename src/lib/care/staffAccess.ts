@@ -96,6 +96,7 @@ export const roleKeyToRole = (roleKey: string): Role => {
 
 export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[]> = {
   HCA: [
+    "resident_recent_changes.view", "resident_timeline.view", "resident_contacts.view",
     "resident_work_due.view", "resident_work_due.open_source", "resident_rlt_overview.view", "resident_rlt_overview.view_care_plans", "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences",
     "resident.view", "note.create", "intervention.create", "handover.create",
     "visitor.create", "outing.create", "task.create", "assessment.view", "careplan.view",
@@ -107,6 +108,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "ops.edit_own", "ops.duplicate",
   ],
   NURSE: [
+    "resident_recent_changes.view", "resident_recent_changes.view_incidents", "resident_recent_changes.view_sensitive", "resident_timeline.view", "resident_timeline.view_sensitive", "resident_contacts.view", "resident_contacts.create", "resident_contacts.edit_relationship", "resident_contacts.set_primary", "resident_contacts.view_history",
     "resident_work_due.view", "resident_work_due.open_source", "resident_work_due.complete", "resident_work_due.defer", "resident_work_due.mark_missed", "resident_rlt_overview.view", "resident_rlt_overview.view_risks", "resident_rlt_overview.view_care_plans", "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences", "resident_rlt_overview.view_sensitive",
     "resident.view", "resident.edit", "note.create", "intervention.create", "handover.create",
     "visitor.create", "outing.create", "task.create", "assessment.view", "assessment.create",
@@ -126,6 +128,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "observation.escalate", "ops.edit", "ops.archive", "ops.restore", "ops.duplicate",
   ],
   DOCTOR: [
+    "resident_recent_changes.view", "resident_recent_changes.view_incidents", "resident_recent_changes.view_sensitive", "resident_timeline.view", "resident_timeline.view_sensitive", "resident_contacts.view",
     "resident_work_due.view", "resident_work_due.open_source", "resident_rlt_overview.view", "resident_rlt_overview.view_risks", "resident_rlt_overview.view_care_plans", "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences",
     "resident.view", "clinical.view", "mdt.create", "medical_review.create", "recommendation.create",
     "treatment_note.create", "assessment.view", "assessment.comment", "careplan.view",
@@ -139,6 +142,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "ops.edit_own",
   ],
   CNM: [
+    "resident_recent_changes.view", "resident_recent_changes.view_medication", "resident_recent_changes.view_incidents", "resident_recent_changes.view_sensitive", "resident_timeline.view", "resident_timeline.view_sensitive", "resident_timeline.view_highly_sensitive", "resident_contacts.view", "resident_contacts.create", "resident_contacts.edit_relationship", "resident_contacts.set_primary", "resident_contacts.manage_authority", "resident_contacts.view_history", "resident_contacts.edit_contact",
     "resident_work_due.view", "resident_work_due.open_source", "resident_work_due.complete", "resident_work_due.defer", "resident_work_due.mark_missed", "resident_rlt_overview.view", "resident_rlt_overview.view_risks", "resident_rlt_overview.view_care_plans", "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences", "resident_rlt_overview.view_sensitive",
     "resident.view", "resident.create", "resident.edit", "note.create", "intervention.create",
     "handover.create", "visitor.create", "outing.create", "task.create", "assessment.view",
@@ -162,6 +166,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "observation.audit", "ops.edit", "ops.archive", "ops.restore", "ops.delete", "ops.duplicate",
   ],
   DON: [
+    "resident_recent_changes.view", "resident_recent_changes.view_medication", "resident_recent_changes.view_incidents", "resident_recent_changes.view_sensitive", "resident_timeline.view", "resident_timeline.view_sensitive", "resident_timeline.view_highly_sensitive", "resident_contacts.view", "resident_contacts.create", "resident_contacts.edit_relationship", "resident_contacts.set_primary", "resident_contacts.manage_authority", "resident_contacts.view_history", "resident_contacts.edit_contact",
     "resident_work_due.view", "resident_work_due.open_source", "resident_work_due.complete", "resident_work_due.defer", "resident_work_due.mark_missed", "resident_rlt_overview.view", "resident_rlt_overview.view_risks", "resident_rlt_overview.view_care_plans", "resident_rlt_overview.view_dependency", "resident_rlt_overview.view_preferences", "resident_rlt_overview.view_sensitive",
     "resident.view", "resident.create", "resident.edit", "resident.discharge", "note.create",
     "intervention.create", "handover.create", "visitor.create", "outing.create", "task.create",

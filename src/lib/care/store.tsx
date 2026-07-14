@@ -3667,38 +3667,22 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
         return archivedCount;
       },
-      addNextOfKin: (residentId, nok) =>
-        setStore((s) => ({
-          ...s,
-          residents: s.residents.map((r) =>
-            r.id === residentId
-              ? { ...r, nextOfKinList: [...(r.nextOfKinList || []), { ...nok, id: uid() }] }
-              : r,
-          ),
-        })),
-      updateNextOfKin: (residentId, id, patch) =>
-        setStore((s) => ({
-          ...s,
-          residents: s.residents.map((r) =>
-            r.id === residentId
-              ? {
-                  ...r,
-                  nextOfKinList: (r.nextOfKinList || []).map((n) =>
-                    n.id === id ? { ...n, ...patch } : n,
-                  ),
-                }
-              : r,
-          ),
-        })),
-      removeNextOfKin: (residentId, id) =>
-        setStore((s) => ({
-          ...s,
-          residents: s.residents.map((r) =>
-            r.id === residentId
-              ? { ...r, nextOfKinList: (r.nextOfKinList || []).filter((n) => n.id !== id) }
-              : r,
-          ),
-        })),
+      addNextOfKin: (residentId, nok) => setStore((s) => {
+        const resident = s.residents.find((item) => item.id === residentId); if (!resident) return s;
+        const now = new Date().toISOString(); const id = uid(); const contact = { ...nok, id, active: true, effectiveFrom: now };
+        const event: TimelineEvent = { id: uid(), facilityId: resident.facilityId || activeFacilityId, residentId, type: "contact.assigned", title: nok.primaryContact ? "First Contact Assigned" : "Next of Kin Added", description: `${nok.name} was assigned as ${nok.primaryContact ? "First Contact" : "Next of Kin"}.`, linkedRecordId: id, linkedRecordKind: "resident_contact_relationship", createdAt: now, createdBy: currentUserName, role: currentRole };
+        return { ...s, residents: s.residents.map((r) => r.id === residentId ? { ...r, nextOfKinList: [...(r.nextOfKinList || []).map((item) => nok.primaryContact ? { ...item, primaryContact: false } : item), contact] } : r), timelineEvents: [event, ...s.timelineEvents], auditLogs: [{ id: uid(), facilityId: resident.facilityId || activeFacilityId, user: currentUserName, role: currentRole, action: "Resident contact relationship added", entity: id, timestamp: now, before: "", after: JSON.stringify({ residentId, contactId: id, role: nok.primaryContact ? "first_contact" : "next_of_kin" }) }, ...s.auditLogs].slice(0, 500) };
+      }),
+      updateNextOfKin: (residentId, id, patch) => setStore((s) => {
+        const resident = s.residents.find((item) => item.id === residentId); const before = resident?.nextOfKinList?.find((item) => item.id === id); if (!resident || !before) return s;
+        const now = new Date().toISOString(); const event: TimelineEvent = { id: uid(), facilityId: resident.facilityId || activeFacilityId, residentId, type: "contact.changed", title: patch.primaryContact && !before.primaryContact ? "First Contact Changed" : "Contact Relationship Changed", description: patch.primaryContact && !before.primaryContact ? `${before.name} was assigned as First Contact.` : `${before.name}'s resident contact relationship was updated.`, linkedRecordId: id, linkedRecordKind: "resident_contact_relationship", createdAt: now, createdBy: currentUserName, role: currentRole };
+        return { ...s, residents: s.residents.map((r) => r.id === residentId ? { ...r, nextOfKinList: (r.nextOfKinList || []).map((item) => item.id === id ? { ...item, ...patch } : patch.primaryContact ? { ...item, primaryContact: false } : item) } : r), timelineEvents: [event, ...s.timelineEvents], auditLogs: [{ id: uid(), facilityId: resident.facilityId || activeFacilityId, user: currentUserName, role: currentRole, action: "Resident contact relationship changed", entity: id, timestamp: now, before: JSON.stringify(before), after: JSON.stringify({ ...before, ...patch }) }, ...s.auditLogs].slice(0, 500) };
+      }),
+      removeNextOfKin: (residentId, id) => setStore((s) => {
+        const resident = s.residents.find((item) => item.id === residentId); const before = resident?.nextOfKinList?.find((item) => item.id === id); if (!resident || !before) return s;
+        const now = new Date().toISOString(); const event: TimelineEvent = { id: uid(), facilityId: resident.facilityId || activeFacilityId, residentId, type: "contact.inactivated", title: "Contact Relationship Inactivated", description: `${before.name}'s resident contact relationship was inactivated.`, linkedRecordId: id, linkedRecordKind: "resident_contact_relationship", createdAt: now, createdBy: currentUserName, role: currentRole };
+        return { ...s, residents: s.residents.map((r) => r.id === residentId ? { ...r, nextOfKinList: (r.nextOfKinList || []).map((item) => item.id === id ? { ...item, active: false, effectiveTo: now, primaryContact: false } : item) } : r), timelineEvents: [event, ...s.timelineEvents], auditLogs: [{ id: uid(), facilityId: resident.facilityId || activeFacilityId, user: currentUserName, role: currentRole, action: "Resident contact relationship inactivated", entity: id, timestamp: now, before: JSON.stringify(before), after: JSON.stringify({ active: false, effectiveTo: now }) }, ...s.auditLogs].slice(0, 500) };
+      }),
       addAssessment: (a) => {
         const now = new Date().toISOString();
         const isCompleted = (a.status || "completed") === "completed";
