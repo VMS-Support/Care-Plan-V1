@@ -40,6 +40,8 @@ jobs:
           npm run test:rlt-dependency
           npm run validate:assessment-care-guidance
           npm run validate:rlt-dependency
+          npm run test:resident-strength-preferences
+          npm run validate:resident-strength-preferences
 
       - name: Build static site
         run: npm run build:pages

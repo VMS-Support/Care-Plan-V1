@@ -1551,6 +1551,13 @@ export interface CarePlanProblem {
   riskLevel: ProblemRiskLevel;
   sourceAssessmentId?: string;
   sourceAssessmentType?: AssessmentType;
+  contextReferences?: Array<{
+    type: "resident_strength" | "resident_preference";
+    sourceId: string;
+    sourceVersion?: number;
+    insertedAt: string;
+    insertedBy: string;
+  }>;
   createdBy: string;
   createdAt: string;
   evaluationDate: string; // YYYY-MM-DD

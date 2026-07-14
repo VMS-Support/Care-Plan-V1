@@ -70,6 +70,12 @@ import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
+import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
+import {
+  getResidentPreferencesByDomain,
+  getResidentStrengthPreferenceSummary,
+  getResidentStrengthsByDomain,
+} from "@/lib/care/residentStrengthPreferences";
 import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
 import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
 import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
@@ -262,9 +268,13 @@ function ResidentDetail() {
     handovers,
     currentRole,
     currentUserName,
+    activeFacilityId,
     canAccess,
     rltDependencyState,
     saveRltDependency,
+    strengthPreferenceState,
+    saveResidentStrength,
+    saveResidentPreference,
     softDeleteAssessment,
     addNextOfKin,
     addGoal,
@@ -426,6 +436,20 @@ function ResidentDetail() {
     );
 
   const residentFullName = `${r.firstName} ${r.lastName}`;
+  const summaryPreferenceCapabilities = [
+    "resident_preference.view",
+    "resident_preference.view_sensitive",
+    "resident_preference.view_highly_sensitive",
+  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
+    nursingHomeId: r.facilityId,
+    residentId: r.id,
+  }));
+  const strengthPreferenceSummary = getResidentStrengthPreferenceSummary(
+    strengthPreferenceState,
+    r.id,
+    r.facilityId || activeFacilityId,
+    summaryPreferenceCapabilities,
+  );
   const canDeleteResident = currentRole === "don" || currentRole === "cnm";
   const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
 
@@ -1641,6 +1665,27 @@ function ResidentDetail() {
                   record.rltDomainId === workspace.domain.id &&
                   record.status === "current",
               );
+              const preferenceCapabilities = [
+                "resident_preference.view",
+                "resident_preference.view_sensitive",
+                "resident_preference.view_highly_sensitive",
+              ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
+                nursingHomeId: r.facilityId,
+                residentId: r.id,
+              }));
+              const domainStrengths = getResidentStrengthsByDomain(
+                strengthPreferenceState,
+                r.id,
+                workspace.domain.id,
+                r.facilityId || activeFacilityId,
+              );
+              const domainPreferences = getResidentPreferencesByDomain(
+                strengthPreferenceState,
+                r.id,
+                workspace.domain.id,
+                r.facilityId || activeFacilityId,
+                preferenceCapabilities,
+              );
               return (
                 <Card key={workspace.domain.id}>
                   <CardContent className="p-4 space-y-3">
@@ -1727,6 +1772,29 @@ function ResidentDetail() {
                           source: dependencyRecord ? "dependency_review" : "manual_clinical_entry",
                         });
                         toast.success(`${workspace.domain.title} dependency saved`);
+                      }}
+                    />
+
+                    <StrengthPreferencePanel
+                      domain={workspace.domain}
+                      residentId={r.id}
+                      strengths={domainStrengths}
+                      preferences={domainPreferences}
+                      canCreateStrength={canAccess("resident_strength.create", {
+                        nursingHomeId: r.facilityId,
+                        residentId: r.id,
+                      })}
+                      canCreatePreference={canAccess("resident_preference.create", {
+                        nursingHomeId: r.facilityId,
+                        residentId: r.id,
+                      })}
+                      onCreateStrength={(input) => {
+                        saveResidentStrength(input);
+                        toast.success("Resident strength recorded");
+                      }}
+                      onCreatePreference={(input) => {
+                        saveResidentPreference(input);
+                        toast.success("Resident preference recorded");
                       }}
                     />
 
@@ -2012,6 +2080,21 @@ function ResidentDetail() {
               Edit Overview Details
             </Button>
           </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base">Strengths and Preferences</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setActiveTab("activities")}>View All Strengths and Preferences</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm md:grid-cols-3">
+              <div><div className="text-xs font-medium text-muted-foreground">Preferred Name</div><div>{strengthPreferenceSummary.preferredName || "Not recorded"}</div></div>
+              <div><div className="text-xs font-medium text-muted-foreground">Key Strengths</div><div>{strengthPreferenceSummary.keyStrengths.slice(0, 3).map((item) => item.title).join(" · ") || "No strengths recorded yet"}</div></div>
+              <div><div className="text-xs font-medium text-muted-foreground">Please Avoid</div><div>{strengthPreferenceSummary.pleaseAvoid.slice(0, 3).join(" · ") || "Nothing recorded"}</div></div>
+              {(strengthPreferenceSummary.safetyReviewRequiredCount > 0 || strengthPreferenceSummary.conflictCount > 0) && <div className="md:col-span-3 flex gap-2"><Badge variant="outline">{strengthPreferenceSummary.safetyReviewRequiredCount} safety review required</Badge><Badge variant="outline">{strengthPreferenceSummary.conflictCount} preference conflict</Badge></div>}
+            </CardContent>
+          </Card>
           <EditOverviewDialog
             resident={r}
             open={overviewOpen}

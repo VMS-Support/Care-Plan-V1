@@ -222,6 +222,14 @@ import {
   type RecordRltDependencyInput,
   type RltDependencyState,
 } from "./rltDependency";
+import {
+  createResidentPreference,
+  createResidentStrength,
+  type CreatePreferenceInput,
+  type CreateStrengthInput,
+  type StrengthPreferenceContext,
+  type StrengthPreferenceState,
+} from "./residentStrengthPreferences";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -1842,6 +1850,15 @@ function seedData() {
       audit: [],
       events: [],
     } as RltDependencyState,
+    strengthPreferenceState: {
+      strengths: [],
+      preferences: [],
+      reviews: [],
+      safetyReviews: [],
+      conflicts: [],
+      audit: [],
+      events: [],
+    } as StrengthPreferenceState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2099,6 +2116,32 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
           event.nursingHomeId === activeFacilityId && residentIds.has(event.residentId),
       ),
     },
+    strengthPreferenceState: {
+      strengths: store.strengthPreferenceState.strengths.filter(
+        (record) => record.nursingHomeId === activeFacilityId && residentIds.has(record.residentId),
+      ),
+      preferences: store.strengthPreferenceState.preferences.filter(
+        (record) => record.nursingHomeId === activeFacilityId && residentIds.has(record.residentId),
+      ),
+      reviews: store.strengthPreferenceState.reviews.filter((review) => {
+        const record = review.recordType === "strength"
+          ? store.strengthPreferenceState.strengths.find((item) => item.id === review.recordId)
+          : store.strengthPreferenceState.preferences.find((item) => item.id === review.recordId);
+        return Boolean(record && record.nursingHomeId === activeFacilityId && residentIds.has(record.residentId));
+      }),
+      safetyReviews: store.strengthPreferenceState.safetyReviews.filter(
+        (review) => review.nursingHomeId === activeFacilityId && residentIds.has(review.residentId),
+      ),
+      conflicts: store.strengthPreferenceState.conflicts.filter(
+        (conflict) => conflict.nursingHomeId === activeFacilityId && residentIds.has(conflict.residentId),
+      ),
+      audit: store.strengthPreferenceState.audit.filter(
+        (entry) => entry.nursingHomeId === activeFacilityId && residentIds.has(entry.residentId),
+      ),
+      events: store.strengthPreferenceState.events.filter(
+        (event) => event.nursingHomeId === activeFacilityId && residentIds.has(event.residentId),
+      ),
+    },
     alertWorkflow: Object.fromEntries(
       Object.entries(store.alertWorkflow || {}).filter(
         ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
@@ -2188,6 +2231,8 @@ interface CareCtx extends Store {
   currentUser: UserProfile;
   setCurrentUserId: (id: string) => void;
   saveRltDependency: (input: RecordRltDependencyInput) => void;
+  saveResidentStrength: (input: CreateStrengthInput) => void;
+  saveResidentPreference: (input: CreatePreferenceInput) => void;
   updateUser: (id: string, patch: Partial<UserProfile>) => void;
   createStaffUser: (input: {
     name: string;
@@ -2389,6 +2434,7 @@ interface CareCtx extends Store {
     notes?: string;
     sourceAssessmentId?: string;
     sourceAssessmentType?: any;
+    contextReferences?: CarePlanProblem["contextReferences"];
   }) => CarePlanProblem;
   updateProblem: (id: string, patch: Partial<CarePlanProblem>, reason?: string) => void;
   resolveProblem: (id: string, reason: string) => void;
@@ -2847,6 +2893,48 @@ export function CareProvider({ children }: { children: ReactNode }) {
             );
           else changeRltDependency(nextDependencyState, input, context);
           return { ...state, rltDependencyState: nextDependencyState };
+        });
+      },
+      saveResidentStrength: (input) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const resident = state.residents.find((candidate) => candidate.id === input.residentId);
+          const nursingHomeId = resident?.facilityId || activeFacilityId;
+          const accessContext = createStaffAccessContext(currentUser, nursingHomeId);
+          const context: StrengthPreferenceContext = {
+            userAccountId: currentUser.id,
+            staffMemberId: accessContext.staffMemberId,
+            nursingHomeId,
+            capabilities: getEffectivePermissions(state, accessContext, { nursingHomeId }),
+            occurredAt: now,
+            correlationId: `strength-store:${input.residentId}:${input.rltDomainId}:${now}`,
+            residentExists: (residentId) => state.residents.some((candidate) => candidate.id === residentId),
+            residentBelongsToHome: (residentId, homeId) => state.residents.some((candidate) => candidate.id === residentId && (candidate.facilityId || activeFacilityId) === homeId),
+          };
+          const next: StrengthPreferenceState = structuredClone(state.strengthPreferenceState);
+          createResidentStrength(next, input, context);
+          return { ...state, strengthPreferenceState: next };
+        });
+      },
+      saveResidentPreference: (input) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const resident = state.residents.find((candidate) => candidate.id === input.residentId);
+          const nursingHomeId = resident?.facilityId || activeFacilityId;
+          const accessContext = createStaffAccessContext(currentUser, nursingHomeId);
+          const context: StrengthPreferenceContext = {
+            userAccountId: currentUser.id,
+            staffMemberId: accessContext.staffMemberId,
+            nursingHomeId,
+            capabilities: getEffectivePermissions(state, accessContext, { nursingHomeId }),
+            occurredAt: now,
+            correlationId: `preference-store:${input.residentId}:${input.rltDomainId}:${now}`,
+            residentExists: (residentId) => state.residents.some((candidate) => candidate.id === residentId),
+            residentBelongsToHome: (residentId, homeId) => state.residents.some((candidate) => candidate.id === residentId && (candidate.facilityId || activeFacilityId) === homeId),
+          };
+          const next: StrengthPreferenceState = structuredClone(state.strengthPreferenceState);
+          createResidentPreference(next, input, context);
+          return { ...state, strengthPreferenceState: next };
         });
       },
       recordAuditEvent,
@@ -5773,6 +5861,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           riskLevel: input.riskLevel,
           sourceAssessmentId: input.sourceAssessmentId,
           sourceAssessmentType: input.sourceAssessmentType,
+          contextReferences: input.contextReferences,
           createdBy: currentUserName,
           createdAt: new Date().toISOString(),
           evaluationDate:

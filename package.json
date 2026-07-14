@@ -58,6 +58,8 @@
     "test:rlt-dependency": "node scripts/rlt-dependency-tests.mjs",
     "validate:assessment-care-guidance": "node scripts/validate-assessment-care-guidance.mjs",
     "validate:rlt-dependency": "node scripts/validate-rlt-dependency.mjs",
+    "test:resident-strength-preferences": "node scripts/resident-strength-preference-tests.mjs",
+    "validate:resident-strength-preferences": "node scripts/validate-resident-strength-preferences.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",

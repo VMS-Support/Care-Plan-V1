@@ -35,6 +35,19 @@ export type DomainEventType =
   | "RltDependencyChanged"
   | "RltDependencyReviewed"
   | "RltDependencyCorrected"
+  | "ResidentStrengthRecorded"
+  | "ResidentStrengthChanged"
+  | "ResidentStrengthReviewed"
+  | "ResidentStrengthSuperseded"
+  | "ResidentPreferenceRecorded"
+  | "ResidentPreferenceChanged"
+  | "ResidentPreferenceReviewed"
+  | "ResidentPreferenceSuperseded"
+  | "ResidentPreferenceAccommodationChanged"
+  | "ResidentPreferenceSafetyReviewRequested"
+  | "ResidentPreferenceSafetyReviewResolved"
+  | "ResidentPreferenceConflictRaised"
+  | "ResidentPreferenceConflictResolved"
   | "CareActionCompleted"
   | "CareActionMissed"
   | "MedicationRefused"
@@ -210,6 +223,31 @@ export type RltDependencyChangedPayloadV1 = RltDependencyEventPayloadV1;
 export type RltDependencyReviewedPayloadV1 = RltDependencyEventPayloadV1;
 export type RltDependencyCorrectedPayloadV1 = RltDependencyEventPayloadV1;
 
+export interface ResidentStrengthPreferenceEventPayloadV1 {
+  recordId: string;
+  residentId: ResidentId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  rltDomainId?: string;
+  category?: string;
+  source?: string;
+  actorUserAccountId: UserAccountId | string;
+  safeSummary: string;
+}
+export type ResidentStrengthRecordedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentStrengthChangedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentStrengthReviewedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentStrengthSupersededPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceRecordedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceChangedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceReviewedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceSupersededPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceAccommodationChangedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceSafetyReviewRequestedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceSafetyReviewResolvedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceConflictRaisedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+export type ResidentPreferenceConflictResolvedPayloadV1 = ResidentStrengthPreferenceEventPayloadV1;
+
 export interface CarePlanCreatedPayloadV1 {
   carePlanId: CarePlanId | string;
   carePlanItemId: CarePlanItemId | string;
@@ -327,6 +365,19 @@ export type DomainEventPayloadMapV1 = {
   RltDependencyChanged: RltDependencyChangedPayloadV1;
   RltDependencyReviewed: RltDependencyReviewedPayloadV1;
   RltDependencyCorrected: RltDependencyCorrectedPayloadV1;
+  ResidentStrengthRecorded: ResidentStrengthRecordedPayloadV1;
+  ResidentStrengthChanged: ResidentStrengthChangedPayloadV1;
+  ResidentStrengthReviewed: ResidentStrengthReviewedPayloadV1;
+  ResidentStrengthSuperseded: ResidentStrengthSupersededPayloadV1;
+  ResidentPreferenceRecorded: ResidentPreferenceRecordedPayloadV1;
+  ResidentPreferenceChanged: ResidentPreferenceChangedPayloadV1;
+  ResidentPreferenceReviewed: ResidentPreferenceReviewedPayloadV1;
+  ResidentPreferenceSuperseded: ResidentPreferenceSupersededPayloadV1;
+  ResidentPreferenceAccommodationChanged: ResidentPreferenceAccommodationChangedPayloadV1;
+  ResidentPreferenceSafetyReviewRequested: ResidentPreferenceSafetyReviewRequestedPayloadV1;
+  ResidentPreferenceSafetyReviewResolved: ResidentPreferenceSafetyReviewResolvedPayloadV1;
+  ResidentPreferenceConflictRaised: ResidentPreferenceConflictRaisedPayloadV1;
+  ResidentPreferenceConflictResolved: ResidentPreferenceConflictResolvedPayloadV1;
   CareActionCompleted: CareActionCompletedPayloadV1;
   CareActionMissed: CareActionMissedPayloadV1;
   MedicationRefused: MedicationRefusedPayloadV1;

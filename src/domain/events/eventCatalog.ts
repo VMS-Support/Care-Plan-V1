@@ -11,6 +11,19 @@ export interface EventCatalogueEntry {
   emitsOnlyAfterPersistedChange: boolean;
 }
 
+function strengthPreferenceEventEntry(eventType: Extract<DomainEventType, `ResidentStrength${string}` | `ResidentPreference${string}`>, meaning: string): EventCatalogueEntry {
+  return {
+    eventType,
+    eventVersion: 1,
+    meaning,
+    sourceModule: "resident_strength_preferences",
+    primaryEntity: eventType.startsWith("ResidentStrength") ? "ResidentStrength" : "ResidentPreference",
+    requiredPayloadFields: ["recordId", "residentId", "nursingHomeId", "actorUserAccountId", "safeSummary"],
+    sensitiveFieldsProhibited: ["preference", "residentOwnWords", "description", "freeTextNarrative"],
+    emitsOnlyAfterPersistedChange: true,
+  };
+}
+
 export const EVENT_CATALOGUE: Record<DomainEventType, EventCatalogueEntry> = {
   ResidentAdmitted: {
     eventType: "ResidentAdmitted",
@@ -162,6 +175,19 @@ export const EVENT_CATALOGUE: Record<DomainEventType, EventCatalogueEntry> = {
     sensitiveFieldsProhibited: ["rationale", "fullEvidenceNarrative", "freeTextNarrative"],
     emitsOnlyAfterPersistedChange: true,
   },
+  ResidentStrengthRecorded: strengthPreferenceEventEntry("ResidentStrengthRecorded", "A resident strength was recorded."),
+  ResidentStrengthChanged: strengthPreferenceEventEntry("ResidentStrengthChanged", "A resident strength gained a new version."),
+  ResidentStrengthReviewed: strengthPreferenceEventEntry("ResidentStrengthReviewed", "A resident strength was formally reviewed."),
+  ResidentStrengthSuperseded: strengthPreferenceEventEntry("ResidentStrengthSuperseded", "A resident strength was superseded."),
+  ResidentPreferenceRecorded: strengthPreferenceEventEntry("ResidentPreferenceRecorded", "A resident preference was recorded."),
+  ResidentPreferenceChanged: strengthPreferenceEventEntry("ResidentPreferenceChanged", "A resident preference gained a new version."),
+  ResidentPreferenceReviewed: strengthPreferenceEventEntry("ResidentPreferenceReviewed", "A resident preference was formally reviewed."),
+  ResidentPreferenceSuperseded: strengthPreferenceEventEntry("ResidentPreferenceSuperseded", "A resident preference was superseded."),
+  ResidentPreferenceAccommodationChanged: strengthPreferenceEventEntry("ResidentPreferenceAccommodationChanged", "Preference accommodation was reviewed."),
+  ResidentPreferenceSafetyReviewRequested: strengthPreferenceEventEntry("ResidentPreferenceSafetyReviewRequested", "A preference safety review was requested."),
+  ResidentPreferenceSafetyReviewResolved: strengthPreferenceEventEntry("ResidentPreferenceSafetyReviewResolved", "A preference safety review was resolved."),
+  ResidentPreferenceConflictRaised: strengthPreferenceEventEntry("ResidentPreferenceConflictRaised", "A preference conflict was raised."),
+  ResidentPreferenceConflictResolved: strengthPreferenceEventEntry("ResidentPreferenceConflictResolved", "A preference conflict was resolved."),
   CareActionCompleted: {
     eventType: "CareActionCompleted",
     eventVersion: 1,

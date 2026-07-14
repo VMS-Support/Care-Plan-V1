@@ -6,6 +6,7 @@ import { assessmentMeta } from "@/lib/care/scoring";
 import { RLT_DOMAINS, RLT_DOMAIN_TO_DEFAULT_CATEGORY } from "@/lib/care/rlt";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { RLT_DEPENDENCY_LABELS, type RltDependencyLevel } from "@/lib/care/rltDependency";
+import { getResidentPreferencesByDomain, getResidentStrengthsByDomain } from "@/lib/care/residentStrengthPreferences";
 import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +52,7 @@ export function CreateCarePlanDialog({
   buttonLabel = "New Nursing Care Plan",
   onCreated,
 }: Props) {
-  const { residents, assessments, addProblem, addGoal } = useCare();
+  const { residents, assessments, addProblem, addGoal, strengthPreferenceState, currentUser, canAccess, activeFacilityId } = useCare();
   const [open, setOpen] = useState(false);
   const defaultRltDomainId = initialRltDomainId || "";
   const [residentId, setResidentId] = useState(fixedResidentId || "");
@@ -62,6 +63,7 @@ export function CreateCarePlanDialog({
   const [evalDate, setEvalDate] = useState(todayPlus(7));
   const [reviewDate, setReviewDate] = useState(todayPlus(90));
   const [notes, setNotes] = useState("");
+  const [contextReferences, setContextReferences] = useState<NonNullable<CarePlanProblem["contextReferences"]>>([]);
 
   const selectedResident = residents.find((resident) => resident.id === (fixedResidentId || residentId));
   const relatedAssessments = useMemo(() => {
@@ -76,6 +78,16 @@ export function CreateCarePlanDialog({
       .sort((left, right) => right.date.localeCompare(left.date))
       .slice(0, 3);
   }, [assessments, fixedResidentId, residentId, rltDomainId]);
+  const domainContext = useMemo(() => {
+    const targetResidentId = fixedResidentId || residentId;
+    if (!targetResidentId || !rltDomainId || !selectedResident) return { strengths: [], preferences: [] };
+    const nursingHomeId = selectedResident.facilityId || activeFacilityId;
+    const capabilities = ["resident_preference.view", "resident_preference.view_sensitive", "resident_preference.view_highly_sensitive"].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], { nursingHomeId, residentId: targetResidentId }));
+    return {
+      strengths: getResidentStrengthsByDomain(strengthPreferenceState, targetResidentId, rltDomainId, nursingHomeId),
+      preferences: getResidentPreferencesByDomain(strengthPreferenceState, targetResidentId, rltDomainId, nursingHomeId, capabilities),
+    };
+  }, [activeFacilityId, canAccess, fixedResidentId, residentId, rltDomainId, selectedResident, strengthPreferenceState]);
 
   const reset = () => {
     setResidentId(fixedResidentId || "");
@@ -86,6 +98,7 @@ export function CreateCarePlanDialog({
     setEvalDate(todayPlus(7));
     setReviewDate(todayPlus(90));
     setNotes("");
+    setContextReferences([]);
   };
 
   useEffect(() => {
@@ -111,6 +124,7 @@ export function CreateCarePlanDialog({
       evaluationDate: evalDate,
       reviewDate,
       notes: notes.trim() || undefined,
+      contextReferences,
     });
 
     addGoal(problem.id, goal.trim(), reviewDate);
@@ -203,6 +217,17 @@ export function CreateCarePlanDialog({
                     {assessment.date.slice(0, 10)}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {(domainContext.strengths.length > 0 || domainContext.preferences.length > 0) && (
+            <div className="rounded-md border bg-muted/20 p-3 text-sm">
+              <div className="font-medium">Strengths and Preferences context</div>
+              <p className="mt-1 text-xs text-muted-foreground">Read-only context. Content is inserted only when selected and remains linked to this source version.</p>
+              <div className="mt-2 space-y-2">
+                {domainContext.strengths.map((item) => <div key={item.id} className="flex items-start justify-between gap-2 rounded bg-background p-2"><div><div className="text-xs font-medium">Strength: {item.title}</div><div className="text-xs text-muted-foreground">{item.description}</div></div><Button type="button" size="sm" variant="outline" onClick={() => { setStatement((value) => value ? `${value}\n${item.description}` : item.description); setContextReferences((refs) => refs.some((ref) => ref.sourceId === item.id) ? refs : [...refs, { type: "resident_strength", sourceId: item.id, sourceVersion: item.versionNumber, insertedAt: new Date().toISOString(), insertedBy: currentUser.id }]); }}>Insert selected strength</Button></div>)}
+                {domainContext.preferences.map((item) => <div key={item.id} className="flex items-start justify-between gap-2 rounded bg-background p-2"><div><div className="text-xs font-medium">Preference: {item.title}</div><div className="text-xs text-muted-foreground">{item.preference}</div></div><Button type="button" size="sm" variant="outline" onClick={() => { setGoal((value) => value ? `${value}\n${item.preference}` : item.preference); setContextReferences((refs) => refs.some((ref) => ref.sourceId === item.id) ? refs : [...refs, { type: "resident_preference", sourceId: item.id, sourceVersion: item.versionNumber, insertedAt: new Date().toISOString(), insertedBy: currentUser.id }]); }}>Insert selected preference</Button></div>)}
               </div>
             </div>
           )}

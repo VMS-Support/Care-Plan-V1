@@ -39,6 +39,8 @@ export type Permission =
   | "observation.plan.edit" | "observation.escalate" | "observation.audit"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
+  | "resident_strength.view" | "resident_strength.create" | "resident_strength.edit" | "resident_strength.review" | "resident_strength.correct" | "resident_strength.view_history"
+  | "resident_preference.view" | "resident_preference.create" | "resident_preference.edit" | "resident_preference.review" | "resident_preference.correct" | "resident_preference.view_history" | "resident_preference.view_sensitive" | "resident_preference.view_highly_sensitive" | "resident_preference.manage_accommodation" | "resident_preference.manage_safety_review" | "resident_preference.resolve_conflict"
   | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate";
 
 const matrix: Record<Role, Permission[]> = {
@@ -47,6 +49,7 @@ const matrix: Record<Role, Permission[]> = {
     "note.create", "intervention.create", "handover.view", "handover.create", "handover.acknowledge",
     "visitor.create", "outing.create", "task.create",
     "assessment.view", "careplan.view",
+    "resident_strength.view", "resident_preference.view",
     "vital.view", "vital.record",
     "observation.view", "observation.record",
     "ops.edit_own", "ops.duplicate",
@@ -58,6 +61,8 @@ const matrix: Record<Role, Permission[]> = {
     "assessment.view", "assessment.create", "assessment.edit", "assessment.review",
     "assessment.create_revision", "assessment.comment", "assessment.archive",
     "careplan.view", "careplan.create", "careplan.edit", "careplan.review", "careplan.evaluate",
+    "resident_strength.view", "resident_strength.create", "resident_strength.edit", "resident_strength.review", "resident_strength.view_history",
+    "resident_preference.view", "resident_preference.create", "resident_preference.edit", "resident_preference.review", "resident_preference.view_history", "resident_preference.view_sensitive", "resident_preference.manage_accommodation", "resident_preference.manage_safety_review",
     "evaluation.create",
     "incident.view", "incident.create",
     "vital.view", "vital.record", "vital.edit", "vital.comment", "vital.plan.edit", "vital.escalate",
@@ -69,6 +74,7 @@ const matrix: Record<Role, Permission[]> = {
     "mdt.create", "medical_review.create",
     "recommendation.create", "treatment_note.create", "handover.view",
     "assessment.view", "assessment.comment", "careplan.view",
+    "resident_strength.view", "resident_preference.view", "resident_preference.view_sensitive",
     "vital.view", "vital.comment", "vital.escalate",
     "observation.view", "observation.escalate",
     "ops.edit_own",
@@ -83,6 +89,8 @@ const matrix: Record<Role, Permission[]> = {
     "assessment.delete", "assessment.restore", "assessment.audit_access", "assessment.reports",
     "careplan.view", "careplan.create", "careplan.edit",
     "careplan.review", "careplan.approve", "careplan.evaluate", "careplan.revise",
+    "resident_strength.view", "resident_strength.create", "resident_strength.edit", "resident_strength.review", "resident_strength.correct", "resident_strength.view_history",
+    "resident_preference.view", "resident_preference.create", "resident_preference.edit", "resident_preference.review", "resident_preference.correct", "resident_preference.view_history", "resident_preference.view_sensitive", "resident_preference.view_highly_sensitive", "resident_preference.manage_accommodation", "resident_preference.manage_safety_review", "resident_preference.resolve_conflict",
     "evaluation.create",
     "incident.view", "incident.create", "incident.manage",
     "report.view", "user.manage", "clinical.view", "mdt.create",
@@ -103,6 +111,8 @@ const matrix: Record<Role, Permission[]> = {
     "assessment.restore", "assessment.audit_access", "assessment.reports",
     "careplan.view", "careplan.create", "careplan.edit",
     "careplan.review", "careplan.approve", "careplan.delete", "careplan.evaluate", "careplan.revise",
+    "resident_strength.view", "resident_strength.create", "resident_strength.edit", "resident_strength.review", "resident_strength.correct", "resident_strength.view_history",
+    "resident_preference.view", "resident_preference.create", "resident_preference.edit", "resident_preference.review", "resident_preference.correct", "resident_preference.view_history", "resident_preference.view_sensitive", "resident_preference.view_highly_sensitive", "resident_preference.manage_accommodation", "resident_preference.manage_safety_review", "resident_preference.resolve_conflict",
     "evaluation.create",
     "incident.view", "incident.create", "incident.manage",
     "clinical.view", "mdt.create", "medical_review.create",
