@@ -117,7 +117,8 @@ export function canonicalObservationFromVital(vital: VitalSign, nursingHomeId = 
     observedAt: new Date(`${vital.date}T${vital.time || "00:00"}:00`).toISOString(), recordedAt: vital.recordedAt,
     recordedByUserAccountId: vital.recordedByUserId, recordedByDisplayName: vital.recordedByName, components,
     interpretation: { overall: "not_interpreted", ...(vital.news2Score !== undefined ? { news2: calculateNews2(components, { calculatedAt: vital.recordedAt }) } : {}) },
-    source: { type: "legacy", id: vital.id, label: "Legacy vital-sign record", legacyMetadata: { originalId: vital.id, originalType: vital.observationType ?? "full_news2" } },
+    source: vital.observationDetails?.sourceType ? { type: vital.observationDetails.sourceType === "work_item" ? "work_item" : "direct_entry", id: typeof vital.observationDetails.sourceEntityId === "string" ? vital.observationDetails.sourceEntityId : undefined, label: "Observation entry" } : { type: "legacy", id: vital.id, label: "Legacy vital-sign record", legacyMetadata: { originalId: vital.id, originalType: vital.observationType ?? "full_news2" } },
+    relatedWorkItemId: typeof vital.observationDetails?.relatedWorkItemId === "string" ? vital.observationDetails.relatedWorkItemId : undefined,
     notes: vital.observationNotes, status: vital.deletedAt ? "entered_in_error" : "completed", corrections: [], createdAt: vital.createdAt, updatedAt: vital.modifiedAt ?? vital.createdAt,
   };
 }

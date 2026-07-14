@@ -38,6 +38,7 @@ export type Permission =
   | "observation.view" | "observation.record" | "observation.edit" | "observation.delete"
   | "observation.plan.edit" | "observation.escalate" | "observation.audit"
   | "observations.view" | "observations.record" | "observations.record_full_set" | "observations.record_news2" | "observations.record_pain" | "observations.record_weight" | "observations.record_blood_glucose" | "observations.record_neurological" | "observations.correct" | "observations.enter_in_error" | "observations.view_history" | "observations.view_charts" | "observations.view_sensitive" | "observations.manage_schedule" | "observations.override_interpretation"
+  | "observations.view_summary" | "observations.view_trends" | "observations.view_notes" | "observations.view_escalation" | "observations.view_corrections" | "observations.view_entered_in_error" | "observations.export" | "observations.export_notes" | "observations.export_corrected" | "observations.export_entered_in_error" | "observations.record_for_another_staff_member" | "observations.record_escalation" | "observations.record_temperature" | "observations.record_pulse" | "observations.record_respirations" | "observations.record_blood_pressure" | "observations.record_spo2"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
   | "resident_strength.view" | "resident_strength.create" | "resident_strength.edit" | "resident_strength.review" | "resident_strength.correct" | "resident_strength.view_history"
@@ -164,9 +165,13 @@ const matrix: Record<Role, Permission[]> = {
 export function can(role: Role, perm: Permission): boolean {
   if (perm.startsWith("observations.")) {
     const clinical = role === "nurse" || role === "cnm" || role === "don";
-    if (["observations.view", "observations.view_history", "observations.view_charts"].includes(perm)) return true;
+    if (["observations.view", "observations.view_history", "observations.view_summary", "observations.view_trends", "observations.view_charts"].includes(perm)) return true;
+    if (["observations.view_notes", "observations.view_escalation", "observations.view_corrections"].includes(perm)) return role !== "carer";
+    if (["observations.view_entered_in_error", "observations.export", "observations.export_notes", "observations.export_corrected", "observations.export_entered_in_error"].includes(perm)) return role === "cnm" || role === "don";
     if (["observations.record", "observations.record_pain", "observations.record_weight", "observations.record_blood_glucose"].includes(perm)) return role !== "doctor";
     if (perm === "observations.record_neurological" || perm === "observations.record_full_set" || perm === "observations.record_news2") return clinical;
+    if (["observations.record_temperature", "observations.record_pulse", "observations.record_respirations", "observations.record_blood_pressure", "observations.record_spo2"].includes(perm)) return role !== "doctor";
+    if (perm === "observations.record_for_another_staff_member" || perm === "observations.record_escalation") return clinical;
     if (perm === "observations.view_sensitive") return role !== "carer";
     if (perm === "observations.correct" || perm === "observations.enter_in_error" || perm === "observations.manage_schedule") return clinical;
     if (perm === "observations.override_interpretation") return role === "cnm" || role === "don";

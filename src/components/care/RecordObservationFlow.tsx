@@ -5,6 +5,7 @@ import { useCare } from "@/lib/care/store";
 import type { VitalRecordType, VitalSign } from "@/lib/care/types";
 import { calcBMI, calcNEWS2, heightAtDate } from "@/lib/care/vitals";
 import { VITAL_TYPE_LABELS } from "@/lib/care/vital-records";
+import type { ObservationEntryLaunchContext } from "@/domain/observations/observationEntryTypes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,17 +14,27 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-interface Props { residentId?: string; trigger?: React.ReactNode; onRecorded?: () => void }
+interface Props { residentId?: string; launchContext?: ObservationEntryLaunchContext; trigger?: React.ReactNode; onRecorded?: () => void }
 type Values = Record<string, string | boolean>;
 
 const TYPES = Object.keys(VITAL_TYPE_LABELS) as VitalRecordType[];
+const launchType = (context?: ObservationEntryLaunchContext): VitalRecordType | undefined => {
+  if (!context) return undefined;
+  if (context.observationSetType === "full_vital_signs" || context.observationSetType === "news2_set") return "full_news2";
+  if (context.observationSetType === "weight_and_bmi") return "weight_bmi";
+  if (context.observationSetType === "blood_glucose") return "blood_glucose";
+  if (context.observationSetType === "neurological_observations") return "neurological_observations";
+  if (context.observationSetType === "pain_assessment") return "pain_score";
+  return ({ temperature: "temperature", blood_pressure: "blood_pressure", spo2: "oxygen_saturation", blood_glucose: "blood_glucose", weight: "weight_bmi", pain: "pain_score", respirations: "respiratory", neurological: "neurological_observations" } as Partial<Record<string, VitalRecordType>>)[context.requestedObservationTypes?.[0] ?? ""];
+};
 const numberValue = (value: string | boolean | undefined) => typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : undefined;
 
-export function RecordObservationFlow({ residentId: fixedResidentId, trigger, onRecorded }: Props) {
+export function RecordObservationFlow({ residentId: residentIdProp, launchContext, trigger, onRecorded }: Props) {
+  const fixedResidentId = launchContext?.residentId ?? residentIdProp;
   const { residents, vitals, recordVital } = useCare();
   const now = new Date();
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<VitalRecordType>();
+  const [type, setType] = useState<VitalRecordType | undefined>(() => launchType(launchContext));
   const [residentId, setResidentId] = useState(fixedResidentId ?? "");
   const [date, setDate] = useState(now.toISOString().slice(0, 10));
   const [time, setTime] = useState(now.toTimeString().slice(0, 5));
@@ -45,7 +56,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
 
   const close = () => {
     setOpen(false);
-    setType(undefined);
+    setType(launchType(launchContext));
     setValues({ onOxygen: false, oxygenMethod: "room_air", consciousness: "A" });
   };
 
@@ -80,7 +91,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
       observationType: type,
       date,
       time,
-      recordedAt: new Date(`${date}T${time}:00`).toISOString(),
+      recordedAt: new Date().toISOString(),
     };
     const addNumber = (key: string) => { const value = numberValue(values[key]); if (value !== undefined) payload[key] = value; };
     const addText = (key: string) => { const value = values[key]; if (typeof value === "string" && value.trim()) payload[key] = value.trim(); };
@@ -104,6 +115,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
       const gcs = [numberValue(values.gcsEyes), numberValue(values.gcsVerbal), numberValue(values.gcsMotor)];
       payload.observationDetails = { neurological: true, neuroConsciousness: String(values.neuroConsciousness), pupils: String(values.pupils), limbMovement: String(values.limbMovement ?? ""), neurologicalSymptoms: String(values.neurologicalSymptoms ?? ""), gcsEyes: gcs[0], gcsVerbal: gcs[1], gcsMotor: gcs[2], gcsTotal: gcs.every((value) => value !== undefined) ? gcs.reduce<number>((sum, value) => sum + (value ?? 0), 0) : undefined };
     }
+    payload.observationDetails = { ...(payload.observationDetails as Record<string, unknown> ?? {}), sourceType: launchContext?.sourceType ?? (fixedResidentId ? "resident_profile" : "manual"), sourceEntityId: launchContext?.sourceEntityId, relatedWorkItemId: launchContext?.workItemId };
     addText("observationNotes");
     if (!["weight_bmi", "pain_score", "fluid_balance"].includes(type)) addText("deviceUsed");
 
@@ -136,13 +148,15 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
               <DialogTitle>{VITAL_TYPE_LABELS[type]}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {resident ? <div className="rounded-lg border bg-muted/30 p-3 flex items-center gap-3"><div className="h-11 w-11 rounded-full bg-primary/10 overflow-hidden shrink-0">{resident.photoUrl && <img src={resident.photoUrl} alt="" className="h-full w-full object-cover" />}</div><div className="min-w-0"><div className="font-semibold">{resident.preferredName || resident.firstName} {resident.lastName}</div><div className="text-xs text-muted-foreground">Room {resident.roomNumber} · DOB {resident.dob}</div><div className="text-xs"><span className="font-medium">Allergies:</span> {resident.allergies || "None recorded"}{resident.dnarStatus === "yes" ? " · DNAR recorded" : ""}</div></div></div> : fixedResidentId ? <div className="rounded-md border border-destructive p-3 text-sm text-destructive">Resident details could not be loaded. Observation entry is unavailable.</div> : null}
+              {launchContext && launchContext.sourceType !== "resident_profile" && <div className="rounded-md border p-3 text-sm"><div className="font-medium">{launchContext.sourceLabel ?? "Observation requested"}</div>{launchContext.requestedDueAt && <div>Due {new Date(launchContext.requestedDueAt).toLocaleString("en-IE")}</div>}{launchContext.requestReason && <div className="text-muted-foreground">{launchContext.requestReason}</div>}</div>}
               {!fixedResidentId && <Field label="Resident"><Select value={residentId} onValueChange={setResidentId}><SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{residents.map((item) => <SelectItem key={item.id} value={item.id}>{item.firstName} {item.lastName} · Room {item.roomNumber}</SelectItem>)}</SelectContent></Select></Field>}
-              <div className="grid grid-cols-2 gap-3"><Field label="Date"><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Time"><Input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></Field></div>
+              <div className="grid sm:grid-cols-3 gap-3"><Field label="Date Observed" required><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Time Observed" required><Input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></Field><Field label="Date/Time Recorded"><Input value="Set automatically on save" readOnly /></Field></div>
               <ObservationFields type={type} values={values} set={set} bmi={bmi} news={news} />
               <Field label="Notes"><Textarea value={String(values.observationNotes ?? "")} onChange={(event) => set("observationNotes", event.target.value)} /></Field>
               {!(["weight_bmi", "pain_score", "fluid_balance"] as VitalRecordType[]).includes(type) && <Field label="Device Used"><Input value={String(values.deviceUsed ?? "")} onChange={(event) => set("deviceUsed", event.target.value)} placeholder="Optional" /></Field>}
             </div>
-            <DialogFooter><Button variant="outline" onClick={close}>Cancel</Button><Button onClick={submit}>Record Observation</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={close}>Cancel</Button><Button onClick={submit} disabled={!resident}>Save Observations</Button></DialogFooter>
           </>
         )}
       </DialogContent>

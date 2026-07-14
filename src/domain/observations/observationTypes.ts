@@ -110,7 +110,10 @@ export interface ResidentObservationRecord {
   recordedAt: string;
   recordedByUserAccountId: string;
   recordedByStaffMemberId?: string;
+  observedByStaffMemberId?: string;
   recordedByDisplayName?: string;
+  timezone?: string;
+  clientRequestId?: string;
   components: ObservationComponent[];
   oxygenDelivery?: OxygenDeliveryRecord;
   interpretation: ObservationInterpretation;
@@ -122,6 +125,7 @@ export interface ResidentObservationRecord {
   relatedRuleIssueId?: string;
   clinicalContext?: string;
   notes?: string;
+  backdatedEntryReason?: string;
   status: "completed" | "corrected" | "entered_in_error" | "void";
   correctionOfObservationRecordId?: string;
   corrections: ObservationCorrection[];

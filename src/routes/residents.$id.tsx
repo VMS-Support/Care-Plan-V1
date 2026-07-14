@@ -68,6 +68,7 @@ import {
 import { ClinicalSnapshot } from "@/components/care/ClinicalSnapshot";
 import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
+import { ObservationHistory } from "@/components/observations/ObservationHistory";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
 import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
@@ -2327,6 +2328,7 @@ function ResidentDetail() {
             />
           </div>
           <LatestVitalsCard vitals={residentVitals} resident={r} />
+          <ObservationHistory residentId={r.id} />
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Actions</CardTitle>
