@@ -231,6 +231,7 @@ import {
   type StrengthPreferenceState,
 } from "./residentStrengthPreferences";
 import type { RltTimelineTagState } from "./rltTimeline";
+import { EMPTY_RESIDENT_PROFILE_STATE, updateResidentProfile, type ResidentProfileState, type UpdateResidentProfileInput } from "./residentProfile";
 import {
   EMPTY_FLEXIBLE_CARE_ACTION_STATE,
   activateOneOffCareAction,
@@ -1879,6 +1880,7 @@ function seedData() {
     rltTimelineTagState: { tags: [], audit: [] } as RltTimelineTagState,
     flexibleCareActionState: structuredClone(EMPTY_FLEXIBLE_CARE_ACTION_STATE) as FlexibleCareActionState,
     endOfLifeState: structuredClone(EMPTY_END_OF_LIFE_STATE) as EndOfLifeState,
+    residentProfileState: structuredClone(EMPTY_RESIDENT_PROFILE_STATE) as ResidentProfileState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2195,6 +2197,11 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
         events: store.endOfLifeState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
       };
     })(),
+    residentProfileState: {
+      relationships: store.residentProfileState.relationships.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      audit: store.residentProfileState.audit.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      events: store.residentProfileState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+    },
     alertWorkflow: Object.fromEntries(
       Object.entries(store.alertWorkflow || {}).filter(
         ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
@@ -2305,6 +2312,7 @@ interface CareCtx extends Store {
   // residents
   addResident: (r: Omit<Resident, "id" | "photoSeed">) => Resident;
   updateResident: (id: string, patch: Partial<Resident>) => void;
+  updateResidentProfile: (id: string, input: UpdateResidentProfileInput) => void;
   softDeleteResident: (id: string, reason?: string) => number;
   addNextOfKin: (residentId: string, nok: Omit<NextOfKin, "id">) => void;
   updateNextOfKin: (residentId: string, id: string, patch: Partial<NextOfKin>) => void;
@@ -3302,6 +3310,18 @@ export function CareProvider({ children }: { children: ReactNode }) {
           role: currentRole,
           action: "Updated resident",
           entity: id,
+        });
+      },
+      updateResidentProfile: (id, input) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const resident = state.residents.find((item) => item.id === id);
+          if (!resident) throw new Error("Resident not found.");
+          const nursingHomeId = resident.facilityId || activeFacilityId;
+          const access = createStaffAccessContext(currentUser, nursingHomeId);
+          const nextProfileState: ResidentProfileState = structuredClone(state.residentProfileState);
+          const nextResident = updateResidentProfile(nextProfileState, resident, state.users, input, { userAccountId: currentUser.id, nursingHomeId, capabilities: getEffectivePermissions(state, access, { nursingHomeId }), occurredAt: now, correlationId: `resident-profile:${id}:${now}`, residentBelongsToHome: (residentId, homeId) => state.residents.some((item) => item.id === residentId && (item.facilityId || activeFacilityId) === homeId) });
+          return { ...state, residentProfileState: nextProfileState, residents: state.residents.map((item) => item.id === id ? nextResident : item) };
         });
       },
       softDeleteResident: (id, reason) => {

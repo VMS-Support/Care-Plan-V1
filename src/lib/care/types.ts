@@ -732,6 +732,16 @@ export interface Resident {
   deletedReason?: string;
   externalResidentId?: string;
   preferredName?: string;
+  middleName?: string;
+  previousSurname?: string;
+  pronouns?: string;
+  residentNumber?: string;
+  nationality?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  photoUrl?: string;
+  profileUpdatedAt?: string;
   firstName: string;
   lastName: string;
   dob: string;

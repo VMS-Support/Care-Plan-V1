@@ -72,8 +72,14 @@ import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
 import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
 import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
+import { ResidentHeader } from "@/components/resident/ResidentHeader";
+import { EditResidentProfileDialog } from "@/components/resident/EditResidentProfileDialog";
+import { ResidentClinicalOverview } from "@/components/resident/ResidentClinicalOverview";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
 import { CARE_ACTION_TYPE_LABELS, getCanonicalCareActionType } from "@/lib/care/flexibleCareActions";
+import { getResidentHeader } from "@/lib/care/residentHeader";
+import { getResidentClinicalOverview } from "@/lib/care/residentClinicalOverview";
+import { getEndOfLifeSummary } from "@/lib/care/endOfLifePathway";
 import { getResidentRltClinicalOverview } from "@/lib/care/rltClinicalOverview";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
 import {
@@ -251,6 +257,11 @@ function ResidentDetail() {
   const navigate = useNavigate();
   const {
     residents,
+    users,
+    wards,
+    rooms,
+    beds,
+    bedAssignments,
     assessments,
     carePlans,
     carePlanProblems,
@@ -271,6 +282,7 @@ function ResidentDetail() {
     visitors,
     outings,
     vitals,
+    weights,
     handovers,
     currentRole,
     currentUserName,
@@ -280,6 +292,8 @@ function ResidentDetail() {
     saveRltDependency,
     strengthPreferenceState,
     endOfLifeState,
+    flexibleCareActionState,
+    operationalContext,
     saveResidentStrength,
     saveResidentPreference,
     rltTimelineTagState,
@@ -295,14 +309,14 @@ function ResidentDetail() {
     archiveProblem,
     updateProblem,
     updateProblemIntervention,
-    updateResident,
+    updateResidentProfile,
     softDeleteResident,
   } = useCare();
   const r = residents.find((x) => x.id === id);
 
   // Modal state
   const [nokOpen, setNokOpen] = useState(false);
-  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
@@ -500,6 +514,14 @@ function ResidentDetail() {
     timelineEvents,
     manualTagState: rltTimelineTagState,
   }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
+  const residentViewCapabilities = [
+    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.edit_photo", "resident_profile.manage_contacts", "resident_profile.assign_named_nurse", "resident_profile.assign_key_worker", "resident_profile.assign_gp",
+    "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
+    "end_of_life.view", "end_of_life.view_sensitive", "end_of_life.view_highly_sensitive",
+  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
+  const residentHeader = getResidentHeader({ residents, users, wards, rooms, beds, bedAssignments, dependencyState: rltDependencyState, endOfLifeState }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: residentViewCapabilities });
+  const residentEndOfLifeSummary = residentViewCapabilities.includes("end_of_life.view") ? getEndOfLifeSummary(endOfLifeState, r.id, r.facilityId || activeFacilityId, residentViewCapabilities) : undefined;
+  const residentClinicalOverview = getResidentClinicalOverview({ resident: r, header: residentHeader, rltOverview: rltClinicalOverview, timeline: rltTimelineItems, assessments, clinicalAlerts, vitals, weights, incidents, tasks, handovers, interventions: problemInterventions, workItems: flexibleCareActionState.workItems, endOfLife: residentEndOfLifeSummary, strengths: strengthPreferenceSummary.keyStrengths.map((item) => item.title), preferences: strengthPreferenceSummary.essentialPreferences.map((item) => item.preference), pleaseAvoid: strengthPreferenceSummary.pleaseAvoid }, { nursingHomeId: r.facilityId || activeFacilityId, wardId: operationalContext.wardIds[0], shiftId: operationalContext.shiftId, capabilities: residentViewCapabilities });
   const canDeleteResident = currentRole === "don" || currentRole === "cnm";
   const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
 
@@ -1209,7 +1231,18 @@ function ResidentDetail() {
         <ArrowLeft className="h-4 w-4" /> All residents
       </Link>
 
-      <Card>
+      <ResidentHeader
+        header={residentHeader}
+        canEdit={residentViewCapabilities.includes("resident_profile.edit")}
+        onEdit={() => setProfileEditOpen(true)}
+        actions={<>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>Timeline</Button>
+        </>}
+      />
+      <EditResidentProfileDialog resident={r} users={users} canEditSensitiveIdentifiers={residentViewCapabilities.includes("resident_profile.edit_sensitive_identifiers")} open={profileEditOpen} onOpenChange={setProfileEditOpen} onSave={(input) => updateResidentProfile(r.id, input)} />
+
+      <Card className="hidden">
         <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-5">
           <Avatar className="h-20 w-20">
             <AvatarFallback className="text-xl bg-accent text-accent-foreground">
@@ -1437,6 +1470,7 @@ function ResidentDetail() {
         </DialogContent>
       </Dialog>
 
+      <ResidentClinicalOverview overview={residentClinicalOverview} onOpenSection={(section) => { if (section === "dying") { setSelectedRltDomainId("dying"); setActiveTab("activities"); } else if (["activities", "assessments", "vitals", "alerts", "tasks", "incidents"].includes(section)) setActiveTab(section as any); else if (typeof window !== "undefined" && section.startsWith("/")) window.location.assign(section); }} />
       <ClinicalSnapshot residentId={r.id} showLatestVitals={false} />
 
       <Card>
@@ -2077,7 +2111,7 @@ function ResidentDetail() {
                         const problem = selectedActivityWorkspace.carePlans[0];
                         if (!problem) return;
                         setSelectedRltDomainId(null);
-                        openEvaluationDialog(problem.id);
+                        openAddEvaluationForProblem(problem.id);
                       }}
                     >
                       Record Review
@@ -2131,8 +2165,8 @@ function ResidentDetail() {
             ) : (
               <div />
             )}
-            <Button size="sm" variant="outline" onClick={() => setOverviewOpen(true)}>
-              Edit Overview Details
+            <Button size="sm" variant="outline" onClick={() => setProfileEditOpen(true)}>
+              Edit Resident Profile
             </Button>
           </div>
 
@@ -2150,15 +2184,6 @@ function ResidentDetail() {
               {(strengthPreferenceSummary.safetyReviewRequiredCount > 0 || strengthPreferenceSummary.conflictCount > 0) && <div className="md:col-span-3 flex gap-2"><Badge variant="outline">{strengthPreferenceSummary.safetyReviewRequiredCount} safety review required</Badge><Badge variant="outline">{strengthPreferenceSummary.conflictCount} preference conflict</Badge></div>}
             </CardContent>
           </Card>
-          <EditOverviewDialog
-            resident={r}
-            open={overviewOpen}
-            onOpenChange={setOverviewOpen}
-            onSave={(patch) => {
-              updateResident(r.id, patch);
-              toast.success("Overview details updated");
-            }}
-          />
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
