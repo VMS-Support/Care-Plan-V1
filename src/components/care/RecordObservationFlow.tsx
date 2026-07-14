@@ -27,7 +27,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
   const [residentId, setResidentId] = useState(fixedResidentId ?? "");
   const [date, setDate] = useState(now.toISOString().slice(0, 10));
   const [time, setTime] = useState(now.toTimeString().slice(0, 5));
-  const [values, setValues] = useState<Values>({ onOxygen: false, consciousness: "A" });
+  const [values, setValues] = useState<Values>({ onOxygen: false, oxygenMethod: "room_air", consciousness: "A" });
   const selectedResidentId = fixedResidentId ?? residentId;
   const resident = residents.find((candidate) => candidate.id === selectedResidentId);
   const set = (key: string, value: string | boolean) => setValues((current) => ({ ...current, [key]: value }));
@@ -46,7 +46,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
   const close = () => {
     setOpen(false);
     setType(undefined);
-    setValues({ onOxygen: false, consciousness: "A" });
+    setValues({ onOxygen: false, oxygenMethod: "room_air", consciousness: "A" });
   };
 
   const requireFields = (fields: string[]) => {
@@ -65,7 +65,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
       temperature: ["temperature"], blood_pressure: ["systolicBP", "diastolicBP"],
       oxygen_saturation: ["spo2"], blood_glucose: ["bloodGlucose", "glucoseContext"],
       weight_bmi: ["weight"], pain_score: ["painScore"], fluid_balance: [],
-      respiratory: ["respiratoryRate"],
+      respiratory: ["respiratoryRate"], neurological_observations: ["neuroConsciousness", "pupils"],
     };
     if (!requireFields(required[type] || [])) return;
     if (type === "fluid_balance" && numberValue(values.fluidIntakeMl) === undefined && numberValue(values.fluidOutputMl) === undefined) {
@@ -91,13 +91,19 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
       oxygen_saturation: ["spo2", "oxygenLpm", "respiratoryRate"], blood_glucose: ["bloodGlucose"],
       weight_bmi: ["weight", "height"], pain_score: ["painScore"],
       fluid_balance: ["fluidIntakeMl", "fluidOutputMl"], respiratory: ["respiratoryRate", "spo2", "oxygenLpm"],
+      neurological_observations: ["gcsEyes", "gcsVerbal", "gcsMotor"],
     };
     numericByType[type].forEach(addNumber);
     if (["full_news2", "oxygen_saturation", "respiratory"].includes(type)) payload.onOxygen = !!values.onOxygen;
+    if (["full_news2", "oxygen_saturation", "respiratory"].includes(type)) payload.observationDetails = { oxygenMethod: String(values.oxygenMethod ?? "room_air"), venturiPercentage: numberValue(values.venturiPercentage) };
     if (type === "full_news2") addText("consciousness");
     if (type === "blood_glucose") { addText("glucoseContext"); addText("insulinGiven"); }
     if (type === "pain_score") { addText("painLocation"); addText("painIntervention"); addText("painOutcome"); }
     if (type === "fluid_balance") addText("fluidRoute");
+    if (type === "neurological_observations") {
+      const gcs = [numberValue(values.gcsEyes), numberValue(values.gcsVerbal), numberValue(values.gcsMotor)];
+      payload.observationDetails = { neurological: true, neuroConsciousness: String(values.neuroConsciousness), pupils: String(values.pupils), limbMovement: String(values.limbMovement ?? ""), neurologicalSymptoms: String(values.neurologicalSymptoms ?? ""), gcsEyes: gcs[0], gcsVerbal: gcs[1], gcsMotor: gcs[2], gcsTotal: gcs.every((value) => value !== undefined) ? gcs.reduce<number>((sum, value) => sum + (value ?? 0), 0) : undefined };
+    }
     addText("observationNotes");
     if (!["weight_bmi", "pain_score", "fluid_balance"].includes(type)) addText("deviceUsed");
 
@@ -146,7 +152,7 @@ export function RecordObservationFlow({ residentId: fixedResidentId, trigger, on
 
 function ObservationFields({ type, values, set, bmi, news }: { type: VitalRecordType; values: Values; set: (key: string, value: string | boolean) => void; bmi?: number; news: ReturnType<typeof calcNEWS2> }) {
   const input = (key: string, label: string, options?: { required?: boolean; step?: string; min?: number; max?: number }) => <Field label={label} required={options?.required}><Input type="number" step={options?.step} min={options?.min} max={options?.max} value={String(values[key] ?? "")} onChange={(event) => set(key, event.target.value)} /></Field>;
-  const oxygen = <><Field label="Supplemental Oxygen"><Select value={values.onOxygen ? "yes" : "no"} onValueChange={(value) => set("onOxygen", value === "yes")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="no">No - room air</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent></Select></Field>{values.onOxygen && input("oxygenLpm", "Oxygen L/min", { step: "0.5", required: true })}</>;
+  const oxygen = <><Field label="Oxygen Delivery"><Select value={String(values.oxygenMethod ?? "room_air")} onValueChange={(value) => { set("oxygenMethod", value); set("onOxygen", value !== "room_air"); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{[["room_air", "Room air"], ["nasal_cannula", "Nasal cannula"], ["simple_face_mask", "Simple face mask"], ["venturi_mask", "Venturi mask"], ["non_rebreather_mask", "Non-rebreather mask"], ["tracheostomy", "Tracheostomy"], ["cpap", "CPAP"], ["bipap", "BiPAP"], ["other", "Other"]].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>{values.onOxygen && input("oxygenLpm", "Oxygen L/min", { step: "0.5", required: true })}{values.oxygenMethod === "venturi_mask" && input("venturiPercentage", "Venturi %")}</>;
   if (type === "full_news2") return <><div className="grid sm:grid-cols-3 gap-3">{input("temperature", "Temperature °C", { required: true, step: "0.1" })}{input("pulse", "Pulse bpm", { required: true })}{input("respiratoryRate", "Respiratory Rate", { required: true })}{input("spo2", "SpO2 %", { required: true })}{input("systolicBP", "Systolic BP", { required: true })}{input("diastolicBP", "Diastolic BP", { required: true })}{oxygen}<Field label="Consciousness ACVPU" required><Select value={String(values.consciousness)} onValueChange={(value) => set("consciousness", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["A", "C", "V", "P", "U"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field></div><NEWS2Live news={news} /></>;
   if (type === "temperature") return <div className="grid sm:grid-cols-2 gap-3">{input("temperature", "Temperature °C", { required: true, step: "0.1" })}</div>;
   if (type === "blood_pressure") return <div className="grid sm:grid-cols-3 gap-3">{input("systolicBP", "Systolic BP", { required: true })}{input("diastolicBP", "Diastolic BP", { required: true })}{input("pulse", "Pulse optional")}</div>;
@@ -155,6 +161,7 @@ function ObservationFields({ type, values, set, bmi, news }: { type: VitalRecord
   if (type === "weight_bmi") return <><div className="grid sm:grid-cols-2 gap-3">{input("weight", "Weight kg", { required: true, step: "0.1" })}{input("height", "Height cm optional", { step: "0.1" })}</div><Derived label="BMI" value={bmi !== undefined ? String(bmi) : "Enter weight; stored resident height is used when available"} /></>;
   if (type === "pain_score") return <div className="grid sm:grid-cols-2 gap-3">{input("painScore", "Pain Score 0-10", { required: true, min: 0, max: 10 })}<Field label="Location"><Input value={String(values.painLocation ?? "")} onChange={(event) => set("painLocation", event.target.value)} /></Field><Field label="Intervention Given"><Textarea value={String(values.painIntervention ?? "")} onChange={(event) => set("painIntervention", event.target.value)} /></Field><Field label="Outcome"><Textarea value={String(values.painOutcome ?? "")} onChange={(event) => set("painOutcome", event.target.value)} /></Field></div>;
   if (type === "fluid_balance") return <><div className="grid sm:grid-cols-3 gap-3">{input("fluidIntakeMl", "Intake ml")}{input("fluidOutputMl", "Output ml")}<Field label="Route / Type"><Input value={String(values.fluidRoute ?? "")} onChange={(event) => set("fluidRoute", event.target.value)} placeholder="Optional" /></Field></div><Derived label="Balance" value={`${(numberValue(values.fluidIntakeMl) ?? 0) - (numberValue(values.fluidOutputMl) ?? 0)} ml`} /></>;
+  if (type === "neurological_observations") return <div className="grid sm:grid-cols-2 gap-3"><Field label="Consciousness" required><Select value={String(values.neuroConsciousness ?? "")} onValueChange={(value) => set("neuroConsciousness", value)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{["alert", "new_confusion", "responds_to_voice", "responds_to_pain", "unresponsive"].map((value) => <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></Field><Field label="Pupils" required><Select value={String(values.pupils ?? "")} onValueChange={(value) => set("pupils", value)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{["equal_reactive", "unequal", "sluggish", "fixed", "not_assessed"].map((value) => <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></Field>{input("gcsEyes", "GCS eyes (1–4)")}{input("gcsVerbal", "GCS verbal (1–5)")}{input("gcsMotor", "GCS motor (1–6)")}<Field label="Limb Movement"><Input value={String(values.limbMovement ?? "")} onChange={(event) => set("limbMovement", event.target.value)} /></Field><Field label="Neurological Symptoms"><Textarea value={String(values.neurologicalSymptoms ?? "")} onChange={(event) => set("neurologicalSymptoms", event.target.value)} /></Field></div>;
   return <div className="grid sm:grid-cols-2 gap-3">{input("respiratoryRate", "Respiratory Rate", { required: true })}{input("spo2", "SpO2 optional")}{oxygen}</div>;
 }
 

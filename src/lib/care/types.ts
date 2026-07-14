@@ -1887,6 +1887,7 @@ export interface VitalSign {
   recordedByName: string;
   recordedByRole: Role;
   deviceUsed?: string;
+  observationDetails?: Record<string, string | number | boolean | string[] | undefined>;
   signature?: string;
   // Audit
   createdAt: string;
@@ -1899,6 +1900,8 @@ export interface VitalSign {
   deletedByName?: string;
   deletedReason?: string;
   auditTrail: VitalAuditEntry[];
+  /** Additive Phase 55 representation. Legacy scalar fields remain for compatibility. */
+  canonicalObservation?: import("../../domain/observations/observationTypes").ResidentObservationRecord;
 }
 
 export type VitalRecordType =
@@ -1910,7 +1913,8 @@ export type VitalRecordType =
   | "weight_bmi"
   | "pain_score"
   | "fluid_balance"
-  | "respiratory";
+  | "respiratory"
+  | "neurological_observations";
 
 export interface ObservationPlanItem {
   id: string;

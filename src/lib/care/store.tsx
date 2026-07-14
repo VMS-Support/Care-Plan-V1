@@ -211,6 +211,7 @@ import {
   type ContextualHandover,
 } from "./handoverContext";
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
+import { canonicalObservationFromVital } from "@/domain/observations/observationService";
 import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
 import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
@@ -7018,6 +7019,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             },
           ],
         };
+        item.canonicalObservation = canonicalObservationFromVital(item, item.facilityId ?? operationalContext.nursingHomeId);
         // Reconcile one active physiological alert per resident and alert type.
         // Timeline event
         const ev: TimelineEvent = {
@@ -7066,7 +7068,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
                     ...merged
                   } = { ...v, ...safePatch };
                   const news2 = calcNEWS2(merged);
-                  return {
+                  const updated = {
                   ...merged,
                   ...(news2.complete
                     ? { news2Score: news2.total, news2Risk: news2.risk, news2Breakdown: news2.breakdown }
@@ -7089,6 +7091,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
                     },
                   ],
                 };
+                  updated.canonicalObservation = canonicalObservationFromVital({ ...updated, canonicalObservation: undefined }, updated.facilityId ?? operationalContext.nursingHomeId);
+                  return updated;
                 })()
               : v,
           );

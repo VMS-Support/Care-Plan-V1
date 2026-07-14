@@ -11,6 +11,7 @@ export const VITAL_TYPE_LABELS: Record<VitalRecordType, string> = {
   pain_score: "Pain Score",
   fluid_balance: "Fluid Balance",
   respiratory: "Respiratory Observation",
+  neurological_observations: "Neurological Observations",
 };
 
 export function inferVitalRecordType(vital: VitalSign): VitalRecordType {
@@ -25,6 +26,7 @@ export function inferVitalRecordType(vital: VitalSign): VitalRecordType {
   if (vital.weight !== undefined) return "weight_bmi";
   if (vital.painScore !== undefined) return "pain_score";
   if (vital.fluidIntakeMl !== undefined || vital.fluidOutputMl !== undefined) return "fluid_balance";
+  if (vital.observationDetails?.neurological === true) return "neurological_observations";
   return "respiratory";
 }
 
@@ -46,6 +48,10 @@ export function formatVitalValues(vital: VitalSign, allVitals: VitalSign[], resi
     return `In ${intake} ml · Out ${output} ml · Balance ${intake - output} ml`;
   }
   if (type === "respiratory") return `RR ${vital.respiratoryRate}${vital.spo2 !== undefined ? ` · SpO2 ${vital.spo2}%` : ""}${vital.onOxygen ? ` · O2 ${vital.oxygenLpm ?? "?"} L/min` : ""}`;
+  if (type === "neurological_observations") {
+    const consciousness = String(vital.observationDetails?.neuroConsciousness ?? "not recorded").replaceAll("_", " ");
+    return `Consciousness ${consciousness}${vital.observationDetails?.gcsTotal ? ` · GCS ${vital.observationDetails.gcsTotal}` : ""}`;
+  }
   const news = calcNEWS2(vital);
   return [
     vital.temperature !== undefined ? `${vital.temperature}°C` : null,

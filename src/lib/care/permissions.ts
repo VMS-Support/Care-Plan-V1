@@ -37,6 +37,7 @@ export type Permission =
   | "vital.plan.edit" | "vital.escalate" | "vital.report" | "vital.audit"
   | "observation.view" | "observation.record" | "observation.edit" | "observation.delete"
   | "observation.plan.edit" | "observation.escalate" | "observation.audit"
+  | "observations.view" | "observations.record" | "observations.record_full_set" | "observations.record_news2" | "observations.record_pain" | "observations.record_weight" | "observations.record_blood_glucose" | "observations.record_neurological" | "observations.correct" | "observations.enter_in_error" | "observations.view_history" | "observations.view_charts" | "observations.view_sensitive" | "observations.manage_schedule" | "observations.override_interpretation"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
   | "resident_strength.view" | "resident_strength.create" | "resident_strength.edit" | "resident_strength.review" | "resident_strength.correct" | "resident_strength.view_history"
@@ -161,6 +162,15 @@ const matrix: Record<Role, Permission[]> = {
 };
 
 export function can(role: Role, perm: Permission): boolean {
+  if (perm.startsWith("observations.")) {
+    const clinical = role === "nurse" || role === "cnm" || role === "don";
+    if (["observations.view", "observations.view_history", "observations.view_charts"].includes(perm)) return true;
+    if (["observations.record", "observations.record_pain", "observations.record_weight", "observations.record_blood_glucose"].includes(perm)) return role !== "doctor";
+    if (perm === "observations.record_neurological" || perm === "observations.record_full_set" || perm === "observations.record_news2") return clinical;
+    if (perm === "observations.view_sensitive") return role !== "carer";
+    if (perm === "observations.correct" || perm === "observations.enter_in_error" || perm === "observations.manage_schedule") return clinical;
+    if (perm === "observations.override_interpretation") return role === "cnm" || role === "don";
+  }
   return Boolean(matrix[role]?.includes(perm));
 }
 export function canAny(role: Role, perms: Permission[]): boolean {
