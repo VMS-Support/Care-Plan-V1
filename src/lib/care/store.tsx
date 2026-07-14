@@ -271,6 +271,10 @@ import {
   type EventStoreRecord,
 } from "@/domain/events/eventBus";
 import type { AnyDomainEvent } from "@/domain/events/eventTypes";
+import type {
+  ResidentBaselineEvent,
+  ResidentClinicalBaseline,
+} from "@/domain/baselines/residentBaselineTypes";
 import { DEFAULT_RULE_DEFINITIONS } from "@/domain/rules/ruleCatalog";
 import { evaluateEventAgainstRules, processRulesForEvent, replayRuleForEvent } from "@/domain/rules/ruleEngine";
 import {
@@ -1939,12 +1943,14 @@ function seedData() {
     clinicalAlerts,
     clinicalObservations: [] as ClinicalObservation[],
     observationSchedules: [] as ObservationSchedule[],
+    residentBaselines: [] as ResidentClinicalBaseline[],
+    residentBaselineEvents: [] as ResidentBaselineEvent[],
   };
 }
 
 type Store = ReturnType<typeof seedData>;
 
-type ScopedItem = { id?: string; facilityId?: string; residentId?: string; carePlanId?: string; problemId?: string };
+type ScopedItem = { id?: string; facilityId?: string; nursingHomeId?: string; residentId?: string; carePlanId?: string; problemId?: string };
 type ScopedArrayKey = {
   [K in keyof Store]: Store[K] extends ScopedItem[] ? K : never;
 }[keyof Store];
@@ -1994,10 +2000,12 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "clinicalAlerts",
   "clinicalObservations",
   "observationSchedules",
+  "residentBaselines",
+  "residentBaselineEvents",
 ];
 
-const hasFacility = (item: { facilityId?: string }, facilityId: string) =>
-  (item.facilityId || BALLYMORE_FACILITY_ID) === facilityId;
+const hasFacility = (item: { facilityId?: string; nursingHomeId?: string }, facilityId: string) =>
+  (item.nursingHomeId || item.facilityId || BALLYMORE_FACILITY_ID) === facilityId;
 
 const DEMO_MULTI_FACILITY_USER_IDS = new Set(["u-3", "u-7"]);
 const DEMO_MULTI_FACILITY_IDS = [BALLYMORE_FACILITY_ID, HAZELWOOD_FACILITY_ID];

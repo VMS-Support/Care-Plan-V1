@@ -5,6 +5,9 @@ import { useCare } from "@/lib/care/store";
 import type { VitalRecordType, VitalSign } from "@/lib/care/types";
 import { calcBMI, calcNEWS2, heightAtDate } from "@/lib/care/vitals";
 import { VITAL_TYPE_LABELS } from "@/lib/care/vital-records";
+import { can } from "@/lib/care/permissions";
+import { getResidentBaselineSummary } from "@/domain/baselines/residentBaselineService";
+import type { ResidentBaselineType } from "@/domain/baselines/residentBaselineTypes";
 import type { ObservationEntryLaunchContext } from "@/domain/observations/observationEntryTypes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +21,18 @@ interface Props { residentId?: string; launchContext?: ObservationEntryLaunchCon
 type Values = Record<string, string | boolean>;
 
 const TYPES = Object.keys(VITAL_TYPE_LABELS) as VitalRecordType[];
+const BASELINES_BY_TYPE: Record<VitalRecordType, ResidentBaselineType[]> = {
+  full_news2: ["temperature", "pulse", "respirations", "systolic_blood_pressure", "diastolic_blood_pressure", "spo2", "oxygen_delivery", "consciousness", "news2"],
+  temperature: ["temperature"],
+  blood_pressure: ["systolic_blood_pressure", "diastolic_blood_pressure", "pulse"],
+  oxygen_saturation: ["spo2", "oxygen_delivery", "respirations"],
+  blood_glucose: ["blood_glucose"],
+  weight_bmi: ["weight", "bmi"],
+  pain_score: ["pain"],
+  fluid_balance: [],
+  respiratory: ["respirations", "spo2", "oxygen_delivery"],
+  neurological_observations: ["neurological", "consciousness"],
+};
 const launchType = (context?: ObservationEntryLaunchContext): VitalRecordType | undefined => {
   if (!context) return undefined;
   if (context.observationSetType === "full_vital_signs" || context.observationSetType === "news2_set") return "full_news2";
@@ -31,7 +46,7 @@ const numberValue = (value: string | boolean | undefined) => typeof value === "s
 
 export function RecordObservationFlow({ residentId: residentIdProp, launchContext, trigger, onRecorded }: Props) {
   const fixedResidentId = launchContext?.residentId ?? residentIdProp;
-  const { residents, vitals, recordVital } = useCare();
+  const { residents, vitals, recordVital, residentBaselines, currentRole, operationalContext } = useCare();
   const now = new Date();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<VitalRecordType | undefined>(() => launchType(launchContext));
@@ -41,6 +56,20 @@ export function RecordObservationFlow({ residentId: residentIdProp, launchContex
   const [values, setValues] = useState<Values>({ onOxygen: false, oxygenMethod: "room_air", consciousness: "A" });
   const selectedResidentId = fixedResidentId ?? residentId;
   const resident = residents.find((candidate) => candidate.id === selectedResidentId);
+  const observedAt = useMemo(() => {
+    const parsed = new Date(`${date}T${time || "00:00"}:00`);
+    return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }, [date, time]);
+  const baselineSummary = useMemo(() => {
+    if (!selectedResidentId || !can(currentRole, "resident_baseline.view")) return undefined;
+    return getResidentBaselineSummary(residentBaselines, selectedResidentId, observedAt, {
+      nursingHomeId: operationalContext.nursingHomeId,
+      residentIds: [selectedResidentId],
+      capabilities: ["resident_baseline.view"],
+      canViewSource: can(currentRole, "resident_baseline.view_source"),
+    });
+  }, [currentRole, observedAt, operationalContext.nursingHomeId, residentBaselines, selectedResidentId]);
+  const relevantBaselines = baselineSummary?.baselines.filter((baseline) => type && BASELINES_BY_TYPE[type].includes(baseline.baselineType)) ?? [];
   const set = (key: string, value: string | boolean) => setValues((current) => ({ ...current, [key]: value }));
 
   const bmi = useMemo(() => calcBMI(
@@ -149,6 +178,7 @@ export function RecordObservationFlow({ residentId: residentIdProp, launchContex
             </DialogHeader>
             <div className="space-y-4">
               {resident ? <div className="rounded-lg border bg-muted/30 p-3 flex items-center gap-3"><div className="h-11 w-11 rounded-full bg-primary/10 overflow-hidden shrink-0">{resident.photoUrl && <img src={resident.photoUrl} alt="" className="h-full w-full object-cover" />}</div><div className="min-w-0"><div className="font-semibold">{resident.preferredName || resident.firstName} {resident.lastName}</div><div className="text-xs text-muted-foreground">Room {resident.roomNumber} · DOB {resident.dob}</div><div className="text-xs"><span className="font-medium">Allergies:</span> {resident.allergies || "None recorded"}{resident.dnarStatus === "yes" ? " · DNAR recorded" : ""}</div></div></div> : fixedResidentId ? <div className="rounded-md border border-destructive p-3 text-sm text-destructive">Resident details could not be loaded. Observation entry is unavailable.</div> : null}
+              {relevantBaselines.length > 0 && <BaselineContext baselines={relevantBaselines} />}
               {launchContext && launchContext.sourceType !== "resident_profile" && <div className="rounded-md border p-3 text-sm"><div className="font-medium">{launchContext.sourceLabel ?? "Observation requested"}</div>{launchContext.requestedDueAt && <div>Due {new Date(launchContext.requestedDueAt).toLocaleString("en-IE")}</div>}{launchContext.requestReason && <div className="text-muted-foreground">{launchContext.requestReason}</div>}</div>}
               {!fixedResidentId && <Field label="Resident"><Select value={residentId} onValueChange={setResidentId}><SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{residents.map((item) => <SelectItem key={item.id} value={item.id}>{item.firstName} {item.lastName} · Room {item.roomNumber}</SelectItem>)}</SelectContent></Select></Field>}
               <div className="grid sm:grid-cols-3 gap-3"><Field label="Date Observed" required><Input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Time Observed" required><Input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></Field><Field label="Date/Time Recorded"><Input value="Set automatically on save" readOnly /></Field></div>
@@ -184,5 +214,20 @@ function Derived({ label, value }: { label: string; value: string }) { return <d
 function NEWS2Live({ news }: { news: ReturnType<typeof calcNEWS2> }) {
   if (!news.complete) return <Derived label="NEWS2" value="Complete full observations to calculate NEWS2" />;
   return <div className="rounded-md border bg-muted/30 p-3 space-y-2"><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">NEWS2 Live</span><span className="text-xl font-semibold tabular-nums">{news.total}</span><Badge variant="outline" className="capitalize">{news.risk}</Badge></div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">{Object.entries(news.breakdown).map(([label, score]) => <span key={label}><span className="text-muted-foreground">{label}</span> +{score}</span>)}</div></div>;
+}
+function BaselineContext({ baselines }: { baselines: Array<{ baselineId: string; baselineType: ResidentBaselineType; displayValue: string; sourceLabel: string; effectiveFrom: string; reviewDate: string; reviewState: string }> }) {
+  return <div className="rounded-md border border-blue-200 bg-blue-50/40 p-3 text-sm">
+    <div className="font-medium">Resident baseline context</div>
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      {baselines.map((baseline) => (
+        <div key={baseline.baselineId} className="rounded border bg-background/70 p-2">
+          <div className="text-xs text-muted-foreground capitalize">{baseline.baselineType.replaceAll("_", " ")}</div>
+          <div className="font-medium">{baseline.displayValue}</div>
+          <div className="text-xs text-muted-foreground">Source: {baseline.sourceLabel} · Effective {new Date(baseline.effectiveFrom).toLocaleDateString("en-IE")} · Review {new Date(baseline.reviewDate).toLocaleDateString("en-IE")}</div>
+        </div>
+      ))}
+    </div>
+    <p className="mt-2 text-xs text-muted-foreground">Baselines provide resident-specific context only. Recorded observations and NEWS2 scoring remain separate.</p>
+  </div>;
 }
 function fieldLabel(key: string) { return ({ respiratoryRate: "Respiratory Rate", systolicBP: "Systolic BP", diastolicBP: "Diastolic BP", bloodGlucose: "Blood Glucose", glucoseContext: "Meal Context", painScore: "Pain Score", fluidIntakeMl: "Intake", fluidOutputMl: "Output", consciousness: "Consciousness" } as Record<string, string>)[key] || key[0].toUpperCase() + key.slice(1); }

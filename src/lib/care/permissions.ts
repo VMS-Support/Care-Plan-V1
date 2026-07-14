@@ -39,6 +39,7 @@ export type Permission =
   | "observation.plan.edit" | "observation.escalate" | "observation.audit"
   | "observations.view" | "observations.record" | "observations.record_full_set" | "observations.record_news2" | "observations.record_pain" | "observations.record_weight" | "observations.record_blood_glucose" | "observations.record_neurological" | "observations.correct" | "observations.enter_in_error" | "observations.view_history" | "observations.view_charts" | "observations.view_sensitive" | "observations.manage_schedule" | "observations.override_interpretation"
   | "observations.view_summary" | "observations.view_trends" | "observations.view_notes" | "observations.view_escalation" | "observations.view_corrections" | "observations.view_entered_in_error" | "observations.export" | "observations.export_notes" | "observations.export_corrected" | "observations.export_entered_in_error" | "observations.record_for_another_staff_member" | "observations.record_escalation" | "observations.record_temperature" | "observations.record_pulse" | "observations.record_respirations" | "observations.record_blood_pressure" | "observations.record_spo2"
+  | "resident_baseline.view" | "resident_baseline.view_source" | "resident_baseline.create" | "resident_baseline.edit_draft" | "resident_baseline.submit_approval" | "resident_baseline.approve" | "resident_baseline.review" | "resident_baseline.supersede" | "resident_baseline.revoke" | "resident_baseline.correct" | "resident_baseline.view_history" | "resident_baseline.manage_oxygen_target"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
   | "resident_strength.view" | "resident_strength.create" | "resident_strength.edit" | "resident_strength.review" | "resident_strength.correct" | "resident_strength.view_history"
@@ -163,6 +164,11 @@ const matrix: Record<Role, Permission[]> = {
 };
 
 export function can(role: Role, perm: Permission): boolean {
+  if (perm.startsWith("resident_baseline.")) {
+    if (["resident_baseline.view", "resident_baseline.view_history"].includes(perm)) return true;
+    if (["resident_baseline.view_source", "resident_baseline.create", "resident_baseline.edit_draft", "resident_baseline.submit_approval"].includes(perm)) return role !== "carer";
+    if (["resident_baseline.approve", "resident_baseline.review", "resident_baseline.supersede", "resident_baseline.revoke", "resident_baseline.correct", "resident_baseline.manage_oxygen_target"].includes(perm)) return role === "cnm" || role === "don" || role === "doctor";
+  }
   if (perm.startsWith("observations.")) {
     const clinical = role === "nurse" || role === "cnm" || role === "don";
     if (["observations.view", "observations.view_history", "observations.view_summary", "observations.view_trends", "observations.view_charts"].includes(perm)) return true;
