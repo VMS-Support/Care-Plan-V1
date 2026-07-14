@@ -99,6 +99,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "resident.view", "note.create", "intervention.create", "handover.create",
     "visitor.create", "outing.create", "task.create", "assessment.view", "careplan.view",
     "vital.view", "vital.record", "observation.view", "observation.record",
+    "rlt_dependency.view",
     "ops.edit_own", "ops.duplicate",
   ],
   NURSE: [
@@ -107,6 +108,8 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "assessment.edit", "assessment.review", "assessment.create_revision", "assessment.comment",
     "assessment.archive", "careplan.view", "careplan.create", "careplan.edit",
     "careplan.review", "careplan.evaluate", "evaluation.create", "incident.view", "incident.create",
+    "assessment_care_guidance.view", "assessment_care_guidance.acknowledge", "assessment_care_guidance.action",
+    "rlt_dependency.view", "rlt_dependency.record", "rlt_dependency.review", "rlt_dependency.view_history",
     "vital.view", "vital.record", "vital.edit", "vital.comment", "vital.plan.edit", "vital.escalate",
     "observation.view", "observation.record", "observation.edit", "observation.plan.edit",
     "observation.escalate", "ops.edit", "ops.archive", "ops.restore", "ops.duplicate",
@@ -115,6 +118,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "resident.view", "clinical.view", "mdt.create", "medical_review.create", "recommendation.create",
     "treatment_note.create", "assessment.view", "assessment.comment", "careplan.view",
     "vital.view", "vital.comment", "vital.escalate", "observation.view", "observation.escalate",
+    "assessment_care_guidance.view", "rlt_dependency.view", "rlt_dependency.view_history",
     "ops.edit_own",
   ],
   CNM: [
@@ -126,6 +130,8 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "careplan.view", "careplan.create", "careplan.edit", "careplan.review", "careplan.approve",
     "careplan.evaluate", "careplan.revise", "evaluation.create", "incident.view", "incident.create",
     "incident.manage", "report.view", "user.manage", "clinical.view", "mdt.create", "compliance.view",
+    "assessment_care_guidance.view", "assessment_care_guidance.acknowledge", "assessment_care_guidance.action", "assessment_care_guidance.dismiss", "assessment_care_guidance.view_history",
+    "rlt_dependency.view", "rlt_dependency.record", "rlt_dependency.review", "rlt_dependency.correct", "rlt_dependency.view_history",
     "vital.view", "vital.record", "vital.edit", "vital.delete", "vital.comment", "vital.plan.edit",
     "vital.escalate", "vital.report", "vital.audit", "observation.view", "observation.record",
     "observation.edit", "observation.delete", "observation.plan.edit", "observation.escalate",
@@ -142,6 +148,8 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "incident.create", "incident.manage", "clinical.view", "mdt.create", "medical_review.create",
     "recommendation.create", "treatment_note.create", "report.view", "report.manage", "user.manage",
     "permission.manage", "settings.manage", "audit.view", "record.delete_with_audit", "compliance.view",
+    "assessment_care_guidance.view", "assessment_care_guidance.acknowledge", "assessment_care_guidance.action", "assessment_care_guidance.dismiss", "assessment_care_guidance.view_history",
+    "rlt_dependency.view", "rlt_dependency.record", "rlt_dependency.review", "rlt_dependency.correct", "rlt_dependency.view_history",
     "vital.view", "vital.record", "vital.edit", "vital.delete", "vital.comment", "vital.plan.edit",
     "vital.escalate", "vital.report", "vital.audit", "observation.view", "observation.record",
     "observation.edit", "observation.delete", "observation.plan.edit", "observation.escalate",
@@ -201,7 +209,19 @@ const userFacilityIds = (user: UserProfile) =>
   user.facilityIds?.length ? user.facilityIds : [user.facilityId || DEFAULT_HOME_ID];
 
 export function migrateStaffAccess<T extends StaffAccessState>(source: T): T {
-  const roleTemplates = source.roleTemplates?.length ? source.roleTemplates : createCurrentRoleTemplates();
+  const currentTemplates = createCurrentRoleTemplates();
+  const roleTemplates = source.roleTemplates?.length
+    ? source.roleTemplates.map((template) => {
+        const current = currentTemplates.find((candidate) => candidate.key === template.key);
+        return current
+          ? {
+              ...template,
+              capabilities: [...new Set([...template.capabilities, ...current.capabilities])],
+              updatedAt: MIGRATION_TIMESTAMP,
+            }
+          : template;
+      })
+    : currentTemplates;
   const staffMembersById = new Map((source.staffMembers || []).map((item) => [item.id, item]));
   const userAccountsById = new Map((source.userAccounts || []).map((item) => [item.id, item]));
   const employmentRecords = [...(source.employmentRecords || [])];

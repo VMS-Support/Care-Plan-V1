@@ -5,6 +5,7 @@ import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
 import { RLT_DOMAINS, RLT_DOMAIN_TO_DEFAULT_CATEGORY } from "@/lib/care/rlt";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
+import { RLT_DEPENDENCY_LABELS, type RltDependencyLevel } from "@/lib/care/rltDependency";
 import type { CarePlanProblem, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ function todayPlus(days: number) {
 type Props = {
   residentId?: string;
   initialRltDomainId?: RltDomainId;
+  currentDependencyLevel?: RltDependencyLevel | null;
   trigger?: ReactNode;
   buttonLabel?: string;
   onCreated?: (problem: CarePlanProblem) => void;
@@ -44,6 +46,7 @@ type Props = {
 export function CreateCarePlanDialog({
   residentId: fixedResidentId,
   initialRltDomainId,
+  currentDependencyLevel,
   trigger,
   buttonLabel = "New Nursing Care Plan",
   onCreated,
@@ -146,6 +149,9 @@ export function CreateCarePlanDialog({
                 ))}
               </SelectContent>
             </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Current dependency: {currentDependencyLevel ? RLT_DEPENDENCY_LABELS[currentDependencyLevel] : "Not yet recorded"}. Dependency does not determine risk or whether a Care Plan is required.
+            </p>
           </div>
 
           <div>

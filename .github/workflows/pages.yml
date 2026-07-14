@@ -36,6 +36,10 @@ jobs:
           npm run test:assessment-rlt-mapping
           npm run validate:rlt-regression
           npm run validate:assessment-rlt-mappings
+          npm run test:assessment-care-guidance
+          npm run test:rlt-dependency
+          npm run validate:assessment-care-guidance
+          npm run validate:rlt-dependency
 
       - name: Build static site
         run: npm run build:pages

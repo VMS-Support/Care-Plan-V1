@@ -37,6 +37,8 @@ export type Permission =
   | "vital.plan.edit" | "vital.escalate" | "vital.report" | "vital.audit"
   | "observation.view" | "observation.record" | "observation.edit" | "observation.delete"
   | "observation.plan.edit" | "observation.escalate" | "observation.audit"
+  | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
+  | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
   | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate";
 
 const matrix: Record<Role, Permission[]> = {

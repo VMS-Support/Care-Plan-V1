@@ -300,12 +300,18 @@ export interface AssessmentRltMappingResult {
   assessmentTypeId: string;
   mappingVersionIds: string[];
   matches: Array<{
+    mappingId: string;
     rltDomainId: RltDomainId;
     rltDomainKey: RltDomainKey;
     mappingType: AssessmentRltMappingType;
+    conditionMatched: true;
     rationale: string;
     suggestedCarePlanningAction: SuggestedCarePlanningAction;
     mappingVersion: number;
+    nurseReviewStatus: "completed";
+    donApprovalStatus: "completed";
+    effectiveFrom?: string;
+    effectiveTo?: string;
   }>;
   requiresClinicalReview: boolean;
 }
@@ -354,12 +360,18 @@ export function getApprovedRltMappingsForAssessment(
     assessmentTypeId,
     mappingVersionIds: matches.map((mapping) => mapping.id),
     matches: matches.map((mapping) => ({
+      mappingId: mapping.id,
       rltDomainId: mapping.rltDomainId,
       rltDomainKey: mapping.rltDomainKey,
       mappingType: mapping.mappingType,
+      conditionMatched: true,
       rationale: mapping.rationale,
       suggestedCarePlanningAction: mapping.suggestedCarePlanningAction,
       mappingVersion: mapping.version,
+      nurseReviewStatus: "completed",
+      donApprovalStatus: "completed",
+      effectiveFrom: mapping.effectiveFrom,
+      effectiveTo: mapping.effectiveTo,
     })),
     requiresClinicalReview: matches.some(
       (mapping) => mapping.suggestedCarePlanningAction === "clinical_review_required",

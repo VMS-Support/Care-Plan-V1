@@ -215,6 +215,13 @@ import { scoreAssessment } from "./scoring";
 import { BUILT_IN_TEMPLATES } from "./templates";
 import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
 import { CATEGORY_TO_RLT_DOMAIN } from "./rlt";
+import {
+  changeRltDependency,
+  recordRltDependency,
+  reviewRltDependency,
+  type RecordRltDependencyInput,
+  type RltDependencyState,
+} from "./rltDependency";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -1829,6 +1836,12 @@ function seedData() {
     ruleRecalculationItems: [] as RuleRecalculationItem[],
     ruleOverrides: [] as RuleOverride[],
     ruleSuppressions: [] as RuleSuppression[],
+    rltDependencyState: {
+      records: [],
+      reviews: [],
+      audit: [],
+      events: [],
+    } as RltDependencyState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2068,6 +2081,24 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
     absenceEpisodes: store.absenceEpisodes.filter((absence) => absence.nursingHomeId === activeFacilityId),
     users: store.users.filter((user) => userFacilityIds(user).includes(activeFacilityId)),
     residents: store.residents.filter((record) => hasFacility(record, activeFacilityId) && record.status !== "deleted"),
+    rltDependencyState: {
+      records: store.rltDependencyState.records.filter(
+        (record) =>
+          record.nursingHomeId === activeFacilityId && residentIds.has(record.residentId),
+      ),
+      reviews: store.rltDependencyState.reviews.filter(
+        (review) =>
+          review.nursingHomeId === activeFacilityId && residentIds.has(review.residentId),
+      ),
+      audit: store.rltDependencyState.audit.filter(
+        (entry) =>
+          entry.nursingHomeId === activeFacilityId && residentIds.has(entry.residentId),
+      ),
+      events: store.rltDependencyState.events.filter(
+        (event) =>
+          event.nursingHomeId === activeFacilityId && residentIds.has(event.residentId),
+      ),
+    },
     alertWorkflow: Object.fromEntries(
       Object.entries(store.alertWorkflow || {}).filter(
         ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
@@ -2156,6 +2187,7 @@ interface CareCtx extends Store {
   currentUserName: string;
   currentUser: UserProfile;
   setCurrentUserId: (id: string) => void;
+  saveRltDependency: (input: RecordRltDependencyInput) => void;
   updateUser: (id: string, patch: Partial<UserProfile>) => void;
   createStaffUser: (input: {
     name: string;
@@ -2761,6 +2793,62 @@ export function CareProvider({ children }: { children: ReactNode }) {
           capability,
           resource || { nursingHomeId: activeFacilityId },
         ),
+      saveRltDependency: (input) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const nextDependencyState: RltDependencyState = {
+            records: state.rltDependencyState.records.map((record) => ({
+              ...record,
+              evidenceReferences: [...record.evidenceReferences],
+            })),
+            reviews: [...state.rltDependencyState.reviews],
+            audit: [...state.rltDependencyState.audit],
+            events: [...state.rltDependencyState.events],
+          };
+          const resident = state.residents.find((candidate) => candidate.id === input.residentId);
+          const nursingHomeId = resident?.facilityId || activeFacilityId;
+          const accessContext = createStaffAccessContext(currentUser, nursingHomeId);
+          const context = {
+            userAccountId: currentUser.id,
+            staffMemberId: accessContext.staffMemberId,
+            nursingHomeId,
+            capabilities: getEffectivePermissions(state, accessContext, {
+              nursingHomeId,
+            }),
+            occurredAt: now,
+            correlationId: `dependency-store:${input.residentId}:${input.rltDomainId}:${now}`,
+            residentExists: (residentId: string) =>
+              state.residents.some((candidate) => candidate.id === residentId),
+            residentBelongsToHome: (residentId: string, homeId: string) =>
+              state.residents.some(
+                (candidate) =>
+                  candidate.id === residentId &&
+                  (candidate.facilityId || activeFacilityId) === homeId,
+              ),
+          };
+          const current = nextDependencyState.records.find(
+            (record) =>
+              record.residentId === input.residentId &&
+              record.rltDomainId === input.rltDomainId &&
+              record.status === "current",
+          );
+          if (!current) recordRltDependency(nextDependencyState, input, context);
+          else if (current.dependencyLevel === input.dependencyLevel)
+            reviewRltDependency(
+              nextDependencyState,
+              {
+                residentId: input.residentId,
+                rltDomainId: input.rltDomainId,
+                rationale: input.rationale,
+                evidenceReferences: input.evidenceReferences,
+                nextReviewDate: input.nextReviewDate,
+              },
+              context,
+            );
+          else changeRltDependency(nextDependencyState, input, context);
+          return { ...state, rltDependencyState: nextDependencyState };
+        });
+      },
       recordAuditEvent,
       getAuditForEntity: (entityType, entityId) => getAuditForEntity(scopedStore, entityType, entityId),
       getAuditForResident: (residentId) => getAuditForResident(scopedStore, residentId),

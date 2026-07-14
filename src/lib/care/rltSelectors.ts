@@ -92,6 +92,81 @@ export function getAllRltDomainSummaries(data: CarePlanSelectorData, residentId:
   });
 }
 
+export type CarePlanDomainCoverageAssessment =
+  | "no_active_plan"
+  | "active_plan_current"
+  | "active_plan_review_due"
+  | "active_plan_overdue"
+  | "multiple_active_plans"
+  | "manual_review_required";
+
+export interface CarePlanDomainCoverage {
+  residentId: string;
+  nursingHomeId: string;
+  rltDomainId: RltDomainId;
+  activeCarePlanItems: Array<{
+    carePlanId: string;
+    carePlanItemId: string;
+    title: string;
+    riskLevel?: string;
+    reviewDate?: string;
+    lastReviewedAt?: string;
+    status: string;
+  }>;
+  activeCount: number;
+  hasActivePlan: boolean;
+  hasPlanDueForReview: boolean;
+  hasOverdueReview: boolean;
+  nearestReviewDate?: string;
+  coverageAssessment: CarePlanDomainCoverageAssessment;
+}
+
+export function getActiveCarePlanCoverageForDomain(
+  data: CarePlanSelectorData,
+  residentId: string,
+  rltDomainId: RltDomainId,
+  assessmentContext: { nursingHomeId: string; evaluatedAt: string },
+): CarePlanDomainCoverage {
+  const date = assessmentContext.evaluatedAt.slice(0, 10);
+  const items = getCarePlanItemsByRltDomain(data, residentId, rltDomainId).filter(
+    (item) => item.facilityId === assessmentContext.nursingHomeId,
+  );
+  const activeCarePlanItems = items.map((item) => {
+    const reviews = getReviewsForCarePlanItem(data, item.id)
+      .filter((review) => !review.facilityId || review.facilityId === assessmentContext.nursingHomeId)
+      .sort((left, right) => right.reviewDate.localeCompare(left.reviewDate));
+    return {
+      carePlanId: item.residentCarePlanId,
+      carePlanItemId: item.id,
+      title: item.problemStatement,
+      riskLevel: item.riskLevel,
+      reviewDate: item.reviewDate,
+      lastReviewedAt: reviews[0]?.reviewDate,
+      status: item.status,
+    };
+  });
+  const reviewDates = activeCarePlanItems.map((item) => item.reviewDate).filter(Boolean) as string[];
+  const hasOverdueReview = reviewDates.some((reviewDate) => reviewDate < date);
+  const hasPlanDueForReview = reviewDates.some((reviewDate) => reviewDate === date);
+  let coverageAssessment: CarePlanDomainCoverageAssessment = "active_plan_current";
+  if (activeCarePlanItems.length === 0) coverageAssessment = "no_active_plan";
+  else if (activeCarePlanItems.length > 1) coverageAssessment = "multiple_active_plans";
+  else if (hasOverdueReview) coverageAssessment = "active_plan_overdue";
+  else if (hasPlanDueForReview) coverageAssessment = "active_plan_review_due";
+  return {
+    residentId,
+    nursingHomeId: assessmentContext.nursingHomeId,
+    rltDomainId,
+    activeCarePlanItems,
+    activeCount: activeCarePlanItems.length,
+    hasActivePlan: activeCarePlanItems.length > 0,
+    hasPlanDueForReview,
+    hasOverdueReview,
+    nearestReviewDate: reviewDates.sort()[0],
+    coverageAssessment,
+  };
+}
+
 export interface LegacyChildRecord {
   problemId?: string;
   carePlanItemId?: string;

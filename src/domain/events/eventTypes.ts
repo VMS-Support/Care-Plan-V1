@@ -26,8 +26,15 @@ export type DomainEventType =
   | "WeightRecorded"
   | "AssessmentCompleted"
   | "AssessmentRiskChanged"
+  | "AssessmentCorrected"
+  | "AssessmentVoided"
+  | "AssessmentGuidanceRecalculationRequested"
   | "CarePlanCreated"
   | "CarePlanReviewed"
+  | "RltDependencyRecorded"
+  | "RltDependencyChanged"
+  | "RltDependencyReviewed"
+  | "RltDependencyCorrected"
   | "CareActionCompleted"
   | "CareActionMissed"
   | "MedicationRefused"
@@ -156,6 +163,53 @@ export interface AssessmentRiskChangedPayloadV1 {
   currentScore?: number;
 }
 
+export interface AssessmentCorrectedPayloadV1 {
+  assessmentId: string;
+  residentId: ResidentId | string;
+  assessmentType: string;
+  correctedAt: string;
+  previousScore?: number;
+  currentScore?: number;
+  previousRiskLevel?: string;
+  currentRiskLevel?: string;
+  correctionReason: string;
+}
+
+export interface AssessmentVoidedPayloadV1 {
+  assessmentId: string;
+  residentId: ResidentId | string;
+  assessmentType: string;
+  voidedAt: string;
+  voidReason: string;
+}
+
+export interface AssessmentGuidanceRecalculationRequestedPayloadV1 {
+  assessmentId: string;
+  residentId: ResidentId | string;
+  requestedAt: string;
+  reasonCode: string;
+}
+
+export interface RltDependencyEventPayloadV1 {
+  dependencyRecordId: string;
+  residentId: ResidentId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  rltDomainId: string;
+  previousLevel?: string;
+  currentLevel: string;
+  effectiveAt: string;
+  recordedAt: string;
+  actorUserAccountId: UserAccountId | string;
+  actorStaffMemberId?: StaffMemberId | string;
+  reasonCode: string;
+  sourceEvidenceReferences: Array<{ entityType: string; entityId: string }>;
+}
+export type RltDependencyRecordedPayloadV1 = RltDependencyEventPayloadV1;
+export type RltDependencyChangedPayloadV1 = RltDependencyEventPayloadV1;
+export type RltDependencyReviewedPayloadV1 = RltDependencyEventPayloadV1;
+export type RltDependencyCorrectedPayloadV1 = RltDependencyEventPayloadV1;
+
 export interface CarePlanCreatedPayloadV1 {
   carePlanId: CarePlanId | string;
   carePlanItemId: CarePlanItemId | string;
@@ -264,8 +318,15 @@ export type DomainEventPayloadMapV1 = {
   WeightRecorded: WeightRecordedPayloadV1;
   AssessmentCompleted: AssessmentCompletedPayloadV1;
   AssessmentRiskChanged: AssessmentRiskChangedPayloadV1;
+  AssessmentCorrected: AssessmentCorrectedPayloadV1;
+  AssessmentVoided: AssessmentVoidedPayloadV1;
+  AssessmentGuidanceRecalculationRequested: AssessmentGuidanceRecalculationRequestedPayloadV1;
   CarePlanCreated: CarePlanCreatedPayloadV1;
   CarePlanReviewed: CarePlanReviewedPayloadV1;
+  RltDependencyRecorded: RltDependencyRecordedPayloadV1;
+  RltDependencyChanged: RltDependencyChangedPayloadV1;
+  RltDependencyReviewed: RltDependencyReviewedPayloadV1;
+  RltDependencyCorrected: RltDependencyCorrectedPayloadV1;
   CareActionCompleted: CareActionCompletedPayloadV1;
   CareActionMissed: CareActionMissedPayloadV1;
   MedicationRefused: MedicationRefusedPayloadV1;

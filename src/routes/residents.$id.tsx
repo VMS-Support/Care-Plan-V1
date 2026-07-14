@@ -69,6 +69,7 @@ import { ClinicalSnapshot } from "@/components/care/ClinicalSnapshot";
 import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
+import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
 import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
 import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
 import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
@@ -261,6 +262,9 @@ function ResidentDetail() {
     handovers,
     currentRole,
     currentUserName,
+    canAccess,
+    rltDependencyState,
+    saveRltDependency,
     softDeleteAssessment,
     addNextOfKin,
     addGoal,
@@ -1631,6 +1635,12 @@ function ResidentDetail() {
               const hasOverdueReview = workspace.reviewDays !== null && workspace.reviewDays < 0;
               const hasDueReview = workspace.reviewDays !== null && workspace.reviewDays <= 7;
               const domainCoverageGaps = coverageGapsByDomain.get(workspace.domain.id) || [];
+              const dependencyRecord = rltDependencyState.records.find(
+                (record) =>
+                  record.residentId === r.id &&
+                  record.rltDomainId === workspace.domain.id &&
+                  record.status === "current",
+              );
               return (
                 <Card key={workspace.domain.id}>
                   <CardContent className="p-4 space-y-3">
@@ -1657,6 +1667,7 @@ function ResidentDetail() {
                         <CreateCarePlanDialog
                           residentId={r.id}
                           initialRltDomainId={workspace.domain.id}
+                          currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
                           onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                           trigger={
                             <Button size="sm" variant="outline">
@@ -1694,6 +1705,31 @@ function ResidentDetail() {
                       )}
                     </div>
 
+                    <RltDependencyEditor
+                      domain={workspace.domain}
+                      currentLevel={dependencyRecord?.dependencyLevel || null}
+                      lastReviewedAt={dependencyRecord?.reviewedAt}
+                      nextReviewDate={dependencyRecord?.nextReviewDate}
+                      canEdit={canAccess("rlt_dependency.record", {
+                        nursingHomeId: r.facilityId,
+                        residentId: r.id,
+                      })}
+                      onSave={(value) => {
+                        const now = new Date().toISOString();
+                        saveRltDependency({
+                          residentId: r.id,
+                          rltDomainId: workspace.domain.id,
+                          dependencyLevel: value.level,
+                          effectiveFrom: now,
+                          rationale: value.rationale,
+                          reasonCode: value.reasonCode,
+                          reasonText: value.reasonText,
+                          source: dependencyRecord ? "dependency_review" : "manual_clinical_entry",
+                        });
+                        toast.success(`${workspace.domain.title} dependency saved`);
+                      }}
+                    />
+
                     {domainCoverageGaps.length > 0 && (
                       <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
                         <div className="space-y-1 text-warning-foreground">
@@ -1706,6 +1742,7 @@ function ResidentDetail() {
                             <CreateCarePlanDialog
                               residentId={r.id}
                               initialRltDomainId={workspace.domain.id}
+                              currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
                               onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                               trigger={
                                 <Button size="sm" variant="outline">
