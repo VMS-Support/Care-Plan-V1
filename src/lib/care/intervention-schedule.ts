@@ -81,7 +81,9 @@ export function scheduledInterventions(
   return interventions
     .filter((intervention) => {
       const problem = problemById.get(intervention.problemId);
-      return problem?.status === "active" && intervention.status === "active";
+      const actionType = intervention.careActionType || (intervention.frequencyType === "prn" ? "prn" : intervention.frequencyType === "once" ? "one_off" : "scheduled");
+      const usesScheduledProjection = intervention.careActionType ? actionType === "scheduled" : actionType !== "prn" && actionType !== "triggered";
+      return problem?.status === "active" && intervention.status === "active" && usesScheduledProjection;
     })
     .map((intervention): ScheduledIntervention => {
       const interventionLogs = (logsByIntervention.get(intervention.id) || []).sort((a, b) =>

@@ -71,7 +71,9 @@ import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
 import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
+import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
+import { CARE_ACTION_TYPE_LABELS, getCanonicalCareActionType } from "@/lib/care/flexibleCareActions";
 import { getResidentRltClinicalOverview } from "@/lib/care/rltClinicalOverview";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
 import {
@@ -277,6 +279,7 @@ function ResidentDetail() {
     rltDependencyState,
     saveRltDependency,
     strengthPreferenceState,
+    endOfLifeState,
     saveResidentStrength,
     saveResidentPreference,
     rltTimelineTagState,
@@ -489,6 +492,7 @@ function ResidentDetail() {
     problemHistory,
     dependencyState: rltDependencyState,
     strengthPreferenceState,
+    endOfLifeState,
     incidents,
     alerts,
     clinicalAlerts,
@@ -1847,6 +1851,8 @@ function ResidentDetail() {
                       }}
                     />
 
+                    {workspace.domain.id === "dying" && <EndOfLifePathwayPanel residentId={r.id} />}
+
                     {domainCoverageGaps.length > 0 && (
                       <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
                         <div className="space-y-1 text-warning-foreground">
@@ -2626,9 +2632,9 @@ function ResidentDetail() {
                       const problem = rProblems.find((p) => p.id === intv.problemId);
                       return (
                         <tr key={intv.id} className="hover:bg-muted/30">
-                          <td className="p-3 font-medium">{intv.name}</td>
+                          <td className="p-3 font-medium"><div className="flex flex-wrap items-center gap-2"><span>{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div></td>
                           <td className="p-3 text-xs">{problem?.problemStatement || "â€”"}</td>
-                          <td className="p-3 text-xs">{intv.frequencyType.replace(/_/g, " ")}</td>
+                          <td className="p-3 text-xs">{getCanonicalCareActionType(intv) === "scheduled" ? intv.frequencyType.replace(/_/g, " ") : getCanonicalCareActionType(intv) === "prn" ? intv.prnConfiguration?.indication || "As needed" : getCanonicalCareActionType(intv) === "triggered" ? intv.triggerConfiguration?.triggerConditionSummary || "On defined trigger" : intv.oneOffConfiguration?.dueAt ? new Date(intv.oneOffConfiguration.dueAt).toLocaleString() : "Once, no fixed due time"}</td>
                           <td className="p-3 text-xs">
                             {intv.assignedStaffName || intv.assignedRole || "â€”"}
                           </td>

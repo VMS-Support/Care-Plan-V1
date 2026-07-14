@@ -1528,6 +1528,52 @@ export type InterventionOutcome =
   | "refused"
   | "escalated";
 
+export type CareActionType = "scheduled" | "prn" | "triggered" | "one_off";
+export type CareActionPriority = "routine" | "important" | "urgent" | "critical";
+export type EndOfLifeSymptomType =
+  | "pain" | "breathlessness" | "respiratory_secretions" | "agitation" | "restlessness"
+  | "anxiety" | "nausea" | "vomiting" | "oral_dryness" | "swallowing_difficulty"
+  | "reduced_intake" | "skin_mottling" | "cold_extremities" | "jerking_or_twitching"
+  | "reduced_consciousness" | "urinary_retention" | "constipation" | "other";
+export interface PrnCareActionConfiguration {
+  indication: string;
+  indications?: string[];
+  minimumIntervalMinutes?: number;
+  maximumOccurrencesPerPeriod?: { count: number; periodMinutes: number };
+  requiresOutcomeRecording: boolean;
+  requiresResidentResponse: boolean;
+  requiresReasonForUse: boolean;
+  escalationAfterOccurrences?: number;
+  escalationWindowMinutes?: number;
+  linkedMedicationReferenceId?: string;
+  linkedSymptomType?: EndOfLifeSymptomType;
+}
+export interface TriggeredCareActionConfiguration {
+  triggerMode: "event" | "rule" | "manual_clinical_activation";
+  triggerEventTypes?: string[];
+  triggerRuleIds?: string[];
+  triggerConditionSummary: string;
+  createWorkItemOnTrigger: boolean;
+  resultingWorkType?: "care_action" | "general_task" | "observation" | "assessment" | "care_plan_review" | "referral" | "documentation";
+  dueOffsetMinutes?: number;
+  assignmentPolicy: "ward" | "role" | "team" | "unassigned";
+  assignedRoleKey?: string;
+  assignedTeamId?: string;
+  deduplicationMode: "per_event" | "single_active" | "single_active_per_trigger" | "time_window";
+  deduplicationWindowMinutes?: number;
+  requiresHumanConfirmation: boolean;
+}
+export interface OneOffCareActionConfiguration {
+  dueAt?: string;
+  canBeCompletedWithoutDueDate: boolean;
+  requiresOutcomeRecording: boolean;
+  requiresResidentResponse: boolean;
+  autoCloseAfterCompletion: boolean;
+  completionEvidenceType?: "clinical_note" | "review" | "referral" | "communication_record" | "document" | "manual_confirmation";
+}
+export interface CareActionCompletionRequirements { outcomeRequired: boolean; residentResponseRequired: boolean; evidenceRequired?: boolean; }
+export interface CareActionVisibilityPolicy { showInCarePlan: boolean; showAtPointOfCare: boolean; sensitive?: boolean; }
+
 export interface ResidentCarePlan {
   id: string;
   facilityId?: string;
@@ -1590,6 +1636,13 @@ export interface ProblemIntervention {
   residentId: string;
   name: string;
   description?: string;
+  careActionType?: CareActionType;
+  priority?: CareActionPriority;
+  prnConfiguration?: PrnCareActionConfiguration;
+  triggerConfiguration?: TriggeredCareActionConfiguration;
+  oneOffConfiguration?: OneOffCareActionConfiguration;
+  completionRequirements?: CareActionCompletionRequirements;
+  visibilityPolicy?: CareActionVisibilityPolicy;
   frequencyType: FrequencyType;
   frequencyValue?: number;
   frequencyInstructions?: string;

@@ -231,6 +231,22 @@ import {
   type StrengthPreferenceState,
 } from "./residentStrengthPreferences";
 import type { RltTimelineTagState } from "./rltTimeline";
+import {
+  EMPTY_FLEXIBLE_CARE_ACTION_STATE,
+  activateOneOffCareAction,
+  validateCareActionConfiguration,
+  type FlexibleCareActionState,
+} from "./flexibleCareActions";
+import {
+  EMPTY_END_OF_LIFE_STATE,
+  activateEndOfLifeCare,
+  createEndOfLifePathway,
+  markLastDaysOfLife,
+  reconcileCareWorkAfterResidentDeath,
+  recordResidentDeath,
+  type EndOfLifeContext,
+  type EndOfLifeState,
+} from "./endOfLifePathway";
 import { categoryFor, computeNextReviewDate, TRIGGER_TO_TYPES } from "./assessments";
 import {
   appendEventRecord,
@@ -1861,6 +1877,8 @@ function seedData() {
       events: [],
     } as StrengthPreferenceState,
     rltTimelineTagState: { tags: [], audit: [] } as RltTimelineTagState,
+    flexibleCareActionState: structuredClone(EMPTY_FLEXIBLE_CARE_ACTION_STATE) as FlexibleCareActionState,
+    endOfLifeState: structuredClone(EMPTY_END_OF_LIFE_STATE) as EndOfLifeState,
     shiftDefinitions: [] as ShiftDefinition[],
     operationalContexts: [] as OperationalContext[],
     users,
@@ -2152,6 +2170,31 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
         (entry) => entry.nursingHomeId === activeFacilityId && residentIds.has(entry.residentId),
       ),
     },
+    flexibleCareActionState: {
+      occurrences: store.flexibleCareActionState.occurrences.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      workItems: store.flexibleCareActionState.workItems.filter((item) => item.nursingHomeId === activeFacilityId && (!item.residentId || residentIds.has(item.residentId))),
+      audit: store.flexibleCareActionState.audit.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      events: store.flexibleCareActionState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+    },
+    endOfLifeState: (() => {
+      const pathways = store.endOfLifeState.pathways.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId));
+      const pathwayIds = new Set(pathways.map((item) => item.id));
+      return {
+        pathways,
+        transitions: store.endOfLifeState.transitions.filter((item) => pathwayIds.has(item.pathwayId)),
+        wishes: store.endOfLifeState.wishes.filter((item) => pathwayIds.has(item.pathwayId)),
+        advanceDecisions: store.endOfLifeState.advanceDecisions.filter((item) => residentIds.has(item.residentId)),
+        comfortPlans: store.endOfLifeState.comfortPlans.filter((item) => pathwayIds.has(item.pathwayId)),
+        symptomObservations: store.endOfLifeState.symptomObservations.filter((item) => pathwayIds.has(item.pathwayId)),
+        familySupportPlans: store.endOfLifeState.familySupportPlans.filter((item) => pathwayIds.has(item.pathwayId)),
+        spiritualSupportPlans: store.endOfLifeState.spiritualSupportPlans.filter((item) => pathwayIds.has(item.pathwayId)),
+        clinicalSupports: store.endOfLifeState.clinicalSupports.filter((item) => pathwayIds.has(item.pathwayId)),
+        afterDeathWishes: store.endOfLifeState.afterDeathWishes.filter((item) => residentIds.has(item.residentId)),
+        deathConfirmations: store.endOfLifeState.deathConfirmations.filter((item) => pathwayIds.has(item.pathwayId)),
+        audit: store.endOfLifeState.audit.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+        events: store.endOfLifeState.events.filter((item) => item.nursingHomeId === activeFacilityId && residentIds.has(item.residentId)),
+      };
+    })(),
     alertWorkflow: Object.fromEntries(
       Object.entries(store.alertWorkflow || {}).filter(
         ([, alert]) => hasFacility(alert, activeFacilityId) && residentIds.has(alert.residentId),
@@ -2243,6 +2286,10 @@ interface CareCtx extends Store {
   saveRltDependency: (input: RecordRltDependencyInput) => void;
   saveResidentStrength: (input: CreateStrengthInput) => void;
   saveResidentPreference: (input: CreatePreferenceInput) => void;
+  createResidentEndOfLifePathway: (residentId: string, reasonText: string) => void;
+  activateResidentEndOfLifeCare: (pathwayId: string, clinicalBasis: string) => void;
+  markResidentLastDaysOfLife: (pathwayId: string, clinicalBasis: string) => void;
+  recordResidentDeathInPathway: (pathwayId: string, observedBy: string) => void;
   updateUser: (id: string, patch: Partial<UserProfile>) => void;
   createStaffUser: (input: {
     name: string;
@@ -2460,6 +2507,13 @@ interface CareCtx extends Store {
     frequencyType: FrequencyType;
     frequencyValue?: number;
     frequencyInstructions?: string;
+    careActionType?: ProblemIntervention["careActionType"];
+    priority?: ProblemIntervention["priority"];
+    prnConfiguration?: ProblemIntervention["prnConfiguration"];
+    triggerConfiguration?: ProblemIntervention["triggerConfiguration"];
+    oneOffConfiguration?: ProblemIntervention["oneOffConfiguration"];
+    completionRequirements?: ProblemIntervention["completionRequirements"];
+    visibilityPolicy?: ProblemIntervention["visibilityPolicy"];
     assignedRole?: Role;
     assignedStaffId?: string;
     assignedStaffName?: string;
@@ -2945,6 +2999,55 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const next: StrengthPreferenceState = structuredClone(state.strengthPreferenceState);
           createResidentPreference(next, input, context);
           return { ...state, strengthPreferenceState: next };
+        });
+      },
+      createResidentEndOfLifePathway: (residentId, reasonText) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const resident = state.residents.find((item) => item.id === residentId);
+          const nursingHomeId = resident?.facilityId || activeFacilityId;
+          const access = createStaffAccessContext(currentUser, nursingHomeId);
+          const context: EndOfLifeContext = { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId, capabilities: getEffectivePermissions(state, access, { nursingHomeId }), occurredAt: now, correlationId: `eol-create:${residentId}:${now}`, residentExists: (id) => state.residents.some((item) => item.id === id), residentBelongsToHome: (id, homeId) => state.residents.some((item) => item.id === id && (item.facilityId || activeFacilityId) === homeId) };
+          const next = structuredClone(state.endOfLifeState);
+          createEndOfLifePathway(next, { residentId, effectiveAt: now, reasonCode: "clinical_planning", reasonText }, context);
+          return { ...state, endOfLifeState: next };
+        });
+      },
+      activateResidentEndOfLifeCare: (pathwayId, clinicalBasis) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const pathway = state.endOfLifeState.pathways.find((item) => item.id === pathwayId);
+          if (!pathway) throw new Error("End-of-Life pathway not found.");
+          const access = createStaffAccessContext(currentUser, pathway.nursingHomeId, pathway.wardId);
+          const context: EndOfLifeContext = { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId, capabilities: getEffectivePermissions(state, access, { nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId }), occurredAt: now, correlationId: `eol-activate:${pathwayId}:${now}`, residentExists: (id) => state.residents.some((item) => item.id === id), residentBelongsToHome: (id, homeId) => state.residents.some((item) => item.id === id && (item.facilityId || activeFacilityId) === homeId) };
+          const next = structuredClone(state.endOfLifeState);
+          activateEndOfLifeCare(next, pathwayId, { effectiveAt: now, clinicalBasis, reasonCode: "authorised_clinical_activation" }, context);
+          return { ...state, endOfLifeState: next };
+        });
+      },
+      markResidentLastDaysOfLife: (pathwayId, clinicalBasis) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const pathway = state.endOfLifeState.pathways.find((item) => item.id === pathwayId);
+          if (!pathway) throw new Error("End-of-Life pathway not found.");
+          const access = createStaffAccessContext(currentUser, pathway.nursingHomeId, pathway.wardId);
+          const context: EndOfLifeContext = { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId, capabilities: getEffectivePermissions(state, access, { nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId }), occurredAt: now, correlationId: `eol-last-days:${pathwayId}:${now}`, residentExists: (id) => state.residents.some((item) => item.id === id), residentBelongsToHome: (id, homeId) => state.residents.some((item) => item.id === id && (item.facilityId || activeFacilityId) === homeId) };
+          const next = structuredClone(state.endOfLifeState);
+          markLastDaysOfLife(next, pathwayId, { effectiveAt: now, clinicalBasis, reasonCode: "authorised_clinical_review" }, context);
+          return { ...state, endOfLifeState: next };
+        });
+      },
+      recordResidentDeathInPathway: (pathwayId, observedBy) => {
+        const now = new Date().toISOString();
+        setStore((state) => {
+          const pathway = state.endOfLifeState.pathways.find((item) => item.id === pathwayId);
+          if (!pathway) throw new Error("End-of-Life pathway not found.");
+          const access = createStaffAccessContext(currentUser, pathway.nursingHomeId, pathway.wardId);
+          const context: EndOfLifeContext = { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId, capabilities: getEffectivePermissions(state, access, { nursingHomeId: pathway.nursingHomeId, wardId: pathway.wardId }), occurredAt: now, correlationId: `eol-death:${pathwayId}:${now}`, residentExists: (id) => state.residents.some((item) => item.id === id), residentBelongsToHome: (id, homeId) => state.residents.some((item) => item.id === id && (item.facilityId || activeFacilityId) === homeId) };
+          const next = structuredClone(state.endOfLifeState);
+          recordResidentDeath(next, pathwayId, { deathObservedAt: now, observedBy, reasonCode: "death_observed" }, context);
+          const reconciled = reconcileCareWorkAfterResidentDeath(state.problemInterventions, state.flexibleCareActionState.workItems, pathway.residentId, now);
+          return { ...state, endOfLifeState: next, problemInterventions: reconciled.actions, flexibleCareActionState: { ...state.flexibleCareActionState, workItems: reconciled.workItems } };
         });
       },
       recordAuditEvent,
@@ -6262,6 +6365,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
           frequencyType: input.frequencyType,
           frequencyValue: input.frequencyValue,
           frequencyInstructions: input.frequencyInstructions,
+          careActionType: input.careActionType,
+          priority: input.priority,
+          prnConfiguration: input.prnConfiguration,
+          triggerConfiguration: input.triggerConfiguration,
+          oneOffConfiguration: input.oneOffConfiguration,
+          completionRequirements: input.completionRequirements,
+          visibilityPolicy: input.visibilityPolicy,
           assignedRole: input.assignedRole,
           assignedStaffId: input.assignedStaffId,
           assignedStaffName: input.assignedStaffName,
@@ -6274,6 +6384,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
           createdBy: input.createdBy || currentUserName,
           createdByRole: input.createdByRole || currentRole,
         };
+        const configuration = validateCareActionConfiguration(item);
+        if (!configuration.valid) throw new Error(configuration.issues.join(" "));
 
         const ev: TimelineEvent = {
           id: newId("tle"),
@@ -6288,8 +6400,16 @@ export function CareProvider({ children }: { children: ReactNode }) {
           linkedRecordKind: "problem_intervention",
         };
 
-        setStore((s) => ({
+        setStore((s) => {
+          const nextFlexibleState: FlexibleCareActionState = structuredClone(s.flexibleCareActionState);
+          if (configuration.careActionType === "one_off") {
+            const nursingHomeId = prob.facilityId || activeFacilityId;
+            const access = createStaffAccessContext(currentUser, nursingHomeId);
+            activateOneOffCareAction(nextFlexibleState, item, s.carePlanProblems, { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId, capabilities: getEffectivePermissions(s, access, { nursingHomeId }), occurredAt: item.createdAt, correlationId: `one-off-create:${item.id}`, residentExists: (residentId) => s.residents.some((candidate) => candidate.id === residentId), residentBelongsToHome: (residentId, homeId) => s.residents.some((candidate) => candidate.id === residentId && (candidate.facilityId || activeFacilityId) === homeId) });
+          }
+          return {
           ...s,
+          flexibleCareActionState: nextFlexibleState,
           problemInterventions: [item, ...s.problemInterventions],
           timelineEvents: [ev, ...s.timelineEvents],
           problemHistory: [
@@ -6305,7 +6425,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
             },
             ...s.problemHistory,
           ],
-        }));
+        };
+        });
         logAudit({
           user: currentUserName,
           role: currentRole,
