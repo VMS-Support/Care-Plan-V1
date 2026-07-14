@@ -4,10 +4,8 @@ import { useCare } from "@/lib/care/store";
 import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import { deriveStatus } from "@/lib/care/assessments";
 import { complianceForResident } from "@/lib/care/vitals";
-import {
-  getUpcomingScheduledInterventions,
-  type ScheduledInterventionStatus,
-} from "@/lib/care/intervention-schedule";
+import { type ScheduledInterventionStatus } from "@/lib/care/intervention-schedule";
+import { getUpcomingCareInterventionsLegacyShape } from "@/domain/work";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,14 +96,23 @@ function MetricCard({
   return (
     <Card className={cn(attention && "border-warning/50 bg-warning/10")}>
       <CardContent className="p-4 flex items-center gap-3">
-        <div className={cn("rounded-lg border p-2", attention && "border-warning/50 bg-background")}>
-          <Icon className={cn("h-5 w-5 text-muted-foreground", attention && "text-warning-foreground")} />
+        <div
+          className={cn("rounded-lg border p-2", attention && "border-warning/50 bg-background")}
+        >
+          <Icon
+            className={cn("h-5 w-5 text-muted-foreground", attention && "text-warning-foreground")}
+          />
         </div>
         <div>
           <div className="text-2xl font-semibold tabular-nums">{value}</div>
           <div className="text-xs text-muted-foreground">{label}</div>
           {sublabel && (
-            <div className={cn("text-[10px]", attention ? "text-warning-foreground" : "text-muted-foreground")}>
+            <div
+              className={cn(
+                "text-[10px]",
+                attention ? "text-warning-foreground" : "text-muted-foreground",
+              )}
+            >
               {sublabel}
             </div>
           )}
@@ -126,6 +133,9 @@ export function OperationsHub({
 } = {}) {
   const {
     wings,
+    rooms: careRooms,
+    beds,
+    bedAssignments,
     residents,
     tasks,
     assessments,
@@ -141,7 +151,6 @@ export function OperationsHub({
     currentUserName,
     operationalContext,
     getResidentsForContext,
-    getOperationalTimeWindows,
     getHandoversForOperationalContext,
     markHandoverRead,
     acknowledgeHandover,
@@ -162,11 +171,6 @@ export function OperationsHub({
   }, []);
 
   const shift = operationalContext.shiftLabel || deriveShift(now);
-  const operationalWindows = useMemo(
-    () => getOperationalTimeWindows(operationalContext, now),
-    [getOperationalTimeWindows, now, operationalContext],
-  );
-
   const myWings = useMemo(
     () =>
       currentUser.assignedWings.length === 0
@@ -208,6 +212,35 @@ export function OperationsHub({
   );
 
   const residentById = useMemo(() => new Map(residents.map((r) => [r.id, r])), [residents]);
+  const placementByResidentId = useMemo(() => {
+    const roomById = new Map(careRooms.map((room) => [String(room.id), room]));
+    const bedById = new Map(beds.map((bed) => [String(bed.id), bed]));
+    return new Map(
+      residents.map((resident) => {
+        const assignment = bedAssignments.find(
+          (candidate) => candidate.residentId === resident.id && candidate.status === "active",
+        );
+        const bed = assignment ? bedById.get(String(assignment.bedId)) : undefined;
+        const roomId = String(assignment?.roomId || bed?.roomId || resident.roomId || "");
+        const room = roomById.get(roomId);
+        return [
+          resident.id,
+          {
+            nursingHomeId: String(
+              assignment?.nursingHomeId || resident.facilityId || operationalContext.nursingHomeId,
+            ),
+            wardId: assignment?.wardId
+              ? String(assignment.wardId)
+              : room?.wardId
+                ? String(room.wardId)
+                : undefined,
+            roomId: roomId || undefined,
+            bedId: assignment?.bedId ? String(assignment.bedId) : undefined,
+          },
+        ] as const;
+      }),
+    );
+  }, [bedAssignments, beds, careRooms, operationalContext.nursingHomeId, residents]);
 
   const dueTasks = useMemo(() => {
     const today = now.toISOString().slice(0, 10);
@@ -264,15 +297,53 @@ export function OperationsHub({
 
   // Scheduled interventions are generated from active schedules, with logs used
   // only to remove completed occurrences.
-  const dueInterventions = useMemo(() => {
-    return getUpcomingScheduledInterventions(
-      problemInterventions,
-      problemInterventionLogs,
-      carePlanProblems,
+  const interventionQueue = useMemo(() => {
+    return getUpcomingCareInterventionsLegacyShape({
+      interventions: problemInterventions,
+      logs: problemInterventionLogs,
+      problems: carePlanProblems,
+      residents,
+      operationalContext,
+      authorizationContext: {
+        userAccountId: currentUser.id,
+        staffMemberId: String(operationalContext.staffMemberId || currentUser.id),
+        roleKeys: [String(operationalContext.effectiveRoleKey), currentUser.role],
+        authorisedNursingHomeIds: [String(operationalContext.nursingHomeId)],
+        authorisedWardIds: operationalContext.wardIds.map(String),
+        capabilities: [
+          "work_item.view",
+          "care_action.view",
+          "care_action.complete",
+          "care_action.defer",
+          "work_item.start",
+          "work_item.mark_missed",
+        ],
+        sourceCapabilities: ["care_action.view"],
+      },
       now,
-      { residentIds: filteredResidentIds, currentUser, until: new Date(operationalContext.shiftEndAt), operationalContext },
-    );
-  }, [carePlanProblems, currentUser, filteredResidentIds, now, operationalContext, problemInterventionLogs, problemInterventions]);
+      scope: {
+        residentIds: filteredResidentIds,
+        currentUser,
+        until: new Date(operationalContext.shiftEndAt),
+      },
+      placementForResident: (resident) =>
+        placementByResidentId.get(resident.id) || {
+          nursingHomeId: resident.facilityId || String(operationalContext.nursingHomeId),
+          roomId: resident.roomId,
+        },
+    });
+  }, [
+    carePlanProblems,
+    currentUser,
+    filteredResidentIds,
+    now,
+    operationalContext,
+    placementByResidentId,
+    problemInterventionLogs,
+    problemInterventions,
+    residents,
+  ]);
+  const dueInterventions = interventionQueue.items;
 
   const handoverRows = useMemo(() => {
     return getHandoversForOperationalContext({ acknowledgement: "unread", now: now.toISOString() })
@@ -284,7 +355,9 @@ export function OperationsHub({
     () =>
       handoverRows.filter((handover) => {
         const readBy = Array.isArray(handover.readBy) ? handover.readBy : [];
-        const acknowledgedBy = Array.isArray(handover.acknowledgedBy) ? handover.acknowledgedBy : [];
+        const acknowledgedBy = Array.isArray(handover.acknowledgedBy)
+          ? handover.acknowledgedBy
+          : [];
         return !readBy.includes(currentUserName) || !acknowledgedBy.includes(currentUserName);
       }),
     [currentUserName, handoverRows],
@@ -304,7 +377,6 @@ export function OperationsHub({
   );
 
   const next4HoursItems = useMemo(() => {
-    const cutoff = new Date(operationalWindows.nextFourHoursEnd);
     type N4H = {
       id: string;
       timeLabel: string;
@@ -316,9 +388,8 @@ export function OperationsHub({
       isTask: boolean;
     };
     const items: N4H[] = [];
-    for (const item of dueInterventions) {
+    for (const item of interventionQueue.nextFourHoursItems) {
       if (!item.dueAt) continue;
-      if (item.status !== "overdue" && item.dueAt.getTime() > cutoff.getTime()) continue;
       const r = residentById.get(item.intervention.residentId);
       const overdueMin =
         item.status === "overdue"
@@ -344,7 +415,9 @@ export function OperationsHub({
       items.push({
         id: `task-${task.id}`,
         timeLabel: "Today",
-        sortKey: new Date(task.dueDate.includes("T") ? task.dueDate : `${task.dueDate}T23:59`).getTime(),
+        sortKey: new Date(
+          task.dueDate.includes("T") ? task.dueDate : `${task.dueDate}T23:59`,
+        ).getTime(),
         residentId: task.residentId,
         residentName: r ? `${r.firstName} ${r.lastName}` : "Unknown",
         room: r?.roomNumber || "—",
@@ -353,7 +426,7 @@ export function OperationsHub({
       });
     }
     return items.sort((a, b) => a.sortKey - b.sortKey);
-  }, [dueInterventions, dueTasks, now, operationalWindows.nextFourHoursEnd, residentById]);
+  }, [dueTasks, interventionQueue.nextFourHoursItems, now, residentById]);
 
   const INTV_DISPLAY_LIMIT = 8;
   const INTV_GROUPS: { status: ScheduledInterventionStatus; label: string; cls: string }[] = [
@@ -504,9 +577,7 @@ export function OperationsHub({
                 <div key={handover.id} className="rounded-md border p-3 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-medium capitalize">
-                        {handover.shift} handover
-                      </div>
+                      <div className="font-medium capitalize">{handover.shift} handover</div>
                       <div className="text-xs text-muted-foreground">
                         {resident
                           ? `${resident.firstName} ${resident.lastName} · Room ${resident.roomNumber}`
@@ -520,7 +591,9 @@ export function OperationsHub({
                           {handover.priority}
                         </Badge>
                       )}
-                      {!read && <Badge className="bg-warning text-warning-foreground">Unread</Badge>}
+                      {!read && (
+                        <Badge className="bg-warning text-warning-foreground">Unread</Badge>
+                      )}
                       {read && !acknowledged && <Badge variant="outline">Read</Badge>}
                       {acknowledged && <Badge variant="secondary">Acknowledged</Badge>}
                     </div>

@@ -11,6 +11,8 @@ import type { WorkAuthContext, WorkItem, WorkQueueFilters, WorkQueueItem } from 
 export interface WorkQueueReferenceData {
   residents: Resident[];
   wards: Ward[];
+  rooms?: { id: string; label: string; nursingHomeId?: string; wardId?: string }[];
+  beds?: { id: string; label: string }[];
 }
 const historyStatuses = new Set(["completed", "missed", "cancelled", "not_applicable"]);
 const assignmentVisible = (item: WorkItem, auth: WorkAuthContext) => {
@@ -66,10 +68,23 @@ export function getWorkItemsForOperationalContext(
     if (filters.persistedStatuses && !filters.persistedStatuses.includes(item.persistedStatus))
       continue;
     if (filters.priorities && !filters.priorities.includes(item.priority)) continue;
+    if (
+      filters.clinicalUrgencies &&
+      (!item.clinicalUrgency || !filters.clinicalUrgencies.includes(item.clinicalUrgency))
+    )
+      continue;
     if (filters.wardIds && (!item.wardId || !filters.wardIds.includes(String(item.wardId))))
       continue;
     if (filters.residentId && String(item.residentId) !== filters.residentId) continue;
+    if (filters.roomIds && (!item.roomId || !filters.roomIds.includes(String(item.roomId))))
+      continue;
     if (filters.sourceModules && !filters.sourceModules.includes(item.source.sourceModule))
+      continue;
+    if (filters.sourceTypes && !filters.sourceTypes.includes(item.source.sourceType)) continue;
+    if (
+      filters.origin &&
+      (filters.origin === "rule_generated") !== Boolean(item.source.createdByRuleId)
+    )
       continue;
     const dueAt = item.schedule.effectiveDueAt || item.schedule.dueAt;
     if (filters.dueFrom && (!dueAt || Date.parse(dueAt) < Date.parse(filters.dueFrom))) continue;
@@ -103,19 +118,45 @@ export function getWorkItemsForOperationalContext(
       workType: item.workType,
       title: item.title,
       summary: item.summary,
+      nursingHomeId: String(item.nursingHomeId),
       resident: resident
         ? {
             id: resident.id,
             name: `${resident.firstName} ${resident.lastName}`,
+            displayName: `${resident.firstName} ${resident.lastName}`,
             preferredName: resident.preferredName,
           }
         : undefined,
       ward: ward ? { id: ward.id, name: ward.name } : undefined,
       room: resident ? { id: resident.roomId, label: resident.roomNumber } : undefined,
+      bed: item.bedId ? { id: item.bedId } : undefined,
+      originalDueAt: item.schedule.originalDueAt,
+      effectiveDueAt: dueAt,
       dueAt,
       displayStatus,
       dueDescription: getWorkStatusDescription(item, displayStatus, due),
       priority: item.priority,
+      clinicalUrgency: item.clinicalUrgency,
+      source: {
+        sourceType: item.source.sourceType,
+        sourceModule: item.source.sourceModule,
+        sourceEntityType: item.source.sourceEntityType,
+        sourceEntityId: item.source.sourceEntityId,
+        sourceOccurrenceId: item.source.sourceOccurrenceId,
+        parentEntityType: item.source.parentEntityType,
+        parentEntityId: item.source.parentEntityId,
+        route: item.source.route,
+      },
+      assignment: {
+        type: item.assignment.type,
+        label:
+          item.assignment.assignedRoleKey ||
+          String(
+            item.assignment.assignedStaffMemberId ||
+              item.assignment.assignedUserAccountId ||
+              (item.assignment.type === "ward_queue" ? "Ward queue" : "Unassigned"),
+          ),
+      },
       assignmentLabel:
         item.assignment.assignedRoleKey ||
         String(
@@ -130,6 +171,7 @@ export function getWorkItemsForOperationalContext(
         complete: can("work_item.complete") && handler.supportsDirectCompletion(item),
         defer: can("work_item.defer") && handler.supportsDeferral(item),
         miss: can("work_item.mark_missed") && handler.supportsMissed(item),
+        markMissed: can("work_item.mark_missed") && handler.supportsMissed(item),
         cancel: can("work_item.cancel") && handler.supportsCancellation(item),
         markNotApplicable:
           can("work_item.mark_not_applicable") && handler.supportsNotApplicable(item),

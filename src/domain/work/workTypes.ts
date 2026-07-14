@@ -151,6 +151,7 @@ export interface WorkItem {
   nursingHomeId: NursingHomeId | string;
   wardId?: WardId | string;
   roomId?: RoomId | string;
+  bedId?: string;
   residentId?: ResidentId | string;
   shiftId?: ShiftId | string;
   operationalDate?: string;
@@ -159,6 +160,11 @@ export interface WorkItem {
   assignment: WorkAssignment;
   priority: WorkPriority;
   clinicalUrgency?: ClinicalUrgency;
+  careContext?: {
+    carePlanId?: string;
+    carePlanItemId?: string;
+    rltDomainId?: string;
+  };
   completion?: WorkCompletion;
   deferral?: WorkDeferral;
   cancellation?: WorkCancellation;
@@ -230,12 +236,17 @@ export interface WorkQueueFilters {
   displayStatuses?: WorkDisplayStatus[];
   persistedStatuses?: WorkPersistedStatus[];
   priorities?: WorkPriority[];
+  clinicalUrgencies?: ClinicalUrgency[];
   wardIds?: string[];
   residentId?: string;
+  roomIds?: string[];
   assignment?: "mine" | "role" | "ward" | "unassigned" | "all";
   dueFrom?: string;
   dueTo?: string;
   sourceModules?: WorkSourceReference["sourceModule"][];
+  sourceTypes?: WorkSourceType[];
+  origin?: "rule_generated" | "manual";
+  dueSections?: ("overdue" | "dueNow" | "nextHour" | "nextFourHours" | "today" | "thisShift")[];
   mode?: "active" | "history";
   now?: string;
 }
@@ -245,13 +256,30 @@ export interface WorkQueueItem {
   workType: WorkType;
   title: string;
   summary?: string;
-  resident?: { id: string; name: string; preferredName?: string };
+  resident?: { id: string; name: string; displayName: string; preferredName?: string };
+  nursingHomeId: string;
   ward?: { id: string; name: string };
   room?: { id?: string; label?: string };
+  bed?: { id?: string; label?: string };
+  originalDueAt?: string;
+  effectiveDueAt?: string;
   dueAt?: string;
   displayStatus: WorkDisplayStatus;
   dueDescription?: string;
   priority: WorkPriority;
+  clinicalUrgency?: ClinicalUrgency;
+  source: Pick<
+    WorkSourceReference,
+    | "sourceType"
+    | "sourceModule"
+    | "sourceEntityType"
+    | "sourceEntityId"
+    | "sourceOccurrenceId"
+    | "parentEntityType"
+    | "parentEntityId"
+    | "route"
+  >;
+  assignment: { type: WorkAssignmentType; label?: string };
   assignmentLabel?: string;
   route: string;
   allowedActions: {
@@ -260,6 +288,7 @@ export interface WorkQueueItem {
     complete: boolean;
     defer: boolean;
     miss: boolean;
+    markMissed: boolean;
     cancel: boolean;
     markNotApplicable: boolean;
   };
