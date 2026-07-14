@@ -42,6 +42,11 @@ export type Permission =
   | "weight_intelligence.view" | "weight_intelligence.view_history" | "weight_intelligence.view_comparisons" | "weight_intelligence.view_reports" | "weight_intelligence.export_reports" | "weight_intelligence.manage_schedule"
   | "weight_concern.view" | "weight_concern.acknowledge" | "weight_concern.escalate" | "weight_concern.resolve" | "weight_concern.dismiss" | "weight_concern.recalculate" | "weight_concern.view_don_attention" | "weight_concern.view_cnm_queue"
   | "assessment.must.view" | "assessment.must.record"
+  | "clinical_follow_up.view" | "clinical_follow_up.create_manual" | "clinical_follow_up.manage_policy" | "clinical_follow_up.approve_policy" | "clinical_follow_up.reassign" | "clinical_follow_up.complete"
+  | "clinical_escalation.view" | "clinical_escalation.record" | "clinical_escalation.edit_draft" | "clinical_escalation.complete" | "clinical_escalation.view_sensitive"
+  | "clinical_transfer_decision.record" | "clinical_transfer_decision.view"
+  | "deterioration_queue.view" | "deterioration_queue.view_multi_ward" | "deterioration_queue.acknowledge" | "deterioration_queue.start_review" | "deterioration_queue.reassign" | "deterioration_queue.escalate" | "deterioration_queue.resolve" | "deterioration_queue.dismiss"
+  | "stop_and_watch.submit" | "stop_and_watch.view" | "stop_and_watch.acknowledge" | "stop_and_watch.review" | "stop_and_watch.escalate" | "stop_and_watch.resolve"
   | "resident_baseline.view" | "resident_baseline.view_source" | "resident_baseline.create" | "resident_baseline.edit_draft" | "resident_baseline.submit_approval" | "resident_baseline.approve" | "resident_baseline.review" | "resident_baseline.supersede" | "resident_baseline.revoke" | "resident_baseline.correct" | "resident_baseline.view_history" | "resident_baseline.manage_oxygen_target"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
@@ -200,6 +205,28 @@ export function can(role: Role, perm: Permission): boolean {
     if (perm === "weight_concern.view_cnm_queue") return role === "cnm" || role === "don";
   }
   if (perm.startsWith("assessment.must.")) return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+  if (perm.startsWith("clinical_follow_up.")) {
+    if (perm === "clinical_follow_up.view") return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+    if (["clinical_follow_up.create_manual", "clinical_follow_up.reassign", "clinical_follow_up.complete"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+    if (perm === "clinical_follow_up.manage_policy") return role === "cnm" || role === "don";
+    if (perm === "clinical_follow_up.approve_policy") return role === "don";
+  }
+  if (perm.startsWith("clinical_escalation.")) {
+    if (perm === "clinical_escalation.view") return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+    if (["clinical_escalation.record", "clinical_escalation.edit_draft", "clinical_escalation.complete"].includes(perm)) return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+    if (perm === "clinical_escalation.view_sensitive") return role === "doctor" || role === "cnm" || role === "don";
+  }
+  if (perm.startsWith("clinical_transfer_decision.")) return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+  if (perm.startsWith("deterioration_queue.")) {
+    if (perm === "deterioration_queue.view") return role === "nurse" || role === "doctor" || role === "cnm" || role === "don";
+    if (perm === "deterioration_queue.view_multi_ward") return role === "cnm" || role === "don";
+    if (["deterioration_queue.acknowledge", "deterioration_queue.start_review"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+    if (["deterioration_queue.reassign", "deterioration_queue.escalate", "deterioration_queue.resolve", "deterioration_queue.dismiss"].includes(perm)) return role === "cnm" || role === "don" || role === "doctor";
+  }
+  if (perm.startsWith("stop_and_watch.")) {
+    if (["stop_and_watch.submit", "stop_and_watch.view"].includes(perm)) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
+    if (["stop_and_watch.acknowledge", "stop_and_watch.review", "stop_and_watch.escalate", "stop_and_watch.resolve"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+  }
   return Boolean(matrix[role]?.includes(perm));
 }
 export function canAny(role: Role, perms: Permission[]): boolean {
