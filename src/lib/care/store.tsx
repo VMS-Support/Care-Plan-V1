@@ -88,8 +88,14 @@ import type {
   StaffEmergencyContact,
   StaffMemberStatus,
   EmploymentRecord,
+  EmploymentHomeAssignment,
+  EmploymentRoleAssignment,
+  WorkforceEmploymentEvent,
   RoleAssignment,
   ProfessionalRegistration,
+  ProfessionalRegistrationBody,
+  ProfessionalRegistrationEvent,
+  ProfessionalRegistrationRequirement,
   HomeAssignment,
   WardCompetency,
   RosterAssignment,
@@ -102,8 +108,15 @@ import type {
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
+  createEmploymentRecord,
+  createProfessionalRegistration,
   getAuthorisedWorkforceScope,
+  appendRegistrationVerification,
+  updateEmploymentRecord as updateEmploymentRecordService,
+  updateProfessionalRegistration as updateProfessionalRegistrationService,
   updateStaffMemberRecord,
+  type CreateEmploymentRecordCommand,
+  type CreateProfessionalRegistrationCommand,
   type SaveStaffMemberInput,
 } from "@/domain/workforce";
 import {
@@ -1882,8 +1895,20 @@ function seedData() {
     staffEmergencyContacts: [] as StaffEmergencyContact[],
     staffDirectoryEvents: [] as StaffDirectoryEvent[],
     employmentRecords: [] as EmploymentRecord[],
+    employmentHomeAssignments: [] as EmploymentHomeAssignment[],
+    employmentRoleAssignments: [] as EmploymentRoleAssignment[],
+    workforceEmploymentEvents: [] as WorkforceEmploymentEvent[],
     roleAssignments: [] as RoleAssignment[],
     professionalRegistrations: [] as ProfessionalRegistration[],
+    professionalRegistrationBodies: [
+      { id: "nmbi", name: "Nursing and Midwifery Board of Ireland", countryCode: "IE", active: true },
+      { id: "medical-council-ie", name: "Medical Council of Ireland", countryCode: "IE", active: true },
+    ] as ProfessionalRegistrationBody[],
+    professionalRegistrationRequirements: [
+      { id: "req-nurse-nmbi", roleKey: "NURSE", professionKey: "nurse", registrationBodyId: "nmbi", active: true },
+      { id: "req-doctor-medical-council", roleKey: "DOCTOR", professionKey: "doctor", registrationBodyId: "medical-council-ie", active: true },
+    ] as ProfessionalRegistrationRequirement[],
+    professionalRegistrationEvents: [] as ProfessionalRegistrationEvent[],
     homeAssignments: [] as HomeAssignment[],
     wardCompetencies: [] as WardCompetency[],
     rosterAssignments: [] as RosterAssignment[],
@@ -2419,6 +2444,13 @@ interface CareCtx extends Store {
   updateStaffEmergencyContact: (staffMemberId: string, contactId: string, patch: Partial<StaffEmergencyContact>) => void;
   setPrimaryStaffEmergencyContact: (staffMemberId: string, contactId: string) => void;
   inactivateStaffEmergencyContact: (staffMemberId: string, contactId: string) => void;
+  createEmploymentRecord: (input: CreateEmploymentRecordCommand) => EmploymentRecord;
+  updateEmploymentRecord: (id: string, input: Partial<CreateEmploymentRecordCommand>) => void;
+  createProfessionalRegistration: (input: CreateProfessionalRegistrationCommand) => ProfessionalRegistration;
+  updateProfessionalRegistration: (id: string, input: Partial<CreateProfessionalRegistrationCommand>) => void;
+  submitProfessionalRegistrationVerification: (id: string) => void;
+  verifyProfessionalRegistration: (id: string, notes?: string) => void;
+  failProfessionalRegistrationVerification: (id: string, notes?: string) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -3608,6 +3640,97 @@ export function CareProvider({ children }: { children: ReactNode }) {
           staffEmergencyContacts: s.staffEmergencyContacts.map((item) => String(item.staffMemberId) === staffMemberId && item.id === contactId ? { ...item, active: false, isPrimary: false, updatedAt: now } : item),
           staffDirectoryEvents: [createStaffDirectoryEvent({ type: "StaffEmergencyContactInactivated", staffMemberId, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["active"], occurredAt: now }), ...(s.staffDirectoryEvents || [])],
         }));
+      },
+      createEmploymentRecord: (input) => {
+        const record = createEmploymentRecord(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const homeAssignment: EmploymentHomeAssignment | undefined = record.primaryNursingHomeId ? {
+          id: `employment-home-assignment-${uid()}`,
+          employmentRecordId: record.id,
+          staffMemberId: record.staffMemberId,
+          nursingHomeId: record.primaryNursingHomeId,
+          assignmentType: "primary",
+          status: "active",
+          effectiveFrom: record.startDate,
+          isPrimary: true,
+          fteAtHome: record.fteValue,
+          contractedHoursPerWeekAtHome: record.contractedHoursPerWeek,
+          createdAt: now,
+          updatedAt: now,
+          createdByUserAccountId: currentUser.id as any,
+        } : undefined;
+        const roleAssignment: EmploymentRoleAssignment | undefined = record.primaryRoleKey ? {
+          id: `employment-role-assignment-${uid()}`,
+          employmentRecordId: record.id,
+          staffMemberId: record.staffMemberId,
+          roleKey: record.primaryRoleKey,
+          nursingHomeId: record.primaryNursingHomeId,
+          assignmentType: "primary",
+          status: "active",
+          effectiveFrom: record.startDate,
+          isPrimary: true,
+          fteForRole: record.fteValue,
+          contractedHoursPerWeekForRole: record.contractedHoursPerWeek,
+          createdAt: now,
+          updatedAt: now,
+          createdByUserAccountId: currentUser.id as any,
+        } : undefined;
+        const event: WorkforceEmploymentEvent = { id: `employment-event-${uid()}`, type: "EmploymentRecordCreated", employmentRecordId: record.id, staffMemberId: record.staffMemberId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: ["employeeNumber", "contractType", "status", "startDate", "primaryNursingHomeId", "primaryRoleKey"] };
+        setStore((s) => ({
+          ...s,
+          employmentRecords: [record, ...s.employmentRecords],
+          employmentHomeAssignments: homeAssignment ? [homeAssignment, ...s.employmentHomeAssignments] : s.employmentHomeAssignments,
+          employmentRoleAssignments: roleAssignment ? [roleAssignment, ...s.employmentRoleAssignments] : s.employmentRoleAssignments,
+          workforceEmploymentEvents: [event, ...(s.workforceEmploymentEvents || [])],
+          auditLogs: [{ id: uid(), facilityId: record.primaryNursingHomeId ? String(record.primaryNursingHomeId) : activeFacilityId, user: currentUserName, role: currentRole, action: "Employment Record created", entity: String(record.id), entityType: "employment_record", timestamp: now, after: JSON.stringify({ employeeNumber: record.employeeNumber, status: record.status }) }, ...s.auditLogs].slice(0, 500),
+        }));
+        return record;
+      },
+      updateEmploymentRecord: (id, input) => {
+        const current = store.employmentRecords.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Employment Record could not be loaded.");
+        const next = updateEmploymentRecordService(store, current, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: WorkforceEmploymentEvent = { id: `employment-event-${uid()}`, type: input.status && input.status !== current.status ? "EmploymentRecordStatusChanged" : "EmploymentRecordUpdated", employmentRecordId: next.id, staffMemberId: next.staffMemberId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: Object.keys(input) };
+        setStore((s) => ({ ...s, employmentRecords: s.employmentRecords.map((record) => String(record.id) === id ? next : record), workforceEmploymentEvents: [event, ...(s.workforceEmploymentEvents || [])] }));
+      },
+      createProfessionalRegistration: (input) => {
+        const registration = createProfessionalRegistration(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: ProfessionalRegistrationEvent = { id: `professional-registration-event-${uid()}`, type: "ProfessionalRegistrationCreated", registrationId: registration.id, staffMemberId: registration.staffMemberId, employmentRecordId: registration.employmentRecordId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: ["registrationBody", "profession", "registrationNumber", "expiryDate", "verificationStatus"] };
+        setStore((s) => ({
+          ...s,
+          professionalRegistrations: [registration, ...s.professionalRegistrations],
+          professionalRegistrationEvents: [event, ...(s.professionalRegistrationEvents || [])],
+          auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Professional Registration created", entity: String(registration.id), entityType: "professional_registration", timestamp: now, after: JSON.stringify({ body: registration.registrationBody, profession: registration.profession, expiryDate: registration.expiryDate }) }, ...s.auditLogs].slice(0, 500),
+        }));
+        return registration;
+      },
+      updateProfessionalRegistration: (id, input) => {
+        const current = store.professionalRegistrations.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Professional Registration could not be loaded.");
+        const next = updateProfessionalRegistrationService(store, current, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: ProfessionalRegistrationEvent = { id: `professional-registration-event-${uid()}`, type: "ProfessionalRegistrationUpdated", registrationId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: Object.keys(input) };
+        setStore((s) => ({ ...s, professionalRegistrations: s.professionalRegistrations.map((record) => String(record.id) === id ? next : record), professionalRegistrationEvents: [event, ...(s.professionalRegistrationEvents || [])] }));
+      },
+      submitProfessionalRegistrationVerification: (id) => {
+        const current = store.professionalRegistrations.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Professional Registration could not be loaded.");
+        const next = appendRegistrationVerification(current, "submitted", currentUser.id);
+        setStore((s) => ({ ...s, professionalRegistrations: s.professionalRegistrations.map((record) => String(record.id) === id ? next : record) }));
+      },
+      verifyProfessionalRegistration: (id, notes) => {
+        const current = store.professionalRegistrations.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Professional Registration could not be loaded.");
+        const next = appendRegistrationVerification({ ...current, status: "current" }, "verified", currentUser.id, notes);
+        setStore((s) => ({ ...s, professionalRegistrations: s.professionalRegistrations.map((record) => String(record.id) === id ? next : record) }));
+      },
+      failProfessionalRegistrationVerification: (id, notes) => {
+        const current = store.professionalRegistrations.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Professional Registration could not be loaded.");
+        const next = appendRegistrationVerification(current, "failed", currentUser.id, notes);
+        setStore((s) => ({ ...s, professionalRegistrations: s.professionalRegistrations.map((record) => String(record.id) === id ? next : record) }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

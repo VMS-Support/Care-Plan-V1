@@ -78,7 +78,18 @@ export type Permission =
   | "staff_directory.edit_contact_details" | "staff_directory.view_address" | "staff_directory.edit_address"
   | "staff_directory.view_emergency_contacts" | "staff_directory.manage_emergency_contacts"
   | "staff_directory.view_account_link" | "staff_directory.manage_account_link" | "staff_directory.upload_photo"
-  | "staff_directory.correct_staff_number" | "staff_directory.view_metrics";
+  | "staff_directory.correct_staff_number" | "staff_directory.view_metrics"
+  | "employment_record.view" | "employment_record.create" | "employment_record.edit" | "employment_record.change_status"
+  | "employment_record.view_salary" | "employment_record.view_payroll" | "employment_record.manage_assignments"
+  | "employment_record.view_metrics" | "professional_registration.view" | "professional_registration.view_all_homes"
+  | "professional_registration.create" | "professional_registration.edit_draft" | "professional_registration.submit_verification"
+  | "professional_registration.verify" | "professional_registration.fail_verification" | "professional_registration.reverify"
+  | "professional_registration.renew" | "professional_registration.suspend" | "professional_registration.revoke"
+  | "professional_registration.enter_in_error" | "professional_registration.view_number"
+  | "professional_registration.view_documents" | "professional_registration.view_conditions"
+  | "professional_registration.edit_conditions" | "professional_registration.view_verification_history"
+  | "professional_registration.manage_bodies" | "professional_registration.manage_requirements"
+  | "professional_registration.view_compliance" | "professional_registration.view_alerts";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [

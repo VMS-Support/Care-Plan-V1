@@ -47,6 +47,33 @@ export type EmploymentType =
   | "volunteer"
   | "other";
 export type EmploymentStatus = "planned" | "active" | "on_leave" | "suspended" | "ended";
+export type EmploymentRecordStatus =
+  | "draft"
+  | "pre_employment"
+  | "active"
+  | "on_leave"
+  | "suspended"
+  | "notice_period"
+  | "ended"
+  | "cancelled"
+  | "entered_in_error";
+export type EmploymentContractType =
+  | "permanent_full_time"
+  | "permanent_part_time"
+  | "fixed_term_full_time"
+  | "fixed_term_part_time"
+  | "casual"
+  | "zero_hours"
+  | "temporary"
+  | "relief"
+  | "agency"
+  | "secondment"
+  | "locum"
+  | "volunteer"
+  | "other";
+export type EmploymentHomeAssignmentType = "primary" | "secondary" | "temporary_cover" | "secondment" | "floating" | "other";
+export type EmploymentAssignmentStatus = "planned" | "active" | "ended" | "cancelled" | "entered_in_error";
+export type EmploymentRoleAssignmentType = "primary" | "secondary" | "acting" | "temporary_cover" | "development" | "other";
 export type RegistrationStatus =
   | "active"
   | "expiring"
@@ -54,6 +81,8 @@ export type RegistrationStatus =
   | "suspended"
   | "not_required"
   | "unknown";
+export type ProfessionalRegistrationStatus = "draft" | "current" | "expired" | "suspended" | "revoked" | "entered_in_error";
+export type ProfessionalRegistrationVerificationStatus = "not_submitted" | "submitted" | "verified" | "failed" | "unable_to_verify" | "stale";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -190,19 +219,75 @@ export interface EmploymentRecord {
   staffMemberId: StaffMemberId;
   nursingHomeId: NursingHomeId;
   enterpriseId?: EnterpriseId;
+  employeeNumber?: string;
+  contractType?: EmploymentContractType;
+  status?: EmploymentRecordStatus;
   employmentType: EmploymentType;
   employmentStatus: EmploymentStatus;
   jobTitle: string;
   department?: string;
   startDate: string;
   endDate?: string;
+  probationEndDate?: string;
+  fteValue?: number;
   contractedHoursPerWeek?: number;
+  contractedHoursPerPeriod?: number;
+  contractedHoursPeriod?: "week" | "fortnight" | "month";
+  salaryGradeId?: string;
+  salaryGradeLabel?: string;
+  payrollId?: string;
+  primaryNursingHomeId?: NursingHomeId;
+  primaryRoleKey?: string;
+  employmentCategory?: "clinical" | "care" | "management" | "administration" | "housekeeping" | "maintenance" | "catering" | "allied_health" | "medical" | "other";
+  sourceReference?: string;
+  notes?: string;
+  isPrimaryEmployment?: boolean;
   managerStaffMemberId?: StaffMemberId;
   agencyName?: string;
   createdAt: string;
   updatedAt: string;
   createdBy?: UserAccountId;
   updatedBy?: UserAccountId;
+  createdByUserAccountId?: UserAccountId;
+  updatedByUserAccountId?: UserAccountId;
+}
+
+export interface EmploymentHomeAssignment {
+  id: string;
+  employmentRecordId: EmploymentRecordId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  assignmentType: EmploymentHomeAssignmentType;
+  status: EmploymentAssignmentStatus;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  isPrimary: boolean;
+  contractedHoursPerWeekAtHome?: number;
+  fteAtHome?: number;
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+}
+
+export interface EmploymentRoleAssignment {
+  id: string;
+  employmentRecordId: EmploymentRecordId;
+  staffMemberId: StaffMemberId;
+  roleKey: string;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  assignmentType: EmploymentRoleAssignmentType;
+  status: EmploymentAssignmentStatus;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  isPrimary: boolean;
+  fteForRole?: number;
+  contractedHoursPerWeekForRole?: number;
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
 }
 
 export interface RoleAssignment {
@@ -226,17 +311,91 @@ export interface RoleAssignment {
 export interface ProfessionalRegistration {
   id: ProfessionalRegistrationId;
   staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  registrationBodyId?: string;
   profession: "nurse" | "doctor" | "allied_health" | "other";
+  professionKey?: string;
+  registrationType?: string;
   registrationBody: string;
   registrationNumber?: string;
+  normalisedRegistrationNumber?: string;
   registrationStatus: RegistrationStatus;
+  status?: ProfessionalRegistrationStatus;
+  verificationStatus?: ProfessionalRegistrationVerificationStatus;
   issueDate?: string;
   expiryDate?: string;
+  reviewDate?: string;
   verifiedAt?: string;
   verifiedBy?: UserAccountId;
+  verificationHistory?: ProfessionalRegistrationVerification[];
+  documentIds?: string[];
+  restrictionsOrConditionsPresent?: boolean;
+  restrictedSummary?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  createdByUserAccountId?: UserAccountId;
+  updatedByUserAccountId?: UserAccountId;
+}
+
+export interface ProfessionalRegistrationBody {
+  id: string;
+  name: string;
+  countryCode?: string;
+  active: boolean;
+}
+
+export interface ProfessionalRegistrationRequirement {
+  id: string;
+  roleKey: string;
+  professionKey: string;
+  registrationBodyId?: string;
+  active: boolean;
+}
+
+export interface ProfessionalRegistrationVerification {
+  id: string;
+  registrationId: ProfessionalRegistrationId;
+  status: ProfessionalRegistrationVerificationStatus;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface WorkforceEmploymentEvent {
+  id: string;
+  type:
+    | "EmploymentRecordCreated"
+    | "EmploymentRecordUpdated"
+    | "EmploymentRecordStatusChanged"
+    | "EmploymentHomeAssignmentAdded"
+    | "EmploymentRoleAssignmentAdded";
+  employmentRecordId: EmploymentRecordId | string;
+  staffMemberId: StaffMemberId | string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  changedFields?: string[];
+}
+
+export interface ProfessionalRegistrationEvent {
+  id: string;
+  type:
+    | "ProfessionalRegistrationCreated"
+    | "ProfessionalRegistrationUpdated"
+    | "ProfessionalRegistrationSubmittedForVerification"
+    | "ProfessionalRegistrationVerified"
+    | "ProfessionalRegistrationVerificationFailed"
+    | "ProfessionalRegistrationRenewed"
+    | "ProfessionalRegistrationSuspended"
+    | "ProfessionalRegistrationRevoked"
+    | "ProfessionalRegistrationEnteredInError";
+  registrationId: ProfessionalRegistrationId | string;
+  staffMemberId: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  changedFields?: string[];
 }
 
 export interface HomeAssignment {

@@ -26,7 +26,11 @@ import {
   WORKFORCE_CAPABILITIES,
   getActiveStaffMetric,
   getAuthorisedWorkforceScope,
+  getExpiringProfessionalRegistrationsMetric,
+  getProfessionalRegistrationAlerts,
+  getProfessionalRegistrationComplianceMetric,
   getStaffBreakdownByRole,
+  getTotalFteMetric,
   getTotalStaffMetric,
 } from "@/domain/workforce";
 
@@ -45,6 +49,10 @@ function StaffManagementDashboard() {
   const workforceAuth = { user: care.currentUser, capabilities: workforceCapabilities, scope: workforceScope };
   const totalStaffMetric = getTotalStaffMetric(care, workforceAuth);
   const activeStaffMetric = getActiveStaffMetric(care, workforceAuth);
+  const totalFteMetric = getTotalFteMetric(care.employmentRecords);
+  const registrationCompliance = getProfessionalRegistrationComplianceMetric({ staffMembers: care.staffMembers, employmentRecords: care.employmentRecords, registrations: care.professionalRegistrations });
+  const expiringRegistrations = getExpiringProfessionalRegistrationsMetric(care.professionalRegistrations);
+  const registrationAlerts = getProfessionalRegistrationAlerts({ registrations: care.professionalRegistrations, staffMembers: care.staffMembers });
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -84,13 +92,13 @@ function StaffManagementDashboard() {
       </div>
 
       <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-8">
-        <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? "Live directory metric" : "Restricted"} percent={72} tone="blue" />
+        <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? `FTE: ${totalFteMetric.value}` : "Restricted"} percent={72} tone="blue" />
         <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
         <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value="18" sub="Open" foot="12% of Budgeted" percent={72} tone="orange" />
         <StaffKpi icon={UserPlus} title="Agency Staff Today" value="27" sub="9%" foot="vs 8% Last Month" percent={42} tone="purple" trend="up" />
         <StaffKpi icon={HeartPulse} title="Sick Leave Today" value="23" sub="7%" foot="vs 5% Last Month" percent={32} tone="red" trend="up" />
         <StaffKpi icon={Plane} title="On Annual Leave" value="31" sub="10%" foot="vs 9% Last Month" percent={48} tone="blue" trend="down" />
-        <StaffKpi icon={FileBadge} title="Visa Compliance" value="96%" sub="Compliant" foot="Due for Review: 12" percent={96} tone="green" compact />
+        <StaffKpi icon={FileBadge} title="Registration Compliance" value={registrationCompliance.percentage === undefined ? "N/A" : `${registrationCompliance.percentage}%`} sub="Compliant" foot={`Expiring: ${expiringRegistrations.value}`} percent={registrationCompliance.percentage ?? 0} tone="green" compact />
         <StaffKpi icon={GraduationCap} title="Training Compliance" value="92%" sub="Compliant" foot="Overdue: 15 Staff" percent={92} tone="purple" compact />
       </section>
 
@@ -173,7 +181,8 @@ function StaffManagementDashboard() {
         <Panel title="Key Alerts">
           <div className="space-y-4">
             {[
-              ["Visas Expiring Soon", "6", "orange"],
+              ["Registrations Expiring", String(expiringRegistrations.value), "orange"],
+              ["Registration Alerts", String(registrationAlerts.length), registrationAlerts.length ? "red" : "purple"],
               ["Training Overdue", "15", "red"],
               ["Mandatory Documents Expiring", "8", "orange"],
               ["Probation Reviews Due", "5", "purple"],
