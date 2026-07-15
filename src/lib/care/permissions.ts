@@ -47,6 +47,7 @@ export type Permission =
   | "clinical_transfer_decision.record" | "clinical_transfer_decision.view"
   | "deterioration_queue.view" | "deterioration_queue.view_multi_ward" | "deterioration_queue.acknowledge" | "deterioration_queue.start_review" | "deterioration_queue.reassign" | "deterioration_queue.escalate" | "deterioration_queue.resolve" | "deterioration_queue.dismiss"
   | "stop_and_watch.submit" | "stop_and_watch.view" | "stop_and_watch.acknowledge" | "stop_and_watch.review" | "stop_and_watch.escalate" | "stop_and_watch.resolve"
+  | "daily_care.view" | "daily_care.record" | "daily_care.record_personal_care" | "daily_care.record_dressing" | "daily_care.record_oral_care" | "daily_care.record_toileting" | "daily_care.record_continence" | "daily_care.record_repositioning" | "daily_care.record_food" | "daily_care.record_fluids" | "daily_care.record_mobility" | "daily_care.record_comfort" | "daily_care.record_sleep" | "daily_care.record_mood" | "daily_care.record_behaviour" | "daily_care.record_activity" | "daily_care.record_refusal" | "daily_care.record_skin_observation" | "daily_care.correct" | "daily_care.enter_in_error" | "daily_care.view_sensitive" | "daily_care.record_for_another_staff_member"
   | "resident_baseline.view" | "resident_baseline.view_source" | "resident_baseline.create" | "resident_baseline.edit_draft" | "resident_baseline.submit_approval" | "resident_baseline.approve" | "resident_baseline.review" | "resident_baseline.supersede" | "resident_baseline.revoke" | "resident_baseline.correct" | "resident_baseline.view_history" | "resident_baseline.manage_oxygen_target"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
   | "rlt_dependency.view" | "rlt_dependency.record" | "rlt_dependency.review" | "rlt_dependency.correct" | "rlt_dependency.view_history"
@@ -226,6 +227,12 @@ export function can(role: Role, perm: Permission): boolean {
   if (perm.startsWith("stop_and_watch.")) {
     if (["stop_and_watch.submit", "stop_and_watch.view"].includes(perm)) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
     if (["stop_and_watch.acknowledge", "stop_and_watch.review", "stop_and_watch.escalate", "stop_and_watch.resolve"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+  }
+  if (perm.startsWith("daily_care.")) {
+    if (["daily_care.view", "daily_care.record"].includes(perm)) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
+    if (perm.startsWith("daily_care.record_")) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
+    if (perm === "daily_care.record_for_another_staff_member") return role === "nurse" || role === "cnm" || role === "don";
+    if (["daily_care.correct", "daily_care.enter_in_error", "daily_care.view_sensitive"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
   }
   return Boolean(matrix[role]?.includes(perm));
 }

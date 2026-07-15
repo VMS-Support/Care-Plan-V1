@@ -53,7 +53,13 @@ export type DomainEventType =
   | "MedicationRefused"
   | "IncidentRecorded"
   | "HandoverCreated"
-  | "DailyCareRecorded";
+  | "DailyCareRecorded"
+  | "DailyCarePartiallyCompleted"
+  | "DailyCareDeclined"
+  | "DailyCareUnableToComplete"
+  | "DailyCareFollowUpRequested"
+  | "DailyCareEnteredInError"
+  | "DailyCareCorrected";
 
 export type EventActorType = "user" | "system" | "integration" | "migration";
 
@@ -324,13 +330,16 @@ export interface HandoverCreatedPayloadV1 {
 export interface DailyCareRecordedPayloadV1 {
   dailyCareRecordId: string;
   residentId: ResidentId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
   careType:
     | "personal_care"
+    | "dressing"
     | "oral_care"
     | "toileting"
     | "continence"
     | "food"
-    | "fluid"
+    | "fluids"
     | "repositioning"
     | "mobility"
     | "comfort"
@@ -339,14 +348,16 @@ export interface DailyCareRecordedPayloadV1 {
     | "behaviour"
     | "activity"
     | "refusal"
-    | "skin_observation"
-    | "other";
-  effectiveAt: string;
-  outcomeCode: string;
-  quantity?: number;
-  unit?: string;
-  escalationRequested?: boolean;
-  relatedRltDomainIds?: string[];
+    | "skin_observation";
+  status: "completed" | "partially_completed" | "declined" | "unable_to_complete" | "not_required" | "entered_in_error" | "corrected";
+  occurredAt: string;
+  recordedAt: string;
+  source: string;
+  relatedCareActionId?: CareActionId | string;
+  relatedWorkItemId?: string;
+  rltDomainIds?: string[];
+  actorUserAccountId: UserAccountId | string;
+  correlationId: string;
 }
 
 export type DomainEventPayloadMapV1 = {
@@ -384,6 +395,12 @@ export type DomainEventPayloadMapV1 = {
   IncidentRecorded: IncidentRecordedPayloadV1;
   HandoverCreated: HandoverCreatedPayloadV1;
   DailyCareRecorded: DailyCareRecordedPayloadV1;
+  DailyCarePartiallyCompleted: DailyCareRecordedPayloadV1;
+  DailyCareDeclined: DailyCareRecordedPayloadV1;
+  DailyCareUnableToComplete: DailyCareRecordedPayloadV1;
+  DailyCareFollowUpRequested: DailyCareRecordedPayloadV1;
+  DailyCareEnteredInError: DailyCareRecordedPayloadV1;
+  DailyCareCorrected: DailyCareRecordedPayloadV1;
 };
 
 export type AnyDomainEvent = {

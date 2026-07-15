@@ -275,6 +275,9 @@ import type {
   ResidentBaselineEvent,
   ResidentClinicalBaseline,
 } from "@/domain/baselines/residentBaselineTypes";
+import type { DailyCareDomainEvent, DailyCareRecord, RecordDailyCareCommand } from "@/domain/dailyCare";
+import { recordDailyCare as recordDailyCareService } from "@/domain/dailyCare";
+import { can } from "./permissions";
 import { DEFAULT_RULE_DEFINITIONS } from "@/domain/rules/ruleCatalog";
 import { evaluateEventAgainstRules, processRulesForEvent, replayRuleForEvent } from "@/domain/rules/ruleEngine";
 import {
@@ -1945,6 +1948,9 @@ function seedData() {
     observationSchedules: [] as ObservationSchedule[],
     residentBaselines: [] as ResidentClinicalBaseline[],
     residentBaselineEvents: [] as ResidentBaselineEvent[],
+    dailyCareRecords: [] as DailyCareRecord[],
+    dailyCareEvents: [] as DailyCareDomainEvent[],
+    dailyCareAuditRecords: [] as AuditRecord[],
   };
 }
 
@@ -2002,6 +2008,9 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "observationSchedules",
   "residentBaselines",
   "residentBaselineEvents",
+  "dailyCareRecords",
+  "dailyCareEvents",
+  "dailyCareAuditRecords",
 ];
 
 const hasFacility = (item: { facilityId?: string; nursingHomeId?: string }, facilityId: string) =>
@@ -2504,6 +2513,7 @@ interface CareCtx extends Store {
   addSleep: (s: Omit<SleepRecord, "id">) => SleepRecord;
   addBowel: (b: Omit<BowelRecord, "id">) => BowelRecord;
   addBehaviour: (b: Omit<BehaviourRecord, "id">) => BehaviourRecord;
+  recordDailyCare: (command: RecordDailyCareCommand) => DailyCareRecord;
   addIncidentAction: (a: Omit<IncidentAction, "id">) => IncidentAction;
   generateShiftSummary: (date: string, shift: ShiftSummary["shift"]) => ShiftSummary;
   // ---------- Unified Care Plan / Problems ----------
@@ -5911,6 +5921,82 @@ export function CareProvider({ children }: { children: ReactNode }) {
           timelineEvents: [ev, ...s.timelineEvents],
         }));
         return item;
+      },
+      recordDailyCare: (command) => {
+        let saved: DailyCareRecord | undefined;
+        setStore((s) => {
+          const context = s.operationalContext;
+          const capabilities = [
+            "daily_care.view",
+            "daily_care.record",
+            "daily_care.record_personal_care",
+            "daily_care.record_dressing",
+            "daily_care.record_oral_care",
+            "daily_care.record_toileting",
+            "daily_care.record_continence",
+            "daily_care.record_repositioning",
+            "daily_care.record_food",
+            "daily_care.record_fluids",
+            "daily_care.record_mobility",
+            "daily_care.record_comfort",
+            "daily_care.record_sleep",
+            "daily_care.record_mood",
+            "daily_care.record_behaviour",
+            "daily_care.record_activity",
+            "daily_care.record_refusal",
+            "daily_care.record_skin_observation",
+            "daily_care.correct",
+            "daily_care.enter_in_error",
+            "daily_care.record_for_another_staff_member",
+            "work_item.complete",
+            "work_item.mark_missed",
+            "work_item.mark_not_applicable",
+          ].filter((capability) => capability.startsWith("daily_care.") ? can(currentRole, capability as never) : true);
+          const repository = {
+            dailyCareRecords: [...s.dailyCareRecords],
+            dailyCareEvents: [...s.dailyCareEvents],
+            dailyCareAuditRecords: [...s.dailyCareAuditRecords],
+          };
+          const existingDailyCareAuditIds = new Set(repository.dailyCareAuditRecords.map((record) => record.id));
+          const result = recordDailyCareService(
+            {
+              ...command,
+              nursingHomeId: command.nursingHomeId || context.nursingHomeId,
+              wardId: command.wardId || context.wardIds[0],
+            },
+            {
+              nursingHomeId: context.nursingHomeId,
+              wardId: context.wardIds[0],
+              shiftId: context.shiftId,
+              timezone: context.timezone,
+              recordedAt: new Date().toISOString(),
+              correlationId: `daily-care-${command.clientRequestId}`,
+            },
+            {
+              userAccountId: currentUserId,
+              staffMemberId: `staff-${currentUserId}`,
+              residentIds: s.residents.map((resident) => resident.id),
+              authorisedNursingHomeIds: [context.nursingHomeId],
+              authorisedWardIds: context.wardIds,
+              capabilities,
+              sourceCapabilities: capabilities,
+            },
+            repository,
+            uid,
+          );
+          saved = result.record;
+          const newDailyCareAuditRecords = repository.dailyCareAuditRecords.filter(
+            (record) => !existingDailyCareAuditIds.has(record.id),
+          );
+          return {
+            ...s,
+            dailyCareRecords: repository.dailyCareRecords,
+            dailyCareEvents: repository.dailyCareEvents,
+            dailyCareAuditRecords: repository.dailyCareAuditRecords,
+            auditRecords: [...newDailyCareAuditRecords, ...s.auditRecords],
+          };
+        });
+        return saved!;
       },
       addIncidentAction: (a) => {
         const item: IncidentAction = { ...a, id: uid() };

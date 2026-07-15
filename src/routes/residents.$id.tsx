@@ -111,6 +111,7 @@ import { AddAssessmentModal } from "@/components/resident/modals/AddAssessmentMo
 import { IncidentDialog } from "@/components/care/IncidentDialog";
 import { VisitorDialog } from "@/components/care/VisitorDialog";
 import { OutingDialog } from "@/components/care/OutingDialog";
+import { RecordDailyCareDialog } from "@/components/dailyCare/RecordDailyCareDialog";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
@@ -330,6 +331,7 @@ function ResidentDetail() {
     updateProblemIntervention,
     updateResidentProfile,
     softDeleteResident,
+    recordDailyCare,
   } = useCare();
   const r = residents.find((x) => x.id === id);
 
@@ -347,6 +349,7 @@ function ResidentDetail() {
     assessment: boolean;
     task: boolean;
     incident: boolean;
+    dailyCare: boolean;
     mdt: boolean;
     visitor: boolean;
     outing: boolean;
@@ -358,6 +361,7 @@ function ResidentDetail() {
     assessment: false,
     task: false,
     incident: false,
+    dailyCare: false,
     mdt: false,
     visitor: false,
     outing: false,
@@ -1283,7 +1287,7 @@ function ResidentDetail() {
         canEdit={residentViewCapabilities.includes("resident_profile.edit")}
         onEdit={() => setProfileEditOpen(true)}
         actions={<>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>Record Daily Care</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>Timeline</Button>
         </>}
       />
@@ -1312,6 +1316,9 @@ function ResidentDetail() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => handleOpenModal("note")}>
                       Daily Note
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>
+                      Record Daily Care
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleOpenModal("intervention")}>
                       Intervention
@@ -3423,6 +3430,19 @@ function ResidentDetail() {
       </Dialog>
 
       {/* Modal Components */}
+      <RecordDailyCareDialog
+        open={modalState.dailyCare}
+        onOpenChange={(open) => open ? handleOpenModal("dailyCare") : handleCloseModal("dailyCare")}
+        residentId={r.id}
+        nursingHomeId={r.facilityId || operationalContext.nursingHomeId}
+        wardId={operationalContext.wardIds[0]}
+        roomId={r.roomId}
+        onSave={(command) => {
+          recordDailyCare(command);
+          toast.success("Daily Care recorded");
+        }}
+      />
+
       <AddDailyNoteModal
         open={modalState.note}
         onOpenChange={(open) => handleCloseModal("note")}
