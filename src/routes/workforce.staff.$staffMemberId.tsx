@@ -13,6 +13,7 @@ import {
   getStaffImmigrationSummary,
   getStaffTrainingProfile,
   getStaffCompetencyProfile,
+  staffHomeAssignmentCardModel,
   getStaffProfile,
   type CreateStaffDocumentCommand,
   type CreateStaffVisaRecordCommand,
@@ -21,6 +22,7 @@ import {
   type AssignTrainingCommand,
   type RecordCompetencyValidationCommand,
   type RecordTrainingCompletionCommand,
+  type CreateStaffHomeAssignmentCommand,
   type CreateEmploymentRecordCommand,
   type CreateProfessionalRegistrationCommand,
   STAFF_MEMBER_STATUS_LABELS,
@@ -74,6 +76,9 @@ function StaffProfilePage() {
   const canRecordTraining = capabilities.includes("training.record_completion");
   const canVerifyTraining = capabilities.includes("training.verify");
   const canRecordCompetency = capabilities.includes("competency.create_draft") || capabilities.includes("competency.validate");
+  const canCreateHomeAssignment = capabilities.includes("home_assignments.create");
+  const canEndHomeAssignment = capabilities.includes("home_assignments.end");
+  const canViewHomeAssignmentFte = capabilities.includes("home_assignments.view_fte");
   const [employmentOpen, setEmploymentOpen] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
@@ -81,6 +86,7 @@ function StaffProfilePage() {
   const [trainingAssignOpen, setTrainingAssignOpen] = useState(false);
   const [trainingCompletionOpen, setTrainingCompletionOpen] = useState(false);
   const [competencyOpen, setCompetencyOpen] = useState(false);
+  const [homeAssignmentOpen, setHomeAssignmentOpen] = useState(false);
   const employmentCards = care.employmentRecords
     .filter((record) => String(record.staffMemberId) === String(staff.id))
     .map((record) => employmentRecordCardModel(record, {
@@ -116,6 +122,9 @@ function StaffProfilePage() {
   });
   const trainingRows = getStaffTrainingProfile({ staffMemberId: String(staff.id), courses: care.trainingCourses, assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions });
   const competencyRows = getStaffCompetencyProfile({ staffMemberId: String(staff.id), definitions: care.competencyDefinitions, requirements: care.competencyRequirements, validations: care.staffCompetencyValidations });
+  const homeAssignmentRows = care.employmentHomeAssignments
+    .filter((assignment) => String(assignment.staffMemberId) === String(staff.id))
+    .map((assignment) => staffHomeAssignmentCardModel(assignment, { facilities: care.facilities, employmentRecords: care.employmentRecords, canViewFte: canViewHomeAssignmentFte }));
 
   return (
     <div className="space-y-4 p-4 md:p-8">
@@ -205,6 +214,33 @@ function StaffProfilePage() {
             </div>
           ))}
           {employmentCards.length === 0 && <p className="text-sm text-muted-foreground">No Employment Records have been added for this Staff Member.</p>}
+        </div>
+      </Section>
+
+      <Section
+        title="Home Assignments"
+        action={canCreateHomeAssignment ? <Button size="sm" onClick={() => setHomeAssignmentOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add Assignment</Button> : undefined}
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {homeAssignmentRows.map((assignment) => (
+            <div key={assignment.id} className="rounded-lg border p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div><div className="font-semibold">{assignment.homeName}</div><div className="text-muted-foreground">{assignment.type}</div></div>
+                <div className="flex gap-2"><Badge variant="outline">{assignment.status}</Badge>{assignment.isPrimary && <Badge>Primary</Badge>}</div>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <span>State: {assignment.effectiveState}</span>
+                <span>Role: {assignment.roleSummary}</span>
+                <span>From: {assignment.effectiveFrom}</span>
+                <span>To: {assignment.effectiveTo || "Open"}</span>
+                {canViewHomeAssignmentFte && <span>FTE: {assignment.fteAtHome ?? "Not allocated"}</span>}
+                {canViewHomeAssignmentFte && <span>Hours: {assignment.hoursAtHome ?? "Not allocated"}</span>}
+              </div>
+              {assignment.agencyProviderId && <p className="mt-2 text-muted-foreground">Agency provider: {assignment.agencyProviderId}</p>}
+              {canEndHomeAssignment && assignment.status === "Active" && <Button className="mt-3" size="sm" variant="outline" onClick={() => { care.endStaffHomeAssignment(assignment.id); toast.success("Home Assignment ended."); }}>End Assignment</Button>}
+            </div>
+          ))}
+          {homeAssignmentRows.length === 0 && <p className="text-sm text-muted-foreground">No Home Assignments have been recorded for this Staff Member.</p>}
         </div>
       </Section>
 
@@ -336,6 +372,7 @@ function StaffProfilePage() {
       <AssignTrainingDialog open={trainingAssignOpen} staffMemberId={String(staff.id)} courses={care.trainingCourses} onOpenChange={setTrainingAssignOpen} onSave={(input) => { try { care.assignTrainingToStaff(input); toast.success("Training assigned."); setTrainingAssignOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Training record could not be saved."); } }} />
       <RecordTrainingCompletionDialog open={trainingCompletionOpen} staffMemberId={String(staff.id)} courses={care.trainingCourses} assignments={care.staffTrainingAssignments.filter((assignment) => String(assignment.staffMemberId) === String(staff.id))} onOpenChange={setTrainingCompletionOpen} onSave={(input) => { try { care.recordTrainingCompletion(input); toast.success("Training completion recorded."); setTrainingCompletionOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Training record could not be saved."); } }} />
       <RecordCompetencyDialog open={competencyOpen} staffMemberId={String(staff.id)} definitions={care.competencyDefinitions} onOpenChange={setCompetencyOpen} onSave={(input) => { try { care.recordCompetencyValidation(input); toast.success("Competency validation recorded."); setCompetencyOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Competency Validation could not be saved."); } }} />
+      <AddHomeAssignmentDialog open={homeAssignmentOpen} staffMemberId={String(staff.id)} homes={care.facilities} employmentRecords={care.employmentRecords.filter((record) => String(record.staffMemberId) === String(staff.id))} onOpenChange={setHomeAssignmentOpen} onSave={(input) => { try { care.createStaffHomeAssignment(input); toast.success("Home Assignment saved."); setHomeAssignmentOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Home Assignment could not be saved."); } }} />
     </div>
   );
 }
@@ -488,6 +525,41 @@ function RecordCompetencyDialog({ open, staffMemberId, definitions, onOpenChange
       </div>
       <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(form.supervisionRequired)} onChange={(event) => set("supervisionRequired", event.target.checked)} /> Competent with supervision</label>
       <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Record Validation</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function AddHomeAssignmentDialog({ open, staffMemberId, homes, employmentRecords, onOpenChange, onSave }: { open: boolean; staffMemberId: string; homes: { id: string; name: string }[]; employmentRecords: { id: string; primaryRoleKey?: string; startDate: string }[]; onOpenChange: (open: boolean) => void; onSave: (input: CreateStaffHomeAssignmentCommand) => void }) {
+  const firstEmployment = employmentRecords[0];
+  const [form, setForm] = useState<CreateStaffHomeAssignmentCommand>({
+    staffMemberId,
+    employmentRecordId: firstEmployment?.id,
+    nursingHomeId: homes[0]?.id || "",
+    assignmentType: "secondary",
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+    isPrimary: false,
+    roleKeys: firstEmployment?.primaryRoleKey ? [firstEmployment.primaryRoleKey] : [],
+    clientRequestId: `home-assignment-${Date.now()}`,
+  });
+  const set = (key: keyof CreateStaffHomeAssignmentCommand, value: string | boolean) => setForm((current) => ({
+    ...current,
+    staffMemberId,
+    [key]: key === "isPrimary" ? Boolean(value) : key === "fteAtHome" || key === "contractedHoursPerWeekAtHome" ? Number(value) : value || undefined,
+  }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Add Home Assignment</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Home"><Select value={form.nursingHomeId} onValueChange={(value) => set("nursingHomeId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{homes.map((home) => <SelectItem key={home.id} value={home.id}>{home.name}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Assignment Type"><Select value={form.assignmentType} onValueChange={(value: any) => set("assignmentType", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary">Primary Home</SelectItem><SelectItem value="secondary">Secondary Home</SelectItem><SelectItem value="temporary">Temporary Assignment</SelectItem><SelectItem value="agency_cover">Agency Cover</SelectItem><SelectItem value="floating">Floating Assignment</SelectItem><SelectItem value="secondment">Secondment</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></Field>
+        <Field label="Effective From"><Input type="date" value={form.effectiveFrom} onChange={(event) => set("effectiveFrom", event.target.value)} /></Field>
+        <Field label="Effective To"><Input type="date" value={form.effectiveTo || ""} onChange={(event) => set("effectiveTo", event.target.value)} /></Field>
+        <Field label="FTE at Home"><Input type="number" step="0.1" value={form.fteAtHome ?? ""} onChange={(event) => set("fteAtHome", event.target.value)} /></Field>
+        <Field label="Hours at Home"><Input type="number" step="0.5" value={form.contractedHoursPerWeekAtHome ?? ""} onChange={(event) => set("contractedHoursPerWeekAtHome", event.target.value)} /></Field>
+        <Field label="Agency Provider"><Input value={form.agencyProviderId || ""} onChange={(event) => set("agencyProviderId", event.target.value)} /></Field>
+        <Field label="Reason"><Input value={form.reason || ""} onChange={(event) => set("reason", event.target.value)} /></Field>
+      </div>
+      <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isPrimary} onChange={(event) => set("isPrimary", event.target.checked)} /> Set as Primary Home</label>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Save Assignment</Button></div>
     </DialogContent></Dialog>
   );
 }

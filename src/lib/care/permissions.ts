@@ -110,7 +110,21 @@ export type Permission =
   | "competency.validate" | "competency.validate_with_supervision" | "competency.mark_not_yet_competent"
   | "competency.renew" | "competency.suspend" | "competency.revoke" | "competency.enter_in_error"
   | "competency.view_matrix" | "competency.view_restrictions" | "competency.view_evidence"
-  | "competency.view_skill_mix";
+  | "competency.view_skill_mix"
+  | "home_assignments.view" | "home_assignments.view_all_homes" | "home_assignments.create"
+  | "home_assignments.edit" | "home_assignments.set_primary" | "home_assignments.suspend"
+  | "home_assignments.end" | "home_assignments.cancel" | "home_assignments.enter_in_error"
+  | "home_assignments.view_fte" | "home_assignments.edit_fte" | "home_assignments.view_history"
+  | "ward_competency_requirements.view" | "ward_competency_requirements.create"
+  | "ward_competency_requirements.edit" | "ward_competency_requirements.view_matrix"
+  | "ward_competency_requirements.view_readiness"
+  | "staffing_establishment.view" | "staffing_establishment.view_all_homes"
+  | "staffing_establishment.create_draft" | "staffing_establishment.edit_draft"
+  | "staffing_establishment.submit_approval" | "staffing_establishment.approve"
+  | "staffing_establishment.supersede" | "staffing_establishment.retire"
+  | "staffing_establishment.enter_in_error" | "staffing_establishment.view_actuals"
+  | "staffing_establishment.view_vacancies" | "staffing_establishment.view_fte"
+  | "staffing_establishment.view_budget_reference";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [

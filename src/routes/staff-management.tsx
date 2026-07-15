@@ -38,6 +38,9 @@ import {
   getTrainingComplianceMetric,
   getTrainingOverdueMetric,
   getTrainingNotStartedMetric,
+  getEffectiveStaffingEstablishment,
+  getTopVacantPositions,
+  getVacantPositionsMetric,
   getTotalFteMetric,
   getTotalStaffMetric,
 } from "@/domain/workforce";
@@ -69,6 +72,9 @@ function StaffManagementDashboard() {
   const trainingComplianceMetric = getTrainingComplianceMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
   const trainingOverdueMetric = getTrainingOverdueMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
   const trainingNotStartedMetric = getTrainingNotStartedMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const effectiveEstablishment = getEffectiveStaffingEstablishment({ versions: care.staffingEstablishmentVersions, nursingHomeId: care.activeFacilityId });
+  const vacantPositionsMetric = getVacantPositionsMetric({ version: effectiveEstablishment, lines: care.staffingEstablishmentLines, employmentRecords: care.employmentRecords, homeAssignments: care.employmentHomeAssignments });
+  const topVacantPositions = getTopVacantPositions({ version: effectiveEstablishment, lines: care.staffingEstablishmentLines, employmentRecords: care.employmentRecords, homeAssignments: care.employmentHomeAssignments });
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -110,7 +116,7 @@ function StaffManagementDashboard() {
       <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-8">
         <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? `FTE: ${totalFteMetric.value}` : "Restricted"} percent={72} tone="blue" />
         <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
-        <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value="18" sub="Open" foot="12% of Budgeted" percent={72} tone="orange" />
+        <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value={vacantPositionsMetric.value === undefined ? "N/A" : String(vacantPositionsMetric.value)} sub={vacantPositionsMetric.availability === "available" ? "Open" : "Not configured"} foot={vacantPositionsMetric.percentage === undefined ? vacantPositionsMetric.explanation : `${vacantPositionsMetric.percentage}% of Budgeted`} percent={vacantPositionsMetric.percentage ?? 0} tone="orange" />
         <StaffKpi icon={UserPlus} title="Agency Staff Today" value="27" sub="9%" foot="vs 8% Last Month" percent={42} tone="purple" trend="up" />
         <StaffKpi icon={HeartPulse} title="Sick Leave Today" value="23" sub="7%" foot="vs 5% Last Month" percent={32} tone="red" trend="up" />
         <StaffKpi icon={Plane} title="On Annual Leave" value="31" sub="10%" foot="vs 9% Last Month" percent={48} tone="blue" trend="down" />
@@ -186,13 +192,7 @@ function StaffManagementDashboard() {
           ]} footer="View All Expiring" />
         </Panel>
         <Panel title="Top Vacant Positions">
-          <SimpleTable headers={["Position", "Vacant", "Urgency"]} rows={[
-            ["Registered Nurse", "6", "High"],
-            ["Healthcare Assistant", "7", "High"],
-            ["CNM", "2", "Medium"],
-            ["Housekeeping Assistant", "2", "Low"],
-            ["Maintenance Assistant", "1", "Low"],
-          ]} footer="View All Vacancies" urgency />
+          <SimpleTable headers={["Position", "Vacant", "Urgency"]} rows={(topVacantPositions.length ? topVacantPositions : []).slice(0, 5).map((item) => [item.roleKey, String(item.vacantHeadcount ?? 0), item.urgency])} footer={topVacantPositions.length ? "View All Vacancies" : "No approved Staffing Establishment exists for this Nursing Home."} urgency />
         </Panel>
         <Panel title="Key Alerts">
           <div className="space-y-4">

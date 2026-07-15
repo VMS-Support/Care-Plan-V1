@@ -30,3 +30,8 @@ export * from "./training/trainingMatrixReadModel";
 export * from "./competency/competencyTypes";
 export * from "./competency/competencyService";
 export * from "./competency/competencyReadModel";
+export * from "./homeAssignments/homeAssignmentService";
+export * from "./homeAssignments/homeAssignmentReadModel";
+export * from "./wardCompetencies/wardCompetencyReadinessService";
+export * from "./establishment/staffingEstablishmentService";
+export * from "./establishment/staffingVacancyMetricsService";

@@ -91,7 +91,9 @@ export type EmploymentContractType =
   | "volunteer"
   | "other";
 export type EmploymentHomeAssignmentType = "primary" | "secondary" | "temporary_cover" | "secondment" | "floating" | "other";
-export type EmploymentAssignmentStatus = "planned" | "active" | "ended" | "cancelled" | "entered_in_error";
+export type StaffHomeAssignmentType = "primary" | "secondary" | "temporary" | "agency_cover" | "floating" | "secondment" | "other";
+export type EmploymentAssignmentStatus = "planned" | "active" | "suspended" | "ended" | "cancelled" | "entered_in_error";
+export type EffectiveHomeAssignmentState = "future" | "current" | "temporarily_suspended" | "ended" | "invalid";
 export type EmploymentRoleAssignmentType = "primary" | "secondary" | "acting" | "temporary_cover" | "development" | "other";
 export type RegistrationStatus =
   | "active"
@@ -171,6 +173,11 @@ export type CompetencyCategory = "clinical" | "medication" | "equipment" | "care
 export type CompetencyRequirementTarget = "all_staff" | "role" | "employment_category" | "nursing_home" | "ward" | "individual_staff_member";
 export type CompetencyValidationStatus = "draft" | "pending_validation" | "competent" | "competent_with_supervision" | "not_yet_competent" | "expired" | "suspended" | "revoked" | "superseded" | "entered_in_error";
 export type StaffCompetencyComplianceStatus = "competent" | "competent_with_supervision" | "due_soon" | "expired" | "missing_required" | "not_yet_competent" | "pending_validation" | "not_required" | "unable_to_determine";
+export type WardCompetencyRequirementLevel = "mandatory_for_assignment" | "mandatory_for_independent_work" | "recommended" | "minimum_shift_coverage";
+export type StaffingEstablishmentStatus = "draft" | "submitted_for_approval" | "approved" | "superseded" | "retired" | "entered_in_error";
+export type StaffingEstablishmentVersionId = string;
+export type StaffingEstablishmentLineId = string;
+export type WardCompetencyRequirementId = string;
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -344,18 +351,25 @@ export interface EmploymentHomeAssignment {
   id: string;
   employmentRecordId: EmploymentRecordId;
   staffMemberId: StaffMemberId;
+  enterpriseId?: EnterpriseId;
   nursingHomeId: NursingHomeId;
-  assignmentType: EmploymentHomeAssignmentType;
+  assignmentType: EmploymentHomeAssignmentType | StaffHomeAssignmentType;
   status: EmploymentAssignmentStatus;
   effectiveFrom: string;
   effectiveTo?: string;
   isPrimary: boolean;
+  roleKeys?: string[];
+  employmentCategory?: string;
   contractedHoursPerWeekAtHome?: number;
   fteAtHome?: number;
+  agencyProviderId?: string;
+  sourceReference?: string;
   reason?: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId?: UserAccountId;
 }
 
 export interface EmploymentRoleAssignment {
@@ -996,6 +1010,107 @@ export interface CompetencyEvent {
   status?: string;
   validationDate?: string;
   expiryDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface WardCompetencyRequirement {
+  id: WardCompetencyRequirementId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId: NursingHomeId;
+  wardId: WardId;
+  competencyDefinitionId: CompetencyDefinitionId;
+  requirementLevel: WardCompetencyRequirementLevel;
+  applicableRoleKeys?: string[];
+  minimumCompetentStaffPerShift?: number;
+  minimumFullyCompetentStaffPerShift?: number;
+  supervisionAccepted: boolean;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface WardCompetencyRequirementEvent {
+  id: string;
+  type: "WardCompetencyRequirementCreated" | "WardCompetencyRequirementUpdated" | "WardCompetencyCoverageChanged";
+  wardCompetencyRequirementId: WardCompetencyRequirementId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId: WardId | string;
+  competencyDefinitionId: CompetencyDefinitionId | string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+  changedFields?: string[];
+}
+
+export interface StaffingEstablishmentVersion {
+  id: StaffingEstablishmentVersionId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId: NursingHomeId;
+  versionNumber: number;
+  versionName: string;
+  status: StaffingEstablishmentStatus;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  sourceBudgetReference?: string;
+  sourceDocumentId?: StaffDocumentId;
+  notes?: string;
+  submittedAt?: string;
+  submittedByUserAccountId?: UserAccountId;
+  approvedAt?: string;
+  approvedByUserAccountId?: UserAccountId;
+  supersedesVersionId?: StaffingEstablishmentVersionId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffingEstablishmentLine {
+  id: StaffingEstablishmentLineId;
+  establishmentVersionId: StaffingEstablishmentVersionId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  roleKey: string;
+  employmentCategory?: EmploymentRecord["employmentCategory"];
+  contractType?: EmploymentContractType;
+  budgetedHeadcount?: number;
+  budgetedFte?: number;
+  budgetedHoursPerWeek?: number;
+  minimumHeadcount?: number;
+  minimumRegisteredStaff?: number;
+  agencyAllowed: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffingEstablishmentEvent {
+  id: string;
+  type:
+    | "StaffingEstablishmentDraftCreated"
+    | "StaffingEstablishmentUpdated"
+    | "StaffingEstablishmentSubmittedForApproval"
+    | "StaffingEstablishmentApproved"
+    | "StaffingEstablishmentSuperseded"
+    | "StaffingEstablishmentRetired"
+    | "StaffingEstablishmentEnteredInError"
+    | "StaffingEstablishmentLineAdded"
+    | "StaffingEstablishmentLineUpdated"
+    | "StaffingEstablishmentComparisonChanged"
+    | "StaffingVacancyChanged";
+  establishmentVersionId: StaffingEstablishmentVersionId | string;
+  establishmentLineId?: StaffingEstablishmentLineId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  roleKey?: string;
+  status?: StaffingEstablishmentStatus;
+  safeActualSummary?: unknown;
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
   correlationId: string;

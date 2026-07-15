@@ -117,6 +117,11 @@ import type {
   CompetencyRequirement,
   StaffCompetencyValidation,
   CompetencyEvent,
+  WardCompetencyRequirement,
+  WardCompetencyRequirementEvent,
+  StaffingEstablishmentVersion,
+  StaffingEstablishmentLine,
+  StaffingEstablishmentEvent,
   HomeAssignment,
   WardCompetency,
   RosterAssignment,
@@ -152,6 +157,11 @@ import {
   recordCompetencyValidation,
   recordTrainingCompletion,
   verifyTrainingCompletion,
+  addStaffingEstablishmentLine,
+  approveStaffingEstablishment,
+  createStaffHomeAssignment,
+  createStaffingEstablishmentDraft,
+  endStaffHomeAssignment,
   updateStaffMemberRecord,
   type CreateEmploymentRecordCommand,
   type CreateEmploymentPermitRecordCommand,
@@ -162,6 +172,9 @@ import {
   type AssignTrainingCommand,
   type RecordCompetencyValidationCommand,
   type RecordTrainingCompletionCommand,
+  type AddStaffingEstablishmentLineCommand,
+  type CreateStaffHomeAssignmentCommand,
+  type CreateStaffingEstablishmentDraftCommand,
   type SaveStaffMemberInput,
 } from "@/domain/workforce";
 import {
@@ -1988,6 +2001,11 @@ function seedData() {
     competencyRequirements: [] as CompetencyRequirement[],
     staffCompetencyValidations: [] as StaffCompetencyValidation[],
     competencyEvents: [] as CompetencyEvent[],
+    wardCompetencyRequirements: [] as WardCompetencyRequirement[],
+    wardCompetencyRequirementEvents: [] as WardCompetencyRequirementEvent[],
+    staffingEstablishmentVersions: [] as StaffingEstablishmentVersion[],
+    staffingEstablishmentLines: [] as StaffingEstablishmentLine[],
+    staffingEstablishmentEvents: [] as StaffingEstablishmentEvent[],
     homeAssignments: [] as HomeAssignment[],
     wardCompetencies: [] as WardCompetency[],
     rosterAssignments: [] as RosterAssignment[],
@@ -2545,6 +2563,11 @@ interface CareCtx extends Store {
   verifyTrainingCompletion: (id: string) => void;
   generateTrainingAssignments: () => number;
   recordCompetencyValidation: (input: RecordCompetencyValidationCommand) => StaffCompetencyValidation;
+  createStaffHomeAssignment: (input: CreateStaffHomeAssignmentCommand) => EmploymentHomeAssignment;
+  endStaffHomeAssignment: (id: string, endDate?: string) => void;
+  createStaffingEstablishmentDraft: (input: CreateStaffingEstablishmentDraftCommand) => StaffingEstablishmentVersion;
+  addStaffingEstablishmentLine: (input: AddStaffingEstablishmentLineCommand) => StaffingEstablishmentLine;
+  approveStaffingEstablishment: (id: string) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -3957,6 +3980,51 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const event: CompetencyEvent = { id: `competency-event-${uid()}`, type: validation.status === "competent_with_supervision" ? "StaffCompetencyValidatedWithSupervision" : "StaffCompetencyValidated", staffMemberId: validation.staffMemberId, employmentRecordId: validation.employmentRecordId, competencyDefinitionId: validation.competencyDefinitionId, competencyValidationId: validation.id, status: validation.status, validationDate: validation.validationDate, expiryDate: validation.expiryDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
         setStore((s) => ({ ...s, staffCompetencyValidations: [validation, ...s.staffCompetencyValidations], competencyEvents: [event, ...(s.competencyEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Competency Validation recorded", entity: String(validation.id), entityType: "competency_validation", timestamp: now, after: JSON.stringify({ competencyDefinitionId: validation.competencyDefinitionId, status: validation.status }) }, ...s.auditLogs].slice(0, 500) }));
         return validation;
+      },
+      createStaffHomeAssignment: (input) => {
+        const assignment = createStaffHomeAssignment(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: WorkforceEmploymentEvent = { id: `employment-event-${uid()}`, type: assignment.isPrimary ? "EmploymentHomeAssignmentAdded" : "EmploymentHomeAssignmentAdded", employmentRecordId: assignment.employmentRecordId, staffMemberId: assignment.staffMemberId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: ["nursingHomeId", "assignmentType", "status", "effectiveFrom", "effectiveTo", "isPrimary", "roleKeys"] };
+        setStore((s) => ({
+          ...s,
+          employmentHomeAssignments: [assignment, ...s.employmentHomeAssignments],
+          staffMembers: assignment.isPrimary ? s.staffMembers.map((staff) => String(staff.id) === String(assignment.staffMemberId) ? { ...staff, primaryNursingHomeId: assignment.nursingHomeId, updatedAt: now, updatedBy: currentUser.id as any } : staff) : s.staffMembers,
+          workforceEmploymentEvents: [event, ...(s.workforceEmploymentEvents || [])],
+          auditLogs: [{ id: uid(), facilityId: String(assignment.nursingHomeId), user: currentUserName, role: currentRole, action: "Staff Home Assignment created", entity: String(assignment.id), entityType: "home_assignment", timestamp: now, after: JSON.stringify({ assignmentType: assignment.assignmentType, status: assignment.status, isPrimary: assignment.isPrimary }) }, ...s.auditLogs].slice(0, 500),
+        }));
+        return assignment;
+      },
+      endStaffHomeAssignment: (id, endDate) => {
+        const current = store.employmentHomeAssignments.find((assignment) => assignment.id === id);
+        if (!current) throw new Error("The Home Assignment could not be saved.");
+        const next = endStaffHomeAssignment(current, currentUser.id, endDate);
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          employmentHomeAssignments: s.employmentHomeAssignments.map((assignment) => assignment.id === id ? next : assignment),
+          workforceEmploymentEvents: [{ id: `employment-event-${uid()}`, type: "EmploymentHomeAssignmentAdded", employmentRecordId: next.employmentRecordId, staffMemberId: next.staffMemberId, actorUserAccountId: currentUser.id, occurredAt: now, changedFields: ["status", "effectiveTo"] }, ...(s.workforceEmploymentEvents || [])],
+        }));
+      },
+      createStaffingEstablishmentDraft: (input) => {
+        const version = createStaffingEstablishmentDraft(input, currentUser.id, store.staffingEstablishmentVersions.filter((item) => item.nursingHomeId === input.nursingHomeId).length + 1);
+        const now = new Date().toISOString();
+        const event: StaffingEstablishmentEvent = { id: `staffing-establishment-event-${uid()}`, type: "StaffingEstablishmentDraftCreated", establishmentVersionId: version.id, nursingHomeId: version.nursingHomeId, status: version.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffingEstablishmentVersions: [version, ...s.staffingEstablishmentVersions], staffingEstablishmentEvents: [event, ...(s.staffingEstablishmentEvents || [])], auditLogs: [{ id: uid(), facilityId: String(version.nursingHomeId), user: currentUserName, role: currentRole, action: "Staffing Establishment draft created", entity: String(version.id), entityType: "staffing_establishment", timestamp: now, after: JSON.stringify({ versionName: version.versionName, effectiveFrom: version.effectiveFrom }) }, ...s.auditLogs].slice(0, 500) }));
+        return version;
+      },
+      addStaffingEstablishmentLine: (input) => {
+        const line = addStaffingEstablishmentLine(input);
+        const now = new Date().toISOString();
+        const event: StaffingEstablishmentEvent = { id: `staffing-establishment-event-${uid()}`, type: "StaffingEstablishmentLineAdded", establishmentVersionId: line.establishmentVersionId, establishmentLineId: line.id, nursingHomeId: line.nursingHomeId, wardId: line.wardId, roleKey: line.roleKey, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffingEstablishmentLines: [line, ...s.staffingEstablishmentLines], staffingEstablishmentEvents: [event, ...(s.staffingEstablishmentEvents || [])] }));
+        return line;
+      },
+      approveStaffingEstablishment: (id) => {
+        const current = store.staffingEstablishmentVersions.find((version) => version.id === id);
+        if (!current) throw new Error("The Staffing Establishment could not be saved.");
+        const next = approveStaffingEstablishment(current, currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffingEstablishmentVersions: s.staffingEstablishmentVersions.map((version) => version.id === id ? next : version), staffingEstablishmentEvents: [{ id: `staffing-establishment-event-${uid()}`, type: "StaffingEstablishmentApproved", establishmentVersionId: next.id, nursingHomeId: next.nursingHomeId, status: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staffing-establishment-approve-${id}-${now}` }, ...(s.staffingEstablishmentEvents || [])] }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;
