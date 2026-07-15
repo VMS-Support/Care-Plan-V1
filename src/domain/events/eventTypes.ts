@@ -54,10 +54,16 @@ export type DomainEventType =
   | "IncidentRecorded"
   | "HandoverCreated"
   | "DailyCareRecorded"
+  | "DailyCareOutcomeRecorded"
   | "DailyCarePartiallyCompleted"
-  | "DailyCareDeclined"
-  | "DailyCareUnableToComplete"
+  | "DailyCareRefused"
+  | "DailyCareUnable"
+  | "DailyCareNotRequired"
+  | "DailyCareEscalated"
+  | "DailyCareNurseInformed"
   | "DailyCareFollowUpRequested"
+  | "DailyCareMappedToRlt"
+  | "DailyCareRltMappingChanged"
   | "DailyCareEnteredInError"
   | "DailyCareCorrected";
 
@@ -349,7 +355,9 @@ export interface DailyCareRecordedPayloadV1 {
     | "activity"
     | "refusal"
     | "skin_observation";
-  status: "completed" | "partially_completed" | "declined" | "unable_to_complete" | "not_required" | "entered_in_error" | "corrected";
+  status: "completed" | "partially_completed" | "refused" | "not_required" | "unable" | "escalated" | "declined" | "unable_to_complete" | "entered_in_error" | "corrected";
+  outcome: "completed" | "partially_completed" | "refused" | "not_required" | "unable" | "escalated";
+  outcomeReasonCode?: string;
   occurredAt: string;
   recordedAt: string;
   source: string;
@@ -395,10 +403,16 @@ export type DomainEventPayloadMapV1 = {
   IncidentRecorded: IncidentRecordedPayloadV1;
   HandoverCreated: HandoverCreatedPayloadV1;
   DailyCareRecorded: DailyCareRecordedPayloadV1;
+  DailyCareOutcomeRecorded: DailyCareRecordedPayloadV1;
   DailyCarePartiallyCompleted: DailyCareRecordedPayloadV1;
-  DailyCareDeclined: DailyCareRecordedPayloadV1;
-  DailyCareUnableToComplete: DailyCareRecordedPayloadV1;
+  DailyCareRefused: DailyCareRecordedPayloadV1;
+  DailyCareUnable: DailyCareRecordedPayloadV1;
+  DailyCareNotRequired: DailyCareRecordedPayloadV1;
+  DailyCareEscalated: DailyCareRecordedPayloadV1;
+  DailyCareNurseInformed: DailyCareRecordedPayloadV1;
   DailyCareFollowUpRequested: DailyCareRecordedPayloadV1;
+  DailyCareMappedToRlt: DailyCareRecordedPayloadV1;
+  DailyCareRltMappingChanged: DailyCareRecordedPayloadV1;
   DailyCareEnteredInError: DailyCareRecordedPayloadV1;
   DailyCareCorrected: DailyCareRecordedPayloadV1;
 };

@@ -2,8 +2,9 @@ import { recordAuditEvent } from "@/lib/care/auditFramework";
 import { completeWorkItem, legacyMarkWorkItemMissed, legacyMarkWorkItemNotApplicable, type WorkAuthContext } from "@/domain/work";
 import type { DomainEvent } from "@/domain/events/eventTypes";
 import { asDomainEventId } from "@/types/entityIds";
-import { resolveDailyCareRltDomains } from "./dailyCareRltMapping";
+import { resolveDailyCareRltMapping } from "./dailyCareRltMapping";
 import { validateRecordDailyCareCommand } from "./dailyCareValidation";
+import { normalizeDailyCareOutcome } from "./dailyCareOutcome";
 import type {
   DailyCareAuthorizationContext,
   DailyCareDomainEventType,
@@ -22,8 +23,10 @@ export function recordDailyCare(command: RecordDailyCareCommand, operational: Da
   repository.dailyCareRecords = [record, ...repository.dailyCareRecords];
   reconcileLinkedWorkItem(record, repository, authorization);
   repository.dailyCareAuditRecords = [audit(record, "create", authorization, operational), ...repository.dailyCareAuditRecords];
-  repository.dailyCareEvents = [eventFor(record, eventTypeFor(record), authorization, operational), ...repository.dailyCareEvents];
-  if (record.followUpRequired) repository.dailyCareEvents = [eventFor(record, "DailyCareFollowUpRequested", authorization, operational), ...repository.dailyCareEvents];
+  repository.dailyCareEvents = [
+    ...eventsFor(record, authorization, operational),
+    ...repository.dailyCareEvents,
+  ];
   return { record, idempotent: false };
 }
 
@@ -91,9 +94,21 @@ export function getResidentLatestDailyCareSummary(residentId: string, authorizat
 }
 
 function toRecord(command: RecordDailyCareCommand, operational: DailyCareOperationalContext, authorization: DailyCareAuthorizationContext, id: string, correctionOfDailyCareRecordId?: string): DailyCareRecord {
+  const outcome = normalizeDailyCareOutcome(command.status);
+  const rltMapping = resolveDailyCareRltMapping({
+    careType: command.careType,
+    details: command.details,
+    relatedCareActionId: command.relatedCareActionId,
+    relatedCarePlanItemId: command.relatedCarePlanItemId,
+    explicitRltDomainIds: command.explicitRltDomainIds,
+    refusedSourceEntityId: command.details.type === "refusal" ? command.details.refusedSourceEntityId : undefined,
+    refusedSourceEntityType: command.details.type === "refusal" ? command.details.refusedSourceEntityType : undefined,
+  });
   return {
     ...command,
     id,
+    status: outcome,
+    outcome,
     recordedAt: operational.recordedAt,
     recordedByUserAccountId: authorization.userAccountId,
     recordedByStaffMemberId: authorization.staffMemberId,
@@ -101,7 +116,8 @@ function toRecord(command: RecordDailyCareCommand, operational: DailyCareOperati
     wardId: command.wardId ?? operational.wardId,
     roomId: command.roomId ?? operational.roomId,
     bedId: command.bedId ?? operational.bedId,
-    rltDomainIds: resolveDailyCareRltDomains(command.careType, command.details),
+    rltDomainIds: rltMapping.domainIds,
+    rltMapping,
     followUpWorkItemIds: [],
     correctionOfDailyCareRecordId,
     createdAt: operational.recordedAt,
@@ -120,16 +136,29 @@ function reconcileLinkedWorkItem(record: DailyCareRecord, repository: DailyCareR
     capabilities: authorization.capabilities,
     sourceCapabilities: authorization.sourceCapabilities ?? authorization.capabilities,
   };
-  if (record.status === "completed") repository.workState = completeWorkItem(repository.workState, String(record.relatedWorkItemId), workAuth, { evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, effectiveAt: record.occurredAt, correlationId: record.clientRequestId });
-  else if (record.status === "not_required") repository.workState = legacyMarkWorkItemNotApplicable(repository.workState, String(record.relatedWorkItemId), workAuth, { reasonCode: record.statusReason ?? "not_required", reasonText: record.statusReason, evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, correlationId: record.clientRequestId });
-  else if (["partially_completed", "declined", "unable_to_complete"].includes(record.status)) repository.workState = legacyMarkWorkItemMissed(repository.workState, String(record.relatedWorkItemId), workAuth, { reasonCode: record.status, reasonText: record.statusReason, evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, followUpRequired: record.followUpRequired, correlationId: record.clientRequestId });
+  if (record.outcome === "completed") repository.workState = completeWorkItem(repository.workState, String(record.relatedWorkItemId), workAuth, { evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, effectiveAt: record.occurredAt, correlationId: record.clientRequestId });
+  else if (record.outcome === "not_required") repository.workState = legacyMarkWorkItemNotApplicable(repository.workState, String(record.relatedWorkItemId), workAuth, { reasonCode: record.outcomeReasonCode ?? "not_required", reasonText: record.statusReason, evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, correlationId: record.clientRequestId });
+  else if (["partially_completed", "refused", "unable"].includes(record.outcome)) repository.workState = legacyMarkWorkItemMissed(repository.workState, String(record.relatedWorkItemId), workAuth, { reasonCode: record.outcomeReasonCode ?? record.outcome, reasonText: record.statusReason, evidenceEntityType: "daily_care_record", evidenceEntityId: record.id, occurredAt: record.recordedAt, followUpRequired: record.followUpRequired, correlationId: record.clientRequestId });
 }
 
 function eventTypeFor(record: DailyCareRecord): DailyCareDomainEventType {
-  if (record.status === "partially_completed") return "DailyCarePartiallyCompleted";
-  if (record.status === "declined") return "DailyCareDeclined";
-  if (record.status === "unable_to_complete") return "DailyCareUnableToComplete";
+  if (record.outcome === "partially_completed") return "DailyCarePartiallyCompleted";
+  if (record.outcome === "refused") return "DailyCareRefused";
+  if (record.outcome === "unable") return "DailyCareUnable";
+  if (record.outcome === "not_required") return "DailyCareNotRequired";
+  if (record.outcome === "escalated") return "DailyCareEscalated";
   return "DailyCareRecorded";
+}
+
+function eventsFor(record: DailyCareRecord, authorization: DailyCareAuthorizationContext, operational: DailyCareOperationalContext) {
+  const events = [
+    eventFor(record, eventTypeFor(record), authorization, operational),
+    eventFor(record, "DailyCareOutcomeRecorded", authorization, operational),
+  ];
+  if (record.rltDomainIds.length) events.push(eventFor(record, "DailyCareMappedToRlt", authorization, operational));
+  if (record.details.type === "refusal" && record.details.nurseInformed) events.push(eventFor(record, "DailyCareNurseInformed", authorization, operational));
+  if (record.followUpRequired) events.push(eventFor(record, "DailyCareFollowUpRequested", authorization, operational));
+  return events;
 }
 
 function eventFor(record: DailyCareRecord, type: DailyCareDomainEventType, authorization: DailyCareAuthorizationContext, operational: DailyCareOperationalContext) {
@@ -143,7 +172,7 @@ function eventFor(record: DailyCareRecord, type: DailyCareDomainEventType, autho
     scope: { nursingHomeId: record.nursingHomeId, wardId: record.wardId, roomId: record.roomId, bedId: record.bedId, shiftId: record.shiftId, timezone: operational.timezone },
     subject: { entityType: "daily_care_record", entityId: record.id, residentId: record.residentId },
     source: { module: "daily_care", service: "dailyCareService", operation: type },
-    payload: { dailyCareRecordId: record.id, residentId: String(record.residentId), nursingHomeId: String(record.nursingHomeId), wardId: record.wardId ? String(record.wardId) : undefined, careType: record.careType, status: record.status, occurredAt: record.occurredAt, recordedAt: record.recordedAt, source: record.source, relatedCareActionId: record.relatedCareActionId ? String(record.relatedCareActionId) : undefined, relatedWorkItemId: record.relatedWorkItemId ? String(record.relatedWorkItemId) : undefined, rltDomainIds: record.rltDomainIds, actorUserAccountId: authorization.userAccountId, correlationId: operational.correlationId },
+    payload: { dailyCareRecordId: record.id, residentId: String(record.residentId), nursingHomeId: String(record.nursingHomeId), wardId: record.wardId ? String(record.wardId) : undefined, careType: record.careType, status: record.status, outcome: record.outcome, outcomeReasonCode: record.outcomeReasonCode, occurredAt: record.occurredAt, recordedAt: record.recordedAt, source: record.source, relatedCareActionId: record.relatedCareActionId ? String(record.relatedCareActionId) : undefined, relatedWorkItemId: record.relatedWorkItemId ? String(record.relatedWorkItemId) : undefined, rltDomainIds: record.rltDomainIds, actorUserAccountId: authorization.userAccountId, correlationId: operational.correlationId },
     correlationId: operational.correlationId,
   } satisfies DomainEvent<DailyCareDomainEventType, DailyCareRecord extends never ? never : any>;
 }

@@ -1,4 +1,5 @@
 import type { DailyCareType } from "./dailyCareTypes";
+import type { StaffMemberId } from "@/types/entityIds";
 
 export interface PersonalCareDetails { type: "personal_care"; careProvided: Array<"full_body_wash" | "partial_wash" | "shower" | "bath" | "bed_bath" | "face_and_hands" | "hair_care" | "shaving" | "nail_care" | "perineal_care" | "other">; preferredRoutineFollowed?: boolean; privacyMaintained?: boolean; sameGenderPreferenceMet?: boolean; productsUsed?: string[]; skinConcernsObserved?: boolean; linkedSkinObservationRecordId?: string }
 export interface DressingCareDetails { type: "dressing"; dressingState: "day_clothes" | "night_clothes" | "changed_clothing" | "undressed" | "other"; residentChoseClothing?: boolean; assistanceAreas?: string[]; clothingAppropriateForTemperature?: boolean; footwearRecorded?: string; appearancePreferencesFollowed?: boolean }
@@ -14,7 +15,54 @@ export interface SleepCareDetails { type: "sleep"; state: "settled" | "asleep" |
 export interface MoodCareDetails { type: "mood"; observedMood: "content" | "calm" | "happy" | "low" | "anxious" | "tearful" | "angry" | "withdrawn" | "variable" | "unable_to_assess" | "other"; residentReportedMood?: string; contributingFactors?: string[]; supportiveActions?: string[]; responseToSupport?: string; significantChangeFromUsual?: boolean }
 export interface BehaviourCareDetails { type: "behaviour"; behaviourObserved: string[]; possibleTriggers?: string[]; antecedentSummary?: string; responseProvided?: string[]; outcome?: string; riskToSelfOrOthers?: boolean; restrictivePracticeUsed?: boolean; restrictivePracticeRecordId?: string; behaviourIncidentRequired?: boolean }
 export interface ActivityCareDetails { type: "activity"; activityType: "individual" | "group" | "social" | "recreational" | "religious_or_spiritual" | "exercise" | "outdoor" | "sensory" | "family_contact" | "other"; activityName: string; durationMinutes?: number; participation: "active" | "partial" | "observed" | "declined" | "unable_to_participate"; enjoyment: "enjoyed" | "neutral" | "did_not_enjoy" | "unable_to_assess" | "not_recorded"; supportProvided?: string[]; residentResponse?: string }
-export interface RefusalCareDetails { type: "refusal"; refusedCareType: DailyCareType | "observation" | "assessment" | "care_action" | "medication" | "other"; refusedSourceEntityType?: string; refusedSourceEntityId?: string; refusalReason: "resident_choice" | "distress" | "pain" | "fatigue" | "confusion" | "did_not_want_staff_member" | "preferred_later_time" | "did_not_understand" | "other" | "not_provided"; refusalReasonText?: string; explanationProvided?: boolean; alternativesOffered?: string[]; alternativeAccepted?: boolean; riskExplained?: boolean; nurseInformed?: boolean; representativeInformed?: boolean; followUpRequired: boolean; retryAt?: string }
+export interface DailyCareAlternativeOffered {
+  alternativeType:
+    | "later_time"
+    | "different_staff_member"
+    | "different_method"
+    | "different_location"
+    | "smaller_or_partial_care"
+    | "resident_preferred_option"
+    | "comfort_first"
+    | "family_or_representative_support"
+    | "other";
+  description?: string;
+  accepted: "yes" | "no" | "not_decided";
+  outcome?: string;
+}
+
+export interface RefusalCareDetails {
+  type: "refusal";
+  careOffered?: {
+    careType: DailyCareType | "observation" | "assessment" | "care_action" | "other";
+    title: string;
+    sourceEntityType?: string;
+    sourceEntityId?: string;
+    offeredAt: string;
+    offeredByStaffMemberId?: StaffMemberId | string;
+  };
+  refusedCareType: DailyCareType | "observation" | "assessment" | "care_action" | "medication" | "other";
+  refusedSourceEntityType?: string;
+  refusedSourceEntityId?: string;
+  residentResponse?: "declined" | "asked_for_later" | "accepted_alternative" | "unable_to_engage" | "became_distressed" | "other";
+  residentResponseText?: string;
+  refusalReason: "resident_choice" | "preferred_later_time" | "pain" | "fatigue" | "distress" | "fear_or_anxiety" | "confusion" | "did_not_understand" | "did_not_want_current_staff_member" | "privacy_preference" | "cultural_or_religious_preference" | "care_already_received" | "other" | "not_provided";
+  refusalReasonText?: string;
+  observedContributingFactors?: string[];
+  explanationProvided: boolean;
+  risksExplained?: boolean;
+  alternativesOffered: DailyCareAlternativeOffered[];
+  nurseInformed: boolean;
+  nurseInformedAt?: string;
+  nurseStaffMemberId?: StaffMemberId | string;
+  representativeInformed?: boolean;
+  immediateRiskIdentified: boolean;
+  escalationRequired: boolean;
+  followUpRequired: boolean;
+  retryAt?: string;
+  followUpReason?: string;
+  relatedDeteriorationIssueId?: string;
+}
 export interface SkinObservationCareDetails { type: "skin_observation"; bodyAreasObserved: string[]; skinState: Array<"intact" | "dry" | "redness" | "bruising" | "rash" | "broken_skin" | "swelling" | "moisture_damage" | "pressure_concern" | "other">; blanchingStatus?: "blanching" | "non_blanching" | "not_assessed" | "not_applicable"; discomfortObserved?: boolean; protectiveCareProvided?: string[]; photographReferenceId?: string; woundAssessmentRequired?: boolean; incidentRequired?: boolean }
 
 export type DailyCareDetails =
