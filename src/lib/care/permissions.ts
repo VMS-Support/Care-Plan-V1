@@ -137,7 +137,23 @@ export type Permission =
   | "rostering.replace_assignment" | "rostering.view_metrics" | "rostering.enter_in_error"
   | "leave.view" | "leave.view_all_homes" | "leave.create" | "leave.request"
   | "leave.approve" | "leave.reject" | "leave.cancel" | "leave.record_sick"
-  | "leave.record_return" | "leave.view_confidential" | "leave.view_metrics" | "leave.enter_in_error";
+  | "leave.record_return" | "leave.view_confidential" | "leave.view_metrics" | "leave.enter_in_error"
+  | "agency.view" | "agency.view_all_homes" | "agency.manage_companies"
+  | "agency.manage_workers" | "agency.view_worker_compliance" | "agency.approve_worker_compliance"
+  | "agency.manage_rates" | "agency.view_rates" | "agency.assign_worker"
+  | "agency.confirm_assignment" | "agency.record_timesheet" | "agency.submit_timesheet"
+  | "agency.approve_timesheet" | "agency.reject_timesheet" | "agency.dispute_timesheet"
+  | "agency.view_cost" | "agency.view_spend" | "agency.manage_spend_policy"
+  | "agency.view_metrics" | "agency.enter_in_error"
+  | "probation.view" | "probation.view_all_homes" | "probation.create"
+  | "probation.schedule_review" | "probation.complete_review" | "probation.extend"
+  | "probation.complete" | "probation.manage_policy" | "probation.view_metrics"
+  | "probation.enter_in_error"
+  | "staffing_wte.view" | "staffing_wte.view_all_homes" | "staffing_wte.view_budgeted"
+  | "staffing_wte.view_required" | "staffing_wte.view_actual" | "staffing_wte.view_agency"
+  | "staffing_wte.view_vacancy" | "staffing_wte.view_safe_staffing"
+  | "staffing_wte.manage_policy" | "staffing_wte.create_adjustment"
+  | "staffing_wte.approve_adjustment" | "staffing_wte.view_source_details";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -339,6 +355,18 @@ export function can(role: Role, perm: Permission): boolean {
   if (perm.startsWith("leave.")) {
     if (["leave.view", "leave.create", "leave.request"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
     if (["leave.view_metrics", "leave.record_sick"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
+  }
+  if (perm.startsWith("agency.")) {
+    if (["agency.view", "agency.view_metrics", "agency.view_worker_compliance"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
+  }
+  if (perm.startsWith("probation.")) {
+    if (["probation.view", "probation.view_metrics"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
+  }
+  if (perm.startsWith("staffing_wte.")) {
+    if (["staffing_wte.view", "staffing_wte.view_budgeted", "staffing_wte.view_required", "staffing_wte.view_actual", "staffing_wte.view_agency", "staffing_wte.view_vacancy", "staffing_wte.view_safe_staffing"].includes(perm)) return role === "cnm" || role === "don";
     return role === "don";
   }
   return Boolean(matrix[role]?.includes(perm));

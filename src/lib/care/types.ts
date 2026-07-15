@@ -28,6 +28,7 @@ import type {
 } from "@/types/entityIds";
 
 export type FileId = string;
+export type MoneyAmount = { amountMinor: number; currencyCode: string };
 export type StaffVisaTypeId = string;
 export type StaffEmploymentPermitTypeId = string;
 export type StaffVisaRecordId = string;
@@ -225,6 +226,27 @@ export type PlannedShiftStatus = "draft" | "planned" | "assigned" | "to_be_confi
 export type StaffLeaveRecordId = string;
 export type StaffLeaveType = "annual_leave" | "sick_leave" | "maternity_leave" | "paternity_leave" | "compassionate_leave" | "study_leave" | "unpaid_leave" | "career_break" | "other";
 export type StaffLeaveStatus = "draft" | "requested" | "approved" | "rejected" | "cancelled" | "returned" | "extended" | "entered_in_error";
+export type AgencyCompanyId = string;
+export type AgencyWorkerId = string;
+export type AgencyRateAgreementId = string;
+export type AgencyShiftAssignmentId = string;
+export type AgencyTimesheetId = string;
+export type AgencySpendAlertPolicyId = string;
+export type AgencyCompanyStatus = "active" | "suspended" | "inactive" | "entered_in_error";
+export type AgencyWorkerStatus = "active" | "temporarily_unavailable" | "blocked" | "inactive" | "entered_in_error";
+export type AgencyRateType = "standard" | "night" | "weekend" | "bank_holiday" | "overtime" | "specialist" | "other";
+export type AgencyShiftAssignmentStatus = "requested" | "proposed" | "confirmed" | "worked" | "cancelled" | "no_show" | "entered_in_error";
+export type AgencyTimesheetStatus = "draft" | "submitted" | "pending_approval" | "approved" | "rejected" | "disputed" | "cancelled" | "entered_in_error";
+export type AgencySpendThresholdBasis = "absolute_amount" | "percentage_of_staffing_budget" | "percentage_of_total_workforce_cost" | "percentage_change_from_previous_period" | "agency_wte_percentage" | "combined";
+export type StaffProbationId = string;
+export type StaffProbationReviewId = string;
+export type StaffProbationExtensionId = string;
+export type ProbationReviewSchedulePolicyId = string;
+export type StaffProbationStatus = "draft" | "active" | "extended" | "completed" | "failed" | "cancelled" | "entered_in_error";
+export type StaffProbationReviewStatus = "scheduled" | "due" | "overdue" | "completed" | "cancelled" | "entered_in_error";
+export type StaffProbationOutcome = "continue" | "extend" | "complete_passed" | "complete_failed" | "cancel";
+export type DashboardMetricAvailability = "available" | "partially_available" | "not_configured" | "source_module_unavailable" | "permission_restricted" | "error" | "unable_to_determine";
+export type SafeStaffingReadinessStatus = "safe" | "attention" | "gap" | "unable_to_determine";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -1414,6 +1436,293 @@ export interface StaffLeaveEvent {
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
   correlationId: string;
+}
+
+export interface AgencyCompany {
+  id: AgencyCompanyId;
+  enterpriseId?: EnterpriseId;
+  name: string;
+  tradingName?: string;
+  supplierReference?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: PostalAddress;
+  status: AgencyCompanyStatus;
+  approvedSupplier: boolean;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  defaultCurrencyCode: string;
+  insuranceExpiryDate?: string;
+  complianceReviewDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface AgencyWorker {
+  id: AgencyWorkerId;
+  staffMemberId: StaffMemberId;
+  agencyCompanyId: AgencyCompanyId;
+  agencyWorkerReference?: string;
+  status: AgencyWorkerStatus;
+  primaryRoleKey: string;
+  additionalRoleKeys: string[];
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  approvedNursingHomeIds: NursingHomeId[];
+  complianceApproved: boolean;
+  complianceApprovedAt?: string;
+  complianceApprovedByUserAccountId?: UserAccountId;
+  restrictionsPresent: boolean;
+  restrictionsSummary?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgencyRateAgreement {
+  id: AgencyRateAgreementId;
+  agencyCompanyId: AgencyCompanyId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  roleKey: string;
+  rateType: AgencyRateType;
+  hourlyRate: MoneyAmount;
+  additionalFlatFee?: MoneyAmount;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  status: "draft" | "approved" | "expired" | "cancelled" | "entered_in_error";
+  approvedByUserAccountId?: UserAccountId;
+  approvedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgencyShiftAssignment {
+  id: AgencyShiftAssignmentId;
+  plannedShiftId?: PlannedShiftId;
+  rosterShiftRequirementId?: RosterShiftRequirementId;
+  agencyCompanyId: AgencyCompanyId;
+  agencyWorkerId: AgencyWorkerId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  roleKey: string;
+  startAt: string;
+  endAt: string;
+  status: AgencyShiftAssignmentStatus;
+  rateAgreementId?: AgencyRateAgreementId;
+  plannedHours?: number;
+  confirmationReference?: string;
+  replacementForStaffMemberId?: StaffMemberId;
+  replacementReason?: string;
+  competencyReadinessStatus?: "ready" | "warning" | "blocked" | "unknown";
+  trainingReadinessStatus?: string;
+  registrationReadinessStatus?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgencyTimesheet {
+  id: AgencyTimesheetId;
+  agencyShiftAssignmentId: AgencyShiftAssignmentId;
+  agencyCompanyId: AgencyCompanyId;
+  agencyWorkerId: AgencyWorkerId;
+  staffMemberId: StaffMemberId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  roleKey: string;
+  shiftStartAt: string;
+  shiftEndAt: string;
+  actualStartAt?: string;
+  actualEndAt?: string;
+  unpaidBreakMinutes?: number;
+  hoursWorked: number;
+  rateAgreementId?: AgencyRateAgreementId;
+  hourlyRateSnapshot?: MoneyAmount;
+  flatFeeSnapshot?: MoneyAmount;
+  calculatedCost: MoneyAmount;
+  approvedCost?: MoneyAmount;
+  status: AgencyTimesheetStatus;
+  submittedAt?: string;
+  approvedAt?: string;
+  approvedByUserAccountId?: UserAccountId;
+  approvedByStaffMemberId?: StaffMemberId;
+  rejectionReason?: string;
+  disputeReason?: string;
+  sourceAttendanceRecordId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgencySpendAlertPolicy {
+  id: AgencySpendAlertPolicyId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  basis: AgencySpendThresholdBasis;
+  warningThreshold?: number;
+  highThreshold?: number;
+  criticalThreshold?: number;
+  comparisonPeriod?: "previous_week" | "previous_month" | "same_period_last_year";
+  currencyCode?: string;
+  version: number;
+  status: "draft" | "approved" | "retired";
+  effectiveFrom: string;
+  effectiveTo?: string;
+  sourcePolicyDocumentId?: StaffDocumentId;
+}
+
+export interface AgencyEvent {
+  id: string;
+  type: "AgencyCompanyCreated" | "AgencyWorkerCreated" | "AgencyWorkerAssignedToShift" | "AgencyTimesheetSubmitted" | "AgencyTimesheetApproved" | "AgencySpendChanged" | "AgencyWteChanged" | "AgencySpendThresholdExceeded" | "AgencyWorkerNoShow" | "AgencyRecordEnteredInError";
+  agencyCompanyId?: AgencyCompanyId | string;
+  agencyWorkerId?: AgencyWorkerId | string;
+  agencyShiftAssignmentId?: AgencyShiftAssignmentId | string;
+  agencyTimesheetId?: AgencyTimesheetId | string;
+  nursingHomeId?: NursingHomeId | string;
+  wardId?: WardId | string;
+  roleKey?: string;
+  reportingPeriod?: { from: string; to: string };
+  safeSummary?: unknown;
+  actorUserAccountId?: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface ProbationReviewSchedulePolicy {
+  id: ProbationReviewSchedulePolicyId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  reviewOffsetsDays: number[];
+  finalReviewOffsetDays?: number;
+  status: "draft" | "approved" | "retired";
+  version: number;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffProbation {
+  id: StaffProbationId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId: EmploymentRecordId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  probationStartDate: string;
+  originalExpectedEndDate: string;
+  currentExpectedEndDate: string;
+  status: StaffProbationStatus;
+  outcome?: StaffProbationOutcome;
+  completedAt?: string;
+  completedByUserAccountId?: UserAccountId;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffProbationReview {
+  id: StaffProbationReviewId;
+  probationId: StaffProbationId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId: EmploymentRecordId;
+  nursingHomeId: NursingHomeId;
+  scheduledDate: string;
+  reviewNumber: number;
+  status: StaffProbationReviewStatus;
+  completedAt?: string;
+  reviewedByStaffMemberId?: StaffMemberId;
+  reviewedByUserAccountId?: UserAccountId;
+  outcome?: StaffProbationOutcome;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffProbationExtension {
+  id: StaffProbationExtensionId;
+  probationId: StaffProbationId;
+  previousExpectedEndDate: string;
+  newExpectedEndDate: string;
+  reason: string;
+  approvedAt?: string;
+  approvedByUserAccountId?: UserAccountId;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProbationEvent {
+  id: string;
+  type: "StaffProbationCreated" | "ProbationReviewScheduled" | "ProbationReviewCompleted" | "StaffProbationExtended" | "StaffProbationCompleted" | "StaffProbationFailed" | "ProbationReviewOverdue" | "ProbationRecordEnteredInError";
+  probationId: StaffProbationId | string;
+  probationReviewId?: StaffProbationReviewId | string;
+  staffMemberId: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  nursingHomeId: NursingHomeId | string;
+  safeStatus?: StaffProbationStatus | StaffProbationReviewStatus;
+  actorUserAccountId?: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface StaffingEstablishmentWtePolicy {
+  id: string;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  standardWeeklyHours: number;
+  status: "draft" | "approved" | "retired";
+  version: number;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffingEstablishmentComparisonLine {
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  roleKey: string;
+  budgetedWte?: number;
+  requiredWte?: number;
+  actualPermanentWte?: number;
+  agencyWte?: number;
+  totalCoveredWte?: number;
+  budgetVacancyWte?: number;
+  requiredCoverageGapWte?: number;
+  vacancyPercent?: number;
+  agencyPercent?: number;
+  availability: DashboardMetricAvailability;
+  explanation: string;
+}
+
+export interface StaffingEstablishmentSummary {
+  nursingHomeId: NursingHomeId;
+  establishmentVersionId?: StaffingEstablishmentVersionId;
+  budgetedWte?: number;
+  requiredWte?: number;
+  actualPermanentWte?: number;
+  agencyWte?: number;
+  totalCoveredWte?: number;
+  budgetVacancyWte?: number;
+  requiredCoverageGapWte?: number;
+  vacancyPercent?: number;
+  agencyPercent?: number;
+  safeStaffingCoveragePercent?: number;
+  safeStaffingStatus?: SafeStaffingReadinessStatus;
+  missingEmploymentWteCount: number;
+  missingHomeAllocationCount: number;
+  missingAgencyTimesheetCount: number;
+  lines: StaffingEstablishmentComparisonLine[];
+  availability: DashboardMetricAvailability;
+  explanation: string;
+  generatedAt: string;
 }
 
 export interface HomeAssignment {

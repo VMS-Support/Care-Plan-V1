@@ -39,6 +39,11 @@ import {
   getTrainingOverdueMetric,
   getTrainingNotStartedMetric,
   getEffectiveStaffingEstablishment,
+  getAgencySpendHighMetric,
+  getAgencySpendMetric,
+  getAgencyStaffTodayMetric,
+  getProbationReviewsDueMetric,
+  getStaffingEstablishmentWteComparison,
   getWorkforceRecruitmentRosterLeaveDashboardSummary,
   getTotalFteMetric,
   getTotalStaffMetric,
@@ -93,6 +98,22 @@ function StaffManagementDashboard() {
   const topVacantPositions = workforceDashboard.topVacantPositions;
   const rosterOverview = workforceDashboard.rosterOverview;
   const leaveOverview = workforceDashboard.leaveOverview;
+  const agencyStaffToday = getAgencyStaffTodayMetric({ assignments: care.agencyShiftAssignments, nursingHomeId: care.activeFacilityId, localDate: dashboardDate });
+  const agencySpend = getAgencySpendMetric({ timesheets: care.agencyTimesheets, nursingHomeId: care.activeFacilityId, dateFrom: "2026-07-01", dateTo: "2026-07-31" });
+  const agencySpendHigh = getAgencySpendHighMetric({ spendMinor: agencySpend.approvedSpend.amountMinor, policies: care.agencySpendAlertPolicies, nursingHomeId: care.activeFacilityId, date: dashboardDate });
+  const probationReviewsDue = getProbationReviewsDueMetric({ reviews: care.staffProbationReviews, policies: care.probationReviewSchedulePolicies, nursingHomeId: care.activeFacilityId, date: dashboardDate, dueBy: "2026-07-22" });
+  const wteSummary = getStaffingEstablishmentWteComparison({
+    version: effectiveEstablishment,
+    lines: care.staffingEstablishmentLines,
+    employmentRecords: care.employmentRecords,
+    homeAssignments: care.employmentHomeAssignments,
+    agencyTimesheets: care.agencyTimesheets,
+    wtePolicy: care.staffingEstablishmentWtePolicies.find((policy) => policy.status === "approved" && (!policy.nursingHomeId || policy.nursingHomeId === care.activeFacilityId)),
+    nursingHomeId: care.activeFacilityId,
+    date: dashboardDate,
+    periodFrom: "2026-07-13",
+    periodTo: "2026-07-19",
+  });
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -135,7 +156,7 @@ function StaffManagementDashboard() {
         <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? `FTE: ${totalFteMetric.value}` : "Restricted"} percent={72} tone="blue" />
         <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
         <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value={vacantPositionsMetric.value === undefined ? "N/A" : String(vacantPositionsMetric.value)} sub={vacantPositionsMetric.availability === "available" ? "Open" : "Not configured"} foot={vacantPositionsMetric.percentage === undefined ? vacantPositionsMetric.explanation : `${vacantPositionsMetric.percentage}% of Budgeted`} percent={vacantPositionsMetric.percentage ?? 0} tone="orange" />
-        <StaffKpi icon={UserPlus} title="Agency Staff Today" value="27" sub="9%" foot="vs 8% Last Month" percent={42} tone="purple" trend="up" />
+        <StaffKpi icon={UserPlus} title="Agency Staff Today" value={String(agencyStaffToday.value)} sub={`${agencyStaffToday.agencyShiftCount} shifts`} foot={agencyStaffToday.explanation} percent={Math.min(100, agencyStaffToday.value * 8)} tone="purple" />
         <StaffKpi icon={HeartPulse} title="Sick Leave Today" value={metricValue(leaveOverview.sickLeaveToday)} sub={leaveOverview.sickLeaveToday.availability === "available" ? "Today" : "Unavailable"} foot={leaveOverview.sickLeaveToday.explanation} percent={Math.min(100, (leaveOverview.sickLeaveToday.value || 0) * 4)} tone="red" />
         <StaffKpi icon={Plane} title="On Annual Leave" value={metricValue(leaveOverview.annualLeaveToday)} sub={leaveOverview.annualLeaveToday.availability === "available" ? "Today" : "Unavailable"} foot={leaveOverview.annualLeaveToday.explanation} percent={Math.min(100, (leaveOverview.annualLeaveToday.value || 0) * 3)} tone="blue" />
         <StaffKpi icon={FileBadge} title="Registration Compliance" value={registrationCompliance.percentage === undefined ? "N/A" : `${registrationCompliance.percentage}%`} sub="Compliant" foot={`Expiring: ${expiringRegistrations.value}`} percent={registrationCompliance.percentage ?? 0} tone="green" compact />
@@ -228,8 +249,8 @@ function StaffManagementDashboard() {
               ["Registration Alerts", String(registrationAlerts.length), registrationAlerts.length ? "red" : "purple"],
               ["Training Overdue", String(trainingOverdueMetric.value), "red"],
               ["Mandatory Documents Expiring", String(mandatoryDocumentsExpiring.value), "orange"],
-              ["Probation Reviews Due", "5", "purple"],
-              ["Agency Spend High", "3", "red"],
+              ["Probation Reviews Due", metricValue(probationReviewsDue), probationReviewsDue.value ? "purple" : "orange"],
+              ["Agency Spend High", agencySpendHigh.status === "not_configured" ? "N/A" : titleCase(agencySpendHigh.status), agencySpendHigh.status === "critical" || agencySpendHigh.status === "high" ? "red" : "orange"],
             ].map(([label, count, tone]) => <AlertRow key={label} label={label} count={count} tone={tone} />)}
           </div>
           <Link to="/alerts" className="mt-8 flex items-center justify-between text-xs font-medium text-[#0b4f93]">View All Alerts <ArrowRight className="h-3.5 w-3.5" /></Link>
@@ -237,10 +258,16 @@ function StaffManagementDashboard() {
         <Panel title="Agency Spend" suffix="(This Month)">
           <div className="flex h-full items-center justify-between gap-4">
             <div>
+              <div className="text-[30px] font-bold">{formatMoneyMinor(agencySpend.approvedSpend.amountMinor, agencySpend.approvedSpend.currencyCode)}</div>
+              <div className="text-xs text-[#536176]">Approved Spend</div>
+              <div className="mt-3 text-xs">{agencySpend.explanation}</div>
+              <div className="mt-1 text-sm font-bold">Agency WTE {wteSummary.agencyWte ?? "N/A"}</div>
+              <div className="hidden">
               <div className="text-[30px] font-bold">€48,760</div>
               <div className="text-xs text-[#536176]">Total Spend</div>
               <div className="mt-5 text-xs">vs €41,250 Last Month <ArrowUp className="inline h-3.5 w-3.5 text-[#ef3333]" /></div>
               <div className="mt-1 text-sm font-bold">+18.2%</div>
+              </div>
             </div>
             <div className="grid h-20 w-20 place-items-center rounded-full bg-[#eef5ff] text-[#0b6ed8]">
               <Users className="h-9 w-9" />
@@ -260,6 +287,10 @@ function StaffManagementDashboard() {
 
 function metricValue(metric: { value?: number; availability: string }) {
   return metric.availability === "available" ? String(metric.value ?? 0) : "N/A";
+}
+
+function formatMoneyMinor(amountMinor: number, currencyCode: string) {
+  return new Intl.NumberFormat("en-IE", { style: "currency", currency: currencyCode, maximumFractionDigits: 0 }).format(amountMinor / 100);
 }
 
 function rosterPercent(value?: number, total?: number) {
