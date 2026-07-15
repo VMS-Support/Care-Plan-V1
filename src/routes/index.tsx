@@ -13,6 +13,7 @@ import {
 import type { Resident, UserProfile } from "@/lib/care/types";
 import { OperationsHub } from "@/components/operations/OperationsHub";
 import { RecordDailyCareDialog } from "@/components/dailyCare/RecordDailyCareDialog";
+import { HcaEscalateToNurseDialog } from "@/components/dailyCare/HcaEscalateToNurse";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -537,9 +538,10 @@ function NurseDashboard() {
 }
 
 function HcaDashboard() {
-  const { recordDailyCare, operationalContext } = useCare();
+  const { recordDailyCare, submitHcaNurseEscalation, operationalContext } = useCare();
   const d = useRoleDashboardData("assigned");
   const [selectedDailyCareResident, setSelectedDailyCareResident] = useState<Resident | null>(null);
+  const [selectedEscalationResident, setSelectedEscalationResident] = useState<Resident | null>(null);
   const residents = d.myResidents.length ? d.myResidents : d.activeResidents;
   const residentIds = d.myResidentIds.size ? d.myResidentIds : d.activeResidentIds;
   const careTasks = buildShiftWorkQueue(d, residentIds, true).filter((item) =>
@@ -554,7 +556,7 @@ function HcaDashboard() {
       <RoleSection title="My Residents">
         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
           {residents.length === 0 && <EmptyPanel message="No residents assigned." />}
-          {residents.slice(0, 8).map((r) => <ResidentCard key={r.id} resident={r} hca compact onRecordDailyCare={setSelectedDailyCareResident} />)}
+          {residents.slice(0, 8).map((r) => <ResidentCard key={r.id} resident={r} hca compact onRecordDailyCare={setSelectedDailyCareResident} onEscalateToNurse={setSelectedEscalationResident} />)}
         </div>
       </RoleSection>
       <RoleList title="Care Reminders" empty="No care reminders at the moment." items={reminders} href="/alerts" />
@@ -569,6 +571,20 @@ function HcaDashboard() {
           onSave={(command) => {
             recordDailyCare(command);
             toast.success("Daily Care recorded");
+          }}
+        />
+      )}
+      {selectedEscalationResident && (
+        <HcaEscalateToNurseDialog
+          open={Boolean(selectedEscalationResident)}
+          onOpenChange={(open) => !open && setSelectedEscalationResident(null)}
+          resident={selectedEscalationResident}
+          nursingHomeId={selectedEscalationResident.facilityId || operationalContext.nursingHomeId}
+          wardId={operationalContext.wardIds[0]}
+          roomId={selectedEscalationResident.roomNumber}
+          onSubmit={(command) => {
+            submitHcaNurseEscalation(command);
+            toast.success("Escalation sent to Nurse");
           }}
         />
       )}
@@ -781,7 +797,7 @@ function WorkQueueRow({ item }: { item: WorkQueueItem }) {
   );
 }
 
-function ResidentCard({ resident, hca = false, compact = false, onRecordDailyCare }: { resident: Resident; hca?: boolean; compact?: boolean; onRecordDailyCare?: (resident: Resident) => void }) {
+function ResidentCard({ resident, hca = false, compact = false, onRecordDailyCare, onEscalateToNurse }: { resident: Resident; hca?: boolean; compact?: boolean; onRecordDailyCare?: (resident: Resident) => void; onEscalateToNurse?: (resident: Resident) => void }) {
   const flags = hca
     ? [
         resident.aKeyToMe?.mobility ? `Mobility: ${resident.aKeyToMe.mobility}` : "Mobility not recorded",
@@ -810,16 +826,17 @@ function ResidentCard({ resident, hca = false, compact = false, onRecordDailyCar
           <div className="flex flex-wrap gap-1">
             {visibleFlags.map((flag) => <Badge key={flag} variant="secondary" className="text-[10px] max-w-full truncate">{flag}</Badge>)}
           </div>
-          {onRecordDailyCare && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
+          {(onRecordDailyCare || onEscalateToNurse) && (
+            <div className="grid grid-cols-3 gap-2 pt-1">
               <Button size="sm" variant="outline" asChild><Link to="/residents/$id" params={{ id: resident.id }}>Open</Link></Button>
-              <Button size="sm" onClick={() => onRecordDailyCare(resident)}>Record Care</Button>
+              {onRecordDailyCare && <Button size="sm" onClick={() => onRecordDailyCare(resident)}>Record Care</Button>}
+              {onEscalateToNurse && <Button size="sm" variant="secondary" onClick={() => onEscalateToNurse(resident)}>Escalate</Button>}
             </div>
           )}
         </CardContent>
       </Card>
   );
-  if (onRecordDailyCare) return content;
+  if (onRecordDailyCare || onEscalateToNurse) return content;
   return (
     <Link to="/residents/$id" params={{ id: resident.id }}>
       {content}

@@ -5,3 +5,4 @@ export * from "./dailyCareRltMapping";
 export * from "./dailyCareValidation";
 export * from "./dailyCareService";
 export * from "./dailyCareReadModel";
+export * from "./trends";

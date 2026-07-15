@@ -275,8 +275,11 @@ import type {
   ResidentBaselineEvent,
   ResidentClinicalBaseline,
 } from "@/domain/baselines/residentBaselineTypes";
-import type { DailyCareDomainEvent, DailyCareRecord, RecordDailyCareCommand } from "@/domain/dailyCare";
-import { recordDailyCare as recordDailyCareService } from "@/domain/dailyCare";
+import type { DailyCareDomainEvent, DailyCareRecord, DailyCareTrendEvaluationResult, DailyCareTrendPolicy, RecordDailyCareCommand } from "@/domain/dailyCare";
+import { handleDailyCareRecordedForTrends, recordDailyCare as recordDailyCareService } from "@/domain/dailyCare";
+import type { DeteriorationIssue, DeteriorationIssueEvent } from "@/domain/deterioration";
+import type { HcaEscalationEvent, HcaNurseEscalation, SubmitHcaNurseEscalationCommand } from "@/domain/escalation";
+import { submitHcaNurseEscalation as submitHcaNurseEscalationService } from "@/domain/escalation";
 import { can } from "./permissions";
 import { DEFAULT_RULE_DEFINITIONS } from "@/domain/rules/ruleCatalog";
 import { evaluateEventAgainstRules, processRulesForEvent, replayRuleForEvent } from "@/domain/rules/ruleEngine";
@@ -1951,6 +1954,13 @@ function seedData() {
     dailyCareRecords: [] as DailyCareRecord[],
     dailyCareEvents: [] as DailyCareDomainEvent[],
     dailyCareAuditRecords: [] as AuditRecord[],
+    dailyCareTrendPolicies: [] as DailyCareTrendPolicy[],
+    dailyCareTrendEvaluations: [] as DailyCareTrendEvaluationResult[],
+    deteriorationIssues: [] as DeteriorationIssue[],
+    deteriorationIssueEvents: [] as DeteriorationIssueEvent[],
+    hcaNurseEscalations: [] as HcaNurseEscalation[],
+    hcaEscalationEvents: [] as HcaEscalationEvent[],
+    hcaEscalationAuditRecords: [] as AuditRecord[],
   };
 }
 
@@ -2011,6 +2021,13 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "dailyCareRecords",
   "dailyCareEvents",
   "dailyCareAuditRecords",
+  "dailyCareTrendPolicies",
+  "dailyCareTrendEvaluations",
+  "deteriorationIssues",
+  "deteriorationIssueEvents",
+  "hcaNurseEscalations",
+  "hcaEscalationEvents",
+  "hcaEscalationAuditRecords",
 ];
 
 const hasFacility = (item: { facilityId?: string; nursingHomeId?: string }, facilityId: string) =>
@@ -2514,6 +2531,7 @@ interface CareCtx extends Store {
   addBowel: (b: Omit<BowelRecord, "id">) => BowelRecord;
   addBehaviour: (b: Omit<BehaviourRecord, "id">) => BehaviourRecord;
   recordDailyCare: (command: RecordDailyCareCommand) => DailyCareRecord;
+  submitHcaNurseEscalation: (command: SubmitHcaNurseEscalationCommand) => HcaNurseEscalation;
   addIncidentAction: (a: Omit<IncidentAction, "id">) => IncidentAction;
   generateShiftSummary: (date: string, shift: ShiftSummary["shift"]) => ShiftSummary;
   // ---------- Unified Care Plan / Problems ----------
@@ -5960,14 +5978,26 @@ export function CareProvider({ children }: { children: ReactNode }) {
             "daily_care.correct",
             "daily_care.enter_in_error",
             "daily_care.record_for_another_staff_member",
+            "daily_care_trends.evaluate",
+            "daily_care_trends.view",
+            "deterioration_queue.view",
             "work_item.complete",
             "work_item.mark_missed",
             "work_item.mark_not_applicable",
-          ].filter((capability) => capability.startsWith("daily_care.") ? can(currentRole, capability as never) : true);
+          ].filter((capability) => capability.startsWith("daily_care") || capability.startsWith("deterioration_queue.") ? can(currentRole, capability as never) : true);
           const repository = {
             dailyCareRecords: [...s.dailyCareRecords],
             dailyCareEvents: [...s.dailyCareEvents],
             dailyCareAuditRecords: [...s.dailyCareAuditRecords],
+            dailyCareTrendPolicies: [...s.dailyCareTrendPolicies],
+            dailyCareTrendEvaluations: [...s.dailyCareTrendEvaluations],
+            issues: [...s.deteriorationIssues],
+            events: [...s.deteriorationIssueEvents],
+            workItems: [...s.flexibleCareActionState.workItems],
+            transitions: [],
+            assignmentHistory: [],
+            exceptions: [],
+            auditRecords: [],
           };
           const existingDailyCareAuditIds = new Set(repository.dailyCareAuditRecords.map((record) => record.id));
           const result = recordDailyCareService(
@@ -5997,6 +6027,23 @@ export function CareProvider({ children }: { children: ReactNode }) {
             uid,
           );
           saved = result.record;
+          handleDailyCareRecordedForTrends(
+            result.record,
+            repository,
+            {
+              nursingHomeId: context.nursingHomeId,
+              wardId: context.wardIds[0],
+              timezone: context.timezone,
+              occurredAt: new Date().toISOString(),
+              correlationId: `daily-care-trends-${command.clientRequestId}`,
+            },
+            {
+              userAccountId: currentUserId,
+              staffMemberId: `staff-${currentUserId}`,
+              capabilities,
+            },
+            uid,
+          );
           const newDailyCareAuditRecords = repository.dailyCareAuditRecords.filter(
             (record) => !existingDailyCareAuditIds.has(record.id),
           );
@@ -6005,7 +6052,56 @@ export function CareProvider({ children }: { children: ReactNode }) {
             dailyCareRecords: repository.dailyCareRecords,
             dailyCareEvents: repository.dailyCareEvents,
             dailyCareAuditRecords: repository.dailyCareAuditRecords,
+            dailyCareTrendEvaluations: repository.dailyCareTrendEvaluations,
+            deteriorationIssues: repository.issues,
+            deteriorationIssueEvents: repository.events,
+            flexibleCareActionState: { ...s.flexibleCareActionState, workItems: repository.workItems },
             auditRecords: [...newDailyCareAuditRecords, ...s.auditRecords],
+          };
+        });
+        return saved!;
+      },
+      submitHcaNurseEscalation: (command) => {
+        let saved: HcaNurseEscalation | undefined;
+        setStore((s) => {
+          const context = s.operationalContext;
+          const capabilities = [
+            "hca_escalation.submit",
+            "hca_escalation.view_own",
+            "deterioration_queue.view",
+          ].filter((capability) => can(currentRole, capability as never));
+          const repository = {
+            hcaNurseEscalations: [...s.hcaNurseEscalations],
+            hcaEscalationEvents: [...s.hcaEscalationEvents],
+            hcaEscalationAuditRecords: [...s.hcaEscalationAuditRecords],
+            dailyCareRecords: [...s.dailyCareRecords],
+            issues: [...s.deteriorationIssues],
+            events: [...s.deteriorationIssueEvents],
+            workItems: [...s.flexibleCareActionState.workItems],
+            transitions: [],
+            assignmentHistory: [],
+            exceptions: [],
+            auditRecords: [],
+          };
+          const existingAuditIds = new Set(repository.hcaEscalationAuditRecords.map((record) => record.id));
+          const result = submitHcaNurseEscalationService(
+            { ...command, nursingHomeId: command.nursingHomeId || context.nursingHomeId, wardId: command.wardId || context.wardIds[0] },
+            { nursingHomeId: context.nursingHomeId, wardId: context.wardIds[0], timezone: context.timezone, occurredAt: new Date().toISOString(), correlationId: `hca-escalation-${command.clientRequestId}` },
+            { userAccountId: currentUserId, staffMemberId: `staff-${currentUserId}`, residentIds: s.residents.map((resident) => resident.id), authorisedNursingHomeIds: [context.nursingHomeId], authorisedWardIds: context.wardIds, capabilities },
+            repository,
+            uid,
+          );
+          saved = result.escalation;
+          const newAuditRecords = repository.hcaEscalationAuditRecords.filter((record) => !existingAuditIds.has(record.id));
+          return {
+            ...s,
+            hcaNurseEscalations: repository.hcaNurseEscalations,
+            hcaEscalationEvents: repository.hcaEscalationEvents,
+            hcaEscalationAuditRecords: repository.hcaEscalationAuditRecords,
+            deteriorationIssues: repository.issues,
+            deteriorationIssueEvents: repository.events,
+            flexibleCareActionState: { ...s.flexibleCareActionState, workItems: repository.workItems },
+            auditRecords: [...newAuditRecords, ...s.auditRecords],
           };
         });
         return saved!;
