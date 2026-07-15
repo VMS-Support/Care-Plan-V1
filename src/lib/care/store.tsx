@@ -108,6 +108,15 @@ import type {
   StaffResidencePermissionRecord,
   StaffVisaRecord,
   StaffVisaType,
+  TrainingCourse,
+  TrainingRequirement,
+  StaffTrainingAssignment,
+  StaffTrainingCompletion,
+  TrainingEvent,
+  CompetencyDefinition,
+  CompetencyRequirement,
+  StaffCompetencyValidation,
+  CompetencyEvent,
   HomeAssignment,
   WardCompetency,
   RosterAssignment,
@@ -136,6 +145,13 @@ import {
   updateStaffDocument,
   verifyImmigrationRecord,
   verifyStaffDocument,
+  assignTrainingToStaff,
+  DEFAULT_COMPETENCY_DEFINITIONS,
+  DEFAULT_TRAINING_COURSES,
+  generateTrainingAssignmentsForCurrentStaff,
+  recordCompetencyValidation,
+  recordTrainingCompletion,
+  verifyTrainingCompletion,
   updateStaffMemberRecord,
   type CreateEmploymentRecordCommand,
   type CreateEmploymentPermitRecordCommand,
@@ -143,6 +159,9 @@ import {
   type CreateResidencePermissionRecordCommand,
   type CreateStaffDocumentCommand,
   type CreateStaffVisaRecordCommand,
+  type AssignTrainingCommand,
+  type RecordCompetencyValidationCommand,
+  type RecordTrainingCompletionCommand,
   type SaveStaffMemberInput,
 } from "@/domain/workforce";
 import {
@@ -1947,6 +1966,28 @@ function seedData() {
     staffDocumentRequirements: [] as StaffDocumentRequirement[],
     staffDocumentVerificationRecords: [] as StaffDocumentVerificationRecord[],
     staffDocumentEvents: [] as StaffDocumentEvent[],
+    trainingCourses: DEFAULT_TRAINING_COURSES,
+    trainingRequirements: DEFAULT_TRAINING_COURSES.map((course) => ({
+      id: `training-requirement-${course.code.toLowerCase().replaceAll("_", "-")}-all-staff`,
+      trainingCourseId: course.id,
+      targetType: "all_staff" as const,
+      mandatory: course.mandatoryByDefault,
+      renewalRule: course.defaultRenewalFrequency ? { frequency: course.defaultRenewalFrequency, renewalDueFrom: "completion_date" as const, warningDays: 30, urgentWarningDays: 7 } : undefined,
+      initialDueRule: { dueFrom: "employment_start" as const, offsetDays: 30 },
+      effectiveFrom: "2026-07-15",
+      active: true,
+      createdAt: "2026-07-15T00:00:00.000Z",
+      updatedAt: "2026-07-15T00:00:00.000Z",
+      createdByUserAccountId: "user-account-system" as any,
+      updatedByUserAccountId: "user-account-system" as any,
+    })) as TrainingRequirement[],
+    staffTrainingAssignments: [] as StaffTrainingAssignment[],
+    staffTrainingCompletions: [] as StaffTrainingCompletion[],
+    trainingEvents: [] as TrainingEvent[],
+    competencyDefinitions: DEFAULT_COMPETENCY_DEFINITIONS,
+    competencyRequirements: [] as CompetencyRequirement[],
+    staffCompetencyValidations: [] as StaffCompetencyValidation[],
+    competencyEvents: [] as CompetencyEvent[],
     homeAssignments: [] as HomeAssignment[],
     wardCompetencies: [] as WardCompetency[],
     rosterAssignments: [] as RosterAssignment[],
@@ -2499,6 +2540,11 @@ interface CareCtx extends Store {
   verifyStaffVisaRecord: (id: string, notes?: string) => void;
   verifyResidencePermissionRecord: (id: string, notes?: string) => void;
   verifyEmploymentPermitRecord: (id: string, notes?: string) => void;
+  assignTrainingToStaff: (input: AssignTrainingCommand) => StaffTrainingAssignment;
+  recordTrainingCompletion: (input: RecordTrainingCompletionCommand) => StaffTrainingCompletion;
+  verifyTrainingCompletion: (id: string) => void;
+  generateTrainingAssignments: () => number;
+  recordCompetencyValidation: (input: RecordCompetencyValidationCommand) => StaffCompetencyValidation;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -3868,6 +3914,49 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (!current) throw new Error("The Immigration record could not be loaded.");
         const next = verifyImmigrationRecord(current, currentUser.id);
         setStore((s) => ({ ...s, staffEmploymentPermitRecords: s.staffEmploymentPermitRecords.map((record) => String(record.id) === id ? next : record) }));
+      },
+      assignTrainingToStaff: (input) => {
+        const assignment = assignTrainingToStaff(store, input);
+        const now = new Date().toISOString();
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingAssignmentCreated", staffMemberId: assignment.staffMemberId, employmentRecordId: assignment.employmentRecordId, trainingCourseId: assignment.trainingCourseId, trainingRequirementId: assignment.trainingRequirementId, trainingAssignmentId: assignment.id, safeStatus: assignment.status, dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffTrainingAssignments: [assignment, ...s.staffTrainingAssignments], trainingEvents: [event, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignment created", entity: String(assignment.id), entityType: "training_assignment", timestamp: now, after: JSON.stringify({ trainingCourseId: assignment.trainingCourseId, dueDate: assignment.dueDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return assignment;
+      },
+      recordTrainingCompletion: (input) => {
+        const completion = recordTrainingCompletion(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingCompletionRecorded", staffMemberId: completion.staffMemberId, employmentRecordId: completion.employmentRecordId, trainingCourseId: completion.trainingCourseId, trainingAssignmentId: completion.trainingAssignmentId, trainingCompletionId: completion.id, safeStatus: completion.status, expiryDate: completion.expiryDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({
+          ...s,
+          staffTrainingCompletions: [completion, ...s.staffTrainingCompletions],
+          staffTrainingAssignments: completion.trainingAssignmentId ? s.staffTrainingAssignments.map((assignment) => assignment.id === completion.trainingAssignmentId ? { ...assignment, latestCompletionId: completion.id, status: completion.status === "verified" ? "completed" : "in_progress", updatedAt: now } : assignment) : s.staffTrainingAssignments,
+          trainingEvents: [event, ...(s.trainingEvents || [])],
+          auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Completion recorded", entity: String(completion.id), entityType: "training_completion", timestamp: now, after: JSON.stringify({ trainingCourseId: completion.trainingCourseId, completionDate: completion.completionDate, status: completion.status }) }, ...s.auditLogs].slice(0, 500),
+        }));
+        return completion;
+      },
+      verifyTrainingCompletion: (id) => {
+        const current = store.staffTrainingCompletions.find((completion) => String(completion.id) === id);
+        if (!current) throw new Error("The Training record could not be loaded.");
+        const next = verifyTrainingCompletion(current, "verified", currentUser.id);
+        const now = new Date().toISOString();
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingCompletionVerified", staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, trainingCourseId: next.trainingCourseId, trainingAssignmentId: next.trainingAssignmentId, trainingCompletionId: next.id, safeStatus: next.status, expiryDate: next.expiryDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-verify-${id}-${now}` };
+        setStore((s) => ({ ...s, staffTrainingCompletions: s.staffTrainingCompletions.map((completion) => String(completion.id) === id ? next : completion), staffTrainingAssignments: next.trainingAssignmentId ? s.staffTrainingAssignments.map((assignment) => assignment.id === next.trainingAssignmentId ? { ...assignment, latestCompletionId: next.id, status: "completed", updatedAt: now } : assignment) : s.staffTrainingAssignments, trainingEvents: [event, ...(s.trainingEvents || [])] }));
+      },
+      generateTrainingAssignments: () => {
+        const assignments = generateTrainingAssignmentsForCurrentStaff(store, currentUser.id);
+        if (!assignments.length) return 0;
+        const now = new Date().toISOString();
+        const events = assignments.map((assignment): TrainingEvent => ({ id: `training-event-${uid()}`, type: "TrainingAssignmentCreated", staffMemberId: assignment.staffMemberId, employmentRecordId: assignment.employmentRecordId, trainingCourseId: assignment.trainingCourseId, trainingRequirementId: assignment.trainingRequirementId, trainingAssignmentId: assignment.id, safeStatus: assignment.status, dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-generation-${now}` }));
+        setStore((s) => ({ ...s, staffTrainingAssignments: [...assignments, ...s.staffTrainingAssignments], trainingEvents: [...events, ...(s.trainingEvents || [])] }));
+        return assignments.length;
+      },
+      recordCompetencyValidation: (input) => {
+        const validation = recordCompetencyValidation({ definitions: store.competencyDefinitions, completions: store.staffTrainingCompletions }, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: CompetencyEvent = { id: `competency-event-${uid()}`, type: validation.status === "competent_with_supervision" ? "StaffCompetencyValidatedWithSupervision" : "StaffCompetencyValidated", staffMemberId: validation.staffMemberId, employmentRecordId: validation.employmentRecordId, competencyDefinitionId: validation.competencyDefinitionId, competencyValidationId: validation.id, status: validation.status, validationDate: validation.validationDate, expiryDate: validation.expiryDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffCompetencyValidations: [validation, ...s.staffCompetencyValidations], competencyEvents: [event, ...(s.competencyEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Competency Validation recorded", entity: String(validation.id), entityType: "competency_validation", timestamp: now, after: JSON.stringify({ competencyDefinitionId: validation.competencyDefinitionId, status: validation.status }) }, ...s.auditLogs].slice(0, 500) }));
+        return validation;
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

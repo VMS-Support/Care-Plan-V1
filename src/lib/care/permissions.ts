@@ -99,7 +99,18 @@ export type Permission =
   | "staff_immigration.edit" | "staff_immigration.submit_verification" | "staff_immigration.verify"
   | "staff_immigration.fail_verification" | "staff_immigration.renew" | "staff_immigration.enter_in_error"
   | "staff_immigration.manage_types" | "staff_immigration.manage_requirements"
-  | "staff_immigration.view_compliance" | "staff_immigration.view_metrics";
+  | "staff_immigration.view_compliance" | "staff_immigration.view_metrics"
+  | "training.view" | "training.view_all_homes" | "training.manage_courses" | "training.manage_requirements"
+  | "training.assign" | "training.record_completion" | "training.upload_certificate"
+  | "training.submit_verification" | "training.verify" | "training.fail_verification"
+  | "training.record_refresher" | "training.exempt" | "training.enter_in_error"
+  | "training.view_compliance" | "training.view_matrix" | "training.view_sensitive_notes"
+  | "competency.view" | "competency.view_all_homes" | "competency.manage_definitions"
+  | "competency.manage_requirements" | "competency.create_draft" | "competency.submit_validation"
+  | "competency.validate" | "competency.validate_with_supervision" | "competency.mark_not_yet_competent"
+  | "competency.renew" | "competency.suspend" | "competency.revoke" | "competency.enter_in_error"
+  | "competency.view_matrix" | "competency.view_restrictions" | "competency.view_evidence"
+  | "competency.view_skill_mix";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [

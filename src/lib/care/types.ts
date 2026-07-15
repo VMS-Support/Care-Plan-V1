@@ -38,6 +38,13 @@ export type StaffDocumentId = string;
 export type StaffDocumentRequirementId = string;
 export type StaffDocumentVerificationRecordId = string;
 export type StaffImmigrationRequirementProfileId = string;
+export type TrainingCourseId = string;
+export type TrainingRequirementId = string;
+export type StaffTrainingAssignmentId = string;
+export type StaffTrainingCompletionId = string;
+export type CompetencyDefinitionId = string;
+export type CompetencyRequirementId = string;
+export type StaffCompetencyValidationId = string;
 
 export type ResidentLifecycleStatus =
   | "pre_admission"
@@ -152,6 +159,18 @@ export type StaffDocumentVerificationStatus =
   | "unable_to_verify"
   | "verification_expired";
 export type StaffImmigrationComplianceStatus = "compliant" | "attention_required" | "missing_required" | "not_assessed" | "not_required";
+export type TrainingCourseStatus = "draft" | "active" | "inactive" | "retired";
+export type TrainingDeliveryMethod = "classroom" | "online" | "blended" | "practical" | "external_provider" | "self_directed" | "other";
+export type TrainingRenewalFrequency = "one_off" | "annual" | "every_two_years" | "every_three_years" | "custom_months" | "no_expiry";
+export type TrainingRequirementTarget = "all_staff" | "role" | "employment_category" | "contract_type" | "nursing_home" | "ward" | "individual_staff_member";
+export type StaffTrainingAssignmentStatus = "not_started" | "assigned" | "in_progress" | "completed" | "overdue" | "expired" | "exempt" | "cancelled" | "entered_in_error";
+export type TrainingCompletionStatus = "draft" | "pending_verification" | "verified" | "verification_failed" | "superseded" | "entered_in_error";
+export type StaffTrainingComplianceStatus = "compliant" | "due_soon" | "overdue" | "expired" | "not_started" | "in_progress" | "pending_verification" | "verification_failed" | "exempt" | "not_required" | "unable_to_determine";
+export type CompetencyDefinitionStatus = "draft" | "active" | "inactive" | "retired";
+export type CompetencyCategory = "clinical" | "medication" | "equipment" | "care" | "safety" | "operational" | "management" | "other";
+export type CompetencyRequirementTarget = "all_staff" | "role" | "employment_category" | "nursing_home" | "ward" | "individual_staff_member";
+export type CompetencyValidationStatus = "draft" | "pending_validation" | "competent" | "competent_with_supervision" | "not_yet_competent" | "expired" | "suspended" | "revoked" | "superseded" | "entered_in_error";
+export type StaffCompetencyComplianceStatus = "competent" | "competent_with_supervision" | "due_soon" | "expired" | "missing_required" | "not_yet_competent" | "pending_validation" | "not_required" | "unable_to_determine";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -724,6 +743,259 @@ export interface StaffImmigrationEvent {
   verificationStatus?: StaffDocumentVerificationStatus;
   expiryDate?: string;
   reviewDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface TrainingRenewalRule {
+  frequency: TrainingRenewalFrequency;
+  customMonths?: number;
+  renewalDueFrom: "completion_date" | "certificate_expiry_date" | "verification_date";
+  warningDays?: number;
+  urgentWarningDays?: number;
+}
+
+export interface TrainingInitialDueRule {
+  dueFrom: "employment_start" | "role_assignment_start" | "home_assignment_start" | "ward_assignment_start" | "assignment_created" | "explicit_date";
+  offsetDays?: number;
+  explicitDate?: string;
+}
+
+export interface TrainingCourse {
+  id: TrainingCourseId;
+  code: string;
+  title: string;
+  description?: string;
+  category: "mandatory" | "clinical" | "safety" | "governance" | "management" | "induction" | "professional_development" | "other";
+  mandatoryByDefault: boolean;
+  deliveryMethods: TrainingDeliveryMethod[];
+  defaultRenewalFrequency?: TrainingRenewalFrequency;
+  defaultValidityMonths?: number;
+  certificateRequired: boolean;
+  verificationRequired: boolean;
+  providerName?: string;
+  externalCourseReference?: string;
+  status: TrainingCourseStatus;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface TrainingRequirement {
+  id: TrainingRequirementId;
+  trainingCourseId: TrainingCourseId;
+  targetType: TrainingRequirementTarget;
+  roleKeys?: string[];
+  employmentCategories?: string[];
+  contractTypes?: EmploymentContractType[];
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  staffMemberId?: StaffMemberId;
+  mandatory: boolean;
+  renewalRule?: TrainingRenewalRule;
+  initialDueRule?: TrainingInitialDueRule;
+  gracePeriodDays?: number;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  active: boolean;
+  sourcePolicyDocumentId?: StaffDocumentId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffTrainingAssignment {
+  id: StaffTrainingAssignmentId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  trainingCourseId: TrainingCourseId;
+  trainingRequirementId?: TrainingRequirementId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  assignedAt: string;
+  dueDate?: string;
+  status: StaffTrainingAssignmentStatus;
+  exemptionReason?: string;
+  exemptionApprovedByUserAccountId?: UserAccountId;
+  exemptionApprovedAt?: string;
+  latestCompletionId?: StaffTrainingCompletionId;
+  source: "requirement" | "manual" | "induction" | "role_change" | "home_assignment" | "ward_assignment" | "other";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTrainingCompletion {
+  id: StaffTrainingCompletionId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  trainingCourseId: TrainingCourseId;
+  trainingAssignmentId?: StaffTrainingAssignmentId;
+  completionDate: string;
+  expiryDate?: string;
+  score?: number;
+  passMark?: number;
+  result?: "passed" | "failed" | "attendance_only" | "completed" | "other";
+  deliveryMethod?: TrainingDeliveryMethod;
+  providerName?: string;
+  trainerName?: string;
+  certificateDocumentId?: StaffDocumentId;
+  certificateFileId?: FileId;
+  status: TrainingCompletionStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  verifiedAt?: string;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedByStaffMemberId?: StaffMemberId;
+  verificationReference?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesCompletionId?: StaffTrainingCompletionId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface TrainingEvent {
+  id: string;
+  type:
+    | "TrainingCourseCreated"
+    | "TrainingCourseUpdated"
+    | "TrainingCourseActivated"
+    | "TrainingCourseRetired"
+    | "TrainingRequirementCreated"
+    | "TrainingRequirementUpdated"
+    | "TrainingAssignmentCreated"
+    | "TrainingAssignmentUpdated"
+    | "TrainingCompletionRecorded"
+    | "TrainingCompletionSubmittedForVerification"
+    | "TrainingCompletionVerified"
+    | "TrainingCompletionVerificationFailed"
+    | "TrainingRefresherRecorded"
+    | "TrainingAssignmentExempted"
+    | "TrainingCompletionEnteredInError"
+    | "TrainingComplianceChanged";
+  staffMemberId?: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  trainingCourseId?: TrainingCourseId | string;
+  trainingRequirementId?: TrainingRequirementId | string;
+  trainingAssignmentId?: StaffTrainingAssignmentId | string;
+  trainingCompletionId?: StaffTrainingCompletionId | string;
+  safeStatus?: string;
+  dueDate?: string;
+  expiryDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface CompetencyDefinition {
+  id: CompetencyDefinitionId;
+  code: string;
+  title: string;
+  description?: string;
+  category: CompetencyCategory;
+  status: CompetencyDefinitionStatus;
+  requiresTrainingCourseIds?: TrainingCourseId[];
+  requiresProfessionalRegistration?: boolean;
+  defaultValidityMonths?: number;
+  supervisionAllowed: boolean;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface CompetencyRequirement {
+  id: CompetencyRequirementId;
+  competencyDefinitionId: CompetencyDefinitionId;
+  targetType: CompetencyRequirementTarget;
+  roleKeys?: string[];
+  employmentCategories?: string[];
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  staffMemberId?: StaffMemberId;
+  mandatory: boolean;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffCompetencyValidation {
+  id: StaffCompetencyValidationId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  competencyDefinitionId: CompetencyDefinitionId;
+  competencyRequirementId?: CompetencyRequirementId;
+  scopeType: "enterprise" | "nursing_home" | "ward" | "role" | "individual";
+  enterpriseId?: EnterpriseId;
+  nursingHomeId?: NursingHomeId;
+  wardId?: WardId;
+  roleKey?: string;
+  status: CompetencyValidationStatus;
+  validationDate?: string;
+  expiryDate?: string;
+  reviewDate?: string;
+  validatedByStaffMemberId?: StaffMemberId;
+  validatedByUserAccountId?: UserAccountId;
+  evidenceDocumentId?: StaffDocumentId;
+  evidenceFileId?: FileId;
+  supervisionRequired: boolean;
+  restrictionsPresent: boolean;
+  restrictionsSummary?: string;
+  assessmentSummary?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesValidationId?: StaffCompetencyValidationId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface CompetencyEvent {
+  id: string;
+  type:
+    | "CompetencyDefinitionCreated"
+    | "CompetencyDefinitionUpdated"
+    | "CompetencyDefinitionActivated"
+    | "CompetencyRequirementCreated"
+    | "CompetencyRequirementUpdated"
+    | "StaffCompetencyDraftCreated"
+    | "StaffCompetencySubmittedForValidation"
+    | "StaffCompetencyValidated"
+    | "StaffCompetencyValidatedWithSupervision"
+    | "StaffCompetencyNotYetAchieved"
+    | "StaffCompetencyRenewed"
+    | "StaffCompetencyExpired"
+    | "StaffCompetencySuspended"
+    | "StaffCompetencyRevoked"
+    | "StaffCompetencyEnteredInError"
+    | "StaffCompetencyComplianceChanged";
+  staffMemberId?: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  competencyDefinitionId?: CompetencyDefinitionId | string;
+  competencyValidationId?: StaffCompetencyValidationId | string;
+  status?: string;
+  validationDate?: string;
+  expiryDate?: string;
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
   correlationId: string;

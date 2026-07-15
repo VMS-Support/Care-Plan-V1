@@ -11,11 +11,16 @@ import {
   professionalRegistrationRow,
   staffDocumentViewModel,
   getStaffImmigrationSummary,
+  getStaffTrainingProfile,
+  getStaffCompetencyProfile,
   getStaffProfile,
   type CreateStaffDocumentCommand,
   type CreateStaffVisaRecordCommand,
   type CreateResidencePermissionRecordCommand,
   type CreateEmploymentPermitRecordCommand,
+  type AssignTrainingCommand,
+  type RecordCompetencyValidationCommand,
+  type RecordTrainingCompletionCommand,
   type CreateEmploymentRecordCommand,
   type CreateProfessionalRegistrationCommand,
   STAFF_MEMBER_STATUS_LABELS,
@@ -65,10 +70,17 @@ function StaffProfilePage() {
   const canCreateImmigration = capabilities.includes("staff_immigration.create");
   const canVerifyImmigration = capabilities.includes("staff_immigration.verify");
   const canViewSensitiveWorkforce = capabilities.includes("staff_document.view_sensitive") || capabilities.includes("staff_immigration.view_sensitive");
+  const canAssignTraining = capabilities.includes("training.assign");
+  const canRecordTraining = capabilities.includes("training.record_completion");
+  const canVerifyTraining = capabilities.includes("training.verify");
+  const canRecordCompetency = capabilities.includes("competency.create_draft") || capabilities.includes("competency.validate");
   const [employmentOpen, setEmploymentOpen] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
   const [immigrationOpen, setImmigrationOpen] = useState(false);
+  const [trainingAssignOpen, setTrainingAssignOpen] = useState(false);
+  const [trainingCompletionOpen, setTrainingCompletionOpen] = useState(false);
+  const [competencyOpen, setCompetencyOpen] = useState(false);
   const employmentCards = care.employmentRecords
     .filter((record) => String(record.staffMemberId) === String(staff.id))
     .map((record) => employmentRecordCardModel(record, {
@@ -102,6 +114,8 @@ function StaffProfilePage() {
     permitTypes: care.staffEmploymentPermitTypes,
     canViewSensitive: canViewSensitiveWorkforce,
   });
+  const trainingRows = getStaffTrainingProfile({ staffMemberId: String(staff.id), courses: care.trainingCourses, assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions });
+  const competencyRows = getStaffCompetencyProfile({ staffMemberId: String(staff.id), definitions: care.competencyDefinitions, requirements: care.competencyRequirements, validations: care.staffCompetencyValidations });
 
   return (
     <div className="space-y-4 p-4 md:p-8">
@@ -267,10 +281,61 @@ function StaffProfilePage() {
         </div>
       </Section>
 
+      <Section
+        title="Training"
+        action={<div className="flex gap-2">{canAssignTraining && <Button size="sm" variant="outline" onClick={() => setTrainingAssignOpen(true)}>Assign Training</Button>}{canRecordTraining && <Button size="sm" onClick={() => setTrainingCompletionOpen(true)}>Record Completion</Button>}</div>}
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {trainingRows.map((row) => (
+            <div key={row.assignmentId} className="rounded-lg border p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div><div className="font-semibold">{row.courseTitle}</div><div className="text-muted-foreground">{row.mandatory ? "Mandatory" : "Optional"}</div></div>
+                <Badge variant="outline">{row.status.replaceAll("_", " ")}</Badge>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <span>Due: {row.dueDate || "Not recorded"}</span>
+                <span>Completed: {row.completionDate || "Not recorded"}</span>
+                <span>Expiry: {row.expiryDate || "Not recorded"}</span>
+                <span>Certificate: {row.certificateLinked ? "Linked" : "Not linked"}</span>
+              </div>
+              {canVerifyTraining && row.verificationStatus === "pending" && <Button className="mt-3" size="sm" variant="outline" onClick={() => care.verifyTrainingCompletion(String(row.completionId))}>Verify Completion</Button>}
+            </div>
+          ))}
+          {trainingRows.length === 0 && <p className="text-sm text-muted-foreground">No Training Assignments have been created for this Staff Member.</p>}
+        </div>
+      </Section>
+
+      <Section
+        title="Competencies"
+        action={canRecordCompetency ? <Button size="sm" onClick={() => setCompetencyOpen(true)}>Record Validation</Button> : undefined}
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {competencyRows.map((row) => (
+            <div key={row.competencyDefinitionId} className="rounded-lg border p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div><div className="font-semibold">{row.title}</div><div className="text-muted-foreground">{row.category}</div></div>
+                <Badge variant="outline">{row.status.replaceAll("_", " ")}</Badge>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <span>Scope: {row.scope || "Not recorded"}</span>
+                <span>Validated: {row.validationDate || "Not recorded"}</span>
+                <span>Expiry: {row.expiryDate || "Not recorded"}</span>
+                <span>Supervision: {row.supervisionRequired ? "Required" : "No"}</span>
+              </div>
+              {row.restrictionsPresent && capabilities.includes("competency.view_restrictions") && <p className="mt-2 text-amber-700">Restrictions are present.</p>}
+            </div>
+          ))}
+          {competencyRows.length === 0 && <p className="text-sm text-muted-foreground">No Competency Validations have been recorded for this Staff Member.</p>}
+        </div>
+      </Section>
+
       <AddEmploymentDialog open={employmentOpen} staffMemberId={String(staff.id)} homes={care.facilities} onOpenChange={setEmploymentOpen} onSave={(input) => { try { care.createEmploymentRecord(input); toast.success("Employment Record saved."); setEmploymentOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Employment Record could not be saved."); } }} />
       <AddRegistrationDialog open={registrationOpen} staffMemberId={String(staff.id)} onOpenChange={setRegistrationOpen} onSave={(input) => { try { care.createProfessionalRegistration(input); toast.success("Professional Registration saved."); setRegistrationOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Professional Registration could not be saved."); } }} />
       <AddStaffDocumentDialog open={documentOpen} staffMemberId={String(staff.id)} documentTypes={care.staffDocumentTypes} onOpenChange={setDocumentOpen} onSave={(input) => { try { care.createStaffDocument(input); toast.success("Staff Document saved."); setDocumentOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Staff Document could not be saved."); } }} />
       <AddImmigrationDialog open={immigrationOpen} staffMemberId={String(staff.id)} visaTypes={care.staffVisaTypes} permitTypes={care.staffEmploymentPermitTypes} onOpenChange={setImmigrationOpen} onSave={(kind, input) => { try { if (kind === "visa") care.createStaffVisaRecord(input as CreateStaffVisaRecordCommand); if (kind === "residence") care.createResidencePermissionRecord(input as CreateResidencePermissionRecordCommand); if (kind === "permit") care.createEmploymentPermitRecord(input as CreateEmploymentPermitRecordCommand); toast.success("Immigration record saved."); setImmigrationOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Immigration record could not be saved."); } }} />
+      <AssignTrainingDialog open={trainingAssignOpen} staffMemberId={String(staff.id)} courses={care.trainingCourses} onOpenChange={setTrainingAssignOpen} onSave={(input) => { try { care.assignTrainingToStaff(input); toast.success("Training assigned."); setTrainingAssignOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Training record could not be saved."); } }} />
+      <RecordTrainingCompletionDialog open={trainingCompletionOpen} staffMemberId={String(staff.id)} courses={care.trainingCourses} assignments={care.staffTrainingAssignments.filter((assignment) => String(assignment.staffMemberId) === String(staff.id))} onOpenChange={setTrainingCompletionOpen} onSave={(input) => { try { care.recordTrainingCompletion(input); toast.success("Training completion recorded."); setTrainingCompletionOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Training record could not be saved."); } }} />
+      <RecordCompetencyDialog open={competencyOpen} staffMemberId={String(staff.id)} definitions={care.competencyDefinitions} onOpenChange={setCompetencyOpen} onSave={(input) => { try { care.recordCompetencyValidation(input); toast.success("Competency validation recorded."); setCompetencyOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Competency Validation could not be saved."); } }} />
     </div>
   );
 }
@@ -372,6 +437,57 @@ function AddImmigrationDialog({ open, staffMemberId, visaTypes, permitTypes, onO
         <Field label="Evidence File ID"><Input value={form.evidenceFileId || ""} onChange={(event) => set("evidenceFileId", event.target.value)} /></Field>
       </div>
       <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(kind, { ...form, staffMemberId, clientRequestId: form.clientRequestId || `immigration-${Date.now()}` })}>Save Immigration Record</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function AssignTrainingDialog({ open, staffMemberId, courses, onOpenChange, onSave }: { open: boolean; staffMemberId: string; courses: { id: string; title: string; status: string }[]; onOpenChange: (open: boolean) => void; onSave: (input: AssignTrainingCommand) => void }) {
+  const activeCourses = courses.filter((course) => course.status === "active");
+  const [form, setForm] = useState<AssignTrainingCommand>({ staffMemberId, trainingCourseId: activeCourses[0]?.id || "", dueDate: new Date().toISOString().slice(0, 10), source: "manual", clientRequestId: `training-assignment-${Date.now()}` });
+  const set = (key: keyof AssignTrainingCommand, value: string) => setForm((current) => ({ ...current, staffMemberId, [key]: value || undefined }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Assign Training</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Course"><Select value={form.trainingCourseId} onValueChange={(value) => set("trainingCourseId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{activeCourses.map((course) => <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Due Date"><Input type="date" value={form.dueDate || ""} onChange={(event) => set("dueDate", event.target.value)} /></Field>
+      </div>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Assign</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function RecordTrainingCompletionDialog({ open, staffMemberId, courses, assignments, onOpenChange, onSave }: { open: boolean; staffMemberId: string; courses: { id: string; title: string; status: string }[]; assignments: { id: string; trainingCourseId: string }[]; onOpenChange: (open: boolean) => void; onSave: (input: RecordTrainingCompletionCommand) => void }) {
+  const activeCourses = courses.filter((course) => course.status === "active");
+  const firstAssignment = assignments[0];
+  const [form, setForm] = useState<RecordTrainingCompletionCommand>({ staffMemberId, trainingAssignmentId: firstAssignment?.id, trainingCourseId: firstAssignment?.trainingCourseId || activeCourses[0]?.id || "", completionDate: new Date().toISOString().slice(0, 10), result: "completed", clientRequestId: `training-completion-${Date.now()}` });
+  const set = (key: keyof RecordTrainingCompletionCommand, value: string) => setForm((current) => ({ ...current, staffMemberId, [key]: key === "score" || key === "passMark" ? Number(value) : value || undefined }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Record Training Completion</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Course"><Select value={form.trainingCourseId} onValueChange={(value) => set("trainingCourseId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{activeCourses.map((course) => <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Completion Date"><Input type="date" value={form.completionDate} onChange={(event) => set("completionDate", event.target.value)} /></Field>
+        <Field label="Expiry Date"><Input type="date" value={form.expiryDate || ""} onChange={(event) => set("expiryDate", event.target.value)} /></Field>
+        <Field label="Certificate File ID"><Input value={form.certificateFileId || ""} onChange={(event) => set("certificateFileId", event.target.value)} /></Field>
+      </div>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Record Completion</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function RecordCompetencyDialog({ open, staffMemberId, definitions, onOpenChange, onSave }: { open: boolean; staffMemberId: string; definitions: { id: string; title: string; status: string }[]; onOpenChange: (open: boolean) => void; onSave: (input: RecordCompetencyValidationCommand) => void }) {
+  const activeDefinitions = definitions.filter((definition) => definition.status === "active");
+  const [form, setForm] = useState<RecordCompetencyValidationCommand>({ staffMemberId, competencyDefinitionId: activeDefinitions[0]?.id || "", validationDate: new Date().toISOString().slice(0, 10), supervisionRequired: false, restrictionsPresent: false, clientRequestId: `competency-validation-${Date.now()}` });
+  const set = (key: keyof RecordCompetencyValidationCommand, value: string | boolean) => setForm((current) => ({ ...current, staffMemberId, [key]: value || undefined }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Record Competency Validation</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Competency"><Select value={form.competencyDefinitionId} onValueChange={(value) => set("competencyDefinitionId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{activeDefinitions.map((definition) => <SelectItem key={definition.id} value={definition.id}>{definition.title}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Validation Date"><Input type="date" value={form.validationDate || ""} onChange={(event) => set("validationDate", event.target.value)} /></Field>
+        <Field label="Expiry Date"><Input type="date" value={form.expiryDate || ""} onChange={(event) => set("expiryDate", event.target.value)} /></Field>
+        <Field label="Evidence File ID"><Input value={form.evidenceFileId || ""} onChange={(event) => set("evidenceFileId", event.target.value)} /></Field>
+      </div>
+      <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(form.supervisionRequired)} onChange={(event) => set("supervisionRequired", event.target.checked)} /> Competent with supervision</label>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Record Validation</Button></div>
     </DialogContent></Dialog>
   );
 }

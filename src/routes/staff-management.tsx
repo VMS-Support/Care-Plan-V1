@@ -35,6 +35,9 @@ import {
   getVisaComplianceMetric,
   getResidencePermissionMetric,
   getEmploymentPermitValidMetric,
+  getTrainingComplianceMetric,
+  getTrainingOverdueMetric,
+  getTrainingNotStartedMetric,
   getTotalFteMetric,
   getTotalStaffMetric,
 } from "@/domain/workforce";
@@ -63,6 +66,9 @@ function StaffManagementDashboard() {
   const employmentPermitMetric = getEmploymentPermitValidMetric({ employmentRecords: care.employmentRecords, permitRecords: care.staffEmploymentPermitRecords });
   const mandatoryDocumentsExpiring = getMandatoryDocumentsExpiringMetric(care.staffDocuments);
   const gardaVettingMetric = getGardaVettingComplianceMetric({ documents: care.staffDocuments, documentTypes: care.staffDocumentTypes, employmentRecords: care.employmentRecords });
+  const trainingComplianceMetric = getTrainingComplianceMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const trainingOverdueMetric = getTrainingOverdueMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const trainingNotStartedMetric = getTrainingNotStartedMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -109,7 +115,7 @@ function StaffManagementDashboard() {
         <StaffKpi icon={HeartPulse} title="Sick Leave Today" value="23" sub="7%" foot="vs 5% Last Month" percent={32} tone="red" trend="up" />
         <StaffKpi icon={Plane} title="On Annual Leave" value="31" sub="10%" foot="vs 9% Last Month" percent={48} tone="blue" trend="down" />
         <StaffKpi icon={FileBadge} title="Registration Compliance" value={registrationCompliance.percentage === undefined ? "N/A" : `${registrationCompliance.percentage}%`} sub="Compliant" foot={`Expiring: ${expiringRegistrations.value}`} percent={registrationCompliance.percentage ?? 0} tone="green" compact />
-        <StaffKpi icon={GraduationCap} title="Training Compliance" value="92%" sub="Compliant" foot="Overdue: 15 Staff" percent={92} tone="purple" compact />
+        <StaffKpi icon={GraduationCap} title="Training Compliance" value={trainingComplianceMetric.percentage === undefined ? "N/A" : `${trainingComplianceMetric.percentage}%`} sub="Compliant" foot={`Overdue: ${trainingOverdueMetric.value}`} percent={trainingComplianceMetric.percentage ?? 0} tone="purple" compact />
       </section>
 
       <section className="grid gap-3 xl:grid-cols-3">
@@ -155,7 +161,7 @@ function StaffManagementDashboard() {
           <div className="grid gap-5 md:grid-cols-[150px_1fr]">
             <Ring percent={92} tone="green" label="Compliant" />
             <div className="space-y-5">
-              <Legend rows={[["Compliant", "287", "92%", "#2fab5f"], ["Overdue", "15", "5%", "#ff7e16"], ["Not Started", "10", "3%", "#9aa8b8"]]} />
+              <Legend rows={[["Compliant", String(trainingComplianceMetric.numerator), trainingComplianceMetric.percentage === undefined ? "N/A" : `${trainingComplianceMetric.percentage}%`, "#2fab5f"], ["Overdue", String(trainingOverdueMetric.value), "", "#ff7e16"], ["Not Started", String(trainingNotStartedMetric.value), "", "#9aa8b8"]]} />
               <Link to="/reports" className="inline-flex items-center gap-2 text-xs font-medium text-[#0b4f93]">View Training Matrix <ArrowRight className="h-3.5 w-3.5" /></Link>
             </div>
           </div>
@@ -193,7 +199,7 @@ function StaffManagementDashboard() {
             {[
               ["Registrations Expiring", String(expiringRegistrations.value), "orange"],
               ["Registration Alerts", String(registrationAlerts.length), registrationAlerts.length ? "red" : "purple"],
-              ["Training Overdue", "15", "red"],
+              ["Training Overdue", String(trainingOverdueMetric.value), "red"],
               ["Mandatory Documents Expiring", String(mandatoryDocumentsExpiring.value), "orange"],
               ["Probation Reviews Due", "5", "purple"],
               ["Agency Spend High", "3", "red"],

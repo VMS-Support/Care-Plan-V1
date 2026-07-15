@@ -22,6 +22,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCare } from "@/lib/care/store";
+import { getTrainingComplianceMetric, getTrainingNotStartedMetric, getTrainingOverdueMetric } from "@/domain/workforce";
 
 export const Route = createFileRoute("/training-dashboard")({
   head: () => ({ meta: [{ title: "Training Dashboard - NuCare" }] }),
@@ -29,8 +30,14 @@ export const Route = createFileRoute("/training-dashboard")({
 });
 
 function TrainingDashboard() {
-  const { currentRole } = useCare();
+  const care = useCare();
+  const { currentRole } = care;
   const allowed = currentRole === "cnm" || currentRole === "don" || currentRole === "group_owner";
+  const trainingCompliance = getTrainingComplianceMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const trainingOverdue = getTrainingOverdueMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const trainingNotStarted = getTrainingNotStartedMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
+  const inProgress = trainingCompliance.inProgressAssignments.length + trainingCompliance.pendingVerificationAssignments.length;
+  const completedThisMonth = care.staffTrainingCompletions.filter((completion) => completion.completionDate?.startsWith("2026-07")).length;
 
   if (!allowed) {
     return (
@@ -66,11 +73,11 @@ function TrainingDashboard() {
       </header>
 
       <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <TrainingKpi icon={ShieldCheck} title="Overall Compliance" value="86%" sub="Compliant" foot="vs last month" change="6%" trend="up" percent={86} tone="green" />
-        <TrainingKpi icon={GraduationCap} title="Mandatory Training" value="82%" sub="Compliant" foot="vs last month" change="4%" trend="up" percent={82} tone="purple" />
-        <TrainingKpi icon={Clock3} title="Overdue Training" value="124" sub="Overdue" foot="vs last month" change="18" trend="upBad" percent={0} tone="red" noRing />
-        <TrainingKpi icon={Users} title="Training In Progress" value="196" sub="In Progress" foot="vs last month" change="12" trend="up" percent={62} tone="orange" />
-        <TrainingKpi icon={Medal} title="Courses Completed" value="1,248" sub="This Month" foot="vs last month" change="15%" trend="up" percent={72} tone="blue" />
+        <TrainingKpi icon={ShieldCheck} title="Overall Compliance" value={trainingCompliance.percentage === undefined ? "N/A" : `${trainingCompliance.percentage}%`} sub="Compliant" foot="live metric" change={`${trainingCompliance.numerator}`} trend="up" percent={trainingCompliance.percentage ?? 0} tone="green" />
+        <TrainingKpi icon={GraduationCap} title="Mandatory Training" value={trainingCompliance.percentage === undefined ? "N/A" : `${trainingCompliance.percentage}%`} sub="Compliant" foot="mandatory assignments" change={`${trainingCompliance.denominator}`} trend="up" percent={trainingCompliance.percentage ?? 0} tone="purple" />
+        <TrainingKpi icon={Clock3} title="Overdue Training" value={String(trainingOverdue.value)} sub="Overdue" foot="live metric" change={String(trainingOverdue.expired.length)} trend="upBad" percent={0} tone="red" noRing />
+        <TrainingKpi icon={Users} title="Training In Progress" value={String(inProgress)} sub="In Progress" foot="pending or in progress" change={String(trainingCompliance.pendingVerificationAssignments.length)} trend="up" percent={trainingCompliance.denominator ? Math.round((inProgress / trainingCompliance.denominator) * 100) : 0} tone="orange" />
+        <TrainingKpi icon={Medal} title="Courses Completed" value={String(completedThisMonth)} sub="This Month" foot="verified or pending" change={String(care.staffTrainingCompletions.length)} trend="up" percent={72} tone="blue" />
         <TrainingKpi icon={Clock3} title="Total Training Hours" value="2,356" sub="This Month" foot="vs last month" change="10%" trend="up" percent={74} tone="teal" />
       </section>
 
@@ -97,17 +104,17 @@ function TrainingDashboard() {
           <div className="grid gap-5 md:grid-cols-[170px_1fr]">
             <Donut value="1,568" label="Total Staff" segments={["#25a95a", "#ff8a13", "#ef3333", "#9aa8b8"]} />
             <Legend rows={[
-              ["Compliant", "1,349", "86%", "#25a95a"],
-              ["In Progress", "196", "12%", "#ff8a13"],
-              ["Overdue", "124", "8%", "#ef3333"],
-              ["Not Started", "99", "6%", "#9aa8b8"],
+              ["Compliant", String(trainingCompliance.numerator), trainingCompliance.percentage === undefined ? "N/A" : `${trainingCompliance.percentage}%`, "#25a95a"],
+              ["In Progress", String(inProgress), "", "#ff8a13"],
+              ["Overdue", String(trainingOverdue.value), "", "#ef3333"],
+              ["Not Started", String(trainingNotStarted.value), "", "#9aa8b8"],
             ]} />
           </div>
           <div className="mt-5 grid grid-cols-4 rounded-lg bg-[#f8fafc] text-center text-xs">
-            <StatusStat label="Compliant" value="1,349" tone="green" />
-            <StatusStat label="In Progress" value="196" tone="orange" />
-            <StatusStat label="Overdue" value="124" tone="red" />
-            <StatusStat label="Not Started" value="99" tone="navy" />
+            <StatusStat label="Compliant" value={String(trainingCompliance.numerator)} tone="green" />
+            <StatusStat label="In Progress" value={String(inProgress)} tone="orange" />
+            <StatusStat label="Overdue" value={String(trainingOverdue.value)} tone="red" />
+            <StatusStat label="Not Started" value={String(trainingNotStarted.value)} tone="navy" />
           </div>
         </Panel>
 
