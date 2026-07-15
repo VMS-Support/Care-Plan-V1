@@ -96,6 +96,18 @@ import type {
   ProfessionalRegistrationBody,
   ProfessionalRegistrationEvent,
   ProfessionalRegistrationRequirement,
+  StaffDocument,
+  StaffDocumentEvent,
+  StaffDocumentRequirement,
+  StaffDocumentType,
+  StaffDocumentVerificationRecord,
+  StaffEmploymentPermitRecord,
+  StaffEmploymentPermitType,
+  StaffImmigrationEvent,
+  StaffImmigrationRequirementProfile,
+  StaffResidencePermissionRecord,
+  StaffVisaRecord,
+  StaffVisaType,
   HomeAssignment,
   WardCompetency,
   RosterAssignment,
@@ -112,11 +124,25 @@ import {
   createProfessionalRegistration,
   getAuthorisedWorkforceScope,
   appendRegistrationVerification,
+  createEmploymentPermitRecord,
   updateEmploymentRecord as updateEmploymentRecordService,
   updateProfessionalRegistration as updateProfessionalRegistrationService,
+  createResidencePermissionRecord,
+  createStaffDocument,
+  createStaffVisaRecord,
+  DEFAULT_STAFF_DOCUMENT_TYPES,
+  DEFAULT_STAFF_EMPLOYMENT_PERMIT_TYPES,
+  DEFAULT_STAFF_VISA_TYPES,
+  updateStaffDocument,
+  verifyImmigrationRecord,
+  verifyStaffDocument,
   updateStaffMemberRecord,
   type CreateEmploymentRecordCommand,
+  type CreateEmploymentPermitRecordCommand,
   type CreateProfessionalRegistrationCommand,
+  type CreateResidencePermissionRecordCommand,
+  type CreateStaffDocumentCommand,
+  type CreateStaffVisaRecordCommand,
   type SaveStaffMemberInput,
 } from "@/domain/workforce";
 import {
@@ -1909,6 +1935,18 @@ function seedData() {
       { id: "req-doctor-medical-council", roleKey: "DOCTOR", professionKey: "doctor", registrationBodyId: "medical-council-ie", active: true },
     ] as ProfessionalRegistrationRequirement[],
     professionalRegistrationEvents: [] as ProfessionalRegistrationEvent[],
+    staffVisaTypes: DEFAULT_STAFF_VISA_TYPES,
+    staffEmploymentPermitTypes: DEFAULT_STAFF_EMPLOYMENT_PERMIT_TYPES,
+    staffVisaRecords: [] as StaffVisaRecord[],
+    staffResidencePermissionRecords: [] as StaffResidencePermissionRecord[],
+    staffEmploymentPermitRecords: [] as StaffEmploymentPermitRecord[],
+    staffImmigrationRequirementProfiles: [] as StaffImmigrationRequirementProfile[],
+    staffImmigrationEvents: [] as StaffImmigrationEvent[],
+    staffDocumentTypes: DEFAULT_STAFF_DOCUMENT_TYPES,
+    staffDocuments: [] as StaffDocument[],
+    staffDocumentRequirements: [] as StaffDocumentRequirement[],
+    staffDocumentVerificationRecords: [] as StaffDocumentVerificationRecord[],
+    staffDocumentEvents: [] as StaffDocumentEvent[],
     homeAssignments: [] as HomeAssignment[],
     wardCompetencies: [] as WardCompetency[],
     rosterAssignments: [] as RosterAssignment[],
@@ -2451,6 +2489,16 @@ interface CareCtx extends Store {
   submitProfessionalRegistrationVerification: (id: string) => void;
   verifyProfessionalRegistration: (id: string, notes?: string) => void;
   failProfessionalRegistrationVerification: (id: string, notes?: string) => void;
+  createStaffDocument: (input: CreateStaffDocumentCommand) => StaffDocument;
+  updateStaffDocument: (id: string, input: Partial<CreateStaffDocumentCommand>) => void;
+  verifyStaffDocument: (id: string, notes?: string) => void;
+  failStaffDocumentVerification: (id: string, notes?: string) => void;
+  createStaffVisaRecord: (input: CreateStaffVisaRecordCommand) => StaffVisaRecord;
+  createResidencePermissionRecord: (input: CreateResidencePermissionRecordCommand) => StaffResidencePermissionRecord;
+  createEmploymentPermitRecord: (input: CreateEmploymentPermitRecordCommand) => StaffEmploymentPermitRecord;
+  verifyStaffVisaRecord: (id: string, notes?: string) => void;
+  verifyResidencePermissionRecord: (id: string, notes?: string) => void;
+  verifyEmploymentPermitRecord: (id: string, notes?: string) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -3731,6 +3779,95 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (!current) throw new Error("The Professional Registration could not be loaded.");
         const next = appendRegistrationVerification(current, "failed", currentUser.id, notes);
         setStore((s) => ({ ...s, professionalRegistrations: s.professionalRegistrations.map((record) => String(record.id) === id ? next : record) }));
+      },
+      createStaffDocument: (input) => {
+        const document = createStaffDocument(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: StaffDocumentEvent = {
+          id: `staff-document-event-${uid()}`,
+          type: "StaffDocumentCreated",
+          staffDocumentId: document.id,
+          staffMemberId: document.staffMemberId,
+          employmentRecordId: document.employmentRecordId,
+          documentTypeId: document.documentTypeId,
+          safeStatus: document.status,
+          verificationStatus: document.verificationStatus,
+          expiryDate: document.expiryDate,
+          reviewDate: document.reviewDate,
+          actorUserAccountId: currentUser.id,
+          occurredAt: now,
+          correlationId: input.clientRequestId,
+        };
+        setStore((s) => ({
+          ...s,
+          staffDocuments: [document, ...s.staffDocuments],
+          staffDocumentEvents: [event, ...(s.staffDocumentEvents || [])],
+          auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Staff Document created", entity: String(document.id), entityType: "staff_document", timestamp: now, after: JSON.stringify({ documentTypeId: document.documentTypeId, status: document.status, verificationStatus: document.verificationStatus }) }, ...s.auditLogs].slice(0, 500),
+        }));
+        return document;
+      },
+      updateStaffDocument: (id, input) => {
+        const current = store.staffDocuments.find((document) => String(document.id) === id);
+        if (!current) throw new Error("The Staff Document could not be loaded.");
+        const next = updateStaffDocument(store, current, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: StaffDocumentEvent = { id: `staff-document-event-${uid()}`, type: "StaffDocumentUpdated", staffDocumentId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, documentTypeId: next.documentTypeId, safeStatus: next.status, verificationStatus: next.verificationStatus, expiryDate: next.expiryDate, reviewDate: next.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId || `staff-document-update-${id}-${now}` };
+        setStore((s) => ({ ...s, staffDocuments: s.staffDocuments.map((document) => String(document.id) === id ? next : document), staffDocumentEvents: [event, ...(s.staffDocumentEvents || [])] }));
+      },
+      verifyStaffDocument: (id, notes) => {
+        const current = store.staffDocuments.find((document) => String(document.id) === id);
+        if (!current) throw new Error("The Staff Document could not be loaded.");
+        const result = verifyStaffDocument(current, "verified", currentUser.id, notes);
+        const now = new Date().toISOString();
+        const event: StaffDocumentEvent = { id: `staff-document-event-${uid()}`, type: "StaffDocumentVerified", staffDocumentId: result.document.id, staffMemberId: result.document.staffMemberId, employmentRecordId: result.document.employmentRecordId, documentTypeId: result.document.documentTypeId, safeStatus: result.document.status, verificationStatus: result.document.verificationStatus, expiryDate: result.document.expiryDate, reviewDate: result.document.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staff-document-verify-${id}-${now}` };
+        setStore((s) => ({ ...s, staffDocuments: s.staffDocuments.map((document) => String(document.id) === id ? result.document : document), staffDocumentVerificationRecords: [result.verification, ...(s.staffDocumentVerificationRecords || [])], staffDocumentEvents: [event, ...(s.staffDocumentEvents || [])] }));
+      },
+      failStaffDocumentVerification: (id, notes) => {
+        const current = store.staffDocuments.find((document) => String(document.id) === id);
+        if (!current) throw new Error("The Staff Document could not be loaded.");
+        const result = verifyStaffDocument(current, "failed", currentUser.id, notes);
+        const now = new Date().toISOString();
+        const event: StaffDocumentEvent = { id: `staff-document-event-${uid()}`, type: "StaffDocumentVerificationFailed", staffDocumentId: result.document.id, staffMemberId: result.document.staffMemberId, employmentRecordId: result.document.employmentRecordId, documentTypeId: result.document.documentTypeId, safeStatus: result.document.status, verificationStatus: result.document.verificationStatus, expiryDate: result.document.expiryDate, reviewDate: result.document.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staff-document-fail-${id}-${now}` };
+        setStore((s) => ({ ...s, staffDocuments: s.staffDocuments.map((document) => String(document.id) === id ? result.document : document), staffDocumentVerificationRecords: [result.verification, ...(s.staffDocumentVerificationRecords || [])], staffDocumentEvents: [event, ...(s.staffDocumentEvents || [])] }));
+      },
+      createStaffVisaRecord: (input) => {
+        const record = createStaffVisaRecord(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: StaffImmigrationEvent = { id: `staff-immigration-event-${uid()}`, type: "StaffVisaCreated", recordType: "visa", recordId: record.id, staffMemberId: record.staffMemberId, employmentRecordId: record.employmentRecordId, safeStatus: record.status, verificationStatus: record.verificationStatus, expiryDate: record.expiryDate, reviewDate: record.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffVisaRecords: [record, ...s.staffVisaRecords], staffImmigrationEvents: [event, ...(s.staffImmigrationEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Staff Visa record created", entity: String(record.id), entityType: "staff_immigration", timestamp: now, after: JSON.stringify({ visaTypeId: record.visaTypeId, status: record.status, expiryDate: record.expiryDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return record;
+      },
+      createResidencePermissionRecord: (input) => {
+        const record = createResidencePermissionRecord(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: StaffImmigrationEvent = { id: `staff-immigration-event-${uid()}`, type: "ResidencePermissionCreated", recordType: "irish_residence_permission", recordId: record.id, staffMemberId: record.staffMemberId, employmentRecordId: record.employmentRecordId, safeStatus: record.status, verificationStatus: record.verificationStatus, expiryDate: record.expiryDate, reviewDate: record.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffResidencePermissionRecords: [record, ...s.staffResidencePermissionRecords], staffImmigrationEvents: [event, ...(s.staffImmigrationEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Residence Permission record created", entity: String(record.id), entityType: "staff_immigration", timestamp: now, after: JSON.stringify({ status: record.status, expiryDate: record.expiryDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return record;
+      },
+      createEmploymentPermitRecord: (input) => {
+        const record = createEmploymentPermitRecord(store, input, currentUser.id);
+        const now = new Date().toISOString();
+        const event: StaffImmigrationEvent = { id: `staff-immigration-event-${uid()}`, type: "EmploymentPermitCreated", recordType: "employment_permit", recordId: record.id, staffMemberId: record.staffMemberId, employmentRecordId: record.employmentRecordId, safeStatus: record.status, verificationStatus: record.verificationStatus, expiryDate: record.expiryDate, reviewDate: record.reviewDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
+        setStore((s) => ({ ...s, staffEmploymentPermitRecords: [record, ...s.staffEmploymentPermitRecords], staffImmigrationEvents: [event, ...(s.staffImmigrationEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Employment Permit record created", entity: String(record.id), entityType: "staff_immigration", timestamp: now, after: JSON.stringify({ permitTypeId: record.permitTypeId, status: record.status, expiryDate: record.expiryDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return record;
+      },
+      verifyStaffVisaRecord: (id) => {
+        const current = store.staffVisaRecords.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Immigration record could not be loaded.");
+        const next = verifyImmigrationRecord(current, currentUser.id);
+        setStore((s) => ({ ...s, staffVisaRecords: s.staffVisaRecords.map((record) => String(record.id) === id ? next : record) }));
+      },
+      verifyResidencePermissionRecord: (id) => {
+        const current = store.staffResidencePermissionRecords.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Immigration record could not be loaded.");
+        const next = verifyImmigrationRecord(current, currentUser.id);
+        setStore((s) => ({ ...s, staffResidencePermissionRecords: s.staffResidencePermissionRecords.map((record) => String(record.id) === id ? next : record) }));
+      },
+      verifyEmploymentPermitRecord: (id) => {
+        const current = store.staffEmploymentPermitRecords.find((record) => String(record.id) === id);
+        if (!current) throw new Error("The Immigration record could not be loaded.");
+        const next = verifyImmigrationRecord(current, currentUser.id);
+        setStore((s) => ({ ...s, staffEmploymentPermitRecords: s.staffEmploymentPermitRecords.map((record) => String(record.id) === id ? next : record) }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

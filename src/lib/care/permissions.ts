@@ -89,7 +89,17 @@ export type Permission =
   | "professional_registration.view_documents" | "professional_registration.view_conditions"
   | "professional_registration.edit_conditions" | "professional_registration.view_verification_history"
   | "professional_registration.manage_bodies" | "professional_registration.manage_requirements"
-  | "professional_registration.view_compliance" | "professional_registration.view_alerts";
+  | "professional_registration.view_compliance" | "professional_registration.view_alerts"
+  | "staff_document.view" | "staff_document.view_sensitive" | "staff_document.upload" | "staff_document.edit"
+  | "staff_document.download" | "staff_document.submit_verification" | "staff_document.verify"
+  | "staff_document.fail_verification" | "staff_document.renew" | "staff_document.replace"
+  | "staff_document.enter_in_error" | "staff_document.view_history" | "staff_document.manage_types"
+  | "staff_document.manage_requirements" | "staff_document.view_compliance" | "staff_document.view_metrics"
+  | "staff_immigration.view" | "staff_immigration.view_sensitive" | "staff_immigration.create"
+  | "staff_immigration.edit" | "staff_immigration.submit_verification" | "staff_immigration.verify"
+  | "staff_immigration.fail_verification" | "staff_immigration.renew" | "staff_immigration.enter_in_error"
+  | "staff_immigration.manage_types" | "staff_immigration.manage_requirements"
+  | "staff_immigration.view_compliance" | "staff_immigration.view_metrics";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [

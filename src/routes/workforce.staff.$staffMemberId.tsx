@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Mail, Phone, UserRound, Home, ShieldCheck, Plus, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, UserRound, Home, ShieldCheck, Plus, CheckCircle2, FileText, Plane } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import {
   WORKFORCE_CAPABILITIES,
@@ -9,7 +9,13 @@ import {
   employmentRecordCardModel,
   getAuthorisedWorkforceScope,
   professionalRegistrationRow,
+  staffDocumentViewModel,
+  getStaffImmigrationSummary,
   getStaffProfile,
+  type CreateStaffDocumentCommand,
+  type CreateStaffVisaRecordCommand,
+  type CreateResidencePermissionRecordCommand,
+  type CreateEmploymentPermitRecordCommand,
   type CreateEmploymentRecordCommand,
   type CreateProfessionalRegistrationCommand,
   STAFF_MEMBER_STATUS_LABELS,
@@ -54,8 +60,15 @@ function StaffProfilePage() {
   const canCreateEmployment = capabilities.includes("employment_record.create");
   const canCreateRegistration = capabilities.includes("professional_registration.create");
   const canVerifyRegistration = capabilities.includes("professional_registration.verify");
+  const canCreateDocument = capabilities.includes("staff_document.upload");
+  const canVerifyDocument = capabilities.includes("staff_document.verify");
+  const canCreateImmigration = capabilities.includes("staff_immigration.create");
+  const canVerifyImmigration = capabilities.includes("staff_immigration.verify");
+  const canViewSensitiveWorkforce = capabilities.includes("staff_document.view_sensitive") || capabilities.includes("staff_immigration.view_sensitive");
   const [employmentOpen, setEmploymentOpen] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [documentOpen, setDocumentOpen] = useState(false);
+  const [immigrationOpen, setImmigrationOpen] = useState(false);
   const employmentCards = care.employmentRecords
     .filter((record) => String(record.staffMemberId) === String(staff.id))
     .map((record) => employmentRecordCardModel(record, {
@@ -72,6 +85,23 @@ function StaffProfilePage() {
       facilities: care.facilities,
       canViewNumber: capabilities.includes("professional_registration.view_number"),
     }));
+  const documentRows = care.staffDocuments
+    .filter((document) => String(document.staffMemberId) === String(staff.id) && document.status !== "entered_in_error" && document.status !== "superseded")
+    .map((document) => staffDocumentViewModel(document, {
+      staffMembers: care.staffMembers,
+      documentTypes: care.staffDocumentTypes,
+      capabilities,
+    }));
+  const immigrationSummary = getStaffImmigrationSummary({
+    staffMemberId: String(staff.id),
+    requirementProfiles: care.staffImmigrationRequirementProfiles,
+    visaRecords: care.staffVisaRecords,
+    residenceRecords: care.staffResidencePermissionRecords,
+    permitRecords: care.staffEmploymentPermitRecords,
+    visaTypes: care.staffVisaTypes,
+    permitTypes: care.staffEmploymentPermitTypes,
+    canViewSensitive: canViewSensitiveWorkforce,
+  });
 
   return (
     <div className="space-y-4 p-4 md:p-8">
@@ -189,8 +219,76 @@ function StaffProfilePage() {
         </div>
       </Section>
 
+      <Section
+        title="Visa & Immigration"
+        action={canCreateImmigration ? <Button size="sm" onClick={() => setImmigrationOpen(true)}><Plane className="mr-2 h-4 w-4" /> Add Immigration Record</Button> : undefined}
+      >
+        <p className="text-sm text-muted-foreground">Visa, Irish Residence Permission / GNIB and Employment Permit records are structured separately from generic document evidence.</p>
+        <div className="grid gap-3 xl:grid-cols-3">
+          <ImmigrationCard title="Visa" record={immigrationSummary.visa} empty="No Visa record has been added for this Staff Member." onVerify={canVerifyImmigration && immigrationSummary.visa ? () => care.verifyStaffVisaRecord(immigrationSummary.visa!.id) : undefined} />
+          <ImmigrationCard title="Irish Residence Permission / GNIB" record={immigrationSummary.residencePermission} empty="No Irish Residence Permission record has been added." onVerify={canVerifyImmigration && immigrationSummary.residencePermission ? () => care.verifyResidencePermissionRecord(immigrationSummary.residencePermission!.id) : undefined} />
+          <div className="rounded-lg border p-4 text-sm">
+            <div className="font-semibold">Employment Permits</div>
+            {immigrationSummary.employmentPermits.length ? immigrationSummary.employmentPermits.map((permit) => (
+              <div key={permit.id} className="mt-3 border-t pt-3">
+                <div className="font-medium">{permit.label}</div>
+                <div className="text-muted-foreground">Ref: {permit.referenceDisplay || "Not recorded"}</div>
+                <div className="text-muted-foreground">Expiry: {permit.expiryDate || "Not recorded"}</div>
+                <Badge variant="outline" className="mt-2">{permit.status}</Badge>
+                {canVerifyImmigration && <Button className="mt-2 w-full" size="sm" variant="outline" onClick={() => care.verifyEmploymentPermitRecord(permit.id)}>Verify</Button>}
+              </div>
+            )) : <p className="mt-3 text-muted-foreground">No Employment Permit records have been added.</p>}
+          </div>
+        </div>
+        {immigrationSummary.activeAlerts.length > 0 && <p className="text-sm text-amber-700">{immigrationSummary.activeAlerts.length} immigration item(s) require compliance review.</p>}
+      </Section>
+
+      <Section
+        title="Staff Documents"
+        action={canCreateDocument ? <Button size="sm" onClick={() => setDocumentOpen(true)}><FileText className="mr-2 h-4 w-4" /> Upload Document</Button> : undefined}
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {documentRows.map((document) => (
+            <div key={document.staffDocumentId} className="rounded-lg border p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div><div className="font-semibold">{document.documentType.name}</div><div className="text-muted-foreground">{document.title || document.documentType.category.replaceAll("_", " ")}</div></div>
+                <Badge variant="outline">{document.effectiveStatus}</Badge>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <span>Reference: {document.referenceNumberDisplay || "Not recorded"}</span>
+                <span>Verification: {document.verificationStatus.replaceAll("_", " ")}</span>
+                <span>Issue: {document.issueDate || "Not recorded"}</span>
+                <span>Expiry: {document.expiryDate || "Not recorded"}</span>
+              </div>
+              {canVerifyDocument && <Button className="mt-3" size="sm" variant="outline" onClick={() => care.verifyStaffDocument(document.staffDocumentId)}><CheckCircle2 className="mr-2 h-4 w-4" /> Verify Document</Button>}
+            </div>
+          ))}
+          {documentRows.length === 0 && <p className="text-sm text-muted-foreground">No Staff Documents have been uploaded.</p>}
+        </div>
+      </Section>
+
       <AddEmploymentDialog open={employmentOpen} staffMemberId={String(staff.id)} homes={care.facilities} onOpenChange={setEmploymentOpen} onSave={(input) => { try { care.createEmploymentRecord(input); toast.success("Employment Record saved."); setEmploymentOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Employment Record could not be saved."); } }} />
       <AddRegistrationDialog open={registrationOpen} staffMemberId={String(staff.id)} onOpenChange={setRegistrationOpen} onSave={(input) => { try { care.createProfessionalRegistration(input); toast.success("Professional Registration saved."); setRegistrationOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Professional Registration could not be saved."); } }} />
+      <AddStaffDocumentDialog open={documentOpen} staffMemberId={String(staff.id)} documentTypes={care.staffDocumentTypes} onOpenChange={setDocumentOpen} onSave={(input) => { try { care.createStaffDocument(input); toast.success("Staff Document saved."); setDocumentOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Staff Document could not be saved."); } }} />
+      <AddImmigrationDialog open={immigrationOpen} staffMemberId={String(staff.id)} visaTypes={care.staffVisaTypes} permitTypes={care.staffEmploymentPermitTypes} onOpenChange={setImmigrationOpen} onSave={(kind, input) => { try { if (kind === "visa") care.createStaffVisaRecord(input as CreateStaffVisaRecordCommand); if (kind === "residence") care.createResidencePermissionRecord(input as CreateResidencePermissionRecordCommand); if (kind === "permit") care.createEmploymentPermitRecord(input as CreateEmploymentPermitRecordCommand); toast.success("Immigration record saved."); setImmigrationOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "The Immigration record could not be saved."); } }} />
+    </div>
+  );
+}
+
+function ImmigrationCard({ title, record, empty, onVerify }: { title: string; record?: { id: string; label: string; referenceDisplay?: string; expiryDate?: string; reviewDate?: string; status: string; verificationStatus: string }; empty: string; onVerify?: () => void }) {
+  return (
+    <div className="rounded-lg border p-4 text-sm">
+      <div className="font-semibold">{title}</div>
+      {record ? (
+        <div className="mt-3 space-y-2">
+          <div>{record.label}</div>
+          <div className="text-muted-foreground">Ref: {record.referenceDisplay || "Not recorded"}</div>
+          <div className="text-muted-foreground">Expiry: {record.expiryDate || "Not recorded"}</div>
+          <div className="text-muted-foreground">Verification: {record.verificationStatus}</div>
+          <Badge variant="outline">{record.status}</Badge>
+          {onVerify && <Button className="w-full" size="sm" variant="outline" onClick={onVerify}>Verify</Button>}
+        </div>
+      ) : <p className="mt-3 text-muted-foreground">{empty}</p>}
     </div>
   );
 }
@@ -236,6 +334,44 @@ function AddRegistrationDialog({ open, staffMemberId, onOpenChange, onSave }: { 
         <Field label="Expiry Date"><Input type="date" value={form.expiryDate || ""} onChange={(event) => set("expiryDate", event.target.value)} /></Field>
       </div>
       <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Save Registration</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function AddStaffDocumentDialog({ open, staffMemberId, documentTypes, onOpenChange, onSave }: { open: boolean; staffMemberId: string; documentTypes: { id: string; name: string; key: string }[]; onOpenChange: (open: boolean) => void; onSave: (input: CreateStaffDocumentCommand) => void }) {
+  const [form, setForm] = useState<CreateStaffDocumentCommand>({ staffMemberId, documentTypeId: documentTypes[0]?.id || "staff-document-type-passport", fileId: `demo-file-${Date.now()}`, clientRequestId: `staff-document-${Date.now()}` });
+  const set = (key: keyof CreateStaffDocumentCommand, value: string) => setForm((current) => ({ ...current, staffMemberId, [key]: value || undefined }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Upload Staff Document</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Document Type"><Select value={form.documentTypeId} onValueChange={(value) => set("documentTypeId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{documentTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Title"><Input value={form.title || ""} onChange={(event) => set("title", event.target.value)} /></Field>
+        <Field label="Reference"><Input value={form.referenceNumber || ""} onChange={(event) => set("referenceNumber", event.target.value)} /></Field>
+        <Field label="File ID"><Input value={form.fileId} onChange={(event) => set("fileId", event.target.value)} /></Field>
+        <Field label="Issue Date"><Input type="date" value={form.issueDate || ""} onChange={(event) => set("issueDate", event.target.value)} /></Field>
+        <Field label="Expiry Date"><Input type="date" value={form.expiryDate || ""} onChange={(event) => set("expiryDate", event.target.value)} /></Field>
+      </div>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(form)}>Save Document</Button></div>
+    </DialogContent></Dialog>
+  );
+}
+
+function AddImmigrationDialog({ open, staffMemberId, visaTypes, permitTypes, onOpenChange, onSave }: { open: boolean; staffMemberId: string; visaTypes: { id: string; name: string }[]; permitTypes: { id: string; name: string }[]; onOpenChange: (open: boolean) => void; onSave: (kind: "visa" | "residence" | "permit", input: CreateStaffVisaRecordCommand | CreateResidencePermissionRecordCommand | CreateEmploymentPermitRecordCommand) => void }) {
+  const [kind, setKind] = useState<"visa" | "residence" | "permit">("visa");
+  const [form, setForm] = useState<any>({ staffMemberId, visaTypeId: visaTypes[0]?.id, permitTypeId: permitTypes[0]?.id, clientRequestId: `immigration-${Date.now()}` });
+  const set = (key: string, value: string) => setForm((current: any) => ({ ...current, staffMemberId, [key]: value || undefined }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Add Immigration Record</DialogTitle></DialogHeader>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Record Type"><Select value={kind} onValueChange={(value: any) => setKind(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="visa">Visa</SelectItem><SelectItem value="residence">Irish Residence Permission / GNIB</SelectItem><SelectItem value="permit">Employment Permit</SelectItem></SelectContent></Select></Field>
+        {kind === "visa" && <Field label="Visa Type"><Select value={form.visaTypeId} onValueChange={(value) => set("visaTypeId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{visaTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent></Select></Field>}
+        {kind === "permit" && <Field label="Permit Type"><Select value={form.permitTypeId} onValueChange={(value) => set("permitTypeId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{permitTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent></Select></Field>}
+        {kind === "residence" ? <Field label="Registration Number"><Input value={form.registrationNumber || ""} onChange={(event) => set("registrationNumber", event.target.value)} /></Field> : <Field label="Reference Number"><Input value={form.visaReferenceNumber || form.permitNumber || ""} onChange={(event) => set(kind === "visa" ? "visaReferenceNumber" : "permitNumber", event.target.value)} /></Field>}
+        <Field label="Issue Date"><Input type="date" value={form.issueDate || ""} onChange={(event) => set("issueDate", event.target.value)} /></Field>
+        <Field label="Expiry Date"><Input type="date" value={form.expiryDate || ""} onChange={(event) => set("expiryDate", event.target.value)} /></Field>
+        <Field label="Evidence File ID"><Input value={form.evidenceFileId || ""} onChange={(event) => set("evidenceFileId", event.target.value)} /></Field>
+      </div>
+      <div className="flex justify-end gap-2 pt-4"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => onSave(kind, { ...form, staffMemberId, clientRequestId: form.clientRequestId || `immigration-${Date.now()}` })}>Save Immigration Record</Button></div>
     </DialogContent></Dialog>
   );
 }

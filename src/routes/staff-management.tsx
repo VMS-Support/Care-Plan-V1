@@ -29,7 +29,12 @@ import {
   getExpiringProfessionalRegistrationsMetric,
   getProfessionalRegistrationAlerts,
   getProfessionalRegistrationComplianceMetric,
+  getGardaVettingComplianceMetric,
+  getMandatoryDocumentsExpiringMetric,
   getStaffBreakdownByRole,
+  getVisaComplianceMetric,
+  getResidencePermissionMetric,
+  getEmploymentPermitValidMetric,
   getTotalFteMetric,
   getTotalStaffMetric,
 } from "@/domain/workforce";
@@ -53,6 +58,11 @@ function StaffManagementDashboard() {
   const registrationCompliance = getProfessionalRegistrationComplianceMetric({ staffMembers: care.staffMembers, employmentRecords: care.employmentRecords, registrations: care.professionalRegistrations });
   const expiringRegistrations = getExpiringProfessionalRegistrationsMetric(care.professionalRegistrations);
   const registrationAlerts = getProfessionalRegistrationAlerts({ registrations: care.professionalRegistrations, staffMembers: care.staffMembers });
+  const visaCompliance = getVisaComplianceMetric({ employmentRecords: care.employmentRecords, visaRecords: care.staffVisaRecords });
+  const residencePermissionMetric = getResidencePermissionMetric({ employmentRecords: care.employmentRecords, residenceRecords: care.staffResidencePermissionRecords });
+  const employmentPermitMetric = getEmploymentPermitValidMetric({ employmentRecords: care.employmentRecords, permitRecords: care.staffEmploymentPermitRecords });
+  const mandatoryDocumentsExpiring = getMandatoryDocumentsExpiringMetric(care.staffDocuments);
+  const gardaVettingMetric = getGardaVettingComplianceMetric({ documents: care.staffDocuments, documentTypes: care.staffDocumentTypes, employmentRecords: care.employmentRecords });
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -132,12 +142,12 @@ function StaffManagementDashboard() {
         <Panel title="Visa & Document Status">
           <div className="space-y-3">
             {[
-              ["Visa Valid", "96%", "299", "green"],
-              ["Visa Expiring (30 Days)", "2%", "6", "orange"],
-              ["Visa Expired", "1%", "2", "red"],
-              ["Garda Vetting Valid", "95%", "297", "green"],
-              ["GNIB Registered", "93%", "290", "green"],
-              ["Work Permit Valid", "97%", "303", "green"],
+              ["Visa Valid", visaCompliance.percentage === undefined ? "N/A" : `${visaCompliance.percentage}%`, String(visaCompliance.valid), "green"],
+              ["Visa Expiring (30 Days)", String(visaCompliance.expiring), String(visaCompliance.expiring), "orange"],
+              ["Visa Expired", String(visaCompliance.expired), String(visaCompliance.expired), "red"],
+              ["Garda Vetting Valid", gardaVettingMetric.percentage === undefined ? "N/A" : `${gardaVettingMetric.percentage}%`, String(gardaVettingMetric.value), "green"],
+              ["GNIB Registered", residencePermissionMetric.percentage === undefined ? "N/A" : `${residencePermissionMetric.percentage}%`, String(residencePermissionMetric.valid), "green"],
+              ["Work Permit Valid", employmentPermitMetric.percentage === undefined ? "N/A" : `${employmentPermitMetric.percentage}%`, String(employmentPermitMetric.valid), "green"],
             ].map(([label, pct, count, tone]) => <StatusBar key={label} label={label} pct={pct} count={count} tone={tone} />)}
           </div>
         </Panel>
@@ -184,7 +194,7 @@ function StaffManagementDashboard() {
               ["Registrations Expiring", String(expiringRegistrations.value), "orange"],
               ["Registration Alerts", String(registrationAlerts.length), registrationAlerts.length ? "red" : "purple"],
               ["Training Overdue", "15", "red"],
-              ["Mandatory Documents Expiring", "8", "orange"],
+              ["Mandatory Documents Expiring", String(mandatoryDocumentsExpiring.value), "orange"],
               ["Probation Reviews Due", "5", "purple"],
               ["Agency Spend High", "3", "red"],
             ].map(([label, count, tone]) => <AlertRow key={label} label={label} count={count} tone={tone} />)}

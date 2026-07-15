@@ -27,6 +27,18 @@ import type {
   WardCompetencyId,
 } from "@/types/entityIds";
 
+export type FileId = string;
+export type StaffVisaTypeId = string;
+export type StaffEmploymentPermitTypeId = string;
+export type StaffVisaRecordId = string;
+export type StaffResidencePermissionRecordId = string;
+export type StaffEmploymentPermitRecordId = string;
+export type StaffDocumentTypeId = string;
+export type StaffDocumentId = string;
+export type StaffDocumentRequirementId = string;
+export type StaffDocumentVerificationRecordId = string;
+export type StaffImmigrationRequirementProfileId = string;
+
 export type ResidentLifecycleStatus =
   | "pre_admission"
   | "admission_scheduled"
@@ -83,6 +95,63 @@ export type RegistrationStatus =
   | "unknown";
 export type ProfessionalRegistrationStatus = "draft" | "current" | "expired" | "suspended" | "revoked" | "entered_in_error";
 export type ProfessionalRegistrationVerificationStatus = "not_submitted" | "submitted" | "verified" | "failed" | "unable_to_verify" | "stale";
+export type StaffImmigrationRecordType = "visa" | "irish_residence_permission" | "employment_permit";
+export type StaffImmigrationRecordStatus =
+  | "draft"
+  | "pending_verification"
+  | "valid"
+  | "expiring_soon"
+  | "expired"
+  | "verification_failed"
+  | "suspended"
+  | "revoked"
+  | "not_required"
+  | "entered_in_error";
+export type StaffDocumentTypeKey =
+  | "passport"
+  | "visa"
+  | "employment_permit"
+  | "irish_residence_permission"
+  | "garda_vetting"
+  | "manual_handling"
+  | "cpr"
+  | "fire_training"
+  | "professional_registration"
+  | "reference"
+  | "qualification_certificate"
+  | "induction_completion"
+  | "occupational_health"
+  | "vaccination_record"
+  | "other";
+export type StaffDocumentCategory =
+  | "identity"
+  | "immigration"
+  | "vetting"
+  | "training"
+  | "professional"
+  | "employment"
+  | "occupational_health"
+  | "vaccination"
+  | "other";
+export type StaffDocumentStatus =
+  | "draft"
+  | "pending_verification"
+  | "valid"
+  | "expiring_soon"
+  | "expired"
+  | "verification_failed"
+  | "superseded"
+  | "revoked"
+  | "not_required"
+  | "entered_in_error";
+export type StaffDocumentVerificationStatus =
+  | "not_verified"
+  | "pending"
+  | "verified"
+  | "failed"
+  | "unable_to_verify"
+  | "verification_expired";
+export type StaffImmigrationComplianceStatus = "compliant" | "attention_required" | "missing_required" | "not_assessed" | "not_required";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -396,6 +465,268 @@ export interface ProfessionalRegistrationEvent {
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
   changedFields?: string[];
+}
+
+export interface StaffVisaType {
+  id: StaffVisaTypeId;
+  code: string;
+  name: string;
+  countryCode?: string;
+  permitsEmployment: "yes" | "no" | "conditional" | "unknown";
+  requiresEmploymentPermit: boolean;
+  active: boolean;
+  notes?: string;
+}
+
+export interface StaffEmploymentPermitType {
+  id: StaffEmploymentPermitTypeId;
+  code: string;
+  name: string;
+  active: boolean;
+  notes?: string;
+}
+
+export interface StaffVisaRecord {
+  id: StaffVisaRecordId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  visaTypeId: StaffVisaTypeId;
+  visaReferenceNumber?: string;
+  issuingCountryCode?: string;
+  issuingAuthority?: string;
+  issueDate?: string;
+  validFrom?: string;
+  expiryDate?: string;
+  reviewDate?: string;
+  status: StaffImmigrationRecordStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  evidenceFileId?: FileId;
+  linkedStaffDocumentId?: StaffDocumentId;
+  lastVerifiedAt?: string;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedByStaffMemberId?: StaffMemberId;
+  verificationReference?: string;
+  restrictionsOrConditionsPresent: boolean;
+  restrictionsSummary?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesVisaRecordId?: StaffVisaRecordId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffResidencePermissionRecord {
+  id: StaffResidencePermissionRecordId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  registrationNumber: string;
+  normalisedRegistrationNumber?: string;
+  permissionTypeOrStamp?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  reviewDate?: string;
+  status: StaffImmigrationRecordStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  evidenceFileId?: FileId;
+  linkedStaffDocumentId?: StaffDocumentId;
+  lastVerifiedAt?: string;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedByStaffMemberId?: StaffMemberId;
+  verificationReference?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesResidencePermissionRecordId?: StaffResidencePermissionRecordId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffEmploymentPermitRecord {
+  id: StaffEmploymentPermitRecordId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  permitTypeId: StaffEmploymentPermitTypeId;
+  permitNumber?: string;
+  employerName?: string;
+  employerReferenceId?: EnterpriseId | NursingHomeId;
+  roleKey?: string;
+  issueDate?: string;
+  validFrom?: string;
+  expiryDate?: string;
+  reviewDate?: string;
+  status: StaffImmigrationRecordStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  evidenceFileId?: FileId;
+  linkedStaffDocumentId?: StaffDocumentId;
+  lastVerifiedAt?: string;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedByStaffMemberId?: StaffMemberId;
+  verificationReference?: string;
+  restrictionsOrConditionsPresent: boolean;
+  restrictionsSummary?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesPermitRecordId?: StaffEmploymentPermitRecordId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffImmigrationRequirementProfile {
+  id: StaffImmigrationRequirementProfileId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  visaRequired: boolean;
+  residencePermissionRequired: boolean;
+  employmentPermitRequired: boolean;
+  reason?: string;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+}
+
+export interface StaffDocumentType {
+  id: StaffDocumentTypeId;
+  key: StaffDocumentTypeKey;
+  name: string;
+  category: StaffDocumentCategory;
+  supportsIssueDate: boolean;
+  supportsExpiryDate: boolean;
+  supportsReviewDate: boolean;
+  requiresVerification: boolean;
+  sensitive: boolean;
+  active: boolean;
+  displayOrder: number;
+}
+
+export interface StaffDocument {
+  id: StaffDocumentId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  documentTypeId: StaffDocumentTypeId;
+  title?: string;
+  referenceNumber?: string;
+  issuingAuthority?: string;
+  issuingCountryCode?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  reviewDate?: string;
+  status: StaffDocumentStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  fileId: FileId;
+  lastVerifiedAt?: string;
+  verifiedByUserAccountId?: UserAccountId;
+  verifiedByStaffMemberId?: StaffMemberId;
+  verificationMethod?: "original_seen" | "certified_copy" | "issuing_body_check" | "official_portal" | "employer_confirmation" | "manual_review" | "other";
+  verificationReference?: string;
+  linkedProfessionalRegistrationId?: ProfessionalRegistrationId;
+  linkedVisaRecordId?: StaffVisaRecordId;
+  linkedResidencePermissionRecordId?: StaffResidencePermissionRecordId;
+  linkedEmploymentPermitRecordId?: StaffEmploymentPermitRecordId;
+  trainingCompletionId?: string;
+  notes?: string;
+  versionNumber: number;
+  versionChainId: string;
+  supersedesDocumentId?: StaffDocumentId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffDocumentVerificationRecord {
+  id: StaffDocumentVerificationRecordId;
+  staffDocumentId: StaffDocumentId;
+  status: StaffDocumentVerificationStatus;
+  method?: StaffDocument["verificationMethod"];
+  reference?: string;
+  notes?: string;
+  actorUserAccountId: UserAccountId;
+  actorStaffMemberId?: StaffMemberId;
+  occurredAt: string;
+}
+
+export interface StaffDocumentRequirement {
+  id: StaffDocumentRequirementId;
+  documentTypeId: StaffDocumentTypeId;
+  targetType: "role" | "employment_contract" | "nursing_home" | "staff_member" | "all_staff";
+  roleKey?: string;
+  contractType?: EmploymentContractType;
+  nursingHomeId?: NursingHomeId;
+  staffMemberId?: StaffMemberId;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  reviewPolicyDays?: number;
+}
+
+export interface StaffDocumentEvent {
+  id: string;
+  type:
+    | "StaffDocumentCreated"
+    | "StaffDocumentUploaded"
+    | "StaffDocumentUpdated"
+    | "StaffDocumentSubmittedForVerification"
+    | "StaffDocumentVerified"
+    | "StaffDocumentVerificationFailed"
+    | "StaffDocumentUnableToVerify"
+    | "StaffDocumentRenewed"
+    | "StaffDocumentReplaced"
+    | "StaffDocumentExpired"
+    | "StaffDocumentReviewDue"
+    | "StaffDocumentEnteredInError"
+    | "StaffDocumentComplianceChanged";
+  staffDocumentId: StaffDocumentId | string;
+  staffMemberId: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  documentTypeId: StaffDocumentTypeId | string;
+  safeStatus: StaffDocumentStatus;
+  verificationStatus: StaffDocumentVerificationStatus;
+  expiryDate?: string;
+  reviewDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface StaffImmigrationEvent {
+  id: string;
+  type:
+    | "StaffVisaCreated"
+    | "StaffVisaVerified"
+    | "StaffVisaRenewed"
+    | "StaffVisaExpired"
+    | "ResidencePermissionCreated"
+    | "ResidencePermissionVerified"
+    | "ResidencePermissionRenewed"
+    | "ResidencePermissionExpired"
+    | "EmploymentPermitCreated"
+    | "EmploymentPermitVerified"
+    | "EmploymentPermitRenewed"
+    | "EmploymentPermitExpired"
+    | "ImmigrationRequirementProfileChanged"
+    | "ImmigrationComplianceChanged";
+  recordType: StaffImmigrationRecordType;
+  recordId: string;
+  staffMemberId: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  safeStatus: StaffImmigrationRecordStatus;
+  verificationStatus?: StaffDocumentVerificationStatus;
+  expiryDate?: string;
+  reviewDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
 }
 
 export interface HomeAssignment {
