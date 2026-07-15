@@ -178,6 +178,53 @@ export type StaffingEstablishmentStatus = "draft" | "submitted_for_approval" | "
 export type StaffingEstablishmentVersionId = string;
 export type StaffingEstablishmentLineId = string;
 export type WardCompetencyRequirementId = string;
+export type RecruitmentVacancyId = string;
+export type RecruitmentAdvertisingSourceId = string;
+export type RecruitmentCandidateId = string;
+export type RecruitmentOfferId = string;
+export type RecruitmentInterviewStageKey =
+  | "not_started"
+  | "applications_received"
+  | "initial_screening"
+  | "shortlisted"
+  | "interview_scheduled"
+  | "first_interview"
+  | "second_interview"
+  | "reference_check"
+  | "preferred_candidate"
+  | "offer_preparation"
+  | "completed";
+export type RecruitmentVacancyStatus =
+  | "draft"
+  | "approval_required"
+  | "approved"
+  | "open"
+  | "advertising"
+  | "applications_open"
+  | "shortlisting"
+  | "interviewing"
+  | "offer_pending"
+  | "offer_sent"
+  | "offer_accepted"
+  | "pre_employment_checks"
+  | "start_scheduled"
+  | "filled"
+  | "on_hold"
+  | "cancelled"
+  | "closed_unfilled"
+  | "entered_in_error";
+export type VacancyEmploymentBasis = "headcount" | "fte" | "hours";
+export type RecruitmentCandidateStatus = "applied" | "screening" | "shortlisted" | "interviewing" | "preferred" | "offer_sent" | "offer_accepted" | "rejected" | "withdrawn" | "hired";
+export type RecruitmentOfferStatus = "draft" | "approval_required" | "approved" | "sent" | "accepted" | "declined" | "withdrawn" | "expired";
+export type RosterPeriodId = string;
+export type RosterShiftRequirementId = string;
+export type PlannedShiftId = string;
+export type RosterPeriodStatus = "draft" | "open_for_planning" | "pending_approval" | "approved" | "published" | "locked" | "closed" | "entered_in_error";
+export type RosterShiftRequirementStatus = "draft" | "required" | "partially_filled" | "filled" | "vacant" | "cancelled" | "entered_in_error";
+export type PlannedShiftStatus = "draft" | "planned" | "assigned" | "to_be_confirmed" | "confirmed" | "published" | "vacant" | "cancelled" | "replaced" | "entered_in_error";
+export type StaffLeaveRecordId = string;
+export type StaffLeaveType = "annual_leave" | "sick_leave" | "maternity_leave" | "paternity_leave" | "compassionate_leave" | "study_leave" | "unpaid_leave" | "career_break" | "other";
+export type StaffLeaveStatus = "draft" | "requested" | "approved" | "rejected" | "cancelled" | "returned" | "extended" | "entered_in_error";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
   | "self"
@@ -1111,6 +1158,259 @@ export interface StaffingEstablishmentEvent {
   roleKey?: string;
   status?: StaffingEstablishmentStatus;
   safeActualSummary?: unknown;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface RecruitmentEstablishmentSource {
+  establishmentVersionId: StaffingEstablishmentVersionId;
+  establishmentLineId: StaffingEstablishmentLineId;
+  authorisedVacantHeadcount?: number;
+  authorisedVacantFte?: number;
+  vacancySnapshotAt: string;
+}
+
+export interface RecruitmentAdvertisingSource {
+  id: RecruitmentAdvertisingSourceId;
+  code: string;
+  name: string;
+  category: "company_website" | "job_board" | "social_media" | "agency" | "referral" | "internal" | "local_advertising" | "other";
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitmentVacancy {
+  id: RecruitmentVacancyId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  establishmentLineId?: StaffingEstablishmentLineId;
+  establishmentSource?: RecruitmentEstablishmentSource;
+  jobTitle: string;
+  roleKey: string;
+  employmentCategory?: string;
+  contractType?: EmploymentContractType;
+  employmentBasis: VacancyEmploymentBasis;
+  positionsRequired?: number;
+  fteRequired?: number;
+  hoursPerWeekRequired?: number;
+  positionsFilled: number;
+  fteFilled?: number;
+  status: RecruitmentVacancyStatus;
+  priority: "low" | "medium" | "high" | "critical";
+  urgencyReason?: string;
+  requestedAt: string;
+  approvedAt?: string;
+  targetStartDate?: string;
+  plannedStartDate?: string;
+  advertisingSourceIds: RecruitmentAdvertisingSourceId[];
+  currentInterviewStage?: RecruitmentInterviewStageKey;
+  offerSentAt?: string;
+  offerAcceptedAt?: string;
+  hiredCandidateId?: RecruitmentCandidateId;
+  resultingStaffMemberId?: StaffMemberId;
+  resultingEmploymentRecordId?: EmploymentRecordId;
+  hiringManagerStaffMemberId?: StaffMemberId;
+  sourceReason: "establishment_vacancy" | "replacement" | "new_service" | "temporary_cover" | "leave_cover" | "growth" | "other";
+  sourceReference?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface RecruitmentCandidate {
+  id: RecruitmentCandidateId;
+  recruitmentVacancyId: RecruitmentVacancyId;
+  firstName: string;
+  surname: string;
+  email?: string;
+  phone?: string;
+  status: RecruitmentCandidateStatus;
+  currentStage: RecruitmentInterviewStageKey;
+  applicationDate: string;
+  plannedStartDate?: string;
+  resultingStaffMemberId?: StaffMemberId;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitmentOffer {
+  id: RecruitmentOfferId;
+  recruitmentVacancyId: RecruitmentVacancyId;
+  candidateId: RecruitmentCandidateId;
+  status: RecruitmentOfferStatus;
+  proposedRoleKey: string;
+  proposedNursingHomeId: NursingHomeId;
+  proposedWardId?: WardId;
+  proposedContractType?: EmploymentContractType;
+  proposedFte?: number;
+  proposedHoursPerWeek?: number;
+  proposedStartDate?: string;
+  sentAt?: string;
+  respondedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitmentEvent {
+  id: string;
+  type:
+    | "RecruitmentVacancyCreated"
+    | "RecruitmentVacancyApproved"
+    | "RecruitmentVacancyOpened"
+    | "RecruitmentVacancyUpdated"
+    | "RecruitmentVacancyPlacedOnHold"
+    | "RecruitmentVacancyCancelled"
+    | "RecruitmentVacancyClosedUnfilled"
+    | "RecruitmentCandidateAdded"
+    | "RecruitmentCandidateStageChanged"
+    | "RecruitmentOfferCreated"
+    | "RecruitmentOfferSent"
+    | "RecruitmentOfferAccepted"
+    | "RecruitmentOfferDeclined"
+    | "RecruitmentHireCompleted"
+    | "RecruitmentVacancyFilled"
+    | "RecruitmentVacancyEnteredInError";
+  recruitmentVacancyId: RecruitmentVacancyId | string;
+  recruitmentCandidateId?: RecruitmentCandidateId | string;
+  recruitmentOfferId?: RecruitmentOfferId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  roleKey?: string;
+  status?: RecruitmentVacancyStatus | RecruitmentCandidateStatus | RecruitmentOfferStatus;
+  quantities?: { positionsRequired?: number; positionsFilled?: number; fteRequired?: number; fteFilled?: number };
+  plannedStartDate?: string;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface RosterPeriod {
+  id: RosterPeriodId;
+  enterpriseId?: EnterpriseId;
+  nursingHomeId: NursingHomeId;
+  name: string;
+  dateFrom: string;
+  dateTo: string;
+  status: RosterPeriodStatus;
+  versionNumber: number;
+  publishedAt?: string;
+  publishedByUserAccountId?: UserAccountId;
+  lockedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface RosterShiftRequirement {
+  id: RosterShiftRequirementId;
+  rosterPeriodId: RosterPeriodId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  shiftDefinitionId?: ShiftId;
+  shiftDate: string;
+  startAt: string;
+  endAt: string;
+  roleKey: string;
+  requiredCount: number;
+  status: RosterShiftRequirementStatus;
+  competencyRequirementIds?: WardCompetencyRequirementId[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlannedShift {
+  id: PlannedShiftId;
+  rosterPeriodId: RosterPeriodId;
+  requirementId?: RosterShiftRequirementId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  assignedStaffMemberId?: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  roleKey: string;
+  startAt: string;
+  endAt: string;
+  status: PlannedShiftStatus;
+  confirmationRequired: boolean;
+  confirmedAt?: string;
+  confirmedByStaffMemberId?: StaffMemberId;
+  replacementForShiftId?: PlannedShiftId;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  readiness?: { homeAssignment: "ok" | "warning"; professionalRegistration: "ok" | "warning" | "not_required"; competency: "ok" | "warning" | "unknown"; leaveConflict: boolean };
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface RosterEvent {
+  id: string;
+  type: "RosterPeriodCreated" | "RosterRequirementChanged" | "RosterShiftAdded" | "RosterStaffAssigned" | "RosterShiftConfirmed" | "RosterShiftMarkedVacant" | "RosterAssignmentReplaced" | "RosterShiftCancelled" | "RosterPublished" | "RosterLocked";
+  rosterPeriodId: RosterPeriodId | string;
+  rosterShiftRequirementId?: RosterShiftRequirementId | string;
+  plannedShiftId?: PlannedShiftId | string;
+  nursingHomeId: NursingHomeId | string;
+  wardId?: WardId | string;
+  staffMemberId?: StaffMemberId | string;
+  roleKey?: string;
+  status?: RosterPeriodStatus | RosterShiftRequirementStatus | PlannedShiftStatus;
+  actorUserAccountId: UserAccountId | string;
+  occurredAt: string;
+  correlationId: string;
+}
+
+export interface StaffLeaveRecord {
+  id: StaffLeaveRecordId;
+  staffMemberId: StaffMemberId;
+  employmentRecordId?: EmploymentRecordId;
+  nursingHomeId: NursingHomeId;
+  wardId?: WardId;
+  leaveType: StaffLeaveType;
+  status: StaffLeaveStatus;
+  startAt: string;
+  endAt: string;
+  startDate: string;
+  endDate: string;
+  partialDay?: "none" | "morning" | "afternoon" | "custom";
+  expectedReturnDate?: string;
+  actualReturnDate?: string;
+  rosterImpact?: { createsVacantShift: boolean; impactedPlannedShiftIds?: PlannedShiftId[]; notes?: string };
+  confidentialReason?: string;
+  notes?: string;
+  requestedAt?: string;
+  approvedAt?: string;
+  approvedByUserAccountId?: UserAccountId;
+  rejectedAt?: string;
+  rejectedByUserAccountId?: UserAccountId;
+  cancelledAt?: string;
+  cancelledByUserAccountId?: UserAccountId;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserAccountId: UserAccountId;
+  updatedByUserAccountId: UserAccountId;
+}
+
+export interface StaffLeaveEvent {
+  id: string;
+  type: "StaffLeaveCreated" | "StaffLeaveSubmitted" | "StaffLeaveApproved" | "StaffLeaveRejected" | "StaffLeaveCancelled" | "StaffLeaveExtended" | "StaffLeaveReturnRecorded" | "StaffLeaveEnteredInError";
+  staffLeaveRecordId: StaffLeaveRecordId | string;
+  staffMemberId: StaffMemberId | string;
+  employmentRecordId?: EmploymentRecordId | string;
+  nursingHomeId: NursingHomeId | string;
+  leaveType: StaffLeaveType;
+  status: StaffLeaveStatus;
+  startDate: string;
+  endDate: string;
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
   correlationId: string;

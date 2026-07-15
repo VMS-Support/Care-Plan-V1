@@ -122,6 +122,17 @@ import type {
   StaffingEstablishmentVersion,
   StaffingEstablishmentLine,
   StaffingEstablishmentEvent,
+  RecruitmentAdvertisingSource,
+  RecruitmentVacancy,
+  RecruitmentCandidate,
+  RecruitmentOffer,
+  RecruitmentEvent,
+  RosterPeriod,
+  RosterShiftRequirement,
+  PlannedShift,
+  RosterEvent,
+  StaffLeaveRecord,
+  StaffLeaveEvent,
   HomeAssignment,
   WardCompetency,
   RosterAssignment,
@@ -159,9 +170,20 @@ import {
   verifyTrainingCompletion,
   addStaffingEstablishmentLine,
   approveStaffingEstablishment,
+  addRecruitmentCandidate,
+  addRosterShiftRequirement,
+  approveStaffLeaveRecord,
+  assignPlannedShift,
+  createRecruitmentOffer,
+  createRecruitmentVacancy,
+  createRosterPeriod,
   createStaffHomeAssignment,
+  createStaffLeaveRecord,
   createStaffingEstablishmentDraft,
+  DEFAULT_RECRUITMENT_ADVERTISING_SOURCES,
   endStaffHomeAssignment,
+  transitionRecruitmentOffer,
+  transitionRecruitmentVacancy,
   updateStaffMemberRecord,
   type CreateEmploymentRecordCommand,
   type CreateEmploymentPermitRecordCommand,
@@ -173,7 +195,14 @@ import {
   type RecordCompetencyValidationCommand,
   type RecordTrainingCompletionCommand,
   type AddStaffingEstablishmentLineCommand,
+  type AddRecruitmentCandidateCommand,
+  type AddRosterShiftRequirementCommand,
+  type AssignPlannedShiftCommand,
+  type CreateRecruitmentOfferCommand,
+  type CreateRecruitmentVacancyCommand,
+  type CreateRosterPeriodCommand,
   type CreateStaffHomeAssignmentCommand,
+  type CreateStaffLeaveRecordCommand,
   type CreateStaffingEstablishmentDraftCommand,
   type SaveStaffMemberInput,
 } from "@/domain/workforce";
@@ -2006,6 +2035,17 @@ function seedData() {
     staffingEstablishmentVersions: [] as StaffingEstablishmentVersion[],
     staffingEstablishmentLines: [] as StaffingEstablishmentLine[],
     staffingEstablishmentEvents: [] as StaffingEstablishmentEvent[],
+    recruitmentAdvertisingSources: DEFAULT_RECRUITMENT_ADVERTISING_SOURCES,
+    recruitmentVacancies: [] as RecruitmentVacancy[],
+    recruitmentCandidates: [] as RecruitmentCandidate[],
+    recruitmentOffers: [] as RecruitmentOffer[],
+    recruitmentEvents: [] as RecruitmentEvent[],
+    rosterPeriods: [] as RosterPeriod[],
+    rosterShiftRequirements: [] as RosterShiftRequirement[],
+    plannedShifts: [] as PlannedShift[],
+    rosterEvents: [] as RosterEvent[],
+    staffLeaveRecords: [] as StaffLeaveRecord[],
+    staffLeaveEvents: [] as StaffLeaveEvent[],
     homeAssignments: [] as HomeAssignment[],
     wardCompetencies: [] as WardCompetency[],
     rosterAssignments: [] as RosterAssignment[],
@@ -2568,6 +2608,16 @@ interface CareCtx extends Store {
   createStaffingEstablishmentDraft: (input: CreateStaffingEstablishmentDraftCommand) => StaffingEstablishmentVersion;
   addStaffingEstablishmentLine: (input: AddStaffingEstablishmentLineCommand) => StaffingEstablishmentLine;
   approveStaffingEstablishment: (id: string) => void;
+  createRecruitmentVacancy: (input: CreateRecruitmentVacancyCommand) => RecruitmentVacancy;
+  updateRecruitmentVacancyStatus: (id: string, status: RecruitmentVacancy["status"]) => void;
+  addRecruitmentCandidate: (input: AddRecruitmentCandidateCommand) => RecruitmentCandidate;
+  createRecruitmentOffer: (input: CreateRecruitmentOfferCommand) => RecruitmentOffer;
+  updateRecruitmentOfferStatus: (id: string, status: RecruitmentOffer["status"]) => void;
+  createRosterPeriod: (input: CreateRosterPeriodCommand) => RosterPeriod;
+  addRosterShiftRequirement: (input: AddRosterShiftRequirementCommand) => RosterShiftRequirement;
+  assignPlannedShift: (input: AssignPlannedShiftCommand) => PlannedShift;
+  createStaffLeaveRecord: (input: CreateStaffLeaveRecordCommand) => StaffLeaveRecord;
+  approveStaffLeaveRecord: (id: string) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -4025,6 +4075,78 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const next = approveStaffingEstablishment(current, currentUser.id);
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, staffingEstablishmentVersions: s.staffingEstablishmentVersions.map((version) => version.id === id ? next : version), staffingEstablishmentEvents: [{ id: `staffing-establishment-event-${uid()}`, type: "StaffingEstablishmentApproved", establishmentVersionId: next.id, nursingHomeId: next.nursingHomeId, status: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staffing-establishment-approve-${id}-${now}` }, ...(s.staffingEstablishmentEvents || [])] }));
+      },
+      createRecruitmentVacancy: (input) => {
+        const establishmentLine = input.establishmentLine || (input.establishmentVersion ? store.staffingEstablishmentLines.find((line) => line.establishmentVersionId === input.establishmentVersion?.id && line.roleKey === input.roleKey && line.nursingHomeId === input.nursingHomeId && (!input.wardId || line.wardId === input.wardId)) : undefined);
+        const vacancy = createRecruitmentVacancy({ ...input, establishmentLine }, currentUser.id);
+        const now = new Date().toISOString();
+        const event: RecruitmentEvent = { id: `recruitment-event-${uid()}`, type: "RecruitmentVacancyCreated", recruitmentVacancyId: vacancy.id, nursingHomeId: vacancy.nursingHomeId, wardId: vacancy.wardId, roleKey: vacancy.roleKey, status: vacancy.status, quantities: { positionsRequired: vacancy.positionsRequired, positionsFilled: vacancy.positionsFilled, fteRequired: vacancy.fteRequired, fteFilled: vacancy.fteFilled }, plannedStartDate: vacancy.plannedStartDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId || `recruitment-vacancy-create-${now}` };
+        setStore((s) => ({ ...s, recruitmentVacancies: [vacancy, ...s.recruitmentVacancies], recruitmentEvents: [event, ...(s.recruitmentEvents || [])], auditLogs: [{ id: uid(), facilityId: String(vacancy.nursingHomeId), user: currentUserName, role: currentRole, action: "Recruitment Vacancy created", entity: String(vacancy.id), entityType: "recruitment_vacancy", timestamp: now, after: JSON.stringify({ jobTitle: vacancy.jobTitle, roleKey: vacancy.roleKey, status: vacancy.status }) }, ...s.auditLogs].slice(0, 500) }));
+        return vacancy;
+      },
+      updateRecruitmentVacancyStatus: (id, status) => {
+        const current = store.recruitmentVacancies.find((vacancy) => vacancy.id === id);
+        if (!current) throw new Error("The Recruitment Vacancy could not be saved.");
+        const next = transitionRecruitmentVacancy(current, status, currentUser.id);
+        const now = new Date().toISOString();
+        const eventType: RecruitmentEvent["type"] = status === "approved" ? "RecruitmentVacancyApproved" : status === "open" ? "RecruitmentVacancyOpened" : status === "on_hold" ? "RecruitmentVacancyPlacedOnHold" : status === "cancelled" ? "RecruitmentVacancyCancelled" : status === "closed_unfilled" ? "RecruitmentVacancyClosedUnfilled" : status === "entered_in_error" ? "RecruitmentVacancyEnteredInError" : "RecruitmentVacancyUpdated";
+        setStore((s) => ({ ...s, recruitmentVacancies: s.recruitmentVacancies.map((vacancy) => vacancy.id === id ? next : vacancy), recruitmentEvents: [{ id: `recruitment-event-${uid()}`, type: eventType, recruitmentVacancyId: next.id, nursingHomeId: next.nursingHomeId, wardId: next.wardId, roleKey: next.roleKey, status: next.status, plannedStartDate: next.plannedStartDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `recruitment-vacancy-status-${id}-${now}` }, ...(s.recruitmentEvents || [])] }));
+      },
+      addRecruitmentCandidate: (input) => {
+        const vacancy = store.recruitmentVacancies.find((item) => item.id === input.recruitmentVacancyId);
+        if (!vacancy) throw new Error("The candidate could not be moved to the selected stage.");
+        const candidate = addRecruitmentCandidate(input);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, recruitmentCandidates: [candidate, ...s.recruitmentCandidates], recruitmentEvents: [{ id: `recruitment-event-${uid()}`, type: "RecruitmentCandidateAdded", recruitmentVacancyId: candidate.recruitmentVacancyId, recruitmentCandidateId: candidate.id, nursingHomeId: vacancy.nursingHomeId, wardId: vacancy.wardId, roleKey: vacancy.roleKey, status: candidate.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `recruitment-candidate-add-${candidate.id}-${now}` }, ...(s.recruitmentEvents || [])] }));
+        return candidate;
+      },
+      createRecruitmentOffer: (input) => {
+        const vacancy = store.recruitmentVacancies.find((item) => item.id === input.recruitmentVacancyId);
+        if (!vacancy) throw new Error("The Recruitment Vacancy could not be saved.");
+        const offer = createRecruitmentOffer(input);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, recruitmentOffers: [offer, ...s.recruitmentOffers], recruitmentEvents: [{ id: `recruitment-event-${uid()}`, type: "RecruitmentOfferCreated", recruitmentVacancyId: offer.recruitmentVacancyId, recruitmentOfferId: offer.id, recruitmentCandidateId: offer.candidateId, nursingHomeId: vacancy.nursingHomeId, wardId: vacancy.wardId, roleKey: vacancy.roleKey, status: offer.status, plannedStartDate: offer.proposedStartDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `recruitment-offer-create-${offer.id}-${now}` }, ...(s.recruitmentEvents || [])] }));
+        return offer;
+      },
+      updateRecruitmentOfferStatus: (id, status) => {
+        const current = store.recruitmentOffers.find((offer) => offer.id === id);
+        if (!current) throw new Error("The Recruitment Vacancy could not be saved.");
+        const vacancy = store.recruitmentVacancies.find((item) => item.id === current.recruitmentVacancyId);
+        const next = transitionRecruitmentOffer(current, status);
+        const now = new Date().toISOString();
+        const eventType: RecruitmentEvent["type"] = status === "sent" ? "RecruitmentOfferSent" : status === "accepted" ? "RecruitmentOfferAccepted" : status === "declined" ? "RecruitmentOfferDeclined" : "RecruitmentOfferCreated";
+        setStore((s) => ({ ...s, recruitmentOffers: s.recruitmentOffers.map((offer) => offer.id === id ? next : offer), recruitmentEvents: [{ id: `recruitment-event-${uid()}`, type: eventType, recruitmentVacancyId: next.recruitmentVacancyId, recruitmentOfferId: next.id, recruitmentCandidateId: next.candidateId, nursingHomeId: vacancy?.nursingHomeId || next.proposedNursingHomeId, wardId: vacancy?.wardId || next.proposedWardId, roleKey: next.proposedRoleKey, status: next.status, plannedStartDate: next.proposedStartDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `recruitment-offer-status-${id}-${now}` }, ...(s.recruitmentEvents || [])] }));
+      },
+      createRosterPeriod: (input) => {
+        const period = createRosterPeriod(input, currentUser.id, store.rosterPeriods.filter((item) => item.nursingHomeId === input.nursingHomeId).length + 1);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, rosterPeriods: [period, ...s.rosterPeriods], rosterEvents: [{ id: `roster-event-${uid()}`, type: "RosterPeriodCreated", rosterPeriodId: period.id, nursingHomeId: period.nursingHomeId, status: period.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `roster-period-create-${period.id}-${now}` }, ...(s.rosterEvents || [])] }));
+        return period;
+      },
+      addRosterShiftRequirement: (input) => {
+        const requirement = addRosterShiftRequirement(input);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, rosterShiftRequirements: [requirement, ...s.rosterShiftRequirements], rosterEvents: [{ id: `roster-event-${uid()}`, type: "RosterRequirementChanged", rosterPeriodId: requirement.rosterPeriodId, rosterShiftRequirementId: requirement.id, nursingHomeId: requirement.nursingHomeId, wardId: requirement.wardId, roleKey: requirement.roleKey, status: requirement.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `roster-requirement-add-${requirement.id}-${now}` }, ...(s.rosterEvents || [])] }));
+        return requirement;
+      },
+      assignPlannedShift: (input) => {
+        const shift = assignPlannedShift(input, currentUser.id, store.staffLeaveRecords);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, plannedShifts: [shift, ...s.plannedShifts], rosterEvents: [{ id: `roster-event-${uid()}`, type: shift.assignedStaffMemberId ? "RosterStaffAssigned" : "RosterShiftMarkedVacant", rosterPeriodId: shift.rosterPeriodId, plannedShiftId: shift.id, rosterShiftRequirementId: shift.requirementId, nursingHomeId: shift.nursingHomeId, wardId: shift.wardId, staffMemberId: shift.assignedStaffMemberId, roleKey: shift.roleKey, status: shift.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `planned-shift-assign-${shift.id}-${now}` }, ...(s.rosterEvents || [])] }));
+        return shift;
+      },
+      createStaffLeaveRecord: (input) => {
+        const record = createStaffLeaveRecord(input, currentUser.id, store.staffLeaveRecords);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffLeaveRecords: [record, ...s.staffLeaveRecords], staffLeaveEvents: [{ id: `staff-leave-event-${uid()}`, type: "StaffLeaveCreated", staffLeaveRecordId: record.id, staffMemberId: record.staffMemberId, employmentRecordId: record.employmentRecordId, nursingHomeId: record.nursingHomeId, leaveType: record.leaveType, status: record.status, startDate: record.startDate, endDate: record.endDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staff-leave-create-${record.id}-${now}` }, ...(s.staffLeaveEvents || [])], auditLogs: [{ id: uid(), facilityId: String(record.nursingHomeId), user: currentUserName, role: currentRole, action: "Staff Leave created", entity: String(record.id), entityType: "staff_leave", timestamp: now, after: JSON.stringify({ leaveType: record.leaveType, status: record.status, startDate: record.startDate, endDate: record.endDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return record;
+      },
+      approveStaffLeaveRecord: (id) => {
+        const current = store.staffLeaveRecords.find((record) => record.id === id);
+        if (!current) throw new Error("This Leave request could not be approved.");
+        const next = approveStaffLeaveRecord(current, currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffLeaveRecords: s.staffLeaveRecords.map((record) => record.id === id ? next : record), staffLeaveEvents: [{ id: `staff-leave-event-${uid()}`, type: "StaffLeaveApproved", staffLeaveRecordId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, nursingHomeId: next.nursingHomeId, leaveType: next.leaveType, status: next.status, startDate: next.startDate, endDate: next.endDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staff-leave-approve-${id}-${now}` }, ...(s.staffLeaveEvents || [])] }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

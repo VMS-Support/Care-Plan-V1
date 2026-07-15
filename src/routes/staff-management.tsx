@@ -39,8 +39,7 @@ import {
   getTrainingOverdueMetric,
   getTrainingNotStartedMetric,
   getEffectiveStaffingEstablishment,
-  getTopVacantPositions,
-  getVacantPositionsMetric,
+  getWorkforceRecruitmentRosterLeaveDashboardSummary,
   getTotalFteMetric,
   getTotalStaffMetric,
 } from "@/domain/workforce";
@@ -73,8 +72,27 @@ function StaffManagementDashboard() {
   const trainingOverdueMetric = getTrainingOverdueMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
   const trainingNotStartedMetric = getTrainingNotStartedMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses: care.trainingCourses });
   const effectiveEstablishment = getEffectiveStaffingEstablishment({ versions: care.staffingEstablishmentVersions, nursingHomeId: care.activeFacilityId });
-  const vacantPositionsMetric = getVacantPositionsMetric({ version: effectiveEstablishment, lines: care.staffingEstablishmentLines, employmentRecords: care.employmentRecords, homeAssignments: care.employmentHomeAssignments });
-  const topVacantPositions = getTopVacantPositions({ version: effectiveEstablishment, lines: care.staffingEstablishmentLines, employmentRecords: care.employmentRecords, homeAssignments: care.employmentHomeAssignments });
+  const dashboardDate = "2026-07-15";
+  const workforceDashboard = getWorkforceRecruitmentRosterLeaveDashboardSummary({
+    establishmentVersion: effectiveEstablishment,
+    establishmentLines: care.staffingEstablishmentLines,
+    employmentRecords: care.employmentRecords,
+    homeAssignments: care.employmentHomeAssignments,
+    recruitmentVacancies: care.recruitmentVacancies,
+    recruitmentOffers: care.recruitmentOffers,
+    rosterPeriods: care.rosterPeriods,
+    rosterShiftRequirements: care.rosterShiftRequirements,
+    plannedShifts: care.plannedShifts,
+    staffLeaveRecords: care.staffLeaveRecords,
+    nursingHomeId: care.activeFacilityId,
+    date: dashboardDate,
+    weekFrom: "2026-07-13",
+    weekTo: "2026-07-19",
+  });
+  const vacantPositionsMetric = workforceDashboard.vacantPositions;
+  const topVacantPositions = workforceDashboard.topVacantPositions;
+  const rosterOverview = workforceDashboard.rosterOverview;
+  const leaveOverview = workforceDashboard.leaveOverview;
   const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
@@ -118,8 +136,8 @@ function StaffManagementDashboard() {
         <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
         <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value={vacantPositionsMetric.value === undefined ? "N/A" : String(vacantPositionsMetric.value)} sub={vacantPositionsMetric.availability === "available" ? "Open" : "Not configured"} foot={vacantPositionsMetric.percentage === undefined ? vacantPositionsMetric.explanation : `${vacantPositionsMetric.percentage}% of Budgeted`} percent={vacantPositionsMetric.percentage ?? 0} tone="orange" />
         <StaffKpi icon={UserPlus} title="Agency Staff Today" value="27" sub="9%" foot="vs 8% Last Month" percent={42} tone="purple" trend="up" />
-        <StaffKpi icon={HeartPulse} title="Sick Leave Today" value="23" sub="7%" foot="vs 5% Last Month" percent={32} tone="red" trend="up" />
-        <StaffKpi icon={Plane} title="On Annual Leave" value="31" sub="10%" foot="vs 9% Last Month" percent={48} tone="blue" trend="down" />
+        <StaffKpi icon={HeartPulse} title="Sick Leave Today" value={metricValue(leaveOverview.sickLeaveToday)} sub={leaveOverview.sickLeaveToday.availability === "available" ? "Today" : "Unavailable"} foot={leaveOverview.sickLeaveToday.explanation} percent={Math.min(100, (leaveOverview.sickLeaveToday.value || 0) * 4)} tone="red" />
+        <StaffKpi icon={Plane} title="On Annual Leave" value={metricValue(leaveOverview.annualLeaveToday)} sub={leaveOverview.annualLeaveToday.availability === "available" ? "Today" : "Unavailable"} foot={leaveOverview.annualLeaveToday.explanation} percent={Math.min(100, (leaveOverview.annualLeaveToday.value || 0) * 3)} tone="blue" />
         <StaffKpi icon={FileBadge} title="Registration Compliance" value={registrationCompliance.percentage === undefined ? "N/A" : `${registrationCompliance.percentage}%`} sub="Compliant" foot={`Expiring: ${expiringRegistrations.value}`} percent={registrationCompliance.percentage ?? 0} tone="green" compact />
         <StaffKpi icon={GraduationCap} title="Training Compliance" value={trainingComplianceMetric.percentage === undefined ? "N/A" : `${trainingComplianceMetric.percentage}%`} sub="Compliant" foot={`Overdue: ${trainingOverdueMetric.value}`} percent={trainingComplianceMetric.percentage ?? 0} tone="purple" compact />
       </section>
@@ -140,14 +158,23 @@ function StaffManagementDashboard() {
         </Panel>
         <Panel title="Roster Overview" suffix="(This Week)">
           <div className="grid gap-5 md:grid-cols-[150px_1fr]">
-            <Donut value={1856} label="Total Shifts" segments={["#2fab5f", "#ff7e16", "#9aa8b8"]} />
-            <Legend rows={[["Filled", "1,672", "90%", "#2fab5f"], ["Vacant", "92", "5%", "#ff7e16"], ["To be Confirmed", "92", "5%", "#9aa8b8"]]} />
+            <Donut value={rosterOverview.totalShifts.value || 0} label={rosterOverview.totalShifts.availability === "available" ? "Total Shifts" : "Not Configured"} segments={["#2fab5f", "#ff7e16", "#9aa8b8"]} />
+            <Legend rows={[
+              ["Filled", metricValue(rosterOverview.filledShifts), rosterPercent(rosterOverview.filledShifts.value, rosterOverview.totalShifts.value), "#2fab5f"],
+              ["Vacant", metricValue(rosterOverview.vacantShifts), rosterPercent(rosterOverview.vacantShifts.value, rosterOverview.totalShifts.value), "#ff7e16"],
+              ["To be Confirmed", metricValue(rosterOverview.toBeConfirmed), rosterPercent(rosterOverview.toBeConfirmed.value, rosterOverview.totalShifts.value), "#9aa8b8"],
+            ]} />
           </div>
         </Panel>
         <Panel title="Upcoming Leave" suffix="(Next 30 Days)">
           <div className="grid gap-5 md:grid-cols-[150px_1fr]">
-            <Donut value={62} label="Staff" segments={["#2374df", "#ef3333", "#ff971a", "#28b6bf"]} />
-            <Legend rows={[["Annual Leave", "42", "68%", "#2374df"], ["Sick Leave", "10", "16%", "#ef3333"], ["Unpaid Leave", "6", "10%", "#ff971a"], ["Other Leave", "4", "6%", "#28b6bf"]]} />
+            <Donut value={leaveOverview.upcomingLeave.value || 0} label="Staff" segments={["#2374df", "#ef3333", "#ff971a", "#28b6bf"]} />
+            <Legend rows={leaveOverview.upcomingLeaveBreakdown.map((item, index) => [
+              leaveTypeLabel(item.leaveType),
+              String(item.count),
+              rosterPercent(item.count, leaveOverview.upcomingLeave.value),
+              ["#2374df", "#ef3333", "#ff971a", "#28b6bf"][index] || "#9aa8b8",
+            ])} />
           </div>
         </Panel>
 
@@ -192,7 +219,7 @@ function StaffManagementDashboard() {
           ]} footer="View All Expiring" />
         </Panel>
         <Panel title="Top Vacant Positions">
-          <SimpleTable headers={["Position", "Vacant", "Urgency"]} rows={(topVacantPositions.length ? topVacantPositions : []).slice(0, 5).map((item) => [item.roleKey, String(item.vacantHeadcount ?? 0), item.urgency])} footer={topVacantPositions.length ? "View All Vacancies" : "No approved Staffing Establishment exists for this Nursing Home."} urgency />
+          <SimpleTable headers={["Position", "Vacant", "Status", "Urgency"]} rows={(topVacantPositions.length ? topVacantPositions : []).slice(0, 5).map((item) => [item.roleLabel, String(item.vacantHeadcount ?? 0), item.vacancyStatus.replaceAll("_", " "), titleCase(item.urgency)])} footer={topVacantPositions.length ? "View All Vacancies" : "No approved Staffing Establishment exists for this Nursing Home."} urgency />
         </Panel>
         <Panel title="Key Alerts">
           <div className="space-y-4">
@@ -229,6 +256,23 @@ function StaffManagementDashboard() {
       </div>
     </div>
   );
+}
+
+function metricValue(metric: { value?: number; availability: string }) {
+  return metric.availability === "available" ? String(metric.value ?? 0) : "N/A";
+}
+
+function rosterPercent(value?: number, total?: number) {
+  if (!total) return "N/A";
+  return `${Math.round(((value || 0) / total) * 100)}%`;
+}
+
+function leaveTypeLabel(value: string) {
+  return titleCase(value.replaceAll("_", " "));
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function TopFilter({ icon: Icon, label }: { icon?: any; label: string }) {

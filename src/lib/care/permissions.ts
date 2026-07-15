@@ -124,7 +124,20 @@ export type Permission =
   | "staffing_establishment.supersede" | "staffing_establishment.retire"
   | "staffing_establishment.enter_in_error" | "staffing_establishment.view_actuals"
   | "staffing_establishment.view_vacancies" | "staffing_establishment.view_fte"
-  | "staffing_establishment.view_budget_reference";
+  | "staffing_establishment.view_budget_reference"
+  | "recruitment.view" | "recruitment.view_all_homes" | "recruitment.create_vacancy"
+  | "recruitment.edit_vacancy" | "recruitment.submit_approval" | "recruitment.approve_vacancy"
+  | "recruitment.open_vacancy" | "recruitment.place_on_hold" | "recruitment.cancel_vacancy"
+  | "recruitment.view_candidates" | "recruitment.manage_candidates" | "recruitment.manage_interviews"
+  | "recruitment.create_offer" | "recruitment.approve_offer" | "recruitment.send_offer"
+  | "recruitment.complete_hire" | "recruitment.view_metrics" | "recruitment.enter_in_error"
+  | "rostering.view" | "rostering.view_all_homes" | "rostering.create_period"
+  | "rostering.edit_period" | "rostering.publish" | "rostering.lock" | "rostering.add_requirement"
+  | "rostering.assign_shift" | "rostering.confirm_shift" | "rostering.cancel_shift"
+  | "rostering.replace_assignment" | "rostering.view_metrics" | "rostering.enter_in_error"
+  | "leave.view" | "leave.view_all_homes" | "leave.create" | "leave.request"
+  | "leave.approve" | "leave.reject" | "leave.cancel" | "leave.record_sick"
+  | "leave.record_return" | "leave.view_confidential" | "leave.view_metrics" | "leave.enter_in_error";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -314,6 +327,19 @@ export function can(role: Role, perm: Permission): boolean {
     if (["hca_escalation.submit", "hca_escalation.view_own"].includes(perm)) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
     if (["hca_escalation.view_ward", "hca_escalation.acknowledge", "hca_escalation.review", "hca_escalation.complete"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
     if (["hca_escalation.reassign", "hca_escalation.dismiss"].includes(perm)) return role === "cnm" || role === "don";
+  }
+  if (perm.startsWith("recruitment.")) {
+    if (["recruitment.view", "recruitment.view_metrics"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
+  }
+  if (perm.startsWith("rostering.")) {
+    if (["rostering.view", "rostering.view_metrics", "rostering.confirm_shift"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
+  }
+  if (perm.startsWith("leave.")) {
+    if (["leave.view", "leave.create", "leave.request"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+    if (["leave.view_metrics", "leave.record_sick"].includes(perm)) return role === "cnm" || role === "don";
+    return role === "don";
   }
   return Boolean(matrix[role]?.includes(perm));
 }
