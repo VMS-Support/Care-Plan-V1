@@ -45,6 +45,7 @@ const roleLabels: Record<Role, string> = {
   doctor: "Doctor",
   cnm: "Clinical Nurse Manager",
   don: "Director of Nursing",
+  group_owner: "Group Owner",
 };
 
 function deriveShift(now: Date) {
@@ -156,7 +157,7 @@ export function OperationsHub({
     acknowledgeHandover,
   } = useCare();
 
-  const isManagement = currentRole === "cnm" || currentRole === "don";
+  const isManagement = currentRole === "cnm" || currentRole === "don" || currentRole === "group_owner";
   const [now, setNow] = useState(() => new Date());
   const [wingFilter, setWingFilter] = useState("all");
   const [roomFilter, setRoomFilter] = useState("all");

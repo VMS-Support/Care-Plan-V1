@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Shield } from "lucide-react";
 import type { Role } from "@/lib/care/types";
 
-const roles: Role[] = ["carer", "nurse", "doctor", "cnm", "don"];
+const roles: Role[] = ["carer", "nurse", "doctor", "cnm", "don", "group_owner"];
 
 export function RoleSwitcher() {
   const { currentRole, setCurrentRole, currentUserName } = useCare();

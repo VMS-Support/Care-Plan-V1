@@ -11,14 +11,18 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VitalsRouteImport } from './routes/vitals'
 import { Route as VisitorsRouteImport } from './routes/visitors'
+import { Route as TrainingDashboardRouteImport } from './routes/training-dashboard'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as StaffManagementRouteImport } from './routes/staff-management'
 import { Route as RisksRouteImport } from './routes/risks'
 import { Route as ResidentsRouteImport } from './routes/residents'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as QualityGovernanceRouteImport } from './routes/quality-governance'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OutingsRouteImport } from './routes/outings'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MdtNotesRouteImport } from './routes/mdt-notes'
+import { Route as MaintenanceHousekeepingRouteImport } from './routes/maintenance-housekeeping'
 import { Route as InterventionsRouteImport } from './routes/interventions'
 import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as HandoversRouteImport } from './routes/handovers'
@@ -28,11 +32,13 @@ import { Route as CarePlansRouteImport } from './routes/care-plans'
 import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as AssessmentsRouteImport } from './routes/assessments'
 import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as AccountsDashboardRouteImport } from './routes/accounts-dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResidentsIndexRouteImport } from './routes/residents.index'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
+import { Route as ReportsDailyCareRouteImport } from './routes/reports.daily-care'
 import { Route as InspectionResidentIdRouteImport } from './routes/inspection.$residentId'
 import { Route as ChartsResidentIdRouteImport } from './routes/charts.$residentId'
 import { Route as CarePlansIdRouteImport } from './routes/care-plans.$id'
@@ -55,9 +61,19 @@ const VisitorsRoute = VisitorsRouteImport.update({
   path: '/visitors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrainingDashboardRoute = TrainingDashboardRouteImport.update({
+  id: '/training-dashboard',
+  path: '/training-dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffManagementRoute = StaffManagementRouteImport.update({
+  id: '/staff-management',
+  path: '/staff-management',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RisksRoute = RisksRouteImport.update({
@@ -73,6 +89,11 @@ const ResidentsRoute = ResidentsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QualityGovernanceRoute = QualityGovernanceRouteImport.update({
+  id: '/quality-governance',
+  path: '/quality-governance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -93,6 +114,11 @@ const OperationsRoute = OperationsRouteImport.update({
 const MdtNotesRoute = MdtNotesRouteImport.update({
   id: '/mdt-notes',
   path: '/mdt-notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaintenanceHousekeepingRoute = MaintenanceHousekeepingRouteImport.update({
+  id: '/maintenance-housekeeping',
+  path: '/maintenance-housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InterventionsRoute = InterventionsRouteImport.update({
@@ -140,6 +166,11 @@ const AlertsRoute = AlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountsDashboardRoute = AccountsDashboardRouteImport.update({
+  id: '/accounts-dashboard',
+  path: '/accounts-dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -164,6 +195,11 @@ const ResidentsIdRoute = ResidentsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ResidentsRoute,
+} as any)
+const ReportsDailyCareRoute = ReportsDailyCareRouteImport.update({
+  id: '/daily-care',
+  path: '/daily-care',
+  getParentRoute: () => ReportsRoute,
 } as any)
 const InspectionResidentIdRoute = InspectionResidentIdRouteImport.update({
   id: '/inspection/$residentId',
@@ -225,6 +261,7 @@ const AssessmentsNewResidentIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/accounts-dashboard': typeof AccountsDashboardRoute
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
@@ -234,14 +271,18 @@ export interface FileRoutesByFullPath {
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
+  '/maintenance-housekeeping': typeof MaintenanceHousekeepingRoute
   '/mdt-notes': typeof MdtNotesRoute
   '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
-  '/reports': typeof ReportsRoute
+  '/quality-governance': typeof QualityGovernanceRoute
+  '/reports': typeof ReportsRouteWithChildren
   '/residents': typeof ResidentsRouteWithChildren
   '/risks': typeof RisksRoute
+  '/staff-management': typeof StaffManagementRoute
   '/tasks': typeof TasksRoute
+  '/training-dashboard': typeof TrainingDashboardRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
@@ -249,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
+  '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments/': typeof AssessmentsIndexRoute
@@ -262,6 +304,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/accounts-dashboard': typeof AccountsDashboardRoute
   '/alerts': typeof AlertsRoute
   '/audit-logs': typeof AuditLogsRoute
   '/care-plans': typeof CarePlansRouteWithChildren
@@ -270,13 +313,17 @@ export interface FileRoutesByTo {
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
+  '/maintenance-housekeeping': typeof MaintenanceHousekeepingRoute
   '/mdt-notes': typeof MdtNotesRoute
   '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
-  '/reports': typeof ReportsRoute
+  '/quality-governance': typeof QualityGovernanceRoute
+  '/reports': typeof ReportsRouteWithChildren
   '/risks': typeof RisksRoute
+  '/staff-management': typeof StaffManagementRoute
   '/tasks': typeof TasksRoute
+  '/training-dashboard': typeof TrainingDashboardRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
@@ -284,6 +331,7 @@ export interface FileRoutesByTo {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
+  '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments': typeof AssessmentsIndexRoute
@@ -298,6 +346,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/accounts-dashboard': typeof AccountsDashboardRoute
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
@@ -307,14 +356,18 @@ export interface FileRoutesById {
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
+  '/maintenance-housekeeping': typeof MaintenanceHousekeepingRoute
   '/mdt-notes': typeof MdtNotesRoute
   '/operations': typeof OperationsRoute
   '/outings': typeof OutingsRoute
   '/profile': typeof ProfileRoute
-  '/reports': typeof ReportsRoute
+  '/quality-governance': typeof QualityGovernanceRoute
+  '/reports': typeof ReportsRouteWithChildren
   '/residents': typeof ResidentsRouteWithChildren
   '/risks': typeof RisksRoute
+  '/staff-management': typeof StaffManagementRoute
   '/tasks': typeof TasksRoute
+  '/training-dashboard': typeof TrainingDashboardRoute
   '/visitors': typeof VisitorsRoute
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
@@ -322,6 +375,7 @@ export interface FileRoutesById {
   '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
+  '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
   '/assessments/': typeof AssessmentsIndexRoute
@@ -337,6 +391,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/accounts-dashboard'
     | '/alerts'
     | '/assessments'
     | '/audit-logs'
@@ -346,14 +401,18 @@ export interface FileRouteTypes {
     | '/handovers'
     | '/incidents'
     | '/interventions'
+    | '/maintenance-housekeeping'
     | '/mdt-notes'
     | '/operations'
     | '/outings'
     | '/profile'
+    | '/quality-governance'
     | '/reports'
     | '/residents'
     | '/risks'
+    | '/staff-management'
     | '/tasks'
+    | '/training-dashboard'
     | '/visitors'
     | '/vitals'
     | '/assessments/$assessmentId'
@@ -361,6 +420,7 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
+    | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments/'
@@ -374,6 +434,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/accounts-dashboard'
     | '/alerts'
     | '/audit-logs'
     | '/care-plans'
@@ -382,13 +443,17 @@ export interface FileRouteTypes {
     | '/handovers'
     | '/incidents'
     | '/interventions'
+    | '/maintenance-housekeeping'
     | '/mdt-notes'
     | '/operations'
     | '/outings'
     | '/profile'
+    | '/quality-governance'
     | '/reports'
     | '/risks'
+    | '/staff-management'
     | '/tasks'
+    | '/training-dashboard'
     | '/visitors'
     | '/vitals'
     | '/assessments/$assessmentId'
@@ -396,6 +461,7 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
+    | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments'
@@ -409,6 +475,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/accounts-dashboard'
     | '/alerts'
     | '/assessments'
     | '/audit-logs'
@@ -418,14 +485,18 @@ export interface FileRouteTypes {
     | '/handovers'
     | '/incidents'
     | '/interventions'
+    | '/maintenance-housekeeping'
     | '/mdt-notes'
     | '/operations'
     | '/outings'
     | '/profile'
+    | '/quality-governance'
     | '/reports'
     | '/residents'
     | '/risks'
+    | '/staff-management'
     | '/tasks'
+    | '/training-dashboard'
     | '/visitors'
     | '/vitals'
     | '/assessments/$assessmentId'
@@ -433,6 +504,7 @@ export interface FileRouteTypes {
     | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
+    | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
     | '/assessments/'
@@ -447,6 +519,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountsDashboardRoute: typeof AccountsDashboardRoute
   AlertsRoute: typeof AlertsRoute
   AssessmentsRoute: typeof AssessmentsRouteWithChildren
   AuditLogsRoute: typeof AuditLogsRoute
@@ -456,14 +529,18 @@ export interface RootRouteChildren {
   HandoversRoute: typeof HandoversRoute
   IncidentsRoute: typeof IncidentsRoute
   InterventionsRoute: typeof InterventionsRoute
+  MaintenanceHousekeepingRoute: typeof MaintenanceHousekeepingRoute
   MdtNotesRoute: typeof MdtNotesRoute
   OperationsRoute: typeof OperationsRoute
   OutingsRoute: typeof OutingsRoute
   ProfileRoute: typeof ProfileRoute
-  ReportsRoute: typeof ReportsRoute
+  QualityGovernanceRoute: typeof QualityGovernanceRoute
+  ReportsRoute: typeof ReportsRouteWithChildren
   ResidentsRoute: typeof ResidentsRouteWithChildren
   RisksRoute: typeof RisksRoute
+  StaffManagementRoute: typeof StaffManagementRoute
   TasksRoute: typeof TasksRoute
+  TrainingDashboardRoute: typeof TrainingDashboardRoute
   VisitorsRoute: typeof VisitorsRoute
   VitalsRoute: typeof VitalsRouteWithChildren
   ChartsResidentIdRoute: typeof ChartsResidentIdRoute
@@ -486,11 +563,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisitorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/training-dashboard': {
+      id: '/training-dashboard'
+      path: '/training-dashboard'
+      fullPath: '/training-dashboard'
+      preLoaderRoute: typeof TrainingDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tasks': {
       id: '/tasks'
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff-management': {
+      id: '/staff-management'
+      path: '/staff-management'
+      fullPath: '/staff-management'
+      preLoaderRoute: typeof StaffManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/risks': {
@@ -512,6 +603,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quality-governance': {
+      id: '/quality-governance'
+      path: '/quality-governance'
+      fullPath: '/quality-governance'
+      preLoaderRoute: typeof QualityGovernanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -540,6 +638,13 @@ declare module '@tanstack/react-router' {
       path: '/mdt-notes'
       fullPath: '/mdt-notes'
       preLoaderRoute: typeof MdtNotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/maintenance-housekeeping': {
+      id: '/maintenance-housekeeping'
+      path: '/maintenance-housekeeping'
+      fullPath: '/maintenance-housekeeping'
+      preLoaderRoute: typeof MaintenanceHousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/interventions': {
@@ -605,6 +710,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/accounts-dashboard': {
+      id: '/accounts-dashboard'
+      path: '/accounts-dashboard'
+      fullPath: '/accounts-dashboard'
+      preLoaderRoute: typeof AccountsDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -639,6 +751,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/residents/$id'
       preLoaderRoute: typeof ResidentsIdRouteImport
       parentRoute: typeof ResidentsRoute
+    }
+    '/reports/daily-care': {
+      id: '/reports/daily-care'
+      path: '/daily-care'
+      fullPath: '/reports/daily-care'
+      preLoaderRoute: typeof ReportsDailyCareRouteImport
+      parentRoute: typeof ReportsRoute
     }
     '/inspection/$residentId': {
       id: '/inspection/$residentId'
@@ -750,6 +869,17 @@ const CarePlansRouteWithChildren = CarePlansRoute._addFileChildren(
   CarePlansRouteChildren,
 )
 
+interface ReportsRouteChildren {
+  ReportsDailyCareRoute: typeof ReportsDailyCareRoute
+}
+
+const ReportsRouteChildren: ReportsRouteChildren = {
+  ReportsDailyCareRoute: ReportsDailyCareRoute,
+}
+
+const ReportsRouteWithChildren =
+  ReportsRoute._addFileChildren(ReportsRouteChildren)
+
 interface ResidentsIdRouteChildren {
   ResidentsIdAssessmentsRoute: typeof ResidentsIdAssessmentsRoute
   ResidentsIdCarePlanRoute: typeof ResidentsIdCarePlanRoute
@@ -797,6 +927,7 @@ const VitalsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountsDashboardRoute: AccountsDashboardRoute,
   AlertsRoute: AlertsRoute,
   AssessmentsRoute: AssessmentsRouteWithChildren,
   AuditLogsRoute: AuditLogsRoute,
@@ -806,14 +937,18 @@ const rootRouteChildren: RootRouteChildren = {
   HandoversRoute: HandoversRoute,
   IncidentsRoute: IncidentsRoute,
   InterventionsRoute: InterventionsRoute,
+  MaintenanceHousekeepingRoute: MaintenanceHousekeepingRoute,
   MdtNotesRoute: MdtNotesRoute,
   OperationsRoute: OperationsRoute,
   OutingsRoute: OutingsRoute,
   ProfileRoute: ProfileRoute,
-  ReportsRoute: ReportsRoute,
+  QualityGovernanceRoute: QualityGovernanceRoute,
+  ReportsRoute: ReportsRouteWithChildren,
   ResidentsRoute: ResidentsRouteWithChildren,
   RisksRoute: RisksRoute,
+  StaffManagementRoute: StaffManagementRoute,
   TasksRoute: TasksRoute,
+  TrainingDashboardRoute: TrainingDashboardRoute,
   VisitorsRoute: VisitorsRoute,
   VitalsRoute: VitalsRouteWithChildren,
   ChartsResidentIdRoute: ChartsResidentIdRoute,

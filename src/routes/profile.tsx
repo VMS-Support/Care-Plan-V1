@@ -45,8 +45,8 @@ function ProfilePage() {
     temporaryPassword: "TempPass123!",
     status: "active" as const,
   });
-  const canResetDemoData = currentUser.role === "cnm" || currentUser.role === "don";
-  const isDon = currentUser.role === "don";
+  const canResetDemoData = currentUser.role === "cnm" || currentUser.role === "don" || currentUser.role === "group_owner";
+  const isDon = currentUser.role === "don" || currentUser.role === "group_owner";
   const facilityHasDon = users.some((user) => user.role === "don" && user.status !== "inactive");
 
   useEffect(() => {

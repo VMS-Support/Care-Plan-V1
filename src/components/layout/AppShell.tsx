@@ -19,6 +19,11 @@ import {
   ShieldCheck,
   Building2,
   Gauge,
+  GraduationCap,
+  IdCard,
+  Landmark,
+  Shield,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -42,6 +47,36 @@ const nav: NavItem[] = [
     visible: (canAccess) => canAccess("ops.edit") || canAccess("ops.edit_own"),
   },
   { to: "/residents", label: "Residents", icon: Users, capability: "resident.view" },
+  {
+    to: "/quality-governance",
+    label: "Quality Governance",
+    icon: Shield,
+    capability: "permission.manage",
+  },
+  {
+    to: "/accounts-dashboard",
+    label: "Accounts",
+    icon: Landmark,
+    capability: "finance.view",
+  },
+  {
+    to: "/staff-management",
+    label: "Staff Management",
+    icon: IdCard,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance-housekeeping",
+    label: "Maintenance",
+    icon: Wrench,
+    capability: "permission.manage",
+  },
+  {
+    to: "/training-dashboard",
+    label: "Training",
+    icon: GraduationCap,
+    capability: "assessment.reports",
+  },
   {
     to: "/assessments",
     label: "Assessments",
@@ -91,7 +126,7 @@ const nav: NavItem[] = [
 
 function SidebarInner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { tasks, canAccess } = useCare();
+  const { tasks, canAccess, currentRole } = useCare();
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -105,7 +140,20 @@ function SidebarInner() {
     overdueTasks > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
-  const visible = nav.filter((i) => !i.capability || canAccess(i.capability)).filter((i) => !i.visible || i.visible(canAccess));
+  const groupOwnerHidden = new Set([
+    "/daily-notes",
+    "/outings",
+    "/risks",
+    "/alerts",
+    "/handovers",
+    "/care-plans",
+    "/assessments",
+    "/tasks",
+  ]);
+  const visible = nav
+    .filter((i) => !i.capability || canAccess(i.capability))
+    .filter((i) => !i.visible || i.visible(canAccess))
+    .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to));
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">

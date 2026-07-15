@@ -6,3 +6,4 @@ export * from "./dailyCareValidation";
 export * from "./dailyCareService";
 export * from "./dailyCareReadModel";
 export * from "./trends";
+export * from "./reports";

@@ -79,6 +79,7 @@ export interface AuthorizationDecision {
 }
 
 export const roleToRoleKey = (role: Role): CurrentRoleKey => {
+  if (role === "group_owner") return "GROUP_OWNER";
   if (role === "don") return "DON";
   if (role === "cnm") return "CNM";
   if (role === "nurse") return "NURSE";
@@ -87,6 +88,7 @@ export const roleToRoleKey = (role: Role): CurrentRoleKey => {
 };
 
 export const roleKeyToRole = (roleKey: string): Role => {
+  if (roleKey === "GROUP_OWNER") return "group_owner";
   if (roleKey === "DON") return "don";
   if (roleKey === "CNM") return "cnm";
   if (roleKey === "NURSE") return "nurse";

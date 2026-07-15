@@ -84,7 +84,7 @@ function VitalsDashboard() {
   const [abnormalOnly, setAbnormalOnly] = useState(false);
   const [recordedByFilter, setRecordedByFilter] = useState("all");
 
-  if (currentRole !== "cnm" && currentRole !== "don") {
+  if (currentRole !== "cnm" && currentRole !== "don" && currentRole !== "group_owner") {
     return (
       <div className="p-4 md:p-8 max-w-3xl">
         <Card>

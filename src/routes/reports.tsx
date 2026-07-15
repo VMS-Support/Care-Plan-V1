@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCare } from "@/lib/care/store";
 import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,6 +141,9 @@ function ReportsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/reports/daily-care">Daily Care Reports</Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => exportCSV("residents.csv", residents)}>
             <Download className="h-4 w-4 mr-1.5" /> Residents CSV
           </Button>

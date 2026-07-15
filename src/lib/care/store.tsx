@@ -523,6 +523,23 @@ function seedUsers(): UserProfile[] {
       notificationPrefs: { email: true, sms: false, inApp: true, criticalAlertsOnly: false },
     },
     {
+      id: "u-group-owner",
+      facilityId: BALLYMORE_FACILITY_ID,
+      facilityIds: DEMO_MULTI_FACILITY_IDS,
+      name: "Brian O'Donnell",
+      role: "group_owner",
+      email: "brian.odonnell@oritas.example",
+      phone: "07700 900401",
+      department: "Group Executive",
+      assignedWings: [],
+      employeeNumber: "GRP-0001",
+      startDate: "2012-05-20",
+      lastLogin: daysAgo(0),
+      status: "active",
+      avatarSeed: "BrianODonnell",
+      notificationPrefs: { email: true, sms: true, inApp: true, criticalAlertsOnly: false },
+    },
+    {
       id: "u-2",
       name: "T. Brooks",
       role: "carer",
@@ -2033,7 +2050,7 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
 const hasFacility = (item: { facilityId?: string; nursingHomeId?: string }, facilityId: string) =>
   (item.nursingHomeId || item.facilityId || BALLYMORE_FACILITY_ID) === facilityId;
 
-const DEMO_MULTI_FACILITY_USER_IDS = new Set(["u-3", "u-7"]);
+const DEMO_MULTI_FACILITY_USER_IDS = new Set(["u-3", "u-7", "u-group-owner"]);
 const DEMO_MULTI_FACILITY_IDS = [BALLYMORE_FACILITY_ID, HAZELWOOD_FACILITY_ID];
 
 const userFacilityIds = (user: UserProfile) =>
@@ -2041,6 +2058,14 @@ const userFacilityIds = (user: UserProfile) =>
 
 function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILITY_ID): Store {
   const users = store.users.map((user) => {
+    if (user.id === "u-group-owner") {
+      return {
+        ...user,
+        facilityId: BALLYMORE_FACILITY_ID,
+        facilityIds: DEMO_MULTI_FACILITY_IDS,
+        role: "group_owner" as Role,
+      };
+    }
     if (user.id === "u-hazelwood-don") {
       return {
         ...user,
@@ -2059,14 +2084,37 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
     return { ...user, facilityId: ids[0], facilityIds: ids };
   });
   const hasHazelwoodDon = users.some((user) => user.id === "u-hazelwood-don");
+  const hasGroupOwner = users.some((user) => user.id === "u-group-owner");
+  const normalizedUsers = hasGroupOwner
+    ? users
+    : [
+        {
+          id: "u-group-owner",
+          facilityId: BALLYMORE_FACILITY_ID,
+          facilityIds: DEMO_MULTI_FACILITY_IDS,
+          name: "Brian O'Donnell",
+          role: "group_owner" as Role,
+          email: "brian.odonnell@oritas.example",
+          phone: "07700 900401",
+          department: "Group Executive",
+          assignedWings: [],
+          employeeNumber: "GRP-0001",
+          startDate: "2012-05-20",
+          lastLogin: new Date().toISOString(),
+          status: "active" as const,
+          avatarSeed: "BrianODonnell",
+          notificationPrefs: { email: true, sms: true, inApp: true, criticalAlertsOnly: false },
+        },
+        ...users,
+      ];
   let normalized: Store = {
     ...store,
     enterprises: store.enterprises?.length ? store.enterprises : ENTERPRISES_SEED,
     facilities: FACILITIES_SEED,
     users: hasHazelwoodDon
-      ? users
+      ? normalizedUsers
       : [
-          ...users,
+          ...normalizedUsers,
           {
             ...seedUsers().find((user) => user.id === "u-hazelwood-don")!,
             facilityId: HAZELWOOD_FACILITY_ID,
@@ -3306,8 +3354,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
           users: s.users.map((u) => (u.id === id ? { ...u, ...patch } : u)),
         })),
       createStaffUser: (input) => {
-        if (currentRole !== "don") {
-          throw new Error("Only a DON can create staff logins.");
+        if (currentRole !== "don" && currentRole !== "group_owner") {
+          throw new Error("Only a DON or Group Owner can create staff logins.");
         }
         const existingDon = store.users.some(
           (user) =>

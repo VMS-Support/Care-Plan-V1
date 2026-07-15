@@ -6,6 +6,7 @@ export const roleLabels: Record<Role, string> = {
   doctor: "Doctor",
   cnm: "Clinical Nurse Manager",
   don: "Director of Nursing",
+  group_owner: "Group Owner",
 };
 
 export const roleDescriptions: Record<Role, string> = {
@@ -14,6 +15,7 @@ export const roleDescriptions: Record<Role, string> = {
   doctor: "Medical reviews, MDT meetings, treatment notes",
   cnm: "Administrative oversight and approvals",
   don: "Full system access and governance",
+  group_owner: "Enterprise access across all nursing homes",
 };
 
 export type Permission =
@@ -31,7 +33,7 @@ export type Permission =
   | "clinical.view" | "mdt.create" | "medical_review.create"
   | "recommendation.create" | "treatment_note.create"
   | "report.view" | "report.manage" | "user.manage" | "permission.manage"
-  | "settings.manage" | "audit.view" | "record.delete_with_audit"
+  | "settings.manage" | "audit.view" | "record.delete_with_audit" | "finance.view"
   | "compliance.view"
   | "vital.view" | "vital.record" | "vital.edit" | "vital.delete" | "vital.comment"
   | "vital.plan.edit" | "vital.escalate" | "vital.report" | "vital.audit"
@@ -49,6 +51,7 @@ export type Permission =
   | "stop_and_watch.submit" | "stop_and_watch.view" | "stop_and_watch.acknowledge" | "stop_and_watch.review" | "stop_and_watch.escalate" | "stop_and_watch.resolve"
   | "daily_care.view" | "daily_care.record" | "daily_care.bedside_view" | "daily_care.bedside_record" | "daily_care.view_ward_residents" | "daily_care.record_quick" | "daily_care.record_detailed" | "daily_care.record_personal_care" | "daily_care.record_dressing" | "daily_care.record_oral_care" | "daily_care.record_toileting" | "daily_care.record_continence" | "daily_care.record_repositioning" | "daily_care.record_food" | "daily_care.record_fluids" | "daily_care.record_mobility" | "daily_care.record_comfort" | "daily_care.record_sleep" | "daily_care.record_mood" | "daily_care.record_behaviour" | "daily_care.record_activity" | "daily_care.record_refusal" | "daily_care.record_skin_observation" | "daily_care.record_escalated_outcome" | "daily_care.notify_nurse" | "daily_care.create_follow_up" | "daily_care.create_refusal_follow_up" | "daily_care.escalate_refusal" | "daily_care.view_refusal" | "daily_care.correct_refusal" | "daily_care.enter_refusal_in_error" | "daily_care.view_rlt_mapping" | "daily_care.correct" | "daily_care.enter_in_error" | "daily_care.view_sensitive" | "daily_care.record_for_another_staff_member"
   | "daily_care_trends.view" | "daily_care_trends.evaluate" | "daily_care_trends.view_sensitive" | "daily_care_trends.manage_policy" | "daily_care_trends.approve_policy"
+  | "daily_care_reports.view" | "daily_care_reports.export" | "daily_care_reports.view_behaviour" | "daily_care_reports.view_refusals" | "daily_care_reports.view_sleep" | "daily_care_reports.view_all_wards" | "daily_care_reports.view_multiple_homes"
   | "hca_escalation.submit" | "hca_escalation.view_own" | "hca_escalation.view_ward" | "hca_escalation.acknowledge" | "hca_escalation.review" | "hca_escalation.reassign" | "hca_escalation.complete" | "hca_escalation.dismiss"
   | "resident_baseline.view" | "resident_baseline.view_source" | "resident_baseline.create" | "resident_baseline.edit_draft" | "resident_baseline.submit_approval" | "resident_baseline.approve" | "resident_baseline.review" | "resident_baseline.supersede" | "resident_baseline.revoke" | "resident_baseline.correct" | "resident_baseline.view_history" | "resident_baseline.manage_oxygen_target"
   | "assessment_care_guidance.view" | "assessment_care_guidance.acknowledge" | "assessment_care_guidance.action" | "assessment_care_guidance.dismiss" | "assessment_care_guidance.view_history"
@@ -172,9 +175,11 @@ const matrix: Record<Role, Permission[]> = {
     "observation.plan.edit", "observation.escalate", "observation.audit",
     "ops.edit", "ops.archive", "ops.restore", "ops.delete", "ops.duplicate",
   ],
+  group_owner: [],
 };
 
 export function can(role: Role, perm: Permission): boolean {
+  if (role === "group_owner") return true;
   if (perm.startsWith("resident_baseline.")) {
     if (["resident_baseline.view", "resident_baseline.view_history"].includes(perm)) return true;
     if (["resident_baseline.view_source", "resident_baseline.create", "resident_baseline.edit_draft", "resident_baseline.submit_approval"].includes(perm)) return role !== "carer";
@@ -241,6 +246,11 @@ export function can(role: Role, perm: Permission): boolean {
   if (perm.startsWith("daily_care_trends.")) {
     if (["daily_care_trends.view", "daily_care_trends.evaluate"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
     if (["daily_care_trends.view_sensitive", "daily_care_trends.manage_policy", "daily_care_trends.approve_policy"].includes(perm)) return role === "cnm" || role === "don";
+  }
+  if (perm.startsWith("daily_care_reports.")) {
+    if (perm === "daily_care_reports.view") return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
+    if (["daily_care_reports.view_behaviour", "daily_care_reports.view_refusals", "daily_care_reports.view_sleep"].includes(perm)) return role === "nurse" || role === "cnm" || role === "don";
+    if (["daily_care_reports.export", "daily_care_reports.view_all_wards", "daily_care_reports.view_multiple_homes"].includes(perm)) return role === "cnm" || role === "don";
   }
   if (perm.startsWith("hca_escalation.")) {
     if (["hca_escalation.submit", "hca_escalation.view_own"].includes(perm)) return role === "carer" || role === "nurse" || role === "cnm" || role === "don";

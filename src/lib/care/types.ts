@@ -1,4 +1,4 @@
-export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don";
+export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don" | "group_owner";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
 export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
 
