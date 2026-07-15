@@ -71,7 +71,14 @@ export type Permission =
   | "resident_contacts.view" | "resident_contacts.create" | "resident_contacts.edit_relationship" | "resident_contacts.set_primary" | "resident_contacts.manage_authority" | "resident_contacts.view_history" | "resident_contacts.edit_contact"
   | "resident_documents.view" | "resident_documents.upload" | "resident_documents.edit_metadata" | "resident_documents.upload_version" | "resident_documents.download" | "resident_documents.view_history" | "resident_documents.change_status" | "resident_documents.delete_draft" | "resident_documents.view_sensitive" | "resident_documents.view_highly_sensitive" | "resident_documents.manage_access" | "resident_documents.view_legal" | "resident_documents.view_safeguarding" | "resident_documents.view_medication"
   | "resident_administration.view" | "resident_administration.edit" | "resident_administration.view_identifiers" | "resident_administration.edit_identifiers" | "resident_administration.view_funding" | "resident_administration.edit_funding_metadata" | "resident_administration.view_contract" | "resident_administration.edit_contract_metadata" | "resident_administration.view_insurance" | "resident_administration.edit_insurance" | "resident_administration.view_property_summary" | "resident_administration.view_internal_references"
-  | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate";
+  | "ops.edit" | "ops.edit_own" | "ops.archive" | "ops.restore" | "ops.delete" | "ops.duplicate"
+  | "workforce.view" | "staff_directory.view" | "staff_directory.view_all_homes" | "staff_directory.create"
+  | "staff_directory.edit" | "staff_directory.change_status" | "staff_directory.view_personal_details"
+  | "staff_directory.edit_personal_details" | "staff_directory.view_contact_details"
+  | "staff_directory.edit_contact_details" | "staff_directory.view_address" | "staff_directory.edit_address"
+  | "staff_directory.view_emergency_contacts" | "staff_directory.manage_emergency_contacts"
+  | "staff_directory.view_account_link" | "staff_directory.manage_account_link" | "staff_directory.upload_photo"
+  | "staff_directory.correct_staff_number" | "staff_directory.view_metrics";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -139,6 +146,7 @@ const matrix: Record<Role, Permission[]> = {
     "incident.view", "incident.create", "incident.manage",
     "report.view", "user.manage", "clinical.view", "mdt.create",
     "compliance.view",
+    "workforce.view", "staff_directory.view", "staff_directory.view_contact_details", "staff_directory.view_account_link", "staff_directory.view_metrics",
     "vital.view", "vital.record", "vital.edit", "vital.delete", "vital.comment",
     "vital.plan.edit", "vital.escalate", "vital.report", "vital.audit",
     "observation.view", "observation.record", "observation.edit", "observation.delete",
@@ -169,6 +177,7 @@ const matrix: Record<Role, Permission[]> = {
     "user.manage", "permission.manage", "settings.manage",
     "audit.view", "record.delete_with_audit",
     "compliance.view",
+    "workforce.view", "staff_directory.view", "staff_directory.create", "staff_directory.edit", "staff_directory.change_status", "staff_directory.view_personal_details", "staff_directory.edit_personal_details", "staff_directory.view_contact_details", "staff_directory.edit_contact_details", "staff_directory.view_address", "staff_directory.edit_address", "staff_directory.view_emergency_contacts", "staff_directory.manage_emergency_contacts", "staff_directory.view_account_link", "staff_directory.manage_account_link", "staff_directory.upload_photo", "staff_directory.correct_staff_number", "staff_directory.view_metrics",
     "vital.view", "vital.record", "vital.edit", "vital.delete", "vital.comment",
     "vital.plan.edit", "vital.escalate", "vital.report", "vital.audit",
     "observation.view", "observation.record", "observation.edit", "observation.delete",
@@ -179,7 +188,10 @@ const matrix: Record<Role, Permission[]> = {
 };
 
 export function can(role: Role, perm: Permission): boolean {
-  if (role === "group_owner") return true;
+  if (role === "group_owner") {
+    if (perm.startsWith("ops.") || perm.startsWith("visitor.")) return false;
+    return true;
+  }
   if (perm.startsWith("resident_baseline.")) {
     if (["resident_baseline.view", "resident_baseline.view_history"].includes(perm)) return true;
     if (["resident_baseline.view_source", "resident_baseline.create", "resident_baseline.edit_draft", "resident_baseline.submit_approval"].includes(perm)) return role !== "carer";

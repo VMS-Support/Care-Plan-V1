@@ -36,6 +36,7 @@ import { Route as AccountsDashboardRouteImport } from './routes/accounts-dashboa
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResidentsIndexRouteImport } from './routes/residents.index'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
+import { Route as WorkforceStaffRouteImport } from './routes/workforce.staff'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
 import { Route as ReportsDailyCareRouteImport } from './routes/reports.daily-care'
@@ -44,6 +45,7 @@ import { Route as ChartsResidentIdRouteImport } from './routes/charts.$residentI
 import { Route as CarePlansIdRouteImport } from './routes/care-plans.$id'
 import { Route as AssessmentsReassessmentRouteImport } from './routes/assessments.reassessment'
 import { Route as AssessmentsAssessmentIdRouteImport } from './routes/assessments.$assessmentId'
+import { Route as WorkforceStaffStaffMemberIdRouteImport } from './routes/workforce.staff.$staffMemberId'
 import { Route as ResidentsIdTimelineRouteImport } from './routes/residents.$id.timeline'
 import { Route as ResidentsIdRecordRouteImport } from './routes/residents.$id.record'
 import { Route as ResidentsIdQualityOfLifeRouteImport } from './routes/residents.$id.quality-of-life'
@@ -186,6 +188,11 @@ const AssessmentsIndexRoute = AssessmentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AssessmentsRoute,
 } as any)
+const WorkforceStaffRoute = WorkforceStaffRouteImport.update({
+  id: '/workforce/staff',
+  path: '/workforce/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VitalsAuditRoute = VitalsAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -226,6 +233,12 @@ const AssessmentsAssessmentIdRoute = AssessmentsAssessmentIdRouteImport.update({
   path: '/$assessmentId',
   getParentRoute: () => AssessmentsRoute,
 } as any)
+const WorkforceStaffStaffMemberIdRoute =
+  WorkforceStaffStaffMemberIdRouteImport.update({
+    id: '/$staffMemberId',
+    path: '/$staffMemberId',
+    getParentRoute: () => WorkforceStaffRoute,
+  } as any)
 const ResidentsIdTimelineRoute = ResidentsIdTimelineRouteImport.update({
   id: '/timeline',
   path: '/timeline',
@@ -293,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -301,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -334,6 +349,7 @@ export interface FileRoutesByTo {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/assessments': typeof AssessmentsIndexRoute
   '/residents': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -342,6 +358,7 @@ export interface FileRoutesByTo {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -378,6 +395,7 @@ export interface FileRoutesById {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -386,6 +404,7 @@ export interface FileRoutesById {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -423,6 +442,7 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/staff'
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
@@ -431,6 +451,7 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/staff/$staffMemberId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -464,6 +485,7 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/staff'
     | '/assessments'
     | '/residents'
     | '/assessments/new/$residentId'
@@ -472,6 +494,7 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/staff/$staffMemberId'
   id:
     | '__root__'
     | '/'
@@ -507,6 +530,7 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/staff'
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
@@ -515,6 +539,7 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/staff/$staffMemberId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -545,6 +570,7 @@ export interface RootRouteChildren {
   VitalsRoute: typeof VitalsRouteWithChildren
   ChartsResidentIdRoute: typeof ChartsResidentIdRoute
   InspectionResidentIdRoute: typeof InspectionResidentIdRoute
+  WorkforceStaffRoute: typeof WorkforceStaffRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -738,6 +764,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssessmentsIndexRouteImport
       parentRoute: typeof AssessmentsRoute
     }
+    '/workforce/staff': {
+      id: '/workforce/staff'
+      path: '/workforce/staff'
+      fullPath: '/workforce/staff'
+      preLoaderRoute: typeof WorkforceStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vitals/audit': {
       id: '/vitals/audit'
       path: '/audit'
@@ -793,6 +826,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/assessments/$assessmentId'
       preLoaderRoute: typeof AssessmentsAssessmentIdRouteImport
       parentRoute: typeof AssessmentsRoute
+    }
+    '/workforce/staff/$staffMemberId': {
+      id: '/workforce/staff/$staffMemberId'
+      path: '/$staffMemberId'
+      fullPath: '/workforce/staff/$staffMemberId'
+      preLoaderRoute: typeof WorkforceStaffStaffMemberIdRouteImport
+      parentRoute: typeof WorkforceStaffRoute
     }
     '/residents/$id/timeline': {
       id: '/residents/$id/timeline'
@@ -925,6 +965,18 @@ const VitalsRouteChildren: VitalsRouteChildren = {
 const VitalsRouteWithChildren =
   VitalsRoute._addFileChildren(VitalsRouteChildren)
 
+interface WorkforceStaffRouteChildren {
+  WorkforceStaffStaffMemberIdRoute: typeof WorkforceStaffStaffMemberIdRoute
+}
+
+const WorkforceStaffRouteChildren: WorkforceStaffRouteChildren = {
+  WorkforceStaffStaffMemberIdRoute: WorkforceStaffStaffMemberIdRoute,
+}
+
+const WorkforceStaffRouteWithChildren = WorkforceStaffRoute._addFileChildren(
+  WorkforceStaffRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsDashboardRoute: AccountsDashboardRoute,
@@ -953,6 +1005,7 @@ const rootRouteChildren: RootRouteChildren = {
   VitalsRoute: VitalsRouteWithChildren,
   ChartsResidentIdRoute: ChartsResidentIdRoute,
   InspectionResidentIdRoute: InspectionResidentIdRoute,
+  WorkforceStaffRoute: WorkforceStaffRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

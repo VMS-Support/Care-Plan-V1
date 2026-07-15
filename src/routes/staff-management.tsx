@@ -22,6 +22,13 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCare } from "@/lib/care/store";
+import {
+  WORKFORCE_CAPABILITIES,
+  getActiveStaffMetric,
+  getAuthorisedWorkforceScope,
+  getStaffBreakdownByRole,
+  getTotalStaffMetric,
+} from "@/domain/workforce";
 
 export const Route = createFileRoute("/staff-management")({
   head: () => ({ meta: [{ title: "Staff Management Dashboard - NuCare" }] }),
@@ -29,7 +36,16 @@ export const Route = createFileRoute("/staff-management")({
 });
 
 function StaffManagementDashboard() {
-  const { currentRole } = useCare();
+  const care = useCare();
+  const { currentRole } = care;
+  const workforceCapabilities = WORKFORCE_CAPABILITIES.filter((capability) =>
+    care.canAccess(capability, { nursingHomeId: care.activeFacilityId }),
+  );
+  const workforceScope = getAuthorisedWorkforceScope({ currentUser: care.currentUser, activeFacilityId: care.activeFacilityId, facilities: care.facilities });
+  const workforceAuth = { user: care.currentUser, capabilities: workforceCapabilities, scope: workforceScope };
+  const totalStaffMetric = getTotalStaffMetric(care, workforceAuth);
+  const activeStaffMetric = getActiveStaffMetric(care, workforceAuth);
+  const roleBreakdown = getStaffBreakdownByRole(care, workforceAuth);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
     return (
@@ -68,8 +84,8 @@ function StaffManagementDashboard() {
       </div>
 
       <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-8">
-        <StaffKpi icon={Users} title="Total Staff" value="312" sub="Active" foot="FTE: 278.4" percent={72} tone="blue" />
-        <StaffKpi icon={Users} title="Staff on Duty Now" value="186" sub="60%" foot="" percent={60} tone="green" />
+        <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? "Live directory metric" : "Restricted"} percent={72} tone="blue" />
+        <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
         <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value="18" sub="Open" foot="12% of Budgeted" percent={72} tone="orange" />
         <StaffKpi icon={UserPlus} title="Agency Staff Today" value="27" sub="9%" foot="vs 8% Last Month" percent={42} tone="purple" trend="up" />
         <StaffKpi icon={HeartPulse} title="Sick Leave Today" value="23" sub="7%" foot="vs 5% Last Month" percent={32} tone="red" trend="up" />
@@ -81,15 +97,14 @@ function StaffManagementDashboard() {
       <section className="grid gap-3 xl:grid-cols-3">
         <Panel title="Staffing Summary" className="xl:col-span-1">
           <div className="grid gap-5 md:grid-cols-[150px_1fr]">
-            <Donut value={312} label="Total Staff" segments={["#1f70d6", "#23b3c7", "#6b3fd4", "#ff951b", "#f0bc22", "#064b95", "#b9c5d3"]} />
+            <Donut value={totalStaffMetric.value} label="Total Staff" segments={["#1f70d6", "#23b3c7", "#6b3fd4", "#ff951b", "#f0bc22", "#064b95", "#b9c5d3"]} />
             <Legend rows={[
-              ["Registered Nurses", "58", "19%", "#1f70d6"],
-              ["CNM", "24", "8%", "#23b3c7"],
-              ["Healthcare Assistants", "156", "50%", "#6b3fd4"],
-              ["Housekeeping", "28", "9%", "#ff951b"],
-              ["Kitchen", "18", "6%", "#f0bc22"],
-              ["Maintenance", "12", "4%", "#91a0b4"],
-              ["Administration", "16", "5%", "#064b95"],
+              ...roleBreakdown.slice(0, 7).map((item, index) => [
+                item.roleLabel,
+                String(item.staffCount),
+                `${item.percentOfTotal}%`,
+                ["#1f70d6", "#23b3c7", "#6b3fd4", "#ff951b", "#f0bc22", "#91a0b4", "#064b95"][index] || "#91a0b4",
+              ] as [string, string, string, string]),
             ]} />
           </div>
         </Panel>

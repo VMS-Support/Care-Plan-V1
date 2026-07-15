@@ -84,6 +84,9 @@ import type {
   AbsenceEpisode,
   UserAccount,
   StaffMember,
+  StaffDirectoryEvent,
+  StaffEmergencyContact,
+  StaffMemberStatus,
   EmploymentRecord,
   RoleAssignment,
   ProfessionalRegistration,
@@ -96,6 +99,13 @@ import type {
   ShiftDefinition,
   OperationalContext,
 } from "./types";
+import {
+  createStaffDirectoryEvent,
+  createStaffMemberRecord,
+  getAuthorisedWorkforceScope,
+  updateStaffMemberRecord,
+  type SaveStaffMemberInput,
+} from "@/domain/workforce";
 import {
   getBedById,
   getBedsForRoom,
@@ -1869,6 +1879,8 @@ function seedData() {
     absenceEpisodes: [] as AbsenceEpisode[],
     userAccounts: [] as UserAccount[],
     staffMembers: [] as StaffMember[],
+    staffEmergencyContacts: [] as StaffEmergencyContact[],
+    staffDirectoryEvents: [] as StaffDirectoryEvent[],
     employmentRecords: [] as EmploymentRecord[],
     roleAssignments: [] as RoleAssignment[],
     professionalRegistrations: [] as ProfessionalRegistration[],
@@ -2397,6 +2409,16 @@ interface CareCtx extends Store {
     temporaryPassword?: string;
     status: UserProfile["status"];
   }) => UserProfile;
+  createStaffMember: (input: SaveStaffMemberInput) => StaffMember;
+  updateStaffMember: (id: string, input: Partial<SaveStaffMemberInput>) => void;
+  changeStaffMemberStatus: (id: string, status: StaffMemberStatus, reason?: string) => void;
+  updateStaffPhoto: (id: string, photoUrl?: string) => void;
+  linkStaffUserAccount: (staffMemberId: string, userAccountId: string) => void;
+  unlinkStaffUserAccount: (staffMemberId: string) => void;
+  addStaffEmergencyContact: (staffMemberId: string, input: Omit<StaffEmergencyContact, "id" | "staffMemberId" | "createdAt" | "updatedAt">) => StaffEmergencyContact;
+  updateStaffEmergencyContact: (staffMemberId: string, contactId: string, patch: Partial<StaffEmergencyContact>) => void;
+  setPrimaryStaffEmergencyContact: (staffMemberId: string, contactId: string) => void;
+  inactivateStaffEmergencyContact: (staffMemberId: string, contactId: string) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -3400,6 +3422,192 @@ export function CareProvider({ children }: { children: ReactNode }) {
           after: JSON.stringify({ role: staffUser.role, user: staffUser.name }),
         });
         return staffUser;
+      },
+      createStaffMember: (input) => {
+        if (!canAccess(store, createStaffAccessContext(currentUser, input.primaryNursingHomeId || activeFacilityId), "staff_directory.create", { nursingHomeId: input.primaryNursingHomeId || activeFacilityId })) {
+          throw new Error("You do not have access to manage staff for this Nursing Home.");
+        }
+        const staff = createStaffMemberRecord(store, { ...input, primaryNursingHomeId: input.primaryNursingHomeId || activeFacilityId }, currentUser.id);
+        const now = new Date().toISOString();
+        const event = createStaffDirectoryEvent({
+          type: "StaffMemberCreated",
+          staffMemberId: String(staff.id),
+          enterpriseId: staff.enterpriseId ? String(staff.enterpriseId) : undefined,
+          nursingHomeId: staff.primaryNursingHomeId ? String(staff.primaryNursingHomeId) : undefined,
+          actorUserAccountId: currentUser.id,
+          actorRole: currentRole,
+          changedFields: ["staffNumber", "firstName", "surname", "status", "primaryNursingHomeId"],
+          occurredAt: now,
+        });
+        setStore((s) => ({
+          ...s,
+          staffMembers: [staff, ...s.staffMembers],
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+          auditLogs: [{
+            id: uid(),
+            facilityId: staff.primaryNursingHomeId ? String(staff.primaryNursingHomeId) : activeFacilityId,
+            user: currentUserName,
+            role: currentRole,
+            action: "Staff Member created",
+            entity: String(staff.id),
+            entityType: "staff_member",
+            timestamp: now,
+            after: JSON.stringify({ staffNumber: staff.staffNumber, displayName: staff.displayName, status: staff.status }),
+          }, ...s.auditLogs].slice(0, 500),
+        }));
+        return staff;
+      },
+      updateStaffMember: (id, input) => {
+        const existing = store.staffMembers.find((staff) => String(staff.id) === id);
+        if (!existing) throw new Error("The Staff Member could not be saved.");
+        if (!canAccess(store, createStaffAccessContext(currentUser, input.primaryNursingHomeId || String(existing.primaryNursingHomeId || activeFacilityId)), "staff_directory.edit", { nursingHomeId: input.primaryNursingHomeId || String(existing.primaryNursingHomeId || activeFacilityId) })) {
+          throw new Error("You do not have access to manage staff for this Nursing Home.");
+        }
+        const next = updateStaffMemberRecord(store, existing, input, currentUser.id);
+        const now = new Date().toISOString();
+        const changedFields = Object.keys(input).filter((key) => key !== "clientRequestId");
+        const event = createStaffDirectoryEvent({
+          type: existing.primaryNursingHomeId !== next.primaryNursingHomeId ? "StaffMemberPrimaryHomeChanged" : "StaffMemberUpdated",
+          staffMemberId: String(next.id),
+          enterpriseId: next.enterpriseId ? String(next.enterpriseId) : undefined,
+          nursingHomeId: next.primaryNursingHomeId ? String(next.primaryNursingHomeId) : undefined,
+          actorUserAccountId: currentUser.id,
+          actorRole: currentRole,
+          changedFields,
+          occurredAt: now,
+        });
+        setStore((s) => ({
+          ...s,
+          staffMembers: s.staffMembers.map((staff) => (String(staff.id) === id ? next : staff)),
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+          auditLogs: [{
+            id: uid(),
+            facilityId: next.primaryNursingHomeId ? String(next.primaryNursingHomeId) : activeFacilityId,
+            user: currentUserName,
+            role: currentRole,
+            action: "Staff Member updated",
+            entity: id,
+            entityType: "staff_member",
+            timestamp: now,
+            before: JSON.stringify({ staffNumber: existing.staffNumber, displayName: existing.displayName, status: existing.status, primaryNursingHomeId: existing.primaryNursingHomeId }),
+            after: JSON.stringify({ staffNumber: next.staffNumber, displayName: next.displayName, status: next.status, primaryNursingHomeId: next.primaryNursingHomeId }),
+          }, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      changeStaffMemberStatus: (id, status, reason) => {
+        const existing = store.staffMembers.find((staff) => String(staff.id) === id);
+        if (!existing) throw new Error("The Staff Member could not be saved.");
+        if (!canAccess(store, createStaffAccessContext(currentUser, String(existing.primaryNursingHomeId || activeFacilityId)), "staff_directory.change_status", { nursingHomeId: String(existing.primaryNursingHomeId || activeFacilityId) })) {
+          throw new Error("You do not have access to manage staff for this Nursing Home.");
+        }
+        const next = updateStaffMemberRecord(store, existing, { status }, currentUser.id);
+        const now = new Date().toISOString();
+        const event = createStaffDirectoryEvent({
+          type: "StaffMemberStatusChanged",
+          staffMemberId: id,
+          enterpriseId: next.enterpriseId ? String(next.enterpriseId) : undefined,
+          nursingHomeId: next.primaryNursingHomeId ? String(next.primaryNursingHomeId) : undefined,
+          actorUserAccountId: currentUser.id,
+          actorRole: currentRole,
+          changedFields: ["status", "active"],
+          previousStatus: existing.status,
+          newStatus: status,
+          occurredAt: now,
+        });
+        setStore((s) => ({
+          ...s,
+          staffMembers: s.staffMembers.map((staff) => (String(staff.id) === id ? next : staff)),
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+          auditLogs: [{
+            id: uid(),
+            facilityId: next.primaryNursingHomeId ? String(next.primaryNursingHomeId) : activeFacilityId,
+            user: currentUserName,
+            role: currentRole,
+            action: "Staff Member status changed",
+            entity: id,
+            entityType: "staff_member",
+            timestamp: now,
+            before: existing.status,
+            after: status,
+            reason,
+          }, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      updateStaffPhoto: (id, photoUrl) => {
+        const existing = store.staffMembers.find((staff) => String(staff.id) === id);
+        if (!existing) throw new Error("The Staff Member could not be saved.");
+        if (!canAccess(store, createStaffAccessContext(currentUser, String(existing.primaryNursingHomeId || activeFacilityId)), "staff_directory.upload_photo", { nursingHomeId: String(existing.primaryNursingHomeId || activeFacilityId) })) {
+          throw new Error("You do not have access to manage staff for this Nursing Home.");
+        }
+        const next = { ...existing, photoUrl, updatedAt: new Date().toISOString(), updatedBy: currentUser.id as any };
+        const event = createStaffDirectoryEvent({ type: "StaffMemberPhotoChanged", staffMemberId: id, nursingHomeId: next.primaryNursingHomeId ? String(next.primaryNursingHomeId) : undefined, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["photoUrl"], occurredAt: next.updatedAt });
+        setStore((s) => ({ ...s, staffMembers: s.staffMembers.map((staff) => (String(staff.id) === id ? next : staff)), staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])] }));
+      },
+      linkStaffUserAccount: (staffMemberId, userAccountId) => {
+        const staff = store.staffMembers.find((item) => String(item.id) === staffMemberId);
+        const account = store.userAccounts.find((item) => String(item.id) === userAccountId);
+        if (!staff || !account) throw new Error("The Staff Member could not be saved.");
+        if (store.staffMembers.some((item) => String(item.id) !== staffMemberId && String(item.linkedUserAccountId || "") === userAccountId)) {
+          throw new Error("This User Account is already linked to another Staff Member.");
+        }
+        const now = new Date().toISOString();
+        const event = createStaffDirectoryEvent({ type: "StaffMemberUserAccountLinked", staffMemberId, nursingHomeId: staff.primaryNursingHomeId ? String(staff.primaryNursingHomeId) : undefined, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["linkedUserAccountId"], occurredAt: now });
+        setStore((s) => ({
+          ...s,
+          staffMembers: s.staffMembers.map((item) => String(item.id) === staffMemberId ? { ...item, linkedUserAccountId: userAccountId as any, updatedAt: now, updatedBy: currentUser.id as any } : item),
+          userAccounts: s.userAccounts.map((item) => String(item.id) === userAccountId ? { ...item, staffMemberId: staffMemberId as any, updatedAt: now, updatedBy: currentUser.id as any } : item),
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+        }));
+      },
+      unlinkStaffUserAccount: (staffMemberId) => {
+        const staff = store.staffMembers.find((item) => String(item.id) === staffMemberId);
+        if (!staff) throw new Error("The Staff Member could not be saved.");
+        const now = new Date().toISOString();
+        const event = createStaffDirectoryEvent({ type: "StaffMemberUserAccountUnlinked", staffMemberId, nursingHomeId: staff.primaryNursingHomeId ? String(staff.primaryNursingHomeId) : undefined, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["linkedUserAccountId"], occurredAt: now });
+        setStore((s) => ({
+          ...s,
+          staffMembers: s.staffMembers.map((item) => String(item.id) === staffMemberId ? { ...item, linkedUserAccountId: undefined, updatedAt: now, updatedBy: currentUser.id as any } : item),
+          userAccounts: s.userAccounts.map((item) => String(item.staffMemberId || "") === staffMemberId ? { ...item, staffMemberId: undefined, updatedAt: now, updatedBy: currentUser.id as any } : item),
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+        }));
+      },
+      addStaffEmergencyContact: (staffMemberId, input) => {
+        if (!input.fullName.trim() || !input.phoneNumber.trim()) throw new Error("The Staff Member could not be saved.");
+        const staff = store.staffMembers.find((item) => String(item.id) === staffMemberId);
+        if (!staff) throw new Error("The Staff Member could not be saved.");
+        const now = new Date().toISOString();
+        const contact: StaffEmergencyContact = { ...input, id: `sec-${uid()}`, staffMemberId: staffMemberId as any, createdAt: now, updatedAt: now };
+        const event = createStaffDirectoryEvent({ type: "StaffEmergencyContactAdded", staffMemberId, nursingHomeId: staff.primaryNursingHomeId ? String(staff.primaryNursingHomeId) : undefined, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["emergencyContacts"], occurredAt: now });
+        setStore((s) => ({
+          ...s,
+          staffEmergencyContacts: [contact, ...(input.isPrimary ? s.staffEmergencyContacts.map((item) => String(item.staffMemberId) === staffMemberId ? { ...item, isPrimary: false } : item) : s.staffEmergencyContacts)],
+          staffDirectoryEvents: [event, ...(s.staffDirectoryEvents || [])],
+        }));
+        return contact;
+      },
+      updateStaffEmergencyContact: (staffMemberId, contactId, patch) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          staffEmergencyContacts: s.staffEmergencyContacts.map((item) => String(item.staffMemberId) === staffMemberId && item.id === contactId ? { ...item, ...patch, id: item.id, staffMemberId: item.staffMemberId, updatedAt: now } : patch.isPrimary && String(item.staffMemberId) === staffMemberId ? { ...item, isPrimary: false, updatedAt: now } : item),
+          staffDirectoryEvents: [createStaffDirectoryEvent({ type: "StaffEmergencyContactUpdated", staffMemberId, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: Object.keys(patch), occurredAt: now }), ...(s.staffDirectoryEvents || [])],
+        }));
+      },
+      setPrimaryStaffEmergencyContact: (staffMemberId, contactId) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          staffEmergencyContacts: s.staffEmergencyContacts.map((item) => String(item.staffMemberId) === staffMemberId ? { ...item, isPrimary: item.id === contactId, updatedAt: now } : item),
+          staffDirectoryEvents: [createStaffDirectoryEvent({ type: "StaffEmergencyContactPrimaryChanged", staffMemberId, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["isPrimary"], occurredAt: now }), ...(s.staffDirectoryEvents || [])],
+        }));
+      },
+      inactivateStaffEmergencyContact: (staffMemberId, contactId) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          staffEmergencyContacts: s.staffEmergencyContacts.map((item) => String(item.staffMemberId) === staffMemberId && item.id === contactId ? { ...item, active: false, isPrimary: false, updatedAt: now } : item),
+          staffDirectoryEvents: [createStaffDirectoryEvent({ type: "StaffEmergencyContactInactivated", staffMemberId, actorUserAccountId: currentUser.id, actorRole: currentRole, changedFields: ["active"], occurredAt: now }), ...(s.staffDirectoryEvents || [])],
+        }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

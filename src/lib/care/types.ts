@@ -83,19 +83,106 @@ export interface UserAccount {
 
 export interface StaffMember {
   id: StaffMemberId;
+  enterpriseId?: EnterpriseId;
+  primaryNursingHomeId?: NursingHomeId;
   firstName: string;
   lastName: string;
+  surname?: string;
   preferredName?: string;
   displayName: string;
   title?: string;
+  photoFileId?: string;
+  photoUrl?: string;
+  dateOfBirth?: string;
+  gender?: "female" | "male" | "non_binary" | "other" | "prefer_not_to_say" | "not_recorded";
+  nationalityCode?: string;
+  nationalityDisplayName?: string;
   phone?: string;
   email?: string;
+  contactDetails?: StaffContactDetails;
+  address?: PostalAddress;
   active: boolean;
   staffNumber?: string;
+  status?: StaffMemberStatus;
+  linkedUserAccountId?: UserAccountId;
   createdAt: string;
   updatedAt: string;
   createdBy?: UserAccountId;
   updatedBy?: UserAccountId;
+}
+
+export type StaffMemberStatus =
+  | "pre_employment"
+  | "active"
+  | "on_leave"
+  | "suspended"
+  | "inactive"
+  | "left_employment"
+  | "deceased";
+
+export interface StaffContactDetails {
+  personalEmail?: string;
+  workEmail?: string;
+  personalPhone?: string;
+  workPhone?: string;
+  preferredContactMethod?:
+    | "personal_email"
+    | "work_email"
+    | "personal_phone"
+    | "work_phone"
+    | "other";
+  preferredContactNotes?: string;
+}
+
+export interface PostalAddress {
+  line1?: string;
+  line2?: string;
+  townCity?: string;
+  countyRegion?: string;
+  postcode?: string;
+  country?: string;
+}
+
+export interface StaffEmergencyContact {
+  id: string;
+  staffMemberId: StaffMemberId;
+  fullName: string;
+  relationship?: string;
+  phoneNumber: string;
+  alternativePhoneNumber?: string;
+  email?: string;
+  priority: number;
+  isPrimary: boolean;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffDirectoryEvent {
+  id: string;
+  type:
+    | "StaffMemberCreated"
+    | "StaffMemberUpdated"
+    | "StaffMemberStatusChanged"
+    | "StaffMemberPrimaryHomeChanged"
+    | "StaffMemberPhotoChanged"
+    | "StaffMemberUserAccountLinked"
+    | "StaffMemberUserAccountUnlinked"
+    | "StaffEmergencyContactAdded"
+    | "StaffEmergencyContactUpdated"
+    | "StaffEmergencyContactInactivated"
+    | "StaffEmergencyContactPrimaryChanged";
+  staffMemberId: StaffMemberId | string;
+  enterpriseId?: EnterpriseId | string;
+  nursingHomeId?: NursingHomeId | string;
+  actorUserAccountId: UserAccountId | string;
+  actorRole?: Role;
+  occurredAt: string;
+  correlationId: string;
+  changedFields?: string[];
+  previousStatus?: StaffMemberStatus;
+  newStatus?: StaffMemberStatus;
 }
 
 export interface EmploymentRecord {

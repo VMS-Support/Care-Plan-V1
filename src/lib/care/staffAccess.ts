@@ -9,6 +9,7 @@ import type {
   RoleTemplate,
   RosterAssignment,
   StaffMember,
+  StaffMemberStatus,
   UserAccount,
   UserProfile,
   Ward,
@@ -36,7 +37,7 @@ import {
 const MIGRATION_TIMESTAMP = "2026-07-13T00:00:00.000Z";
 const DEFAULT_HOME_ID = "facility-ballymore-haven";
 
-export type CurrentRoleKey = "DON" | "CNM" | "NURSE" | "HCA" | "DOCTOR";
+export type CurrentRoleKey = "DON" | "CNM" | "NURSE" | "HCA" | "DOCTOR" | "GROUP_OWNER";
 
 export interface StaffAccessState {
   users: UserProfile[];
@@ -170,6 +171,7 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "vital.escalate", "vital.report", "vital.audit", "observation.view", "observation.record",
     "observation.edit", "observation.delete", "observation.plan.edit", "observation.escalate",
     "observation.audit", "ops.edit", "ops.archive", "ops.restore", "ops.delete", "ops.duplicate",
+    "workforce.view", "staff_directory.view", "staff_directory.view_contact_details", "staff_directory.view_account_link", "staff_directory.view_metrics",
   ],
   DON: [
     "resident_documents.view", "resident_documents.upload", "resident_documents.edit_metadata", "resident_documents.upload_version", "resident_documents.download", "resident_documents.view_history", "resident_documents.change_status", "resident_documents.delete_draft", "resident_documents.view_sensitive", "resident_documents.view_highly_sensitive", "resident_documents.manage_access", "resident_documents.view_legal", "resident_documents.view_safeguarding", "resident_documents.view_medication", "resident_administration.view", "resident_administration.edit", "resident_administration.view_identifiers", "resident_administration.edit_identifiers", "resident_administration.view_funding", "resident_administration.edit_funding_metadata", "resident_administration.view_contract", "resident_administration.edit_contract_metadata", "resident_administration.view_insurance", "resident_administration.edit_insurance", "resident_administration.view_property_summary", "resident_administration.view_internal_references",
@@ -197,6 +199,13 @@ export const currentRoleTemplateCapabilities: Record<CurrentRoleKey, Permission[
     "vital.escalate", "vital.report", "vital.audit", "observation.view", "observation.record",
     "observation.edit", "observation.delete", "observation.plan.edit", "observation.escalate",
     "observation.audit", "ops.edit", "ops.archive", "ops.restore", "ops.delete", "ops.duplicate",
+    "workforce.view", "staff_directory.view", "staff_directory.create", "staff_directory.edit", "staff_directory.change_status", "staff_directory.view_personal_details", "staff_directory.edit_personal_details", "staff_directory.view_contact_details", "staff_directory.edit_contact_details", "staff_directory.view_address", "staff_directory.edit_address", "staff_directory.view_emergency_contacts", "staff_directory.manage_emergency_contacts", "staff_directory.view_account_link", "staff_directory.manage_account_link", "staff_directory.upload_photo", "staff_directory.correct_staff_number", "staff_directory.view_metrics",
+  ],
+  GROUP_OWNER: [
+    "resident_documents.view", "resident_documents.download", "resident_documents.view_history", "resident_documents.view_sensitive", "resident_documents.view_highly_sensitive", "resident_documents.view_legal", "resident_documents.view_safeguarding", "resident_documents.view_medication",
+    "resident.view", "resident.create", "resident.edit", "resident.discharge", "clinical.view", "incident.view", "incident.manage", "report.view", "report.manage", "user.manage", "permission.manage", "settings.manage", "audit.view", "record.delete_with_audit", "compliance.view", "finance.view",
+    "vital.view", "vital.report", "vital.audit",
+    "workforce.view", "staff_directory.view", "staff_directory.view_all_homes", "staff_directory.create", "staff_directory.edit", "staff_directory.change_status", "staff_directory.view_personal_details", "staff_directory.edit_personal_details", "staff_directory.view_contact_details", "staff_directory.edit_contact_details", "staff_directory.view_address", "staff_directory.edit_address", "staff_directory.view_emergency_contacts", "staff_directory.manage_emergency_contacts", "staff_directory.view_account_link", "staff_directory.manage_account_link", "staff_directory.upload_photo", "staff_directory.correct_staff_number", "staff_directory.view_metrics",
   ],
 };
 
@@ -251,6 +260,12 @@ export function createCurrentRoleTemplates(): RoleTemplate[] {
 const userFacilityIds = (user: UserProfile) =>
   user.facilityIds?.length ? user.facilityIds : [user.facilityId || DEFAULT_HOME_ID];
 
+const userStatusToStaffStatus = (status: UserProfile["status"]): StaffMemberStatus => {
+  if (status === "active") return "active";
+  if (status === "suspended") return "suspended";
+  return "inactive";
+};
+
 export function migrateStaffAccess<T extends StaffAccessState>(source: T): T {
   const currentTemplates = createCurrentRoleTemplates();
   const roleTemplates = source.roleTemplates?.length
@@ -279,17 +294,52 @@ export function migrateStaffAccess<T extends StaffAccessState>(source: T): T {
     const { firstName, lastName } = splitName(user.name);
 
     if (!staffMembersById.has(staffId)) {
+      const primaryHomeId = asNursingHomeId(user.facilityId || userFacilityIds(user)[0] || DEFAULT_HOME_ID);
+      const staffStatus = userStatusToStaffStatus(user.status);
       staffMembersById.set(staffId, {
         id: staffId,
+        enterpriseId: source.facilities.find((facility) => facility.id === primaryHomeId)?.enterpriseId,
+        primaryNursingHomeId: primaryHomeId,
         firstName,
         lastName,
+        surname: lastName,
         displayName: user.name,
         phone: user.phone,
         email: user.email,
-        active: user.status === "active",
+        contactDetails: {
+          workEmail: user.email,
+          workPhone: user.phone,
+          preferredContactMethod: "work_email",
+        },
+        active: staffStatus === "active" || staffStatus === "on_leave",
         staffNumber: user.employeeNumber,
+        status: staffStatus,
+        linkedUserAccountId: accountId,
         createdAt: user.startDate ? `${user.startDate}T00:00:00.000Z` : MIGRATION_TIMESTAMP,
         updatedAt: MIGRATION_TIMESTAMP,
+      });
+    } else {
+      const existing = staffMembersById.get(staffId)!;
+      const primaryHomeId = existing.primaryNursingHomeId || asNursingHomeId(user.facilityId || userFacilityIds(user)[0] || DEFAULT_HOME_ID);
+      const staffStatus = existing.status || userStatusToStaffStatus(user.status);
+      staffMembersById.set(staffId, {
+        ...existing,
+        enterpriseId: existing.enterpriseId || source.facilities.find((facility) => facility.id === primaryHomeId)?.enterpriseId,
+        primaryNursingHomeId: primaryHomeId,
+        surname: existing.surname || existing.lastName,
+        displayName: existing.displayName || `${existing.preferredName || existing.firstName} ${existing.lastName}`.trim(),
+        contactDetails: {
+          workEmail: existing.contactDetails?.workEmail || existing.email || user.email,
+          workPhone: existing.contactDetails?.workPhone || existing.phone || user.phone,
+          personalEmail: existing.contactDetails?.personalEmail,
+          personalPhone: existing.contactDetails?.personalPhone,
+          preferredContactMethod: existing.contactDetails?.preferredContactMethod || "work_email",
+          preferredContactNotes: existing.contactDetails?.preferredContactNotes,
+        },
+        active: staffStatus === "active" || staffStatus === "on_leave",
+        staffNumber: existing.staffNumber || user.employeeNumber,
+        status: staffStatus,
+        linkedUserAccountId: existing.linkedUserAccountId || accountId,
       });
     }
 

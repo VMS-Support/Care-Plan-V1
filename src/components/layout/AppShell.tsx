@@ -24,6 +24,7 @@ import {
   Landmark,
   Shield,
   Wrench,
+  UserRoundCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -64,6 +65,12 @@ const nav: NavItem[] = [
     label: "Staff Management",
     icon: IdCard,
     capability: "permission.manage",
+  },
+  {
+    to: "/workforce/staff",
+    label: "Staff Directory",
+    icon: UserRoundCog,
+    capability: "staff_directory.view",
   },
   {
     to: "/maintenance-housekeeping",
@@ -142,6 +149,7 @@ function SidebarInner() {
       : "bg-warning/20 text-warning-foreground";
   const groupOwnerHidden = new Set([
     "/daily-notes",
+    "/operations",
     "/outings",
     "/risks",
     "/alerts",
@@ -149,6 +157,7 @@ function SidebarInner() {
     "/care-plans",
     "/assessments",
     "/tasks",
+    "/visitors",
   ]);
   const visible = nav
     .filter((i) => !i.capability || canAccess(i.capability))
@@ -229,7 +238,7 @@ function TopBar() {
 
 function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { tasks, canAccess } = useCare();
+  const { tasks, canAccess, currentRole } = useCare();
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -243,7 +252,23 @@ function MobileNav() {
     overdueTasks > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
-  const visible = nav.filter((i) => !i.capability || canAccess(i.capability)).filter((i) => !i.visible || i.visible(canAccess)).slice(0, 5);
+  const groupOwnerHidden = new Set([
+    "/daily-notes",
+    "/operations",
+    "/outings",
+    "/risks",
+    "/alerts",
+    "/handovers",
+    "/care-plans",
+    "/assessments",
+    "/tasks",
+    "/visitors",
+  ]);
+  const visible = nav
+    .filter((i) => !i.capability || canAccess(i.capability))
+    .filter((i) => !i.visible || i.visible(canAccess))
+    .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
+    .slice(0, 5);
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar text-sidebar-foreground border-t border-sidebar-border flex justify-around py-1.5">
       {visible.map((item) => {

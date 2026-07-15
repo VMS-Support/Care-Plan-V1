@@ -56,6 +56,18 @@ function VisitorsPage() {
     return arr;
   }, [visitors, statusTab, filteredResidentIds, filter, residents, search, sort, workflowStatus, dateFrom, dateTo]);
 
+  if (currentRole === "group_owner") {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Visitors is not available for Group Owner users.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 space-y-4 max-w-6xl">
       <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
