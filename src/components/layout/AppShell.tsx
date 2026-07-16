@@ -87,8 +87,14 @@ const workforceNav: NavItem[] = [
     visible: (canAccess) => canAccess("staff_immigration.view") || canAccess("staff_document.view"),
   },
   {
+    to: "/training-dashboard",
+    label: "Training Dashboard",
+    icon: GraduationCap,
+    capability: "training.view",
+  },
+  {
     to: "/workforce/training",
-    label: "Training",
+    label: "Training Operations",
     icon: GraduationCap,
     capability: "training.view",
   },
@@ -151,12 +157,6 @@ const nav: NavItem[] = [
     label: "Maintenance",
     icon: Wrench,
     capability: "permission.manage",
-  },
-  {
-    to: "/training-dashboard",
-    label: "Training",
-    icon: GraduationCap,
-    capability: "assessment.reports",
   },
   {
     to: "/assessments",

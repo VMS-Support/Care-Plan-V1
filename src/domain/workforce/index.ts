@@ -28,6 +28,7 @@ export * from "./training/trainingCourseTypes";
 export * from "./training/trainingService";
 export * from "./training/trainingMetricsService";
 export * from "./training/trainingMatrixReadModel";
+export * from "./training/trainingDashboardReadModel";
 export * from "./competency/competencyTypes";
 export * from "./competency/competencyService";
 export * from "./competency/competencyReadModel";
