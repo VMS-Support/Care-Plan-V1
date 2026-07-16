@@ -27,6 +27,8 @@ import {
   Wrench,
   UserRoundCog,
   ChevronDown,
+  BriefcaseBusiness,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -64,6 +66,24 @@ const workforceNav: NavItem[] = [
     label: "Staffing Establishment",
     icon: Building2,
     capability: "staffing_establishment.view",
+  },
+  {
+    to: "/workforce/recruitment",
+    label: "Vacancies & Recruitment",
+    icon: BriefcaseBusiness,
+    capability: "recruitment.view",
+  },
+  {
+    to: "/workforce/registrations",
+    label: "Professional Registration",
+    icon: ShieldCheck,
+    capability: "professional_registration.view",
+  },
+  {
+    to: "/workforce/visa-documents",
+    label: "Visa & Documents",
+    icon: FileText,
+    visible: (canAccess) => canAccess("staff_immigration.view") || canAccess("staff_document.view"),
   },
 ];
 

@@ -36,7 +36,10 @@ import { Route as AccountsDashboardRouteImport } from './routes/accounts-dashboa
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResidentsIndexRouteImport } from './routes/residents.index'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
+import { Route as WorkforceVisaDocumentsRouteImport } from './routes/workforce.visa-documents'
 import { Route as WorkforceStaffRouteImport } from './routes/workforce.staff'
+import { Route as WorkforceRegistrationsRouteImport } from './routes/workforce.registrations'
+import { Route as WorkforceRecruitmentRouteImport } from './routes/workforce.recruitment'
 import { Route as WorkforceEstablishmentRouteImport } from './routes/workforce.establishment'
 import { Route as WorkforceEmploymentRouteImport } from './routes/workforce.employment'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
@@ -190,9 +193,24 @@ const AssessmentsIndexRoute = AssessmentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AssessmentsRoute,
 } as any)
+const WorkforceVisaDocumentsRoute = WorkforceVisaDocumentsRouteImport.update({
+  id: '/workforce/visa-documents',
+  path: '/workforce/visa-documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkforceStaffRoute = WorkforceStaffRouteImport.update({
   id: '/workforce/staff',
   path: '/workforce/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkforceRegistrationsRoute = WorkforceRegistrationsRouteImport.update({
+  id: '/workforce/registrations',
+  path: '/workforce/registrations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkforceRecruitmentRoute = WorkforceRecruitmentRouteImport.update({
+  id: '/workforce/recruitment',
+  path: '/workforce/recruitment',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkforceEstablishmentRoute = WorkforceEstablishmentRouteImport.update({
@@ -320,7 +338,10 @@ export interface FileRoutesByFullPath {
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/recruitment': typeof WorkforceRecruitmentRoute
+  '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
+  '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -365,7 +386,10 @@ export interface FileRoutesByTo {
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/recruitment': typeof WorkforceRecruitmentRoute
+  '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
+  '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
   '/assessments': typeof AssessmentsIndexRoute
   '/residents': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -413,7 +437,10 @@ export interface FileRoutesById {
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/recruitment': typeof WorkforceRecruitmentRoute
+  '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
+  '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
@@ -462,7 +489,10 @@ export interface FileRouteTypes {
     | '/vitals/audit'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/recruitment'
+    | '/workforce/registrations'
     | '/workforce/staff'
+    | '/workforce/visa-documents'
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
@@ -507,7 +537,10 @@ export interface FileRouteTypes {
     | '/vitals/audit'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/recruitment'
+    | '/workforce/registrations'
     | '/workforce/staff'
+    | '/workforce/visa-documents'
     | '/assessments'
     | '/residents'
     | '/assessments/new/$residentId'
@@ -554,7 +587,10 @@ export interface FileRouteTypes {
     | '/vitals/audit'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/recruitment'
+    | '/workforce/registrations'
     | '/workforce/staff'
+    | '/workforce/visa-documents'
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
@@ -596,7 +632,10 @@ export interface RootRouteChildren {
   InspectionResidentIdRoute: typeof InspectionResidentIdRoute
   WorkforceEmploymentRoute: typeof WorkforceEmploymentRoute
   WorkforceEstablishmentRoute: typeof WorkforceEstablishmentRoute
+  WorkforceRecruitmentRoute: typeof WorkforceRecruitmentRoute
+  WorkforceRegistrationsRoute: typeof WorkforceRegistrationsRoute
   WorkforceStaffRoute: typeof WorkforceStaffRouteWithChildren
+  WorkforceVisaDocumentsRoute: typeof WorkforceVisaDocumentsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -790,11 +829,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssessmentsIndexRouteImport
       parentRoute: typeof AssessmentsRoute
     }
+    '/workforce/visa-documents': {
+      id: '/workforce/visa-documents'
+      path: '/workforce/visa-documents'
+      fullPath: '/workforce/visa-documents'
+      preLoaderRoute: typeof WorkforceVisaDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workforce/staff': {
       id: '/workforce/staff'
       path: '/workforce/staff'
       fullPath: '/workforce/staff'
       preLoaderRoute: typeof WorkforceStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workforce/registrations': {
+      id: '/workforce/registrations'
+      path: '/workforce/registrations'
+      fullPath: '/workforce/registrations'
+      preLoaderRoute: typeof WorkforceRegistrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workforce/recruitment': {
+      id: '/workforce/recruitment'
+      path: '/workforce/recruitment'
+      fullPath: '/workforce/recruitment'
+      preLoaderRoute: typeof WorkforceRecruitmentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/workforce/establishment': {
@@ -1047,7 +1107,10 @@ const rootRouteChildren: RootRouteChildren = {
   InspectionResidentIdRoute: InspectionResidentIdRoute,
   WorkforceEmploymentRoute: WorkforceEmploymentRoute,
   WorkforceEstablishmentRoute: WorkforceEstablishmentRoute,
+  WorkforceRecruitmentRoute: WorkforceRecruitmentRoute,
+  WorkforceRegistrationsRoute: WorkforceRegistrationsRoute,
   WorkforceStaffRoute: WorkforceStaffRouteWithChildren,
+  WorkforceVisaDocumentsRoute: WorkforceVisaDocumentsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
