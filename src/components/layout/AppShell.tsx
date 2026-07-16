@@ -104,6 +104,24 @@ const workforceNav: NavItem[] = [
     icon: CalendarDays,
     capability: "rostering.view",
   },
+  {
+    to: "/workforce/leave",
+    label: "Leave Management",
+    icon: CalendarDays,
+    capability: "leave.view",
+  },
+  {
+    to: "/workforce/agency",
+    label: "Agency Management",
+    icon: UsersRound,
+    capability: "agency.view",
+  },
+  {
+    to: "/workforce/probation",
+    label: "Probation",
+    icon: ClipboardList,
+    capability: "probation.view",
+  },
 ];
 
 const nav: NavItem[] = [

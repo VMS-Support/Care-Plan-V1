@@ -185,16 +185,26 @@ import {
   approveStaffingEstablishment,
   addRecruitmentCandidate,
   addRosterShiftRequirement,
+  assignAgencyWorkerToShift,
   approveStaffLeaveRecord,
   assignPlannedShift,
+  completeProbationReview,
+  completeStaffProbation,
+  createAgencyCompany,
+  createAgencyWorker,
   createRecruitmentOffer,
   createRecruitmentVacancy,
   createRosterPeriod,
   createStaffHomeAssignment,
   createStaffLeaveRecord,
+  createStaffProbation,
   createStaffingEstablishmentDraft,
   DEFAULT_RECRUITMENT_ADVERTISING_SOURCES,
   endStaffHomeAssignment,
+  extendStaffProbation,
+  recordAgencyTimesheet,
+  scheduleProbationReviews,
+  transitionAgencyTimesheet,
   transitionRecruitmentOffer,
   transitionRecruitmentVacancy,
   updateStaffMemberRecord,
@@ -211,9 +221,14 @@ import {
   type AddRecruitmentCandidateCommand,
   type AddRosterShiftRequirementCommand,
   type AssignPlannedShiftCommand,
+  type AssignAgencyWorkerToShiftCommand,
   type CreateRecruitmentOfferCommand,
   type CreateRecruitmentVacancyCommand,
   type CreateRosterPeriodCommand,
+  type CreateAgencyCompanyCommand,
+  type CreateAgencyWorkerCommand,
+  type CreateStaffProbationCommand,
+  type RecordAgencyTimesheetCommand,
   type CreateStaffHomeAssignmentCommand,
   type CreateStaffLeaveRecordCommand,
   type CreateStaffingEstablishmentDraftCommand,
@@ -2644,6 +2659,15 @@ interface CareCtx extends Store {
   assignPlannedShift: (input: AssignPlannedShiftCommand) => PlannedShift;
   createStaffLeaveRecord: (input: CreateStaffLeaveRecordCommand) => StaffLeaveRecord;
   approveStaffLeaveRecord: (id: string) => void;
+  createAgencyCompany: (input: CreateAgencyCompanyCommand) => AgencyCompany;
+  createAgencyWorker: (input: CreateAgencyWorkerCommand) => AgencyWorker;
+  assignAgencyWorkerToShift: (input: AssignAgencyWorkerToShiftCommand) => AgencyShiftAssignment;
+  recordAgencyTimesheet: (input: RecordAgencyTimesheetCommand) => AgencyTimesheet;
+  approveAgencyTimesheet: (id: string) => void;
+  createStaffProbation: (input: CreateStaffProbationCommand) => StaffProbation;
+  completeProbationReview: (id: string, outcome: StaffProbationReview["outcome"]) => void;
+  extendStaffProbation: (id: string, newExpectedEndDate: string, reason: string) => void;
+  completeStaffProbation: (id: string, status: Extract<StaffProbation["status"], "completed" | "failed" | "cancelled">) => void;
   // filter
   filter: CareFilter;
   setFilter: (f: CareFilter) => void;
@@ -4173,6 +4197,73 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const next = approveStaffLeaveRecord(current, currentUser.id);
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, staffLeaveRecords: s.staffLeaveRecords.map((record) => record.id === id ? next : record), staffLeaveEvents: [{ id: `staff-leave-event-${uid()}`, type: "StaffLeaveApproved", staffLeaveRecordId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, nursingHomeId: next.nursingHomeId, leaveType: next.leaveType, status: next.status, startDate: next.startDate, endDate: next.endDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `staff-leave-approve-${id}-${now}` }, ...(s.staffLeaveEvents || [])] }));
+      },
+      createAgencyCompany: (input) => {
+        const company = createAgencyCompany(input, currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, agencyCompanies: [company, ...s.agencyCompanies], agencyEvents: [{ id: `agency-event-${uid()}`, type: "AgencyCompanyCreated", agencyCompanyId: company.id, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `agency-company-create-${company.id}-${now}` }, ...(s.agencyEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Agency Company created", entity: String(company.id), entityType: "agency_company", timestamp: now, after: JSON.stringify({ name: company.name, status: company.status, approvedSupplier: company.approvedSupplier }) }, ...s.auditLogs].slice(0, 500) }));
+        return company;
+      },
+      createAgencyWorker: (input) => {
+        const worker = createAgencyWorker(input);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, agencyWorkers: [worker, ...s.agencyWorkers], agencyEvents: [{ id: `agency-event-${uid()}`, type: "AgencyWorkerCreated", agencyCompanyId: worker.agencyCompanyId, agencyWorkerId: worker.id, roleKey: worker.primaryRoleKey, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `agency-worker-create-${worker.id}-${now}` }, ...(s.agencyEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Agency Worker created", entity: String(worker.id), entityType: "agency_worker", timestamp: now, after: JSON.stringify({ staffMemberId: worker.staffMemberId, agencyCompanyId: worker.agencyCompanyId, roleKey: worker.primaryRoleKey }) }, ...s.auditLogs].slice(0, 500) }));
+        return worker;
+      },
+      assignAgencyWorkerToShift: (input) => {
+        const assignment = assignAgencyWorkerToShift(input, { company: store.agencyCompanies.find((company) => company.id === input.agencyCompanyId), worker: store.agencyWorkers.find((worker) => worker.id === input.agencyWorkerId), existingAssignments: store.agencyShiftAssignments });
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, agencyShiftAssignments: [assignment, ...s.agencyShiftAssignments], agencyEvents: [{ id: `agency-event-${uid()}`, type: "AgencyWorkerAssignedToShift", agencyCompanyId: assignment.agencyCompanyId, agencyWorkerId: assignment.agencyWorkerId, agencyShiftAssignmentId: assignment.id, nursingHomeId: assignment.nursingHomeId, wardId: assignment.wardId, roleKey: assignment.roleKey, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `agency-assignment-create-${assignment.id}-${now}` }, ...(s.agencyEvents || [])] }));
+        return assignment;
+      },
+      recordAgencyTimesheet: (input) => {
+        const assignment = store.agencyShiftAssignments.find((item) => item.id === input.agencyShiftAssignmentId);
+        if (!assignment) throw new Error("The Agency Timesheet could not be saved.");
+        const rate = store.agencyRateAgreements.find((item) => item.id === assignment.rateAgreementId && item.status === "approved");
+        const timesheet = recordAgencyTimesheet(input, assignment, rate);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, agencyTimesheets: [timesheet, ...s.agencyTimesheets], agencyEvents: [{ id: `agency-event-${uid()}`, type: "AgencyTimesheetSubmitted", agencyCompanyId: timesheet.agencyCompanyId, agencyWorkerId: timesheet.agencyWorkerId, agencyShiftAssignmentId: timesheet.agencyShiftAssignmentId, agencyTimesheetId: timesheet.id, nursingHomeId: timesheet.nursingHomeId, wardId: timesheet.wardId, roleKey: timesheet.roleKey, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `agency-timesheet-record-${timesheet.id}-${now}` }, ...(s.agencyEvents || [])] }));
+        return timesheet;
+      },
+      approveAgencyTimesheet: (id) => {
+        const current = store.agencyTimesheets.find((timesheet) => timesheet.id === id);
+        if (!current) throw new Error("The Agency Timesheet could not be approved.");
+        const next = transitionAgencyTimesheet(current, "approved", currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, agencyTimesheets: s.agencyTimesheets.map((timesheet) => timesheet.id === id ? next : timesheet), agencyEvents: [{ id: `agency-event-${uid()}`, type: "AgencyTimesheetApproved", agencyCompanyId: next.agencyCompanyId, agencyWorkerId: next.agencyWorkerId, agencyShiftAssignmentId: next.agencyShiftAssignmentId, agencyTimesheetId: next.id, nursingHomeId: next.nursingHomeId, wardId: next.wardId, roleKey: next.roleKey, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `agency-timesheet-approve-${id}-${now}` }, ...(s.agencyEvents || [])] }));
+      },
+      createStaffProbation: (input) => {
+        const probation = createStaffProbation(input, currentUser.id, store.staffProbations);
+        const reviews = scheduleProbationReviews(probation, store.probationReviewSchedulePolicies.find((policy) => policy.status === "approved" && (!policy.nursingHomeId || policy.nursingHomeId === probation.nursingHomeId)));
+        const now = new Date().toISOString();
+        const events: ProbationEvent[] = [
+          { id: `probation-event-${uid()}`, type: "StaffProbationCreated", probationId: probation.id, staffMemberId: probation.staffMemberId, employmentRecordId: probation.employmentRecordId, nursingHomeId: probation.nursingHomeId, safeStatus: probation.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-create-${probation.id}-${now}` },
+          ...reviews.map((review) => ({ id: `probation-event-${uid()}`, type: "ProbationReviewScheduled" as const, probationId: probation.id, probationReviewId: review.id, staffMemberId: review.staffMemberId, employmentRecordId: review.employmentRecordId, nursingHomeId: review.nursingHomeId, safeStatus: review.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-review-schedule-${review.id}-${now}` })),
+        ];
+        setStore((s) => ({ ...s, staffProbations: [probation, ...s.staffProbations], staffProbationReviews: [...reviews, ...s.staffProbationReviews], probationEvents: [...events, ...(s.probationEvents || [])], auditLogs: [{ id: uid(), facilityId: String(probation.nursingHomeId), user: currentUserName, role: currentRole, action: "Staff Probation created", entity: String(probation.id), entityType: "staff_probation", timestamp: now, after: JSON.stringify({ staffMemberId: probation.staffMemberId, status: probation.status, expectedEndDate: probation.currentExpectedEndDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return probation;
+      },
+      completeProbationReview: (id, outcome) => {
+        const current = store.staffProbationReviews.find((review) => review.id === id);
+        if (!current) throw new Error("The Probation Review could not be saved.");
+        const next = completeProbationReview(current, outcome, currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffProbationReviews: s.staffProbationReviews.map((review) => review.id === id ? next : review), probationEvents: [{ id: `probation-event-${uid()}`, type: "ProbationReviewCompleted", probationId: next.probationId, probationReviewId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, nursingHomeId: next.nursingHomeId, safeStatus: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-review-complete-${id}-${now}` }, ...(s.probationEvents || [])] }));
+      },
+      extendStaffProbation: (id, newExpectedEndDate, reason) => {
+        const current = store.staffProbations.find((probation) => probation.id === id);
+        if (!current) throw new Error("The Probation could not be saved.");
+        const result = extendStaffProbation(current, newExpectedEndDate, reason, currentUser.id);
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffProbations: s.staffProbations.map((probation) => probation.id === id ? result.probation : probation), staffProbationExtensions: [result.extension, ...s.staffProbationExtensions], probationEvents: [{ id: `probation-event-${uid()}`, type: "StaffProbationExtended", probationId: result.probation.id, staffMemberId: result.probation.staffMemberId, employmentRecordId: result.probation.employmentRecordId, nursingHomeId: result.probation.nursingHomeId, safeStatus: result.probation.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-extend-${id}-${now}` }, ...(s.probationEvents || [])] }));
+      },
+      completeStaffProbation: (id, status) => {
+        const current = store.staffProbations.find((probation) => probation.id === id);
+        if (!current) throw new Error("The Probation could not be saved.");
+        const next = completeStaffProbation(current, status, currentUser.id);
+        const now = new Date().toISOString();
+        const eventType: ProbationEvent["type"] = status === "failed" ? "StaffProbationFailed" : "StaffProbationCompleted";
+        setStore((s) => ({ ...s, staffProbations: s.staffProbations.map((probation) => probation.id === id ? next : probation), probationEvents: [{ id: `probation-event-${uid()}`, type: eventType, probationId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, nursingHomeId: next.nursingHomeId, safeStatus: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-complete-${id}-${now}` }, ...(s.probationEvents || [])] }));
       },
       addResident: (r) => {
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;

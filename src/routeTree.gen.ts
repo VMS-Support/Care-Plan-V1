@@ -42,9 +42,12 @@ import { Route as WorkforceStaffRouteImport } from './routes/workforce.staff'
 import { Route as WorkforceRosteringRouteImport } from './routes/workforce.rostering'
 import { Route as WorkforceRegistrationsRouteImport } from './routes/workforce.registrations'
 import { Route as WorkforceRecruitmentRouteImport } from './routes/workforce.recruitment'
+import { Route as WorkforceProbationRouteImport } from './routes/workforce.probation'
+import { Route as WorkforceLeaveRouteImport } from './routes/workforce.leave'
 import { Route as WorkforceEstablishmentRouteImport } from './routes/workforce.establishment'
 import { Route as WorkforceEmploymentRouteImport } from './routes/workforce.employment'
 import { Route as WorkforceCompetenciesRouteImport } from './routes/workforce.competencies'
+import { Route as WorkforceAgencyRouteImport } from './routes/workforce.agency'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
 import { Route as ReportsDailyCareRouteImport } from './routes/reports.daily-care'
@@ -226,6 +229,16 @@ const WorkforceRecruitmentRoute = WorkforceRecruitmentRouteImport.update({
   path: '/workforce/recruitment',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkforceProbationRoute = WorkforceProbationRouteImport.update({
+  id: '/workforce/probation',
+  path: '/workforce/probation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkforceLeaveRoute = WorkforceLeaveRouteImport.update({
+  id: '/workforce/leave',
+  path: '/workforce/leave',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkforceEstablishmentRoute = WorkforceEstablishmentRouteImport.update({
   id: '/workforce/establishment',
   path: '/workforce/establishment',
@@ -239,6 +252,11 @@ const WorkforceEmploymentRoute = WorkforceEmploymentRouteImport.update({
 const WorkforceCompetenciesRoute = WorkforceCompetenciesRouteImport.update({
   id: '/workforce/competencies',
   path: '/workforce/competencies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkforceAgencyRoute = WorkforceAgencyRouteImport.update({
+  id: '/workforce/agency',
+  path: '/workforce/agency',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VitalsAuditRoute = VitalsAuditRouteImport.update({
@@ -354,9 +372,12 @@ export interface FileRoutesByFullPath {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/leave': typeof WorkforceLeaveRoute
+  '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/rostering': typeof WorkforceRosteringRoute
@@ -405,9 +426,12 @@ export interface FileRoutesByTo {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/leave': typeof WorkforceLeaveRoute
+  '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/rostering': typeof WorkforceRosteringRoute
@@ -459,9 +483,12 @@ export interface FileRoutesById {
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
   '/vitals/audit': typeof VitalsAuditRoute
+  '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
   '/workforce/employment': typeof WorkforceEmploymentRoute
   '/workforce/establishment': typeof WorkforceEstablishmentRoute
+  '/workforce/leave': typeof WorkforceLeaveRoute
+  '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
   '/workforce/rostering': typeof WorkforceRosteringRoute
@@ -514,9 +541,12 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/agency'
     | '/workforce/competencies'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/leave'
+    | '/workforce/probation'
     | '/workforce/recruitment'
     | '/workforce/registrations'
     | '/workforce/rostering'
@@ -565,9 +595,12 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/agency'
     | '/workforce/competencies'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/leave'
+    | '/workforce/probation'
     | '/workforce/recruitment'
     | '/workforce/registrations'
     | '/workforce/rostering'
@@ -618,9 +651,12 @@ export interface FileRouteTypes {
     | '/reports/daily-care'
     | '/residents/$id'
     | '/vitals/audit'
+    | '/workforce/agency'
     | '/workforce/competencies'
     | '/workforce/employment'
     | '/workforce/establishment'
+    | '/workforce/leave'
+    | '/workforce/probation'
     | '/workforce/recruitment'
     | '/workforce/registrations'
     | '/workforce/rostering'
@@ -666,9 +702,12 @@ export interface RootRouteChildren {
   VitalsRoute: typeof VitalsRouteWithChildren
   ChartsResidentIdRoute: typeof ChartsResidentIdRoute
   InspectionResidentIdRoute: typeof InspectionResidentIdRoute
+  WorkforceAgencyRoute: typeof WorkforceAgencyRoute
   WorkforceCompetenciesRoute: typeof WorkforceCompetenciesRoute
   WorkforceEmploymentRoute: typeof WorkforceEmploymentRoute
   WorkforceEstablishmentRoute: typeof WorkforceEstablishmentRoute
+  WorkforceLeaveRoute: typeof WorkforceLeaveRoute
+  WorkforceProbationRoute: typeof WorkforceProbationRoute
   WorkforceRecruitmentRoute: typeof WorkforceRecruitmentRoute
   WorkforceRegistrationsRoute: typeof WorkforceRegistrationsRoute
   WorkforceRosteringRoute: typeof WorkforceRosteringRoute
@@ -910,6 +949,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkforceRecruitmentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workforce/probation': {
+      id: '/workforce/probation'
+      path: '/workforce/probation'
+      fullPath: '/workforce/probation'
+      preLoaderRoute: typeof WorkforceProbationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workforce/leave': {
+      id: '/workforce/leave'
+      path: '/workforce/leave'
+      fullPath: '/workforce/leave'
+      preLoaderRoute: typeof WorkforceLeaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workforce/establishment': {
       id: '/workforce/establishment'
       path: '/workforce/establishment'
@@ -929,6 +982,13 @@ declare module '@tanstack/react-router' {
       path: '/workforce/competencies'
       fullPath: '/workforce/competencies'
       preLoaderRoute: typeof WorkforceCompetenciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workforce/agency': {
+      id: '/workforce/agency'
+      path: '/workforce/agency'
+      fullPath: '/workforce/agency'
+      preLoaderRoute: typeof WorkforceAgencyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vitals/audit': {
@@ -1165,9 +1225,12 @@ const rootRouteChildren: RootRouteChildren = {
   VitalsRoute: VitalsRouteWithChildren,
   ChartsResidentIdRoute: ChartsResidentIdRoute,
   InspectionResidentIdRoute: InspectionResidentIdRoute,
+  WorkforceAgencyRoute: WorkforceAgencyRoute,
   WorkforceCompetenciesRoute: WorkforceCompetenciesRoute,
   WorkforceEmploymentRoute: WorkforceEmploymentRoute,
   WorkforceEstablishmentRoute: WorkforceEstablishmentRoute,
+  WorkforceLeaveRoute: WorkforceLeaveRoute,
+  WorkforceProbationRoute: WorkforceProbationRoute,
   WorkforceRecruitmentRoute: WorkforceRecruitmentRoute,
   WorkforceRegistrationsRoute: WorkforceRegistrationsRoute,
   WorkforceRosteringRoute: WorkforceRosteringRoute,
