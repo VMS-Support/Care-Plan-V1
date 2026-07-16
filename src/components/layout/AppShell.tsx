@@ -29,6 +29,7 @@ import {
   ChevronDown,
   BriefcaseBusiness,
   FileText,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -84,6 +85,24 @@ const workforceNav: NavItem[] = [
     label: "Visa & Documents",
     icon: FileText,
     visible: (canAccess) => canAccess("staff_immigration.view") || canAccess("staff_document.view"),
+  },
+  {
+    to: "/workforce/training",
+    label: "Training",
+    icon: GraduationCap,
+    capability: "training.view",
+  },
+  {
+    to: "/workforce/competencies",
+    label: "Competencies",
+    icon: ShieldAlert,
+    capability: "competency.view",
+  },
+  {
+    to: "/workforce/rostering",
+    label: "Rostering",
+    icon: CalendarDays,
+    capability: "rostering.view",
   },
 ];
 
