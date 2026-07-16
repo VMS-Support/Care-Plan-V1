@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCare, age } from "@/lib/care/store";
 import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import { complianceForResident } from "@/lib/care/vitals";
+import { getDonDashboard, type DonDashboardMetric } from "@/domain/dashboards/don/donDashboardReadModel";
 import {
   endOfCurrentShift,
   getUpcomingScheduledInterventions,
@@ -17,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -703,7 +705,30 @@ function enterpriseTone(tone: string) {
 }
 
 function DonDashboard() {
-  const { currentUser } = useCare();
+  const care = useCare();
+  const { currentUser, activeFacility, setActiveFacilityId } = care;
+  const [reportingDate, setReportingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [clock, setClock] = useState(() => new Date());
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(new Date()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const dashboard = useMemo(
+    () => getDonDashboard({ care, reportingDate, generatedAt: lastRefreshedAt.toISOString() }),
+    [care, reportingDate, lastRefreshedAt],
+  );
+  const firstName = currentUser.name.split(" ")[0] || "there";
+  const dateLabel = formatDonDate(reportingDate);
+  const timeLabel = clock.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+  const refresh = () => {
+    setRefreshing(true);
+    setLastRefreshedAt(new Date());
+    window.setTimeout(() => setRefreshing(false), 250);
+  };
   return (
     <div className="min-h-full bg-[#eef3f8] text-[#061a34]">
       <div className="bg-[#062a55] px-4 py-4 text-white md:px-5">
@@ -712,14 +737,36 @@ function DonDashboard() {
             <h1 className="text-[24px] font-semibold tracking-tight">Director of Nursing Overview</h1>
             <div className="h-6 w-px bg-white/20" />
             <div className="flex items-center gap-2 text-sm">
-              <span>Good morning, {currentUser.name.split(" ")[0]}</span>
+              <span>{greetingFor(clock)}, {firstName}</span>
               <Sun className="h-7 w-7 text-[#ffb324]" strokeWidth={1.7} />
             </div>
           </div>
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />20 May 2025</div>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Select value={activeFacility.id} onValueChange={setActiveFacilityId}>
+              <SelectTrigger className="h-9 w-[190px] border-white/20 bg-white/10 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {care.facilities.map((facility) => (
+                  <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex h-9 items-center gap-2 rounded-md border border-white/20 bg-white/10 px-3">
+              <CalendarDays className="h-4 w-4" />
+              <input
+                type="date"
+                value={reportingDate}
+                onChange={(event) => setReportingDate(event.target.value)}
+                className="w-[132px] bg-transparent text-white outline-none [color-scheme:dark]"
+                aria-label="Reporting date"
+              />
+            </label>
             <div className="h-6 w-px bg-white/20" />
-            <div className="flex items-center gap-2"><Clock className="h-4 w-4" />08:30</div>
+            <div className="flex items-center gap-2"><Clock className="h-4 w-4" />{timeLabel}</div>
+            <Button variant="ghost" size="sm" onClick={refresh} className="h-9 text-white hover:bg-white/10 hover:text-white">
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+            </Button>
           </div>
         </div>
       </div>
@@ -727,65 +774,43 @@ function DonDashboard() {
       <div className="space-y-4 p-3 md:p-4">
         <section className="rounded-[9px] bg-white shadow-[0_8px_18px_rgba(10,31,68,0.12)]">
           <div className="grid grid-cols-1 divide-y divide-[#e4e8ee] md:grid-cols-3 md:divide-x md:divide-y-0 xl:grid-cols-6">
-            <DonTopMetric icon={Users} title="Residents" value="74 / 80" helper="92.5% Occupancy" tone="blue" />
-            <DonTopMetric icon={Shield} title="Clinical Risk" value="Low" helper="Overall Risk Status" tone="green" />
-            <DonTopMetric icon={Bell} title="Outstanding Alerts" value="5" helper="Requires Attention" tone="red" />
-            <DonTopMetric icon={UserCheck} title="Staff On Duty" value="28" helper="View Staffing" tone="blue" />
-            <DonTopMetric icon={ShieldCheck} title="CQC / HIQA Readiness" value="98%" helper="Compliant" tone="green" />
-            <DonTopMetric icon={Activity} title="Infection Status" value="No Outbreak" helper="Current Status" tone="green" />
+            <DonTopMetric icon={Users} metric={dashboard.topMetrics.residents} />
+            <DonTopMetric icon={Shield} metric={dashboard.topMetrics.clinicalRisk} />
+            <DonTopMetric icon={Bell} metric={dashboard.topMetrics.outstandingAlerts} />
+            <DonTopMetric icon={UserCheck} metric={dashboard.topMetrics.staffOnDuty} />
+            <DonTopMetric icon={ShieldCheck} metric={dashboard.topMetrics.readiness} />
+            <DonTopMetric icon={Activity} metric={dashboard.topMetrics.infectionStatus} />
           </div>
         </section>
 
         <section className="grid gap-3 lg:grid-cols-5">
-          <DonGaugeCard icon={Pill} title="Medication Compliance" value={99} caption="Last 24 Hours" link="View Medication" tone="green" to="/daily-notes" />
-          <DonGaugeCard icon={ClipboardList} title="Care Plan Completion" value={94} caption="Up to Date" link="View Care Plans" tone="green" to="/care-plans" />
-          <DonGaugeCard icon={ShieldCheck} title="Risk Assessments" value={82} caption="Up to Date" link="View Assessments" tone="orange" to="/assessments" />
-          <DonGaugeCard icon={Users} title="Staffing Level" value={92} caption="Safe Staffing" link="View Staffing" tone="green" to="/profile" />
-          <DonGaugeCard icon={GraduationCap} title="Training Compliance" value={86} caption="Up to Date" link="View Training" tone="orange" to="/reports" />
-          <DonGaugeCard icon={AlertTriangle} title="Incident Management" value={78} caption="Actions Completed" link="View Incidents" tone="red" to="/incidents" />
-          <DonGaugeCard icon={Wrench} title="Maintenance Compliance" value={91} caption="Up to Date" link="View Maintenance" tone="green" to="/tasks" />
-          <DonGaugeCard icon={Activity} title="Infection Control" value={95} caption="Compliance" link="View Infection Control" tone="green" to="/alerts" />
-          <DonGaugeCard icon={FileText} title="Documentation" value={93} caption="Completed" link="View Documentation" tone="green" to="/reports" />
-          <DonGaugeCard icon={Euro} title="Financial Performance" value={90} caption="Budget Performance" link="View Financials" tone="blue" to="/reports" />
+          <DonGaugeCard icon={Pill} metric={dashboard.complianceCards[0]} link="View Medication" />
+          <DonGaugeCard icon={ClipboardList} metric={dashboard.complianceCards[1]} link="View Care Plans" />
+          <DonGaugeCard icon={ShieldCheck} metric={dashboard.complianceCards[2]} link="View Assessments" />
+          <DonGaugeCard icon={Users} metric={dashboard.complianceCards[3]} link="View Staffing" />
+          <DonGaugeCard icon={GraduationCap} metric={dashboard.complianceCards[4]} link="View Training" />
+          <DonGaugeCard icon={AlertTriangle} metric={dashboard.complianceCards[5]} link="View Incidents" />
+          <DonGaugeCard icon={Wrench} metric={dashboard.complianceCards[6]} link="View Maintenance" />
+          <DonGaugeCard icon={Activity} metric={dashboard.complianceCards[7]} link="View Infection Control" />
+          <DonGaugeCard icon={FileText} metric={dashboard.complianceCards[8]} link="View Documentation" />
+          <DonGaugeCard icon={Euro} metric={dashboard.complianceCards[9]} link="View Financials" />
         </section>
 
         <section className="grid gap-3 lg:grid-cols-5">
-          <DonListCard icon={ClipboardList} title="Today's Priorities" rows={[
-            ["Care Plans Due", "8", "orange"],
-            ["Assessments Overdue", "5", "red"],
-            ["Medication Reviews Due", "6", "orange"],
-            ["Staff Training Due", "7", "orange"],
-            ["Maintenance High Priority", "2", "red"],
-          ]} />
-          <DonListCard icon={AlertTriangle} title="Incidents (Today)" rows={[
-            ["Falls", "2"],
-            ["Medication Errors", "0"],
-            ["Aggression", "0"],
-            ["Pressure Injuries", "1"],
-            ["Safeguarding", "0"],
-          ]} />
-          <DonListCard icon={UserCheck} title="Residents Requiring Attention" rows={[
-            ["High Risk", "6"],
-            ["Deterioration", "3"],
-            ["Poor Appetite", "4"],
-            ["Weight Loss", "2"],
-            ["Pain Management", "3"],
-          ]} />
-          <DonListCard icon={MessageCircle} title="Communication" rows={[
-            ["Family Updates Due", "6"],
-            ["New Complaints", "1"],
-            ["Meetings Today", "4"],
-            ["Consent Outstanding", "3"],
-          ]} />
+          <DonListCard icon={ClipboardList} title="Today's Priorities" rows={dashboard.priorities} />
+          <DonListCard icon={AlertTriangle} title={`Incidents (${dateLabel})`} rows={dashboard.incidentsToday} />
+          <DonListCard icon={UserCheck} title="Residents Requiring Attention" rows={dashboard.residentsRequiringAttention} />
+          <DonListCard icon={MessageCircle} title="Communication" rows={dashboard.communication} />
           <div className="rounded-[8px] bg-white p-5 shadow-[0_8px_18px_rgba(10,31,68,0.08)]">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4edff] text-[#7c3aed]">
                 <Sparkles className="h-5 w-5" />
               </div>
-              <h2 className="text-sm font-semibold">AI Assistant Summary</h2>
+              <h2 className="text-sm font-semibold">Operational Summary</h2>
             </div>
-            <p className="text-sm leading-6 text-[#1f2f46]">Overall facility status is good.</p>
-            <p className="mt-2 text-sm leading-6 text-[#1f2f46]">5 items require your attention today.</p>
+            <p className="text-sm leading-6 text-[#1f2f46]">{dashboard.briefing.status}</p>
+            <p className="mt-2 text-sm leading-6 text-[#1f2f46]">{dashboard.briefing.attentionCount} item{dashboard.briefing.attentionCount === 1 ? "" : "s"} require review from configured sources.</p>
+            <p className="mt-2 text-xs leading-5 text-[#66758a]">{dashboard.briefing.sourceNote}</p>
             <Link to="/reports" className="mt-10 flex items-center justify-between border-t border-[#edf0f4] pt-4 text-sm font-medium text-[#0b4f93]">
               View Full Briefing <ArrowRight className="h-4 w-4" />
             </Link>
@@ -793,8 +818,8 @@ function DonDashboard() {
         </section>
 
         <div className="flex items-center justify-center gap-2 pb-1 text-xs text-[#566477]">
-          <span>Data refreshed: 20 May 2025 08:30</span>
-          <span className="text-base">↻</span>
+          <span>Data refreshed: {formatDonDate(lastRefreshedAt.toISOString().slice(0, 10))} {lastRefreshedAt.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}</span>
+          <RefreshCw className="h-3.5 w-3.5" />
         </div>
       </div>
     </div>
@@ -803,62 +828,49 @@ function DonDashboard() {
 
 function DonTopMetric({
   icon: Icon,
-  title,
-  value,
-  helper,
-  tone,
+  metric,
 }: {
   icon: any;
-  title: string;
-  value: string;
-  helper: string;
-  tone: "blue" | "green" | "red";
+  metric: DonDashboardMetric;
 }) {
-  const color = tone === "green" ? "text-[#158a34]" : tone === "red" ? "text-[#df2f32]" : "text-[#174f91]";
+  const color = metric.tone === "green" ? "text-[#158a34]" : metric.tone === "red" ? "text-[#df2f32]" : metric.tone === "orange" ? "text-[#d97706]" : "text-[#174f91]";
   return (
-    <div className="flex min-h-[130px] items-center gap-5 px-8 py-5">
-      <Icon className={`h-10 w-10 shrink-0 ${color}`} strokeWidth={tone === "green" ? 2.8 : 2.4} />
+    <Link to={metric.route as any} className="flex min-h-[130px] items-center gap-5 px-8 py-5 hover:bg-[#f8fbff]">
+      <Icon className={`h-10 w-10 shrink-0 ${color}`} strokeWidth={metric.tone === "green" ? 2.8 : 2.4} />
       <div>
-        <div className="text-xs font-medium text-[#061a34]">{title}</div>
-        <div className={`mt-2 text-[27px] font-bold leading-none ${color}`}>{value}</div>
-        <div className="mt-4 text-xs text-[#1f2f46]">{helper}</div>
+        <div className="text-xs font-medium text-[#061a34]">{metric.label}</div>
+        <div className={`mt-2 text-[27px] font-bold leading-none ${color}`}>{metric.value}</div>
+        <div className="mt-4 text-xs text-[#1f2f46]">{metric.helper}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
 function DonGaugeCard({
   icon: Icon,
-  title,
-  value,
-  caption,
+  metric,
   link,
-  tone,
-  to,
 }: {
   icon: any;
-  title: string;
-  value: number;
-  caption: string;
+  metric: DonDashboardMetric;
   link: string;
-  tone: "green" | "orange" | "red" | "blue";
-  to: string;
 }) {
-  const color = tone === "green" ? "#2fb064" : tone === "orange" ? "#ff9815" : tone === "red" ? "#e43737" : "#2e7bd2";
-  const pale = tone === "green" ? "#ddecdf" : tone === "orange" ? "#f5dfc4" : tone === "red" ? "#f0d5d5" : "#d7e5f4";
+  const color = metric.tone === "green" ? "#2fb064" : metric.tone === "orange" ? "#ff9815" : metric.tone === "red" ? "#e43737" : "#2e7bd2";
+  const pale = metric.tone === "green" ? "#ddecdf" : metric.tone === "orange" ? "#f5dfc4" : metric.tone === "red" ? "#f0d5d5" : "#d7e5f4";
+  const degrees = (metric.percentage ?? 0) * 3.6;
   return (
     <div className="rounded-[8px] bg-white shadow-[0_8px_18px_rgba(10,31,68,0.08)]">
       <div className="p-6 pb-4">
         <div className="flex items-center gap-4">
           <Icon className="h-5 w-5 text-[#174f91]" />
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 className="text-sm font-semibold">{metric.label}</h2>
         </div>
-        <div className="mx-auto mt-6 flex h-32 w-32 items-center justify-center rounded-full" style={{ background: `conic-gradient(${color} ${value * 3.6}deg, ${pale} 0deg)` }}>
-          <div className="flex h-[104px] w-[104px] items-center justify-center rounded-full bg-white text-[31px] font-bold text-[#0c1c36]">{value}%</div>
+        <div className="mx-auto mt-6 flex h-32 w-32 items-center justify-center rounded-full" style={{ background: `conic-gradient(${color} ${degrees}deg, ${pale} 0deg)` }}>
+          <div className={`flex h-[104px] w-[104px] items-center justify-center rounded-full bg-white px-3 text-center font-bold leading-tight text-[#0c1c36] ${metric.percentage === undefined ? "text-sm" : "text-[31px]"}`}>{metric.value}</div>
         </div>
-        <div className={`mt-4 text-center text-xs ${tone === "red" ? "text-[#b91c1c]" : "text-[#061a34]"}`}>{caption}</div>
+        <div className={`mt-4 text-center text-xs ${metric.tone === "red" ? "text-[#b91c1c]" : "text-[#061a34]"}`}>{metric.helper}</div>
       </div>
-      <Link to={to as any} className="flex items-center justify-between border-t border-[#edf0f4] px-6 py-3 text-xs font-medium text-[#0b4f93]">
+      <Link to={metric.route as any} className="flex items-center justify-between border-t border-[#edf0f4] px-6 py-3 text-xs font-medium text-[#0b4f93]">
         {link} <ArrowRight className="h-4 w-4" />
       </Link>
     </div>
@@ -872,7 +884,7 @@ function DonListCard({
 }: {
   icon: any;
   title: string;
-  rows: Array<[string, string, string?]>;
+  rows: Array<{ label: string; value: string; tone?: "orange" | "red"; route: string; availability: string }>;
 }) {
   return (
     <div className="rounded-[8px] bg-white p-5 shadow-[0_8px_18px_rgba(10,31,68,0.08)]">
@@ -883,19 +895,34 @@ function DonListCard({
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
       <div className="space-y-2">
-        {rows.map(([label, value, tone]) => (
-          <div key={label} className="flex items-center justify-between text-sm">
-            <span className="text-[#1f2f46]">{label}</span>
-            {tone ? (
-              <span className={`min-w-7 rounded px-2 py-0.5 text-center text-xs font-bold text-white ${tone === "red" ? "bg-[#e64242]" : "bg-[#ff9c1a]"}`}>{value}</span>
+        {rows.map((row) => (
+          <Link key={row.label} to={row.route as any} className="flex items-center justify-between gap-3 text-sm hover:text-[#0b4f93]">
+            <span className="text-[#1f2f46]">{row.label}</span>
+            {row.tone ? (
+              <span className={`min-w-7 rounded px-2 py-0.5 text-center text-xs font-bold text-white ${row.tone === "red" ? "bg-[#e64242]" : "bg-[#ff9c1a]"}`}>{row.value}</span>
             ) : (
-              <span className="font-bold text-[#071832]">{value}</span>
+              <span className={`text-right font-bold ${row.availability === "available" ? "text-[#071832]" : "text-[#8a6470]"}`}>{row.value}</span>
             )}
-          </div>
+          </Link>
         ))}
       </div>
     </div>
   );
+}
+
+function greetingFor(date: Date) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatDonDate(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function CnmDashboard() {
