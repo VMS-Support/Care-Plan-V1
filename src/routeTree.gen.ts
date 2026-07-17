@@ -57,6 +57,18 @@ import { Route as CarePlansIdRouteImport } from './routes/care-plans.$id'
 import { Route as AssessmentsReassessmentRouteImport } from './routes/assessments.reassessment'
 import { Route as AssessmentsAssessmentIdRouteImport } from './routes/assessments.$assessmentId'
 import { Route as WorkforceStaffStaffMemberIdRouteImport } from './routes/workforce.staff.$staffMemberId'
+import { Route as WorkforceRosteringVacantRouteImport } from './routes/workforce.rostering.vacant'
+import { Route as WorkforceRosteringTemplatesRouteImport } from './routes/workforce.rostering.templates'
+import { Route as WorkforceRosteringSettingsRouteImport } from './routes/workforce.rostering.settings'
+import { Route as WorkforceRosteringRequirementsRouteImport } from './routes/workforce.rostering.requirements'
+import { Route as WorkforceRosteringReportsRouteImport } from './routes/workforce.rostering.reports'
+import { Route as WorkforceRosteringPeriodsRouteImport } from './routes/workforce.rostering.periods'
+import { Route as WorkforceRosteringPendingRouteImport } from './routes/workforce.rostering.pending'
+import { Route as WorkforceRosteringCurrentRouteImport } from './routes/workforce.rostering.current'
+import { Route as WorkforceRosteringConflictsRouteImport } from './routes/workforce.rostering.conflicts'
+import { Route as WorkforceRosteringChangesRouteImport } from './routes/workforce.rostering.changes'
+import { Route as WorkforceRosteringAvailabilityRouteImport } from './routes/workforce.rostering.availability'
+import { Route as WorkforceRosteringAgencyRouteImport } from './routes/workforce.rostering.agency'
 import { Route as ResidentsIdTimelineRouteImport } from './routes/residents.$id.timeline'
 import { Route as ResidentsIdRecordRouteImport } from './routes/residents.$id.record'
 import { Route as ResidentsIdQualityOfLifeRouteImport } from './routes/residents.$id.quality-of-life'
@@ -305,6 +317,78 @@ const WorkforceStaffStaffMemberIdRoute =
     path: '/$staffMemberId',
     getParentRoute: () => WorkforceStaffRoute,
   } as any)
+const WorkforceRosteringVacantRoute =
+  WorkforceRosteringVacantRouteImport.update({
+    id: '/vacant',
+    path: '/vacant',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringTemplatesRoute =
+  WorkforceRosteringTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringSettingsRoute =
+  WorkforceRosteringSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringRequirementsRoute =
+  WorkforceRosteringRequirementsRouteImport.update({
+    id: '/requirements',
+    path: '/requirements',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringReportsRoute =
+  WorkforceRosteringReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringPeriodsRoute =
+  WorkforceRosteringPeriodsRouteImport.update({
+    id: '/periods',
+    path: '/periods',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringPendingRoute =
+  WorkforceRosteringPendingRouteImport.update({
+    id: '/pending',
+    path: '/pending',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringCurrentRoute =
+  WorkforceRosteringCurrentRouteImport.update({
+    id: '/current',
+    path: '/current',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringConflictsRoute =
+  WorkforceRosteringConflictsRouteImport.update({
+    id: '/conflicts',
+    path: '/conflicts',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringChangesRoute =
+  WorkforceRosteringChangesRouteImport.update({
+    id: '/changes',
+    path: '/changes',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringAvailabilityRoute =
+  WorkforceRosteringAvailabilityRouteImport.update({
+    id: '/availability',
+    path: '/availability',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
+const WorkforceRosteringAgencyRoute =
+  WorkforceRosteringAgencyRouteImport.update({
+    id: '/agency',
+    path: '/agency',
+    getParentRoute: () => WorkforceRosteringRoute,
+  } as any)
 const ResidentsIdTimelineRoute = ResidentsIdTimelineRouteImport.update({
   id: '/timeline',
   path: '/timeline',
@@ -380,7 +464,7 @@ export interface FileRoutesByFullPath {
   '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
-  '/workforce/rostering': typeof WorkforceRosteringRoute
+  '/workforce/rostering': typeof WorkforceRosteringRouteWithChildren
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/workforce/training': typeof WorkforceTrainingRoute
   '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
@@ -392,6 +476,18 @@ export interface FileRoutesByFullPath {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/rostering/agency': typeof WorkforceRosteringAgencyRoute
+  '/workforce/rostering/availability': typeof WorkforceRosteringAvailabilityRoute
+  '/workforce/rostering/changes': typeof WorkforceRosteringChangesRoute
+  '/workforce/rostering/conflicts': typeof WorkforceRosteringConflictsRoute
+  '/workforce/rostering/current': typeof WorkforceRosteringCurrentRoute
+  '/workforce/rostering/pending': typeof WorkforceRosteringPendingRoute
+  '/workforce/rostering/periods': typeof WorkforceRosteringPeriodsRoute
+  '/workforce/rostering/reports': typeof WorkforceRosteringReportsRoute
+  '/workforce/rostering/requirements': typeof WorkforceRosteringRequirementsRoute
+  '/workforce/rostering/settings': typeof WorkforceRosteringSettingsRoute
+  '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
+  '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRoutesByTo {
@@ -434,7 +530,7 @@ export interface FileRoutesByTo {
   '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
-  '/workforce/rostering': typeof WorkforceRosteringRoute
+  '/workforce/rostering': typeof WorkforceRosteringRouteWithChildren
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/workforce/training': typeof WorkforceTrainingRoute
   '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
@@ -446,6 +542,18 @@ export interface FileRoutesByTo {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/rostering/agency': typeof WorkforceRosteringAgencyRoute
+  '/workforce/rostering/availability': typeof WorkforceRosteringAvailabilityRoute
+  '/workforce/rostering/changes': typeof WorkforceRosteringChangesRoute
+  '/workforce/rostering/conflicts': typeof WorkforceRosteringConflictsRoute
+  '/workforce/rostering/current': typeof WorkforceRosteringCurrentRoute
+  '/workforce/rostering/pending': typeof WorkforceRosteringPendingRoute
+  '/workforce/rostering/periods': typeof WorkforceRosteringPeriodsRoute
+  '/workforce/rostering/reports': typeof WorkforceRosteringReportsRoute
+  '/workforce/rostering/requirements': typeof WorkforceRosteringRequirementsRoute
+  '/workforce/rostering/settings': typeof WorkforceRosteringSettingsRoute
+  '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
+  '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRoutesById {
@@ -491,7 +599,7 @@ export interface FileRoutesById {
   '/workforce/probation': typeof WorkforceProbationRoute
   '/workforce/recruitment': typeof WorkforceRecruitmentRoute
   '/workforce/registrations': typeof WorkforceRegistrationsRoute
-  '/workforce/rostering': typeof WorkforceRosteringRoute
+  '/workforce/rostering': typeof WorkforceRosteringRouteWithChildren
   '/workforce/staff': typeof WorkforceStaffRouteWithChildren
   '/workforce/training': typeof WorkforceTrainingRoute
   '/workforce/visa-documents': typeof WorkforceVisaDocumentsRoute
@@ -503,6 +611,18 @@ export interface FileRoutesById {
   '/residents/$id/quality-of-life': typeof ResidentsIdQualityOfLifeRoute
   '/residents/$id/record': typeof ResidentsIdRecordRoute
   '/residents/$id/timeline': typeof ResidentsIdTimelineRoute
+  '/workforce/rostering/agency': typeof WorkforceRosteringAgencyRoute
+  '/workforce/rostering/availability': typeof WorkforceRosteringAvailabilityRoute
+  '/workforce/rostering/changes': typeof WorkforceRosteringChangesRoute
+  '/workforce/rostering/conflicts': typeof WorkforceRosteringConflictsRoute
+  '/workforce/rostering/current': typeof WorkforceRosteringCurrentRoute
+  '/workforce/rostering/pending': typeof WorkforceRosteringPendingRoute
+  '/workforce/rostering/periods': typeof WorkforceRosteringPeriodsRoute
+  '/workforce/rostering/reports': typeof WorkforceRosteringReportsRoute
+  '/workforce/rostering/requirements': typeof WorkforceRosteringRequirementsRoute
+  '/workforce/rostering/settings': typeof WorkforceRosteringSettingsRoute
+  '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
+  '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
 }
 export interface FileRouteTypes {
@@ -561,6 +681,18 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/rostering/agency'
+    | '/workforce/rostering/availability'
+    | '/workforce/rostering/changes'
+    | '/workforce/rostering/conflicts'
+    | '/workforce/rostering/current'
+    | '/workforce/rostering/pending'
+    | '/workforce/rostering/periods'
+    | '/workforce/rostering/reports'
+    | '/workforce/rostering/requirements'
+    | '/workforce/rostering/settings'
+    | '/workforce/rostering/templates'
+    | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -615,6 +747,18 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/rostering/agency'
+    | '/workforce/rostering/availability'
+    | '/workforce/rostering/changes'
+    | '/workforce/rostering/conflicts'
+    | '/workforce/rostering/current'
+    | '/workforce/rostering/pending'
+    | '/workforce/rostering/periods'
+    | '/workforce/rostering/reports'
+    | '/workforce/rostering/requirements'
+    | '/workforce/rostering/settings'
+    | '/workforce/rostering/templates'
+    | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
   id:
     | '__root__'
@@ -671,6 +815,18 @@ export interface FileRouteTypes {
     | '/residents/$id/quality-of-life'
     | '/residents/$id/record'
     | '/residents/$id/timeline'
+    | '/workforce/rostering/agency'
+    | '/workforce/rostering/availability'
+    | '/workforce/rostering/changes'
+    | '/workforce/rostering/conflicts'
+    | '/workforce/rostering/current'
+    | '/workforce/rostering/pending'
+    | '/workforce/rostering/periods'
+    | '/workforce/rostering/reports'
+    | '/workforce/rostering/requirements'
+    | '/workforce/rostering/settings'
+    | '/workforce/rostering/templates'
+    | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
   fileRoutesById: FileRoutesById
 }
@@ -710,7 +866,7 @@ export interface RootRouteChildren {
   WorkforceProbationRoute: typeof WorkforceProbationRoute
   WorkforceRecruitmentRoute: typeof WorkforceRecruitmentRoute
   WorkforceRegistrationsRoute: typeof WorkforceRegistrationsRoute
-  WorkforceRosteringRoute: typeof WorkforceRosteringRoute
+  WorkforceRosteringRoute: typeof WorkforceRosteringRouteWithChildren
   WorkforceStaffRoute: typeof WorkforceStaffRouteWithChildren
   WorkforceTrainingRoute: typeof WorkforceTrainingRoute
   WorkforceVisaDocumentsRoute: typeof WorkforceVisaDocumentsRoute
@@ -1054,6 +1210,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkforceStaffStaffMemberIdRouteImport
       parentRoute: typeof WorkforceStaffRoute
     }
+    '/workforce/rostering/vacant': {
+      id: '/workforce/rostering/vacant'
+      path: '/vacant'
+      fullPath: '/workforce/rostering/vacant'
+      preLoaderRoute: typeof WorkforceRosteringVacantRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/templates': {
+      id: '/workforce/rostering/templates'
+      path: '/templates'
+      fullPath: '/workforce/rostering/templates'
+      preLoaderRoute: typeof WorkforceRosteringTemplatesRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/settings': {
+      id: '/workforce/rostering/settings'
+      path: '/settings'
+      fullPath: '/workforce/rostering/settings'
+      preLoaderRoute: typeof WorkforceRosteringSettingsRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/requirements': {
+      id: '/workforce/rostering/requirements'
+      path: '/requirements'
+      fullPath: '/workforce/rostering/requirements'
+      preLoaderRoute: typeof WorkforceRosteringRequirementsRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/reports': {
+      id: '/workforce/rostering/reports'
+      path: '/reports'
+      fullPath: '/workforce/rostering/reports'
+      preLoaderRoute: typeof WorkforceRosteringReportsRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/periods': {
+      id: '/workforce/rostering/periods'
+      path: '/periods'
+      fullPath: '/workforce/rostering/periods'
+      preLoaderRoute: typeof WorkforceRosteringPeriodsRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/pending': {
+      id: '/workforce/rostering/pending'
+      path: '/pending'
+      fullPath: '/workforce/rostering/pending'
+      preLoaderRoute: typeof WorkforceRosteringPendingRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/current': {
+      id: '/workforce/rostering/current'
+      path: '/current'
+      fullPath: '/workforce/rostering/current'
+      preLoaderRoute: typeof WorkforceRosteringCurrentRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/conflicts': {
+      id: '/workforce/rostering/conflicts'
+      path: '/conflicts'
+      fullPath: '/workforce/rostering/conflicts'
+      preLoaderRoute: typeof WorkforceRosteringConflictsRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/changes': {
+      id: '/workforce/rostering/changes'
+      path: '/changes'
+      fullPath: '/workforce/rostering/changes'
+      preLoaderRoute: typeof WorkforceRosteringChangesRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/availability': {
+      id: '/workforce/rostering/availability'
+      path: '/availability'
+      fullPath: '/workforce/rostering/availability'
+      preLoaderRoute: typeof WorkforceRosteringAvailabilityRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
+    '/workforce/rostering/agency': {
+      id: '/workforce/rostering/agency'
+      path: '/agency'
+      fullPath: '/workforce/rostering/agency'
+      preLoaderRoute: typeof WorkforceRosteringAgencyRouteImport
+      parentRoute: typeof WorkforceRosteringRoute
+    }
     '/residents/$id/timeline': {
       id: '/residents/$id/timeline'
       path: '/timeline'
@@ -1185,6 +1425,39 @@ const VitalsRouteChildren: VitalsRouteChildren = {
 const VitalsRouteWithChildren =
   VitalsRoute._addFileChildren(VitalsRouteChildren)
 
+interface WorkforceRosteringRouteChildren {
+  WorkforceRosteringAgencyRoute: typeof WorkforceRosteringAgencyRoute
+  WorkforceRosteringAvailabilityRoute: typeof WorkforceRosteringAvailabilityRoute
+  WorkforceRosteringChangesRoute: typeof WorkforceRosteringChangesRoute
+  WorkforceRosteringConflictsRoute: typeof WorkforceRosteringConflictsRoute
+  WorkforceRosteringCurrentRoute: typeof WorkforceRosteringCurrentRoute
+  WorkforceRosteringPendingRoute: typeof WorkforceRosteringPendingRoute
+  WorkforceRosteringPeriodsRoute: typeof WorkforceRosteringPeriodsRoute
+  WorkforceRosteringReportsRoute: typeof WorkforceRosteringReportsRoute
+  WorkforceRosteringRequirementsRoute: typeof WorkforceRosteringRequirementsRoute
+  WorkforceRosteringSettingsRoute: typeof WorkforceRosteringSettingsRoute
+  WorkforceRosteringTemplatesRoute: typeof WorkforceRosteringTemplatesRoute
+  WorkforceRosteringVacantRoute: typeof WorkforceRosteringVacantRoute
+}
+
+const WorkforceRosteringRouteChildren: WorkforceRosteringRouteChildren = {
+  WorkforceRosteringAgencyRoute: WorkforceRosteringAgencyRoute,
+  WorkforceRosteringAvailabilityRoute: WorkforceRosteringAvailabilityRoute,
+  WorkforceRosteringChangesRoute: WorkforceRosteringChangesRoute,
+  WorkforceRosteringConflictsRoute: WorkforceRosteringConflictsRoute,
+  WorkforceRosteringCurrentRoute: WorkforceRosteringCurrentRoute,
+  WorkforceRosteringPendingRoute: WorkforceRosteringPendingRoute,
+  WorkforceRosteringPeriodsRoute: WorkforceRosteringPeriodsRoute,
+  WorkforceRosteringReportsRoute: WorkforceRosteringReportsRoute,
+  WorkforceRosteringRequirementsRoute: WorkforceRosteringRequirementsRoute,
+  WorkforceRosteringSettingsRoute: WorkforceRosteringSettingsRoute,
+  WorkforceRosteringTemplatesRoute: WorkforceRosteringTemplatesRoute,
+  WorkforceRosteringVacantRoute: WorkforceRosteringVacantRoute,
+}
+
+const WorkforceRosteringRouteWithChildren =
+  WorkforceRosteringRoute._addFileChildren(WorkforceRosteringRouteChildren)
+
 interface WorkforceStaffRouteChildren {
   WorkforceStaffStaffMemberIdRoute: typeof WorkforceStaffStaffMemberIdRoute
 }
@@ -1233,7 +1506,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkforceProbationRoute: WorkforceProbationRoute,
   WorkforceRecruitmentRoute: WorkforceRecruitmentRoute,
   WorkforceRegistrationsRoute: WorkforceRegistrationsRoute,
-  WorkforceRosteringRoute: WorkforceRosteringRoute,
+  WorkforceRosteringRoute: WorkforceRosteringRouteWithChildren,
   WorkforceStaffRoute: WorkforceStaffRouteWithChildren,
   WorkforceTrainingRoute: WorkforceTrainingRoute,
   WorkforceVisaDocumentsRoute: WorkforceVisaDocumentsRoute,
