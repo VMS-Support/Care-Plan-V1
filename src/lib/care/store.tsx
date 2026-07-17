@@ -108,6 +108,7 @@ import type {
   StaffResidencePermissionRecord,
   StaffVisaRecord,
   StaffVisaType,
+  TrainingCategory,
   TrainingCourse,
   TrainingRequirement,
   StaffTrainingAssignment,
@@ -2130,6 +2131,13 @@ function seedData() {
     staffDocumentRequirements: [] as StaffDocumentRequirement[],
     staffDocumentVerificationRecords: [] as StaffDocumentVerificationRecord[],
     staffDocumentEvents: [] as StaffDocumentEvent[],
+    trainingCategories: [
+      { id: "training-category-safety", code: "safety", name: "Safety", active: true, createdAt: "2026-07-15T00:00:00.000Z", updatedAt: "2026-07-15T00:00:00.000Z" },
+      { id: "training-category-mandatory", code: "mandatory", name: "Mandatory", active: true, createdAt: "2026-07-15T00:00:00.000Z", updatedAt: "2026-07-15T00:00:00.000Z" },
+      { id: "training-category-governance", code: "governance", name: "Governance", active: true, createdAt: "2026-07-15T00:00:00.000Z", updatedAt: "2026-07-15T00:00:00.000Z" },
+      { id: "training-category-clinical", code: "clinical", name: "Clinical", active: true, createdAt: "2026-07-15T00:00:00.000Z", updatedAt: "2026-07-15T00:00:00.000Z" },
+      { id: "training-category-other", code: "other", name: "Other", active: true, createdAt: "2026-07-15T00:00:00.000Z", updatedAt: "2026-07-15T00:00:00.000Z" },
+    ] as TrainingCategory[],
     trainingCourses: DEFAULT_TRAINING_COURSES,
     trainingRequirements: DEFAULT_TRAINING_COURSES.map((course) => ({
       id: `training-requirement-${course.code.toLowerCase().replaceAll("_", "-")}-all-staff`,
@@ -2736,7 +2744,18 @@ interface CareCtx extends Store {
   verifyStaffVisaRecord: (id: string, notes?: string) => void;
   verifyResidencePermissionRecord: (id: string, notes?: string) => void;
   verifyEmploymentPermitRecord: (id: string, notes?: string) => void;
+  createTrainingCategory: (input: { name: string; description?: string }) => TrainingCategory;
+  updateTrainingCategory: (id: string, input: Partial<Pick<TrainingCategory, "name" | "description" | "active">>) => void;
+  createTrainingCourse: (input: Partial<TrainingCourse> & { title: string; category: TrainingCourse["category"]; mandatoryByDefault?: boolean }) => TrainingCourse;
+  updateTrainingCourse: (id: string, input: Partial<TrainingCourse>) => void;
+  duplicateTrainingCourse: (id: string) => TrainingCourse;
+  deleteTrainingCourse: (id: string) => void;
+  updateTrainingAssignment: (id: string, input: Partial<StaffTrainingAssignment>, reason?: string) => void;
+  startTrainingAssignment: (id: string) => void;
+  cancelTrainingAssignment: (id: string, reason: string) => void;
+  enterTrainingAssignmentInError: (id: string, reason: string) => void;
   assignTrainingToStaff: (input: AssignTrainingCommand) => StaffTrainingAssignment;
+  assignTrainingToMany: (input: AssignTrainingCommand & { staffMemberIds: string[]; mandatory?: boolean }) => StaffTrainingAssignment[];
   recordTrainingCompletion: (input: RecordTrainingCompletionCommand) => StaffTrainingCompletion;
   verifyTrainingCompletion: (id: string) => void;
   generateTrainingAssignments: () => number;
@@ -4135,12 +4154,125 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const next = verifyImmigrationRecord(current, currentUser.id);
         setStore((s) => ({ ...s, staffEmploymentPermitRecords: s.staffEmploymentPermitRecords.map((record) => String(record.id) === id ? next : record) }));
       },
+      createTrainingCategory: (input) => {
+        const now = new Date().toISOString();
+        const code = input.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || `category_${Date.now()}`;
+        const category: TrainingCategory = { id: `training-category-${code}-${uid()}`, code, name: input.name.trim(), description: input.description, active: true, createdAt: now, updatedAt: now };
+        setStore((s) => ({ ...s, trainingCategories: [category, ...((s as any).trainingCategories || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Category created", entity: category.id, entityType: "training_category", timestamp: now, after: JSON.stringify({ name: category.name }) }, ...s.auditLogs].slice(0, 500) } as any));
+        return category;
+      },
+      updateTrainingCategory: (id, input) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, trainingCategories: ((s as any).trainingCategories || []).map((category: TrainingCategory) => category.id === id ? { ...category, ...input, updatedAt: now } : category), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Category updated", entity: id, entityType: "training_category", timestamp: now, after: JSON.stringify(input) }, ...s.auditLogs].slice(0, 500) } as any));
+      },
+      createTrainingCourse: (input) => {
+        const now = new Date().toISOString();
+        const code = (input.code || input.title).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+        if (store.trainingCourses.some((course) => course.title.trim().toLowerCase() === input.title.trim().toLowerCase() && course.status !== "entered_in_error")) throw new Error("This Course Title is already in use.");
+        const course: TrainingCourse = {
+          id: `training-course-${code.toLowerCase().replaceAll("_", "-")}-${uid()}`,
+          code,
+          title: input.title.trim(),
+          description: input.description,
+          category: input.category,
+          mandatoryByDefault: input.mandatoryByDefault ?? false,
+          deliveryMethods: input.deliveryMethods?.length ? input.deliveryMethods : ["classroom"],
+          certificateRequired: input.certificateRequired ?? false,
+          verificationRequired: input.verificationRequired ?? false,
+          durationMinutes: input.durationMinutes,
+          skillsToGain: input.skillsToGain || [],
+          learningObjectives: input.learningObjectives || [],
+          lessonSummary: input.lessonSummary,
+          materialDocumentIds: input.materialDocumentIds || [],
+          status: input.status || "draft",
+          displayOrder: store.trainingCourses.length + 1,
+          createdAt: now,
+          updatedAt: now,
+          createdByUserAccountId: currentUser.id as any,
+          updatedByUserAccountId: currentUser.id as any,
+        };
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingCourseCreated", trainingCourseId: course.id, safeStatus: course.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-course-create-${course.id}` };
+        setStore((s) => ({ ...s, trainingCourses: [course, ...s.trainingCourses], trainingEvents: [event, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Course created", entity: course.id, entityType: "training_course", timestamp: now, after: JSON.stringify({ title: course.title, status: course.status }) }, ...s.auditLogs].slice(0, 500) }));
+        return course;
+      },
+      updateTrainingCourse: (id, input) => {
+        const now = new Date().toISOString();
+        const current = store.trainingCourses.find((course) => course.id === id);
+        if (!current) throw new Error("The Course could not be saved.");
+        const next = { ...current, ...input, updatedAt: now, updatedByUserAccountId: currentUser.id as any } as TrainingCourse;
+        const eventType = current.status !== next.status && next.status === "active" ? "TrainingCourseActivated" : current.status !== next.status && next.status === "retired" ? "TrainingCourseRetired" : "TrainingCourseUpdated";
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: eventType, trainingCourseId: next.id, safeStatus: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-course-update-${id}-${now}` };
+        setStore((s) => ({ ...s, trainingCourses: s.trainingCourses.map((course) => course.id === id ? next : course), trainingEvents: [event, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Course updated", entity: id, entityType: "training_course", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }) }, ...s.auditLogs].slice(0, 500) }));
+      },
+      duplicateTrainingCourse: (id) => {
+        const current = store.trainingCourses.find((course) => course.id === id);
+        if (!current) throw new Error("The Course could not be saved.");
+        const now = new Date().toISOString();
+        const course: TrainingCourse = {
+          ...current,
+          id: `training-course-${current.code.toLowerCase().replaceAll("_", "-")}-copy-${uid()}`,
+          code: `${current.code}_COPY`,
+          title: `${current.title} Copy`,
+          status: "draft",
+          displayOrder: store.trainingCourses.length + 1,
+          createdAt: now,
+          updatedAt: now,
+          createdByUserAccountId: currentUser.id as any,
+          updatedByUserAccountId: currentUser.id as any,
+        };
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingCourseCreated", trainingCourseId: course.id, safeStatus: course.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-course-duplicate-${id}-${now}` };
+        setStore((s) => ({ ...s, trainingCourses: [course, ...s.trainingCourses], trainingEvents: [event, ...(s.trainingEvents || [])] }));
+        return course;
+      },
+      deleteTrainingCourse: (id) => {
+        const current = store.trainingCourses.find((course) => course.id === id);
+        if (!current) throw new Error("The Course could not be saved.");
+        const linked = store.staffTrainingAssignments.some((assignment) => assignment.trainingCourseId === id) || store.staffTrainingCompletions.some((completion) => completion.trainingCourseId === id);
+        if (current.status !== "draft" || linked) throw new Error("This Course cannot be deleted because Staff Training records are linked to it. Retire the Course instead.");
+        setStore((s) => ({ ...s, trainingCourses: s.trainingCourses.filter((course) => course.id !== id) }));
+      },
       assignTrainingToStaff: (input) => {
         const assignment = assignTrainingToStaff(store, input);
         const now = new Date().toISOString();
         const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingAssignmentCreated", staffMemberId: assignment.staffMemberId, employmentRecordId: assignment.employmentRecordId, trainingCourseId: assignment.trainingCourseId, trainingRequirementId: assignment.trainingRequirementId, trainingAssignmentId: assignment.id, safeStatus: assignment.status, dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId };
         setStore((s) => ({ ...s, staffTrainingAssignments: [assignment, ...s.staffTrainingAssignments], trainingEvents: [event, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignment created", entity: String(assignment.id), entityType: "training_assignment", timestamp: now, after: JSON.stringify({ trainingCourseId: assignment.trainingCourseId, dueDate: assignment.dueDate }) }, ...s.auditLogs].slice(0, 500) }));
         return assignment;
+      },
+      assignTrainingToMany: (input) => {
+        const created: StaffTrainingAssignment[] = [];
+        for (const staffMemberId of input.staffMemberIds) {
+          const exists = store.staffTrainingAssignments.some((assignment) => String(assignment.staffMemberId) === String(staffMemberId) && assignment.trainingCourseId === input.trainingCourseId && !["cancelled", "entered_in_error", "completed"].includes(assignment.status));
+          if (exists) continue;
+          created.push(assignTrainingToStaff(store, { ...input, staffMemberId, clientRequestId: `${input.clientRequestId}-${staffMemberId}` }));
+        }
+        if (!created.length) return [];
+        const now = new Date().toISOString();
+        const events = created.map((assignment): TrainingEvent => ({ id: `training-event-${uid()}`, type: "TrainingAssignmentCreated", staffMemberId: assignment.staffMemberId, employmentRecordId: assignment.employmentRecordId, trainingCourseId: assignment.trainingCourseId, trainingAssignmentId: assignment.id, safeStatus: assignment.status, dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: input.clientRequestId }));
+        setStore((s) => ({ ...s, staffTrainingAssignments: [...created, ...s.staffTrainingAssignments], trainingEvents: [...events, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignments created", entity: input.trainingCourseId, entityType: "training_assignment", timestamp: now, after: JSON.stringify({ count: created.length, dueDate: input.dueDate }) }, ...s.auditLogs].slice(0, 500) }));
+        return created;
+      },
+      updateTrainingAssignment: (id, input, reason) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, staffTrainingAssignments: s.staffTrainingAssignments.map((assignment) => assignment.id === id ? { ...assignment, ...input, updatedAt: now } : assignment), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignment updated", entity: id, entityType: "training_assignment", timestamp: now, after: JSON.stringify(input), reason }, ...s.auditLogs].slice(0, 500) }));
+      },
+      startTrainingAssignment: (id) => {
+        const now = new Date().toISOString();
+        const assignment = store.staffTrainingAssignments.find((item) => item.id === id);
+        if (!assignment) throw new Error("The Training assignment could not be saved.");
+        const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingAssignmentUpdated", staffMemberId: assignment.staffMemberId, trainingCourseId: assignment.trainingCourseId, trainingAssignmentId: assignment.id, safeStatus: "in_progress", dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-start-${id}-${now}` };
+        setStore((s) => ({ ...s, staffTrainingAssignments: s.staffTrainingAssignments.map((item) => item.id === id ? { ...item, startedAt: now, status: "in_progress", updatedAt: now } : item), trainingEvents: [event, ...(s.trainingEvents || [])] }));
+      },
+      cancelTrainingAssignment: (id, reason) => {
+        if (!reason.trim()) throw new Error("A cancellation reason is required.");
+        const now = new Date().toISOString();
+        const current = store.staffTrainingAssignments.find((item) => item.id === id);
+        setStore((s) => ({ ...s, staffTrainingAssignments: s.staffTrainingAssignments.map((item) => item.id === id ? { ...item, status: "cancelled", cancelledAt: now, cancelledByUserAccountId: currentUser.id as any, cancellationCategory: "other", cancellationReason: reason, previousStatusBeforeCancellation: current?.status || item.status, courseRemainsApplicable: false, exemptionReason: reason, updatedAt: now } : item), trainingEvents: [{ id: `training-event-${uid()}`, type: "TrainingAssignmentUpdated", trainingAssignmentId: id, safeStatus: "cancelled", actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-cancel-${id}-${now}` } as TrainingEvent, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignment cancelled", entity: id, entityType: "training_assignment", timestamp: now, before: JSON.stringify({ status: current?.status }), after: JSON.stringify({ status: "cancelled", cancelledAt: now }), reason }, ...s.auditLogs].slice(0, 500) }));
+      },
+      enterTrainingAssignmentInError: (id, reason) => {
+        if (!reason.trim()) throw new Error("A reason is required.");
+        const now = new Date().toISOString();
+        const current = store.staffTrainingAssignments.find((item) => item.id === id);
+        setStore((s) => ({ ...s, staffTrainingAssignments: s.staffTrainingAssignments.map((item) => item.id === id ? { ...item, status: "entered_in_error", enteredInErrorAt: now, enteredInErrorByUserAccountId: currentUser.id as any, enteredInErrorReason: reason, previousStatusBeforeEnteredInError: current?.status || item.status, exemptionReason: reason, updatedAt: now } : item), trainingEvents: [{ id: `training-event-${uid()}`, type: "TrainingAssignmentUpdated", trainingAssignmentId: id, safeStatus: "entered_in_error", actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-error-${id}-${now}` } as TrainingEvent, ...(s.trainingEvents || [])], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Assignment entered in error", entity: id, entityType: "training_assignment", timestamp: now, before: JSON.stringify({ status: current?.status }), after: JSON.stringify({ status: "entered_in_error", enteredInErrorAt: now }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       recordTrainingCompletion: (input) => {
         const completion = recordTrainingCompletion(store, input, currentUser.id);

@@ -33,6 +33,7 @@ export interface AssignTrainingCommand {
   nursingHomeId?: string;
   wardId?: string;
   dueDate?: string;
+  mandatory?: boolean;
   source?: StaffTrainingAssignment["source"];
   clientRequestId: string;
 }
@@ -90,7 +91,7 @@ export function getTrainingComplianceStatus(input: {
   if (input.assignment.status === "cancelled" || input.assignment.status === "entered_in_error") return "not_required";
   if (!input.completion) {
     if (input.assignment.dueDate && input.assignment.dueDate < effectiveAt) return "overdue";
-    return input.assignment.status === "in_progress" ? "in_progress" : "not_started";
+    return input.assignment.startedAt || input.assignment.status === "in_progress" ? "in_progress" : "not_started";
   }
   if (input.completion.status === "verification_failed" || input.completion.verificationStatus === "failed") return "verification_failed";
   if (input.completion.status === "pending_verification" || input.completion.verificationStatus === "pending") return "pending_verification";
@@ -145,7 +146,8 @@ export function assignTrainingToStaff(state: TrainingState, command: AssignTrain
     wardId: command.wardId as any,
     assignedAt: now,
     dueDate: command.dueDate,
-    status: "assigned",
+    mandatory: command.mandatory ?? state.trainingCourses.find((course) => course.id === command.trainingCourseId)?.mandatoryByDefault ?? true,
+    status: "not_started",
     source: command.source || "manual",
     createdAt: now,
     updatedAt: now,
@@ -172,6 +174,9 @@ export function recordTrainingCompletion(state: TrainingState, command: RecordTr
     trainerName: command.trainerName,
     certificateDocumentId: command.certificateDocumentId,
     certificateFileId: command.certificateFileId,
+    creditedDurationMinutes: (command as any).creditedDurationMinutes,
+    durationSource: (command as any).durationSource,
+    durationAdjustmentReason: (command as any).durationAdjustmentReason,
     status: course.verificationRequired ? "pending_verification" : "verified",
     verificationStatus: course.verificationRequired ? "pending" : "verified",
     notes: command.notes,

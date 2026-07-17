@@ -64,8 +64,9 @@ export function getDonDashboard(input: {
   const alerts = openAlerts(care, residentIds);
   const assessments = activeRows(care.assessments).filter((assessment) => residentIds.has(assessment.residentId));
   const dueAssessments = assessments.filter((assessment) => isAssessmentDue(assessment, reportingDate));
-  const activeProblems = activeRows(care.carePlanProblems).filter((problem) => residentIds.has(problem.residentId) && problem.status === "active");
-  const dueCarePlans = activeProblems.filter((problem) => dateDue(problem.reviewDate, reportingDate) || dateDue(problem.evaluationDate, reportingDate));
+  const carePlanCompletionScope = getCarePlanCompletionScope(care, residentIds, reportingDate);
+  const activeProblems = carePlanCompletionScope.activeProblems;
+  const dueCarePlans = carePlanCompletionScope.dueCarePlans;
   const incidents = activeRows(care.incidents).filter((incident) => residentIds.has(incident.residentId) && incident.recordStatus !== "deleted");
   const todayIncidents = incidents.filter((incident) => incident.date === reportingDate);
   const openIncidents = incidents.filter((incident) => incident.status !== "closed" || incident.followUpRequired);
@@ -93,9 +94,9 @@ export function getDonDashboard(input: {
 
   const carePlanCompletion = percentageMetric({
     label: "Care Plan Completion",
-    numerator: activeProblems.length - dueCarePlans.length,
-    denominator: activeProblems.length,
-    empty: "No active care plan problems configured.",
+    numerator: carePlanCompletionScope.upToDateCount,
+    denominator: carePlanCompletionScope.totalCount,
+    empty: "No active care plans configured.",
     helper: dueCarePlans.length ? "Requires Review" : "Up to Date",
     route: "/care-plans",
   });
@@ -231,6 +232,65 @@ function isAssessmentDue(assessment: any, reportingDate: string) {
 function dateDue(date: string | undefined, reportingDate: string, overdueOnly = false) {
   if (!date) return false;
   return overdueOnly ? date < reportingDate : date <= reportingDate;
+}
+
+const INACTIVE_CARE_PLAN_STATUSES = new Set([
+  "archived",
+  "completed",
+  "discontinued",
+  "entered_in_error",
+  "inactive",
+  "resolved",
+  "superseded",
+]);
+
+function getCarePlanCompletionScope(care: StoreLike, residentIds: Set<string>, reportingDate: string) {
+  const currentProblems = activeRows(care.carePlanProblems).filter(
+    (problem) =>
+      residentIds.has(problem.residentId) &&
+      !INACTIVE_CARE_PLAN_STATUSES.has(String(problem.status || "").toLowerCase()),
+  );
+  const currentProblemIds = new Set(currentProblems.map((problem) => problem.id));
+  const currentResidentCarePlanIds = new Set(
+    currentProblems.map((problem) => problem.residentCarePlanId).filter(Boolean),
+  );
+
+  const legacyPlans = activeRows(care.carePlans).filter((plan) => {
+    if (!residentIds.has(plan.residentId)) return false;
+    if (INACTIVE_CARE_PLAN_STATUSES.has(String(plan.status || "").toLowerCase())) return false;
+    if (currentProblemIds.has(plan.id) || currentResidentCarePlanIds.has(plan.id)) return false;
+    return true;
+  });
+
+  const dueProblems = currentProblems.filter((problem) => isCarePlanItemDue(problem, reportingDate));
+  const dueLegacyPlans = legacyPlans.filter((plan) => isCarePlanItemDue(plan, reportingDate));
+
+  const dueCarePlans = [
+    ...dueProblems,
+    ...dueLegacyPlans.map((plan) => ({
+      ...plan,
+      problemStatement: plan.problemStatement || plan.problem || plan.title || "Care plan review",
+    })),
+  ];
+  const totalCount = currentProblems.length + legacyPlans.length;
+  const dueCount = dueProblems.length + dueLegacyPlans.length;
+
+  return {
+    activeProblems: currentProblems,
+    dueCarePlans,
+    totalCount,
+    dueCount,
+    upToDateCount: Math.max(0, totalCount - dueCount),
+  };
+}
+
+function isCarePlanItemDue(item: any, reportingDate: string) {
+  const status = String(item.status || "").toLowerCase();
+  if (status.includes("overdue") || status === "review_due" || status === "evaluation_due" || status === "under_review") {
+    return true;
+  }
+  if (!item.reviewDate && !item.evaluationDate) return true;
+  return dateDue(item.reviewDate, reportingDate) || dateDue(item.evaluationDate, reportingDate);
 }
 
 function percentageMetric(input: {

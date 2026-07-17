@@ -162,7 +162,7 @@ export type StaffDocumentVerificationStatus =
   | "unable_to_verify"
   | "verification_expired";
 export type StaffImmigrationComplianceStatus = "compliant" | "attention_required" | "missing_required" | "not_assessed" | "not_required";
-export type TrainingCourseStatus = "draft" | "active" | "inactive" | "retired";
+export type TrainingCourseStatus = "draft" | "active" | "inactive" | "retired" | "entered_in_error";
 export type TrainingDeliveryMethod = "classroom" | "online" | "blended" | "practical" | "external_provider" | "self_directed" | "other";
 export type TrainingRenewalFrequency = "one_off" | "annual" | "every_two_years" | "every_three_years" | "custom_months" | "no_expiry";
 export type TrainingRequirementTarget = "all_staff" | "role" | "employment_category" | "contract_type" | "nursing_home" | "ward" | "individual_staff_member";
@@ -859,6 +859,11 @@ export interface TrainingCourse {
   verificationRequired: boolean;
   providerName?: string;
   externalCourseReference?: string;
+  durationMinutes?: number;
+  skillsToGain?: string[];
+  learningObjectives?: string[];
+  lessonSummary?: string;
+  materialDocumentIds?: StaffDocumentId[];
   status: TrainingCourseStatus;
   enterpriseId?: EnterpriseId;
   nursingHomeId?: NursingHomeId;
@@ -867,6 +872,16 @@ export interface TrainingCourse {
   updatedAt: string;
   createdByUserAccountId: UserAccountId;
   updatedByUserAccountId: UserAccountId;
+}
+
+export interface TrainingCategory {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TrainingRequirement {
@@ -905,6 +920,22 @@ export interface StaffTrainingAssignment {
   wardId?: WardId;
   assignedAt: string;
   dueDate?: string;
+  mandatory?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+  completionNotes?: string;
+  certificateDocumentId?: StaffDocumentId;
+  cancelledAt?: string;
+  cancelledByUserAccountId?: UserAccountId;
+  cancelledByStaffMemberId?: StaffMemberId;
+  cancellationCategory?: "assigned_in_error" | "no_longer_required" | "employment_ended" | "course_replaced" | "duplicate_assignment" | "staff_role_changed" | "other";
+  cancellationReason?: string;
+  previousStatusBeforeCancellation?: StaffTrainingAssignmentStatus;
+  courseRemainsApplicable?: boolean;
+  enteredInErrorAt?: string;
+  enteredInErrorByUserAccountId?: UserAccountId;
+  enteredInErrorReason?: string;
+  previousStatusBeforeEnteredInError?: StaffTrainingAssignmentStatus;
   status: StaffTrainingAssignmentStatus;
   exemptionReason?: string;
   exemptionApprovedByUserAccountId?: UserAccountId;
@@ -931,6 +962,9 @@ export interface StaffTrainingCompletion {
   trainerName?: string;
   certificateDocumentId?: StaffDocumentId;
   certificateFileId?: FileId;
+  creditedDurationMinutes?: number;
+  durationSource?: "course_default" | "manual_adjustment" | "inferred_current_course" | "missing";
+  durationAdjustmentReason?: string;
   status: TrainingCompletionStatus;
   verificationStatus: StaffDocumentVerificationStatus;
   verifiedAt?: string;
