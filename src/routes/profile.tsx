@@ -24,6 +24,10 @@ function ProfilePage() {
   const {
     currentUser,
     activeFacility,
+    facilities,
+    operationalContext,
+    getConfiguredShifts,
+    getWardsForNursingHome,
     users,
     updateUser,
     createStaffUser,
@@ -38,6 +42,14 @@ function ProfilePage() {
     carePlans,
   } = useCare();
   const [draft, setDraft] = useState({ email: currentUser.email, phone: currentUser.phone });
+  const [preferenceDraft, setPreferenceDraft] = useState({
+    defaultHomeId: currentUser.preferences?.defaultHomeId || activeFacility.id,
+    defaultWardId: currentUser.preferences?.defaultWardId || "none",
+    defaultShiftId: currentUser.preferences?.defaultShiftId || operationalContext.shiftId,
+    defaultLandingPage: currentUser.preferences?.defaultLandingPage || "/",
+    dateDisplayFormat: currentUser.preferences?.dateDisplayFormat || "medium",
+    timeDisplayFormat: currentUser.preferences?.timeDisplayFormat || "24h",
+  });
   const [staffDraft, setStaffDraft] = useState({
     name: "",
     role: "nurse" as Role,
@@ -51,7 +63,15 @@ function ProfilePage() {
 
   useEffect(() => {
     setDraft({ email: currentUser.email, phone: currentUser.phone });
-  }, [currentUser.email, currentUser.phone]);
+    setPreferenceDraft({
+      defaultHomeId: currentUser.preferences?.defaultHomeId || activeFacility.id,
+      defaultWardId: currentUser.preferences?.defaultWardId || "none",
+      defaultShiftId: currentUser.preferences?.defaultShiftId || operationalContext.shiftId,
+      defaultLandingPage: currentUser.preferences?.defaultLandingPage || "/",
+      dateDisplayFormat: currentUser.preferences?.dateDisplayFormat || "medium",
+      timeDisplayFormat: currentUser.preferences?.timeDisplayFormat || "24h",
+    });
+  }, [activeFacility.id, currentUser.email, currentUser.phone, currentUser.preferences, operationalContext.shiftId]);
 
   const handleResetDemoData = () => {
     const confirmed = window.confirm(
@@ -84,6 +104,10 @@ function ProfilePage() {
       : currentUser.assignedWings
           .map((id) => wings.find((w) => w.id === id)?.name || id)
           .join(", ");
+  const authorisedHomes = facilities.filter((facility) => (currentUser.facilityIds?.length ? currentUser.facilityIds.includes(facility.id) : facility.id === currentUser.facilityId));
+  const defaultWardOptions = getWardsForNursingHome(preferenceDraft.defaultHomeId);
+  const defaultShiftOptions = getConfiguredShifts(preferenceDraft.defaultHomeId);
+  const availableRoles = Array.from(new Set(users.filter((user) => user.status !== "inactive" && (user.facilityIds?.includes(activeFacility.id) || user.facilityId === activeFacility.id)).map((user) => user.role)));
 
   const myResidentIds =
     currentUser.assignedWings.length === 0
@@ -150,6 +174,7 @@ function ProfilePage() {
         <TabsList>
           <TabsTrigger value="info">Profile Info</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="access">Roles & Access</TabsTrigger>
           {isDon ? <TabsTrigger value="staff">Staff & Logins</TabsTrigger> : null}
           <TabsTrigger value="dashboard">My Dashboard</TabsTrigger>
         </TabsList>
@@ -242,6 +267,68 @@ function ProfilePage() {
               ))}
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Default Context Preferences</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Default Home</Label>
+                <Select value={preferenceDraft.defaultHomeId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultHomeId: value, defaultWardId: "none" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{authorisedHomes.map((home) => <SelectItem key={home.id} value={home.id}>{home.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Default Ward</Label>
+                <Select value={preferenceDraft.defaultWardId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultWardId: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="none">No default Ward</SelectItem>{defaultWardOptions.map((ward) => <SelectItem key={ward.id} value={ward.id}>{ward.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Default Shift</Label>
+                <Select value={preferenceDraft.defaultShiftId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultShiftId: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{defaultShiftOptions.map((shift) => <SelectItem key={shift.id} value={shift.id}>{shift.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Preferred Landing Dashboard</Label>
+                <Select value={preferenceDraft.defaultLandingPage} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultLandingPage: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="/">My Dashboard</SelectItem>
+                    <SelectItem value="/operations">Operations</SelectItem>
+                    <SelectItem value="/staff-management">Staff Management</SelectItem>
+                    <SelectItem value="/training-dashboard">Training Dashboard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Date Display Format</Label>
+                <Select value={preferenceDraft.dateDisplayFormat} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, dateDisplayFormat: value as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="short">Short</SelectItem><SelectItem value="medium">13 Jul 2026</SelectItem><SelectItem value="long">Monday, 13 July 2026</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Time Display Format</Label>
+                <Select value={preferenceDraft.timeDisplayFormat} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, timeDisplayFormat: value as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="24h">24 hour</SelectItem><SelectItem value="12h">12 hour</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Button onClick={() => { updateUser(currentUser.id, { preferences: { ...currentUser.preferences, ...preferenceDraft, defaultWardId: preferenceDraft.defaultWardId === "none" ? undefined : preferenceDraft.defaultWardId } as any }); toast.success("Profile preferences saved"); }}>
+                  Save Preferences
+                </Button>
+              </div>
+              <p className="md:col-span-2 text-xs text-muted-foreground">
+                These are defaults only. Operational Home, Ward, Shift and Date can still be changed from the application header while working.
+              </p>
+            </CardContent>
+          </Card>
           {canResetDemoData ? (
             <Card>
               <CardHeader>
@@ -258,6 +345,35 @@ function ProfilePage() {
               </CardContent>
             </Card>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="access" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Roles and Access</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Info label="Current active role" value={roleLabels[currentUser.role]} />
+                <Info label="Primary Home" value={activeFacility.name} />
+                <Info label="Assigned ward(s)" value={assignedWingNames} />
+              </div>
+              <div className="rounded-md border">
+                {availableRoles.map((role) => (
+                  <div key={role} className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
+                    <div>
+                      <div className="text-sm font-medium">{roleLabels[role]}</div>
+                      <div className="text-xs text-muted-foreground">{activeFacility.name}</div>
+                    </div>
+                    {role === currentUser.role ? <Badge variant="outline">Current</Badge> : <Badge variant="secondary">Available</Badge>}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                You can switch to authorised roles from the profile menu in the application header. Permissions cannot be edited from your own profile.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {isDon ? (

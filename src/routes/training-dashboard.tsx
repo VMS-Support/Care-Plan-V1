@@ -43,6 +43,7 @@ function TrainingDashboard() {
     trainingRequirements: care.trainingRequirements,
     staffTrainingAssignments: care.staffTrainingAssignments,
     staffTrainingCompletions: care.staffTrainingCompletions,
+    staffCompetencyValidations: care.staffCompetencyValidations,
     nursingHomeId: homeId === ALL ? undefined : homeId,
   });
 
@@ -130,7 +131,7 @@ function TrainingDashboard() {
         </Panel>
 
         <Panel title="Upcoming Training" suffix="(Next 7 Days)" action="View Calendar" actionTo="/workforce/training?view=calendar">
-          {dashboard.upcomingSessions.length ? dashboard.upcomingSessions.map((item) => <div key={item.title}>{item.title}</div>) : <Empty text="No Training Sessions are scheduled within the selected period." />}
+          {dashboard.upcomingSessions.length ? dashboard.upcomingSessions.map((item) => <Link key={`${item.title}-${item.date}`} to={item.route as any} className="mb-3 flex items-center justify-between rounded-lg border border-[#edf1f6] p-3 text-sm"><span>{item.title}</span><span className="text-xs text-[#536176]">{formatShortDate(item.date)}</span></Link>) : <Empty text="No Training is due within the next 7 days." />}
         </Panel>
 
         <Panel title="Training by Delivery Method">
@@ -264,4 +265,8 @@ function title(value: string) {
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-IE", { day: "2-digit", month: "short" }).format(new Date(`${value}T00:00:00`));
 }

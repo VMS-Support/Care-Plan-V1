@@ -9,7 +9,10 @@ export function latestTrainingCompletion(completions: StaffTrainingCompletion[],
       completion.status !== "entered_in_error" &&
       completion.status !== "superseded",
     )
-    .sort((a, b) => String(b.completionDate).localeCompare(String(a.completionDate)))[0];
+    .sort((a, b) =>
+      String(b.completionDate).localeCompare(String(a.completionDate)) ||
+      String(b.createdAt).localeCompare(String(a.createdAt))
+    )[0];
 }
 
 export type OperationalTrainingStatus = "not_started" | "in_progress" | "completed" | "overdue" | "cancelled" | "entered_in_error";
@@ -19,9 +22,9 @@ export function resolveTrainingAssignmentStatus(input: { assignment: StaffTraini
   const assignment = input.assignment;
   if (assignment.status === "cancelled") return "cancelled";
   if (assignment.status === "entered_in_error") return "entered_in_error";
+  if (assignment.status === "completed" || assignment.completedAt) return "completed";
   const completion = latestTrainingCompletion(input.completions, assignment);
   if (completion && completion.status !== "entered_in_error" && completion.status !== "superseded") return "completed";
-  if (assignment.completedAt) return "completed";
   if (assignment.dueDate && assignment.dueDate < effectiveAt) return "overdue";
   if (assignment.startedAt || assignment.status === "in_progress") return "in_progress";
   return "not_started";

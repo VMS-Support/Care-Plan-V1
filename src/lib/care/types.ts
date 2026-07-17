@@ -2273,6 +2273,11 @@ export interface UserProfile {
     theme?: "light" | "dark";
     density?: "comfortable" | "compact";
     defaultLandingPage?: string;
+    defaultHomeId?: string;
+    defaultWardId?: string;
+    defaultShiftId?: string;
+    dateDisplayFormat?: "short" | "medium" | "long";
+    timeDisplayFormat?: "12h" | "24h";
   };
 }
 

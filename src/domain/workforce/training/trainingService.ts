@@ -9,7 +9,6 @@ import type {
   TrainingRenewalRule,
 } from "@/lib/care/types";
 import type { EmploymentRecordId, StaffMemberId, UserAccountId } from "@/types/entityIds";
-import { isCurrentEmployment } from "../employment/employmentStatus";
 
 export interface CreateTrainingRequirementCommand {
   trainingCourseId: string;
@@ -200,34 +199,4 @@ export function verifyTrainingCompletion(completion: StaffTrainingCompletion, st
     updatedAt: now,
     updatedByUserAccountId: actorUserAccountId as UserAccountId,
   } satisfies StaffTrainingCompletion;
-}
-
-export function generateTrainingAssignmentsForCurrentStaff(state: TrainingState, actorUserAccountId: string, clientRequestId = "training-generation") {
-  const assignments: StaffTrainingAssignment[] = [];
-  const activeEmployment = state.employmentRecords.filter((record) => isCurrentEmployment(record));
-  for (const employment of activeEmployment) {
-    for (const requirement of state.trainingRequirements.filter((item) => item.active && item.mandatory)) {
-      if (requirement.roleKeys?.length && !requirement.roleKeys.includes(employment.primaryRoleKey || "")) continue;
-      if (requirement.nursingHomeId && requirement.nursingHomeId !== employment.primaryNursingHomeId && requirement.nursingHomeId !== employment.nursingHomeId) continue;
-      const exists = state.staffTrainingAssignments.some((assignment) =>
-        String(assignment.staffMemberId) === String(employment.staffMemberId) &&
-        assignment.trainingCourseId === requirement.trainingCourseId &&
-        assignment.trainingRequirementId === requirement.id &&
-        !["cancelled", "entered_in_error"].includes(assignment.status),
-      );
-      if (!exists) {
-        assignments.push(assignTrainingToStaff(state, {
-          staffMemberId: String(employment.staffMemberId),
-          employmentRecordId: String(employment.id),
-          trainingCourseId: requirement.trainingCourseId,
-          trainingRequirementId: requirement.id,
-          nursingHomeId: String(employment.primaryNursingHomeId || employment.nursingHomeId),
-          dueDate: addMonths(employment.startDate, 1),
-          source: "requirement",
-          clientRequestId: `${clientRequestId}-${employment.id}-${requirement.id}`,
-        }));
-      }
-    }
-  }
-  return assignments.map((assignment) => ({ ...assignment, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
 }

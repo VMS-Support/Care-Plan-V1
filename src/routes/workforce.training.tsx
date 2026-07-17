@@ -61,7 +61,7 @@ const PAGE_SIZES = [25, 50, 100];
 function TrainingWorkspace() {
   const care = useCare();
   const today = new Date().toISOString().slice(0, 10);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("staff");
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState(ALL);
   const [filters, setFilters] = useState<TrainingAssignmentFilters>({ status: "active_and_completed", mandatory: "all", certificate: "all", year: ALL });
@@ -89,6 +89,7 @@ function TrainingWorkspace() {
   const inProgressRows = activeRows.filter((row) => row.status === "in_progress");
   const overdueRows = activeRows.filter((row) => row.status === "overdue");
   const notStartedRows = activeRows.filter((row) => row.status === "not_started");
+  const roleOptions = [...new Set(rows.map((row) => row.roleName).filter((role) => role && role !== "Not recorded"))].sort();
   const metric = getTrainingComplianceMetric({ assignments: care.staffTrainingAssignments, completions: care.staffTrainingCompletions, courses, effectiveAt: today });
   const yearOptions = getTrainingCompletionYears(care.staffTrainingCompletions);
   const completedYear = filters.year && filters.year !== ALL ? filters.year : today.slice(0, 4);
@@ -131,12 +132,10 @@ function TrainingWorkspace() {
           <p className="text-sm text-muted-foreground">Create Courses, assign required Training and monitor Staff completion.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {can("training.create_course") && <Button onClick={() => { setSelectedCourseId(undefined); setCourseOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Course</Button>}
-          {can("training.assign") && <Button variant="outline" onClick={() => { setSelectedCourseId(undefined); setAssignOpen(true); }}><Users className="mr-2 h-4 w-4" /> Assign Training</Button>}
-          {can("training.bulk_assign") && <Button variant="outline" onClick={() => setBulkOpen(true)}>Bulk Assign</Button>}
-          {can("training.manage_categories") && <Button variant="outline" onClick={() => setCategoryOpen(true)}>Add Category</Button>}
-          <Button variant="outline" onClick={() => { setTab("overdue"); setFilter("status", "overdue"); }}>View Overdue</Button>
-          <Button variant="outline" onClick={() => setTab("matrix")}>Training Matrix</Button>
+          {can("training.manage_courses") && <Button size="sm" onClick={() => { setSelectedCourseId(undefined); setCourseOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Course</Button>}
+          {can("training.assign") && <Button size="sm" variant="outline" onClick={() => { setSelectedCourseId(undefined); setAssignOpen(true); }}><Users className="mr-2 h-4 w-4" /> Assign Training</Button>}
+          {can("training.assign") && <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>Bulk Assign</Button>}
+          <Button size="sm" variant="outline" onClick={() => setTab("matrix")}>Training Matrix</Button>
         </div>
       </div>
 
@@ -159,19 +158,16 @@ function TrainingWorkspace() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Panel title="Recent Staff Training" className="lg:col-span-2">
-              <AssignmentTable rows={assignmentQuery.rows.slice(0, 6)} total={assignmentQuery.total} page={1} pageSize={6} pageCount={1} compact hidePagination onComplete={(id) => { setSelectedAssignmentId(id); setCompletionOpen(true); }} onStart={care.startTrainingAssignment} onCancel={care.cancelTrainingAssignment} />
-            </Panel>
-            <Panel title="Quick Actions">
-              <div className="grid gap-2">
-                <Button onClick={() => { setSelectedCourseId(undefined); setCourseOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Course</Button>
-                <Button variant="outline" onClick={() => setAssignOpen(true)}><Users className="mr-2 h-4 w-4" /> Assign Training</Button>
-                <Button variant="outline" onClick={() => setBulkOpen(true)}>Bulk Assign</Button>
-                <Button variant="outline" onClick={() => setTab("matrix")}>Training Matrix</Button>
-              </div>
-            </Panel>
-          </div>
+          <TrainingFilters search={search} setSearch={setSearch} filters={filters} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} roleOptions={roleOptions} yearOptions={yearOptions} total={assignmentQuery.total} />
+          <AssignmentTable rows={assignmentQuery.rows} total={assignmentQuery.total} page={assignmentQuery.page} pageSize={assignmentQuery.pageSize} pageCount={assignmentQuery.pageCount} onPageChange={setPage} onPageSizeChange={setPageSize} sort={sort} onSort={setSort} onComplete={(id) => { setSelectedAssignmentId(id); setCompletionOpen(true); }} onStart={care.startTrainingAssignment} onCancel={care.cancelTrainingAssignment} empty={emptyMessage(filters.status)} />
+          <Panel title="Quick Actions">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <Button size="sm" className="justify-start" onClick={() => { setSelectedCourseId(undefined); setCourseOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Course</Button>
+              <Button size="sm" className="justify-start" variant="outline" onClick={() => setAssignOpen(true)}><Users className="mr-2 h-4 w-4" /> Assign Training</Button>
+              <Button size="sm" className="justify-start" variant="outline" onClick={() => setBulkOpen(true)}>Bulk Assign</Button>
+              <Button size="sm" className="justify-start" variant="outline" onClick={() => setTab("matrix")}>Training Matrix</Button>
+            </div>
+          </Panel>
         </TabsContent>
 
         <TabsContent value="courses" className="space-y-4">
@@ -182,18 +178,18 @@ function TrainingWorkspace() {
         </TabsContent>
 
         <TabsContent value="staff" className="space-y-4">
-          <TrainingFilters search={search} setSearch={setSearch} filters={filters} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} yearOptions={yearOptions} total={assignmentQuery.total} />
+          <TrainingFilters search={search} setSearch={setSearch} filters={filters} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} roleOptions={roleOptions} yearOptions={yearOptions} total={assignmentQuery.total} />
           <AssignmentTable rows={assignmentQuery.rows} total={assignmentQuery.total} page={assignmentQuery.page} pageSize={assignmentQuery.pageSize} pageCount={assignmentQuery.pageCount} onPageChange={setPage} onPageSizeChange={setPageSize} sort={sort} onSort={setSort} onComplete={(id) => { setSelectedAssignmentId(id); setCompletionOpen(true); }} onStart={care.startTrainingAssignment} onCancel={care.cancelTrainingAssignment} empty={emptyMessage(filters.status)} />
         </TabsContent>
 
         <TabsContent value="overdue" className="space-y-4">
-          <TrainingFilters search={search} setSearch={setSearch} filters={{ ...filters, status: "overdue" }} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} yearOptions={yearOptions} total={overdueQuery.total} />
+          <TrainingFilters search={search} setSearch={setSearch} filters={{ ...filters, status: "overdue" }} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} roleOptions={roleOptions} yearOptions={yearOptions} total={overdueQuery.total} />
           <AssignmentTable rows={overdueQuery.rows} total={overdueQuery.total} page={overdueQuery.page} pageSize={overdueQuery.pageSize} pageCount={overdueQuery.pageCount} onPageChange={setPage} onPageSizeChange={setPageSize} sort={sort} onSort={setSort} empty="No active overdue Training assignments match the selected filters." onComplete={(id) => { setSelectedAssignmentId(id); setCompletionOpen(true); }} onStart={care.startTrainingAssignment} onCancel={care.cancelTrainingAssignment} />
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-4">
           <CompletedSummary hours={hours} year={completedYear} />
-          <TrainingFilters search={search} setSearch={setSearch} filters={{ ...filters, status: "completed" }} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} yearOptions={yearOptions} total={queryTrainingAssignments(rows, { filters: { ...filters, search, status: "completed", year: completedYear }, page, pageSize }).total} />
+          <TrainingFilters search={search} setSearch={setSearch} filters={{ ...filters, status: "completed" }} setFilter={setFilter} clearFilters={clearFilters} courses={courses} categories={categories} homes={care.facilities} roleOptions={roleOptions} yearOptions={yearOptions} total={queryTrainingAssignments(rows, { filters: { ...filters, search, status: "completed", year: completedYear }, page, pageSize }).total} />
           <AssignmentTable rows={queryTrainingAssignments(rows, { filters: { ...filters, search, status: "completed", year: completedYear }, sort, page, pageSize }).rows} total={queryTrainingAssignments(rows, { filters: { ...filters, search, status: "completed", year: completedYear }, sort, page, pageSize }).total} page={page} pageSize={pageSize} pageCount={queryTrainingAssignments(rows, { filters: { ...filters, search, status: "completed", year: completedYear }, sort, page, pageSize }).pageCount} empty="No Training was completed during the selected year." onPageChange={setPage} onPageSizeChange={setPageSize} sort={sort} onSort={setSort} onComplete={(id) => { setSelectedAssignmentId(id); setCompletionOpen(true); }} onStart={care.startTrainingAssignment} onCancel={care.cancelTrainingAssignment} />
         </TabsContent>
 
@@ -400,10 +396,11 @@ function CourseTable({ courses, rows, onEdit, onAssign }: { courses: TrainingCou
   return <Panel title="Courses"><div className="overflow-auto rounded-lg border"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="px-4 py-3">Course Title</th><th>Category</th><th>Type</th><th>Duration</th><th>Assigned</th><th>Completed</th><th>In Progress</th><th>Overdue</th><th>Status</th><th>Actions</th></tr></thead><tbody>{courses.map((course) => { const courseRows = rows.filter((row) => row.course?.id === course.id); return <tr key={course.id} className="border-t"><td className="px-4 py-3 font-medium">{course.title}<div className="text-xs text-muted-foreground">{course.description}</div></td><td>{title(course.category)}</td><td>{course.mandatoryByDefault ? "Mandatory" : "Optional"}</td><td>{formatDuration(course.durationMinutes)}</td><td>{courseRows.length}</td><td>{courseRows.filter((row) => row.status === "completed").length}</td><td>{courseRows.filter((row) => row.status === "in_progress").length}</td><td>{courseRows.filter((row) => row.status === "overdue").length}</td><td><Badge variant="outline">{title(course.status)}</Badge></td><td><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={() => onEdit(course.id)}>Edit</Button><Button size="sm" variant="outline" onClick={() => onAssign(course.id)}>Assign</Button><Button size="sm" variant="ghost" onClick={() => { care.duplicateTrainingCourse(course.id); toast.success("Draft copy created."); }}><Copy className="h-3.5 w-3.5" /></Button><Button size="sm" variant="ghost" onClick={() => care.updateTrainingCourse(course.id, { status: course.status === "active" ? "inactive" : "active" })}>{course.status === "active" ? "Deactivate" : "Activate"}</Button><Button size="sm" variant="ghost" onClick={() => care.updateTrainingCourse(course.id, { status: "retired" })}>Retire</Button>{course.status === "draft" && <Button size="sm" variant="ghost" onClick={() => { try { care.deleteTrainingCourse(course.id); toast.success("Unused Draft Course deleted."); } catch (error) { toast.error(error instanceof Error ? error.message : "This Course cannot be deleted."); } }}>Delete Draft</Button>}</div></td></tr>; })}{courses.length === 0 && <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">No Training Courses have been created.</td></tr>}</tbody></table></div></Panel>;
 }
 
-function TrainingFilters({ search, setSearch, filters, setFilter, clearFilters, courses, categories, homes, yearOptions, total }: { search: string; setSearch: (value: string) => void; filters: TrainingAssignmentFilters; setFilter: (key: keyof TrainingAssignmentFilters, value: string) => void; clearFilters: () => void; courses: TrainingCourse[]; categories: Array<{ code: string; name: string }>; homes: Array<{ id: string; name: string }>; yearOptions: string[]; total: number }) {
+function TrainingFilters({ search, setSearch, filters, setFilter, clearFilters, courses, categories, homes, roleOptions, yearOptions, total }: { search: string; setSearch: (value: string) => void; filters: TrainingAssignmentFilters; setFilter: (key: keyof TrainingAssignmentFilters, value: string) => void; clearFilters: () => void; courses: TrainingCourse[]; categories: Array<{ code: string; name: string }>; homes: Array<{ id: string; name: string }>; roleOptions: string[]; yearOptions: string[]; total: number }) {
   const active = [
     search && `Search: ${search}`,
     filters.status && filters.status !== "active_and_completed" && `Status: ${title(filters.status)}`,
+    filters.role && filters.role !== ALL && `Role: ${filters.role}`,
     filters.courseId && filters.courseId !== ALL && `Course`,
     filters.category && filters.category !== ALL && `Category: ${title(filters.category)}`,
     filters.mandatory && filters.mandatory !== "all" && title(filters.mandatory),
@@ -414,6 +411,7 @@ function TrainingFilters({ search, setSearch, filters, setFilter, clearFilters, 
       <div className="flex flex-wrap gap-2">
         <div className="relative"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="w-[260px] pl-8" placeholder="Search Staff, number or Course" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
         <Select value={filters.nursingHomeId || ALL} onValueChange={(value) => setFilter("nursingHomeId", value)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>All Homes</SelectItem>{homes.map((home) => <SelectItem key={home.id} value={home.id}>{home.name}</SelectItem>)}</SelectContent></Select>
+        <Select value={filters.role || ALL} onValueChange={(value) => setFilter("role", value)}><SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>All Roles</SelectItem>{roleOptions.map((role) => <SelectItem key={role} value={role}>{title(role)}</SelectItem>)}</SelectContent></Select>
         <Select value={filters.courseId || ALL} onValueChange={(value) => setFilter("courseId", value)}><SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>All Courses</SelectItem>{courses.map((course) => <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>)}</SelectContent></Select>
         <Select value={filters.status || "active_and_completed"} onValueChange={(value) => setFilter("status", value)}><SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger><SelectContent>{STATUSES.map((item) => <SelectItem key={item} value={item}>{item === "active_and_completed" ? "Active and Completed" : item === "all" ? "All Statuses" : title(item)}</SelectItem>)}</SelectContent></Select>
         <Select value={filters.year || ALL} onValueChange={(value) => setFilter("year", value)}><SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>All Years</SelectItem>{yearOptions.map((year) => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent></Select>
@@ -470,7 +468,7 @@ function AssignmentTable({ rows, empty = "No active or completed Training assign
               <SortableTh label="Status" sortKey="status" active={sort} onSort={changeSort} />
               <SortableTh label="Completion Date" sortKey="completedAt" active={sort} onSort={changeSort} />
               <th>Certificate</th>
-              <th className="px-4 py-3">Actions</th>
+              <th className="sticky right-0 z-10 bg-muted/50 px-4 py-3 shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]">Actions</th>
             </tr>
           </thead>
           <tbody>{rows.map((row) => <AssignmentRow key={row.assignment.id} row={row} care={care} onStart={onStart} onComplete={onComplete} onCancel={onCancel} />)}{rows.length === 0 && <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">{empty}</td></tr>}</tbody>
@@ -503,7 +501,7 @@ function AssignmentRow({ row, care, onStart, onComplete, onCancel }: { row: any;
       <td><StatusBadge status={row.status} started={Boolean(row.assignment.startedAt)} /></td>
       <td>{row.completion?.completionDate || row.assignment.completedAt?.slice(0, 10) || (row.status === "cancelled" ? dateOnly(row.assignment.cancelledAt) : "Not completed")}</td>
       <td>{row.assignment.certificateDocumentId || row.completion?.certificateDocumentId ? <Badge variant="outline">Uploaded</Badge> : <span className="text-muted-foreground">No Certificate</span>}</td>
-      <td className="px-4 py-3"><AssignmentActions row={row} care={care} onStart={onStart} onComplete={onComplete} onCancel={onCancel} /></td>
+      <td className="sticky right-0 bg-card px-4 py-3 shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]"><AssignmentActions row={row} care={care} onStart={onStart} onComplete={onComplete} onCancel={onCancel} /></td>
     </tr>
   );
 }
@@ -527,11 +525,16 @@ function AssignmentActions({ row, care, onStart, onComplete, onCancel }: { row: 
   return (
     <div className="flex items-center gap-1">
       {primary}
+      {!inactive && !completed && <Button size="sm" variant="ghost" onClick={() => editTrainingDueDate(row, care)}>Edit Due</Button>}
       <DropdownMenu>
         <DropdownMenuTrigger asChild><Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {!inactive && !completed && <DropdownMenuItem onClick={() => onComplete(row.assignment.id)}>Mark Completed</DropdownMenuItem>}
-          {!inactive && !completed && <DropdownMenuItem onClick={() => { const dueDate = window.prompt("New due date (YYYY-MM-DD)", row.assignment.dueDate || ""); if (dueDate) care.updateTrainingAssignment(row.assignment.id, { dueDate }, "Due date updated from Training workspace"); }}>Edit Due Date</DropdownMenuItem>}
+          {row.status === "in_progress" && <DropdownMenuItem onClick={() => {
+            care.updateTrainingAssignment(row.assignment.id, { status: "not_started", startedAt: undefined }, "Training reset to Not Started from Training workspace");
+            toast.success("Training reset to Not Started.");
+          }}>Reset to Not Started</DropdownMenuItem>}
+          {!inactive && !completed && <DropdownMenuItem onClick={() => editTrainingDueDate(row, care)}>Edit Due Date</DropdownMenuItem>}
           {!inactive && !completed && <DropdownMenuItem onClick={() => { const reason = window.prompt("Reason for cancellation"); if (reason) onCancel(row.assignment.id, reason); else toast.error("A cancellation reason is required."); }}>Cancel</DropdownMenuItem>}
           {!inactive && <DropdownMenuItem onClick={() => { const reason = window.prompt("Reason for entered in error"); if (reason) care.enterTrainingAssignmentInError(row.assignment.id, reason); }}>Enter in Error</DropdownMenuItem>}
           {completed && <DropdownMenuItem onClick={() => onComplete(row.assignment.id)}>Correct Completion</DropdownMenuItem>}
@@ -542,6 +545,13 @@ function AssignmentActions({ row, care, onStart, onComplete, onCancel }: { row: 
       </DropdownMenu>
     </div>
   );
+}
+
+function editTrainingDueDate(row: any, care: ReturnType<typeof useCare>) {
+  const dueDate = window.prompt("New due date (YYYY-MM-DD)", row.assignment.dueDate || "");
+  if (!dueDate) return;
+  care.updateTrainingAssignment(row.assignment.id, { dueDate }, "Due date updated from Training workspace");
+  toast.success("Training due date updated.");
 }
 
 function PaginationFooter({ total, page, pageSize, pageCount, onPageChange, onPageSizeChange }: { total: number; page: number; pageSize: number; pageCount: number; onPageChange?: (page: number) => void; onPageSizeChange?: (size: number) => void }) {

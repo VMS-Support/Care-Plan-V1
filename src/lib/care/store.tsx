@@ -178,7 +178,6 @@ import {
   assignTrainingToStaff,
   DEFAULT_COMPETENCY_DEFINITIONS,
   DEFAULT_TRAINING_COURSES,
-  generateTrainingAssignmentsForCurrentStaff,
   recordCompetencyValidation,
   recordTrainingCompletion,
   verifyTrainingCompletion,
@@ -450,6 +449,7 @@ let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
 const STORE_STORAGE_KEY = "carepath-pro-data";
 const LEGACY_STORE_STORAGE_KEY = "carepath-pro-store";
+const TRAINING_COURSE_CLEANUP_VERSION = "2026-07-17-clear-training-courses";
 export const BALLYMORE_FACILITY_ID = "facility-ballymore-haven";
 export const HAZELWOOD_FACILITY_ID = "facility-hazelwood-care";
 const ACTIVE_FACILITY_STORAGE_KEY = "carepath-pro-active-facility";
@@ -583,6 +583,25 @@ const REMOVED_DEMO_TASK_TITLES = new Set([
 
 function removeRemovedDemoTasks(tasks: Task[] = []) {
   return tasks.filter((task) => !REMOVED_DEMO_TASK_TITLES.has(task.title));
+}
+
+function clearPersistedTrainingCoursesOnce(parsed: Partial<Store>) {
+  const record = parsed as Partial<Store> & { trainingCourseCleanupVersion?: string };
+  if (record.trainingCourseCleanupVersion === TRAINING_COURSE_CLEANUP_VERSION) return parsed;
+
+  record.trainingCourses = [];
+  record.trainingRequirements = [];
+  record.staffTrainingAssignments = [];
+  record.staffTrainingCompletions = [];
+  record.trainingEvents = (record.trainingEvents || []).filter(
+    (event) =>
+      !event.trainingCourseId &&
+      !event.trainingRequirementId &&
+      !event.trainingAssignmentId &&
+      !event.trainingCompletionId,
+  );
+  record.trainingCourseCleanupVersion = TRAINING_COURSE_CLEANUP_VERSION;
+  return record;
 }
 
 function mergeDefaultRiskAssessmentRequirements(requirements?: AssessmentRequirementRecord[]) {
@@ -2655,6 +2674,7 @@ function loadInitialStore(): Store {
     }
 
     const parsed = JSON.parse(raw) as Partial<Store>;
+    clearPersistedTrainingCoursesOnce(parsed);
     const hasLegacyGeneratedVitals = parsed.vitals?.some((vital) => /^v-R-\d{4}-\d+$/.test(vital.id));
     if (hasLegacyGeneratedVitals) {
       const retainedVitals = (parsed.vitals || []).filter(
@@ -2758,7 +2778,6 @@ interface CareCtx extends Store {
   assignTrainingToMany: (input: AssignTrainingCommand & { staffMemberIds: string[]; mandatory?: boolean }) => StaffTrainingAssignment[];
   recordTrainingCompletion: (input: RecordTrainingCompletionCommand) => StaffTrainingCompletion;
   verifyTrainingCompletion: (id: string) => void;
-  generateTrainingAssignments: () => number;
   recordCompetencyValidation: (input: RecordCompetencyValidationCommand) => StaffCompetencyValidation;
   createStaffHomeAssignment: (input: CreateStaffHomeAssignmentCommand) => EmploymentHomeAssignment;
   endStaffHomeAssignment: (id: string, endDate?: string) => void;
@@ -2940,6 +2959,7 @@ interface CareCtx extends Store {
   selectMultipleWards: (wardIds: string[]) => void;
   selectAllAuthorisedWards: () => void;
   setOperationalShift: (shiftId: string) => void;
+  setOperationalDate: (date: string) => void;
   getResidentsForContext: () => Resident[];
   getTasksDueForContext: () => Task[];
   getAlertsForContext: () => ClinicalAlert[];
@@ -3238,9 +3258,26 @@ export function CareProvider({ children }: { children: ReactNode }) {
   const setCurrentRole = useCallback(
     (r: Role) => {
       const user = store.users.find((u) => u.role === r && userFacilityIds(u).includes(activeFacilityId));
-      if (user) setCurrentUserId(user.id);
+      if (!user || user.id === currentUser.id) return;
+      const now = new Date().toISOString();
+      setStore((s) => ({
+        ...s,
+        auditLogs: [{
+          id: uid(),
+          facilityId: activeFacilityId,
+          user: currentUserName,
+          role: currentRole,
+          action: "Active role changed",
+          entity: currentUser.id,
+          entityType: "user_context",
+          timestamp: now,
+          before: JSON.stringify({ role: currentRole }),
+          after: JSON.stringify({ role: r }),
+        }, ...s.auditLogs].slice(0, 500),
+      }));
+      setCurrentUserId(user.id);
     },
-    [activeFacilityId, store.users],
+    [activeFacilityId, currentRole, currentUser.id, currentUserName, store.users],
   );
 
   const resetToDemoData = useCallback(() => {
@@ -3703,6 +3740,24 @@ export function CareProvider({ children }: { children: ReactNode }) {
           wardSelectionMode: operationalContext.wardSelectionMode,
           shiftId,
           operationalDate: operationalContext.operationalDate,
+          source: "manual_override",
+        });
+        setStore((s) => ({
+          ...s,
+          operationalContexts: [
+            nextContext,
+            ...s.operationalContexts.filter((context) => context.userAccountId !== nextContext.userAccountId),
+          ],
+        }));
+      },
+      setOperationalDate: (date) => {
+        const nextContext = initialiseOperationalContext(store, {
+          userAccountId: operationalContext.userAccountId,
+          nursingHomeId: operationalContext.nursingHomeId,
+          wardIds: operationalContext.wardIds,
+          wardSelectionMode: operationalContext.wardSelectionMode,
+          shiftId: operationalContext.shiftId,
+          operationalDate: date,
           source: "manual_override",
         });
         setStore((s) => ({
@@ -4281,7 +4336,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({
           ...s,
           staffTrainingCompletions: [completion, ...s.staffTrainingCompletions],
-          staffTrainingAssignments: completion.trainingAssignmentId ? s.staffTrainingAssignments.map((assignment) => assignment.id === completion.trainingAssignmentId ? { ...assignment, latestCompletionId: completion.id, status: completion.status === "verified" ? "completed" : "in_progress", updatedAt: now } : assignment) : s.staffTrainingAssignments,
+          staffTrainingAssignments: completion.trainingAssignmentId ? s.staffTrainingAssignments.map((assignment) => assignment.id === completion.trainingAssignmentId ? { ...assignment, latestCompletionId: completion.id, status: "completed", completedAt: `${completion.completionDate}T12:00:00.000Z`, completionNotes: completion.notes, certificateDocumentId: completion.certificateDocumentId || assignment.certificateDocumentId, updatedAt: now } : assignment) : s.staffTrainingAssignments,
           trainingEvents: [event, ...(s.trainingEvents || [])],
           auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Training Completion recorded", entity: String(completion.id), entityType: "training_completion", timestamp: now, after: JSON.stringify({ trainingCourseId: completion.trainingCourseId, completionDate: completion.completionDate, status: completion.status }) }, ...s.auditLogs].slice(0, 500),
         }));
@@ -4294,14 +4349,6 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const now = new Date().toISOString();
         const event: TrainingEvent = { id: `training-event-${uid()}`, type: "TrainingCompletionVerified", staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, trainingCourseId: next.trainingCourseId, trainingAssignmentId: next.trainingAssignmentId, trainingCompletionId: next.id, safeStatus: next.status, expiryDate: next.expiryDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-verify-${id}-${now}` };
         setStore((s) => ({ ...s, staffTrainingCompletions: s.staffTrainingCompletions.map((completion) => String(completion.id) === id ? next : completion), staffTrainingAssignments: next.trainingAssignmentId ? s.staffTrainingAssignments.map((assignment) => assignment.id === next.trainingAssignmentId ? { ...assignment, latestCompletionId: next.id, status: "completed", updatedAt: now } : assignment) : s.staffTrainingAssignments, trainingEvents: [event, ...(s.trainingEvents || [])] }));
-      },
-      generateTrainingAssignments: () => {
-        const assignments = generateTrainingAssignmentsForCurrentStaff(store, currentUser.id);
-        if (!assignments.length) return 0;
-        const now = new Date().toISOString();
-        const events = assignments.map((assignment): TrainingEvent => ({ id: `training-event-${uid()}`, type: "TrainingAssignmentCreated", staffMemberId: assignment.staffMemberId, employmentRecordId: assignment.employmentRecordId, trainingCourseId: assignment.trainingCourseId, trainingRequirementId: assignment.trainingRequirementId, trainingAssignmentId: assignment.id, safeStatus: assignment.status, dueDate: assignment.dueDate, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `training-generation-${now}` }));
-        setStore((s) => ({ ...s, staffTrainingAssignments: [...assignments, ...s.staffTrainingAssignments], trainingEvents: [...events, ...(s.trainingEvents || [])] }));
-        return assignments.length;
       },
       recordCompetencyValidation: (input) => {
         const validation = recordCompetencyValidation({ definitions: store.competencyDefinitions, completions: store.staffTrainingCompletions }, input, currentUser.id);

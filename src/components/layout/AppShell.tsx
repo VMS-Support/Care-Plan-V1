@@ -30,14 +30,12 @@ import {
   BriefcaseBusiness,
   FileText,
   CalendarDays,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { RoleSwitcher } from "@/components/care/RoleSwitcher";
 import { UserMenu } from "@/components/care/UserMenu";
-import { GlobalFilter } from "@/components/care/GlobalFilter";
 import { OperationalContextSwitcher } from "@/components/care/OperationalContextSwitcher";
 
 type CapabilityCheck = (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
@@ -408,19 +406,21 @@ function TopBar() {
   const current = [...nav, ...workforceNav].find((n) => (n.exact ? pathname === n.to : pathname.startsWith(n.to)));
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b">
-      <div className="flex items-center gap-3 px-4 md:px-6 h-14">
-        <div className="font-semibold text-sm md:text-base">{current?.label ?? "NuCare"}</div>
-        <Badge variant="outline" className="hidden sm:inline-flex text-[10px]">
-          Demo Data
-        </Badge>
+      <div className="flex min-h-14 items-center gap-3 px-4 py-2 md:px-6">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm md:text-base">{current?.label ?? "Dashboard"}</span>
+          </div>
+        </div>
         <div className="flex-1" />
-        <GlobalFilter />
         <OperationalContextSwitcher />
         <div className="relative w-full max-w-[200px] hidden xl:block">
           <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
           <Input placeholder="Search…" className="pl-8 h-9" />
         </div>
-        <RoleSwitcher />
+        <button className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground" aria-label="Notifications">
+          <Bell className="h-4 w-4" />
+        </button>
         <UserMenu />
       </div>
     </header>

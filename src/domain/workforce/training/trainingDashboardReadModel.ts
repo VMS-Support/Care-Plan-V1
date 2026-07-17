@@ -1,6 +1,7 @@
 import type {
   Facility,
   StaffMember,
+  StaffCompetencyValidation,
   StaffTrainingAssignment,
   StaffTrainingCompletion,
   TrainingCourse,
@@ -9,6 +10,8 @@ import type {
 } from "@/lib/care/types";
 import { getTrainingComplianceMetric, latestTrainingCompletion } from "./trainingMetricsService";
 import { getTrainingComplianceStatus } from "./trainingService";
+import { getCompletedTrainingHours } from "./trainingHoursService";
+import { getCompetencyStatus } from "../competency/competencyService";
 
 export type TrainingDashboardAvailability = "available" | "partially_available" | "not_configured" | "not_applicable";
 
@@ -74,6 +77,7 @@ export function getTrainingDashboard(input: {
   trainingRequirements: TrainingRequirement[];
   staffTrainingAssignments: StaffTrainingAssignment[];
   staffTrainingCompletions: StaffTrainingCompletion[];
+  staffCompetencyValidations?: StaffCompetencyValidation[];
   nursingHomeId?: string;
 }): TrainingDashboardViewModel {
   const homes = input.nursingHomeId ? input.facilities.filter((home) => home.id === input.nursingHomeId) : input.facilities;
@@ -81,21 +85,26 @@ export function getTrainingDashboard(input: {
   const courses = input.trainingCourses.filter((course) => course.status !== "retired");
   const assignments = input.staffTrainingAssignments.filter((assignment) =>
     assignment.status !== "entered_in_error" &&
+    assignment.status !== "cancelled" &&
     (!assignment.nursingHomeId || homeIds.size === 0 || homeIds.has(String(assignment.nursingHomeId)))
   );
   const completions = input.staffTrainingCompletions.filter((completion) =>
     completion.status !== "entered_in_error" &&
+    completion.status !== "superseded" &&
     input.reportingPeriod.from <= completion.completionDate &&
     completion.completionDate <= input.reportingPeriod.to
   );
-  const allCompletions = input.staffTrainingCompletions.filter((completion) => completion.status !== "entered_in_error");
+  const allCompletions = input.staffTrainingCompletions.filter((completion) => completion.status !== "entered_in_error" && completion.status !== "superseded");
   const activeRequirements = input.trainingRequirements.filter((requirement) =>
     requirement.active &&
     (!requirement.nursingHomeId || homeIds.has(String(requirement.nursingHomeId)))
   );
   const compliance = getTrainingComplianceMetric({ assignments, completions: allCompletions, courses, effectiveAt: input.reportingDate });
   const mandatoryAssignmentIds = new Set(activeRequirements.filter((requirement) => requirement.mandatory).map((requirement) => requirement.id));
-  const mandatoryAssignments = assignments.filter((assignment) => !assignment.trainingRequirementId || mandatoryAssignmentIds.has(assignment.trainingRequirementId));
+  const mandatoryAssignments = assignments.filter((assignment) => {
+    const course = courses.find((item) => item.id === assignment.trainingCourseId);
+    return assignment.mandatory ?? course?.mandatoryByDefault ?? Boolean(assignment.trainingRequirementId && mandatoryAssignmentIds.has(assignment.trainingRequirementId));
+  });
   const mandatory = getTrainingComplianceMetric({ assignments: mandatoryAssignments, completions: allCompletions, courses, effectiveAt: input.reportingDate });
   const inProgressRecords = [
     ...compliance.inProgressAssignments,
@@ -104,10 +113,21 @@ export function getTrainingDashboard(input: {
   const verifiedCompletions = completions.filter((completion) => completion.status === "verified" && completion.verificationStatus === "verified");
   const pendingCompletions = completions.filter((completion) => completion.status === "pending_verification" || completion.verificationStatus === "pending");
   const failedCompletions = completions.filter((completion) => completion.status === "verification_failed" || completion.verificationStatus === "failed");
-  const totalTrainingMinutes = verifiedCompletions.reduce((sum, completion) => {
-    const course = courses.find((item) => item.id === completion.trainingCourseId);
-    return sum + estimateCourseMinutes(course);
-  }, 0);
+  const trainingHours = getCompletedTrainingHours({
+    assignments,
+    completions,
+    courses,
+    filters: {
+      dateFrom: input.reportingPeriod.from,
+      dateTo: input.reportingPeriod.to,
+      nursingHomeId: input.nursingHomeId || "all",
+    },
+  });
+  const competencyRecords = (input.staffCompetencyValidations || []).filter((validation) =>
+    !["entered_in_error", "superseded", "revoked"].includes(validation.status) &&
+    (!validation.nursingHomeId || homeIds.size === 0 || homeIds.has(String(validation.nursingHomeId)))
+  );
+  const competenciesMet = competencyRecords.filter((validation) => ["competent", "competent_with_supervision", "due_soon"].includes(getCompetencyStatus(validation, input.reportingDate)));
 
   return {
     reportingDate: input.reportingDate,
@@ -120,7 +140,16 @@ export function getTrainingDashboard(input: {
       overdueTraining: countMetric(compliance.overdueAssignments.length + compliance.expiredAssignments.length, "Overdue or expired active training assignments.", "/workforce/training?status=overdue", [...compliance.overdueAssignments, ...compliance.expiredAssignments]),
       trainingInProgress: countMetric(inProgressRecords.length, "Assignments in progress or pending verification.", "/workforce/training?status=in_progress", inProgressRecords),
       coursesCompleted: countMetric(verifiedCompletions.length, `${pendingCompletions.length} pending verification, ${failedCompletions.length} failed in the selected period.`, "/workforce/training?view=completions", verifiedCompletions),
-      totalTrainingHours: totalTrainingMinutes ? countMetric(round1(totalTrainingMinutes / 60), "Calculated from verified completions and configured course duration where available.", "/workforce/training?view=hours", verifiedCompletions) : { value: "Not Configured", availability: "not_configured", explanation: "No verified completion records with trusted duration exist for the selected period.", route: "/workforce/training?view=hours", records: [] },
+      totalTrainingHours: trainingHours.completionCount
+        ? {
+          value: String(trainingHours.totalHours),
+          numerator: trainingHours.totalMinutes,
+          availability: trainingHours.availability === "partial" ? "partially_available" : "available",
+          explanation: trainingHours.explanation,
+          route: "/workforce/training?view=hours",
+          records: trainingHours.rows,
+        }
+        : countMetric(0, "No completed Training Hours have been recorded in the selected period.", "/workforce/training?view=hours", []),
     },
     mandatoryComplianceByCategory: byCategory(mandatoryAssignments, allCompletions, courses, input.reportingDate),
     trainingStatusOverview: {
@@ -139,7 +168,7 @@ export function getTrainingDashboard(input: {
     categoriesNeedingAttention: byCategory(mandatoryAssignments, allCompletions, courses, input.reportingDate)
       .filter((item) => item.denominator > 0 && ((item.compliancePercentage ?? 0) < (item.targetPercentage ?? 85) || item.overdue > 0))
       .map((item) => ({ category: item.category, compliancePercentage: item.compliancePercentage, overdue: item.overdue, reason: item.overdue ? `${item.overdue} overdue assignment(s)` : "Compliance below target", route: item.route })),
-    upcomingSessions: [],
+    upcomingSessions: upcomingTraining(assignments, courses, input.reportingDate),
     deliveryMethodBreakdown: deliveryMethods(verifiedCompletions),
     popularElearningCourses: popularElearning(verifiedCompletions, courses),
     homeCompliance: homeCompliance(homes, assignments, allCompletions, courses, input.reportingDate),
@@ -147,7 +176,7 @@ export function getTrainingDashboard(input: {
       activeCertificates: countMetric(allCompletions.filter((completion) => Boolean(completion.certificateDocumentId || completion.certificateFileId) && (!completion.expiryDate || completion.expiryDate >= input.reportingDate)).length, "Verified completions with active certificate evidence.", "/workforce/training?view=certificates", allCompletions),
       expiringSoon: countMetric(allCompletions.filter((completion) => completion.expiryDate && completion.expiryDate >= input.reportingDate && completion.expiryDate <= addDays(input.reportingDate, 30)).length, "Certificates or completions expiring in the next 30 days.", "/workforce/training?view=certificates&expiry=soon", allCompletions),
       expired: countMetric(compliance.expiredAssignments.length, "Assignments whose latest verified completion has expired.", "/workforce/training?status=expired", compliance.expiredAssignments),
-      competenciesMet: { value: "Not Configured", availability: "not_configured", explanation: "Competency requirements are managed in the Competencies workspace.", route: "/workforce/competencies", records: [] },
+      competenciesMet: countMetric(competenciesMet.length, "Current competency validations marked competent, competent with supervision, or due soon.", "/workforce/competencies", competenciesMet),
     },
     alerts: [
       { label: "Overdue Training", count: compliance.overdueAssignments.length, route: "/workforce/training?status=overdue" },
@@ -230,6 +259,24 @@ function popularElearning(completions: StaffTrainingCompletion[], courses: Train
   return [...new Set(online.map((completion) => completion.trainingCourseId))].map((courseId) => ({ courseTitle: courses.find((course) => course.id === courseId)?.title || "Training Course", completions: online.filter((completion) => completion.trainingCourseId === courseId).length, route: `/workforce/training?course=${courseId}` })).sort((a, b) => b.completions - a.completions).slice(0, 3);
 }
 
+function upcomingTraining(assignments: StaffTrainingAssignment[], courses: TrainingCourse[], reportingDate: string) {
+  const end = addDays(reportingDate, 7);
+  return assignments
+    .filter((assignment) => assignment.dueDate && assignment.dueDate >= reportingDate && assignment.dueDate <= end)
+    .filter((assignment) => {
+      const course = courses.find((item) => item.id === assignment.trainingCourseId);
+      const status = getTrainingComplianceStatus({ assignment, course, effectiveAt: reportingDate });
+      return ["not_started", "in_progress", "due_soon"].includes(status);
+    })
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+    .slice(0, 5)
+    .map((assignment) => ({
+      title: courses.find((course) => course.id === assignment.trainingCourseId)?.title || "Training Assignment",
+      date: assignment.dueDate || reportingDate,
+      route: `/workforce/training?assignment=${assignment.id}`,
+    }));
+}
+
 function homeCompliance(homes: Facility[], assignments: StaffTrainingAssignment[], completions: StaffTrainingCompletion[], courses: TrainingCourse[], reportingDate: string) {
   return homes.map((home) => {
     const rows = assignments.filter((assignment) => String(assignment.nursingHomeId || "") === String(home.id));
@@ -237,11 +284,6 @@ function homeCompliance(homes: Facility[], assignments: StaffTrainingAssignment[
     const compliant = statuses.filter((status) => status === "compliant" || status === "due_soon").length;
     return { homeId: home.id, homeName: home.name, totalAssignments: rows.length, compliant, inProgress: statuses.filter((status) => status === "in_progress" || status === "pending_verification").length, overdue: statuses.filter((status) => status === "overdue" || status === "expired").length, compliancePercentage: rows.length ? Math.round((compliant / rows.length) * 100) : undefined, route: `/workforce/training?home=${home.id}` };
   }).filter((home) => home.totalAssignments > 0);
-}
-
-function estimateCourseMinutes(course?: TrainingCourse) {
-  if (!course) return 0;
-  return course.deliveryMethods.includes("classroom") || course.deliveryMethods.includes("practical") ? 180 : 60;
 }
 
 function addDays(date: string, days: number) {
