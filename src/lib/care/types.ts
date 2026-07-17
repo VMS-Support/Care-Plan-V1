@@ -2054,6 +2054,9 @@ export type CarePlanStatus =
   | "evaluation_due"
   | "overdue_review"
   | "overdue_evaluation"
+  | "under_review"
+  | "discontinued"
+  | "entered_in_error"
   | "completed"
   | "superseded"
   | "archived"
@@ -2509,6 +2512,10 @@ export interface CarePlanReview {
     | "continue"
     | "modify"
     | "close"
+    | "discontinue"
+    | "entered_in_error"
+    | "supersede"
+    | "archive"
     | "escalate_gp"
     | "escalate_mdt"
     | "escalate_specialist"
@@ -3102,7 +3109,7 @@ export type ProblemCategory =
   | "custom";
 
 export type ProblemRiskLevel = "none" | "low" | "moderate" | "high" | "very_high" | "resolved";
-export type ProblemStatus = "active" | "resolved" | "archived";
+export type ProblemStatus = "active" | "resolved" | "discontinued" | "superseded" | "archived" | "entered_in_error";
 export type FrequencyType =
   | "once"
   | "per_shift"

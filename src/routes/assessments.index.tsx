@@ -4,6 +4,7 @@ import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { deriveStatus, riskBadgeCls } from "@/lib/care/assessments";
+import { getDonRiskAssessmentMetric } from "@/domain/assessments/riskAssessmentComplianceService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -561,7 +562,8 @@ function AssessmentWorkQueue({
 
 function AssessmentsList() {
   const navigate = useNavigate();
-  const { assessments, residents, users, wings, currentRole, currentUserName } = useCare();
+  const care = useCare();
+  const { assessments, residents, users, wings, currentRole, currentUserName } = care;
 
   const [roleView, setRoleView] = useState<"nurse" | "governance">("nurse");
   const [viewMode, setViewMode] = useState<ViewMode>("due_overdue");
@@ -853,6 +855,15 @@ function AssessmentsList() {
   }, [currentUserName, latestRows, residentsMissingMandatory.length, todayKey]);
 
   const governance = useMemo(() => {
+    const riskAssessmentCompliance = getDonRiskAssessmentMetric({
+      residents,
+      assessments,
+      assessmentRequirements: ((care as any).assessmentRequirements || (care as any).assessmentRequirementState?.requirements || []),
+      nursingHomeId: (care as any).activeFacilityId,
+      reportingDate: todayKey,
+      route: `/assessments?metric=don-risk-assessments&date=${todayKey}`,
+      reassessmentTriggers: ((care as any).assessmentReviewTriggerEvents || []),
+    });
     const dueUniverse = latestRows.filter((r) => !!r.dueDate);
     const overdue = dueUniverse.filter((r) => r.status === "overdue").length;
     const compliancePct = dueUniverse.length
@@ -919,13 +930,14 @@ function AssessmentsList() {
       compliancePct,
       dueUniverse: dueUniverse.length,
       overdue,
+      riskAssessmentCompliance,
       coverageByType,
       riskDistribution,
       staffPerformance,
       completionTrends,
       auditRows,
     };
-  }, [activeAssessments, latestRows, residents, users]);
+  }, [activeAssessments, assessments, care, latestRows, residents, todayKey, users]);
 
   const resetAssessmentFilters = () => {
     setViewMode("due_overdue");
@@ -1345,15 +1357,20 @@ function AssessmentsList() {
               <div className="grid gap-3 md:grid-cols-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Compliance %</CardTitle>
+                    <CardTitle className="text-base">Risk Assessment Compliance</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-semibold tabular-nums">
-                      {governance.compliancePct}%
+                      {governance.riskAssessmentCompliance.value === undefined
+                        ? governance.riskAssessmentCompliance.status === "not_configured"
+                          ? "Not Configured"
+                          : governance.riskAssessmentCompliance.displayLabel
+                        : `${Math.round(governance.riskAssessmentCompliance.value)}%`}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Overdue: {governance.overdue} / Due Universe: {governance.dueUniverse}
+                      {governance.riskAssessmentCompliance.explanation}
                     </div>
+                    <Badge variant="outline" className="mt-2">{governance.riskAssessmentCompliance.displayLabel}</Badge>
                   </CardContent>
                 </Card>
 

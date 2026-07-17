@@ -443,6 +443,7 @@ import type {
   RuleRecalculationRequest,
   RuleSuppression,
 } from "@/domain/rules/ruleTypes";
+import type { AssessmentRequirementRecord } from "@/domain/assessments/riskAssessmentComplianceService";
 
 let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
@@ -481,6 +482,90 @@ const FACILITIES_SEED: Facility[] = [
     createdBy: "System",
   },
 ];
+const DEFAULT_RISK_ASSESSMENT_REQUIREMENTS: AssessmentRequirementRecord[] = [
+  {
+    id: "assessment-requirement-waterlow-active-residents",
+    assessmentType: "waterlow",
+    mandatory: true,
+    active: true,
+    status: "active",
+    category: "risk",
+    includeInDonRiskAssessmentMetric: true,
+    residentStatuses: ["active"],
+    effectiveFrom: "2026-01-01",
+    reviewFrequencyDays: 90,
+    dueSoonWarningDays: 14,
+    requirementVersion: 1,
+    priority: "critical",
+    criticalMissing: true,
+    displayName: "Waterlow Pressure Risk Assessment",
+  },
+  {
+    id: "assessment-requirement-falls-active-residents",
+    assessmentType: "falls",
+    mandatory: true,
+    active: true,
+    status: "active",
+    category: "risk",
+    includeInDonRiskAssessmentMetric: true,
+    residentStatuses: ["active"],
+    effectiveFrom: "2026-01-01",
+    reviewFrequencyDays: 90,
+    dueSoonWarningDays: 14,
+    requirementVersion: 1,
+    priority: "critical",
+    criticalMissing: true,
+    displayName: "Falls Risk Assessment",
+  },
+  {
+    id: "assessment-requirement-mna-active-residents",
+    assessmentType: "mna",
+    mandatory: true,
+    active: true,
+    status: "active",
+    category: "risk",
+    includeInDonRiskAssessmentMetric: true,
+    residentStatuses: ["active"],
+    effectiveFrom: "2026-01-01",
+    reviewFrequencyDays: 90,
+    dueSoonWarningDays: 14,
+    requirementVersion: 1,
+    priority: "high",
+    displayName: "MNA Nutrition Risk Assessment",
+  },
+  {
+    id: "assessment-requirement-abbey-pain-active-residents",
+    assessmentType: "abbey_pain",
+    mandatory: true,
+    active: true,
+    status: "active",
+    category: "risk",
+    includeInDonRiskAssessmentMetric: true,
+    residentStatuses: ["active"],
+    effectiveFrom: "2026-01-01",
+    reviewFrequencyDays: 90,
+    dueSoonWarningDays: 14,
+    requirementVersion: 1,
+    priority: "high",
+    displayName: "Abbey Pain Assessment",
+  },
+  {
+    id: "assessment-requirement-mmse-active-residents",
+    assessmentType: "mmse",
+    mandatory: true,
+    active: true,
+    status: "active",
+    category: "risk",
+    includeInDonRiskAssessmentMetric: true,
+    residentStatuses: ["active"],
+    effectiveFrom: "2026-01-01",
+    reviewFrequencyDays: 180,
+    dueSoonWarningDays: 30,
+    requirementVersion: 1,
+    priority: "normal",
+    displayName: "MMSE Cognitive Assessment",
+  },
+];
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
 const daysAhead = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
 const phoneFor = (seed: number) =>
@@ -497,6 +582,15 @@ const REMOVED_DEMO_TASK_TITLES = new Set([
 
 function removeRemovedDemoTasks(tasks: Task[] = []) {
   return tasks.filter((task) => !REMOVED_DEMO_TASK_TITLES.has(task.title));
+}
+
+function mergeDefaultRiskAssessmentRequirements(requirements?: AssessmentRequirementRecord[]) {
+  const existing = requirements || [];
+  const existingIds = new Set(existing.map((requirement) => requirement.id));
+  return [
+    ...existing,
+    ...DEFAULT_RISK_ASSESSMENT_REQUIREMENTS.filter((requirement) => !existingIds.has(requirement.id)),
+  ];
 }
 
 const PHYSIOLOGICAL_ALERT_TYPES = new Set<ClinicalAlert["type"]>([
@@ -2093,6 +2187,7 @@ function seedData() {
     permissionGrants: [] as PermissionGrant[],
     roleTemplates: [] as RoleTemplate[],
     auditRecords: [] as AuditRecord[],
+    assessmentRequirements: DEFAULT_RISK_ASSESSMENT_REQUIREMENTS,
     eventStore: [] as EventStoreRecord[],
     eventOutbox: [] as EventStoreRecord[],
     eventProcessingReceipts: [] as EventProcessingReceipt[],
@@ -2326,6 +2421,7 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
     ...store,
     enterprises: store.enterprises?.length ? store.enterprises : ENTERPRISES_SEED,
     facilities: FACILITIES_SEED,
+    assessmentRequirements: mergeDefaultRiskAssessmentRequirements((store as Store & { assessmentRequirements?: AssessmentRequirementRecord[] }).assessmentRequirements),
     users: hasHazelwoodDon
       ? normalizedUsers
       : [
@@ -2364,6 +2460,7 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
 
 function scopeNewRecords(previous: Store, next: Store, activeFacilityId: string): Store {
   let scoped = { ...next };
+  scoped.assessmentRequirements = mergeDefaultRiskAssessmentRequirements((scoped as Store & { assessmentRequirements?: AssessmentRequirementRecord[] }).assessmentRequirements);
   for (const key of FACILITY_SCOPED_ARRAY_KEYS) {
     const previousIds = new Set((previous[key] as ScopedItem[]).map((record) => record.id));
     const records = scoped[key] as ScopedItem[];

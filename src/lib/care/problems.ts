@@ -229,7 +229,8 @@ export function migrateLegacy(
     }
     const problemId = uid("prob");
     legacyCarePlanIdToProblemId[plan.id] = problemId;
-    const isActive = plan.status === "active" || plan.status === "draft" || plan.status === "review_due" || plan.status === "evaluation_due";
+    const isActive = plan.status === "active" || plan.status === "draft" || plan.status === "review_due" || plan.status === "evaluation_due" || plan.status === "under_review";
+    const isResolved = plan.status === "completed" || plan.status === "discontinued";
     const category = inferCategory(plan.category || plan.title);
     const rltResolution = resolveCarePlanRltDomain({
       category: plan.category ? category : "custom",
@@ -247,9 +248,9 @@ export function migrateLegacy(
       createdAt: plan.createdAt || new Date().toISOString(),
       evaluationDate: plan.evaluationDate || inDays(14),
       reviewDate: plan.reviewDate || inDays(30),
-      status: isActive ? "active" : plan.status === "completed" ? "resolved" : "archived",
-      resolvedAt: plan.status === "completed" ? plan.updatedAt : undefined,
-      resolvedBy: plan.status === "completed" ? plan.updatedBy : undefined,
+      status: isActive ? "active" : isResolved ? "resolved" : "archived",
+      resolvedAt: isResolved ? plan.updatedAt : undefined,
+      resolvedBy: isResolved ? plan.updatedBy : undefined,
     };
     carePlanProblems.push(problem);
 

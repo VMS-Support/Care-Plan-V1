@@ -60,7 +60,7 @@ export const Route = createFileRoute("/care-plans")({
   component: CarePlansPage,
 });
 
-type WorkflowTab = "active" | "reviews" | "evaluations" | "completed" | "archived" | "governance";
+type WorkflowTab = "active" | "reviews" | "evaluations" | "discontinued" | "archived" | "governance";
 type QuickFilter =
   | "all"
   | "mine"
@@ -68,7 +68,7 @@ type QuickFilter =
   | "review_due"
   | "evaluation_due"
   | "overdue"
-  | "completed";
+  | "discontinued";
 
 const DUE_SOON_DAYS = 7;
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -80,9 +80,9 @@ const RISK_RANK: Record<string, number> = {
   moderate: 2,
   low: 1,
 };
-const INACTIVE_STATUSES = ["completed", "archived", "superseded"];
+const INACTIVE_STATUSES = ["completed", "discontinued", "archived", "superseded", "entered_in_error"];
 
-type RegisterStatusFilter = "all" | "active" | "completed" | "archived";
+type RegisterStatusFilter = "all" | "active" | "discontinued" | "archived";
 type RegisterRiskFilter = "all" | "critical" | "high" | "medium" | "low";
 type RegisterDueFilter = "all" | "review_due" | "evaluation_due" | "overdue";
 type RegisterQualityFilter = "all" | CarePlanQualityStatus;
@@ -141,11 +141,25 @@ function statusMeta(plan: { status: string; reviewDate: string; evaluationDate?:
   const reviewDays = daysUntil(plan.reviewDate);
   const evaluationDays = daysUntil(plan.evaluationDate);
 
-  if (plan.status === "completed") {
+  if (plan.status === "discontinued" || plan.status === "completed") {
     return {
-      label: "Completed",
-      tone: "bg-muted text-muted-foreground border-border",
-      dot: "bg-muted-foreground",
+      label: plan.status === "completed" ? "Completed (Legacy)" : "Discontinued",
+      tone: "bg-slate-100 text-slate-700 border-slate-200",
+      dot: "bg-slate-500",
+    };
+  }
+  if (plan.status === "under_review") {
+    return {
+      label: "Under Review",
+      tone: "bg-blue-500/10 text-blue-700 border-blue-200",
+      dot: "bg-blue-500",
+    };
+  }
+  if (plan.status === "entered_in_error") {
+    return {
+      label: "Entered in Error",
+      tone: "bg-destructive/10 text-destructive border-destructive/30",
+      dot: "bg-destructive",
     };
   }
   if (plan.status === "archived" || plan.status === "superseded") {
@@ -190,7 +204,9 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
   const { addEvaluation, updateCarePlan } = useCare();
   const [open, setOpen] = useState(false);
   const [achieve, setAchieve] = useState<"achieved" | "partial" | "not_achieved">("partial");
-  const [outcome, setOutcome] = useState<"continue" | "modify" | "close">("continue");
+  const [outcome, setOutcome] = useState<
+    "continue" | "modify" | "discontinue" | "entered_in_error" | "supersede" | "archive"
+  >("continue");
   const [notes, setNotes] = useState("");
 
   return (
@@ -227,7 +243,10 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
               <SelectContent>
                 <SelectItem value="continue">Continue care plan</SelectItem>
                 <SelectItem value="modify">Modify care plan</SelectItem>
-                <SelectItem value="close">Close care plan</SelectItem>
+                <SelectItem value="discontinue">Discontinue care plan</SelectItem>
+                <SelectItem value="entered_in_error">Entered in Error</SelectItem>
+                <SelectItem value="supersede">Superseded</SelectItem>
+                <SelectItem value="archive">Archive</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -251,9 +270,14 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
                 outcome,
                 nextReviewDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
               });
-              if (outcome === "close") {
-                updateCarePlan(carePlanId, { status: "completed" });
-              }
+              const statusByOutcome = {
+                discontinue: "discontinued",
+                entered_in_error: "entered_in_error",
+                supersede: "superseded",
+                archive: "archived",
+              } as const;
+              const nextStatus = statusByOutcome[outcome as keyof typeof statusByOutcome];
+              if (nextStatus) updateCarePlan(carePlanId, { status: nextStatus });
               toast.success("Review recorded");
               setOpen(false);
             }}
@@ -267,13 +291,16 @@ function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
 }
 
 function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
-  const { addProblemEvaluation } = useCare();
+  const { addProblemEvaluation, updateProblem, archiveProblem } = useCare();
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState("");
   const [goalsMet, setGoalsMet] = useState<"yes" | "partial" | "no">("partial");
   const [progress, setProgress] = useState<
     "improved" | "stable" | "deteriorated" | "resolved" | "requires_revision"
   >("stable");
+  const [statusAction, setStatusAction] = useState<
+    "none" | "discontinued" | "entered_in_error" | "superseded" | "archived"
+  >("none");
   const [nextEvaluationDate, setNextEvaluationDate] = useState(
     new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
   );
@@ -321,6 +348,19 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
             </div>
           </div>
           <div>
+            <Label>Care plan status</Label>
+            <Select value={statusAction} onValueChange={(value) => setStatusAction(value as typeof statusAction)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No status change</SelectItem>
+                <SelectItem value="discontinued">Discontinued</SelectItem>
+                <SelectItem value="entered_in_error">Entered in Error</SelectItem>
+                <SelectItem value="superseded">Superseded</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label>Next Review of Outcome</Label>
             <Textarea
               value={nextEvaluationDate}
@@ -344,8 +384,25 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
                 recommendations: "",
                 nextEvaluationDate,
               });
+              if (statusAction === "archived") {
+                archiveProblem(problemId, summary || "Archived from care plan review");
+              } else if (statusAction !== "none") {
+                updateProblem(
+                  problemId,
+                  {
+                    status: statusAction,
+                    resolvedAt: new Date().toISOString(),
+                    resolvedReason: summary,
+                    ...(statusAction === "discontinued" || statusAction === "superseded"
+                      ? { riskLevel: "resolved" as const }
+                      : {}),
+                  },
+                  `Status changed to ${statusAction.replace("_", " ")} from care plan review`,
+                );
+              }
               toast.success("Review recorded");
               setSummary("");
+              setStatusAction("none");
               setOpen(false);
             }}
           >
@@ -366,12 +423,15 @@ function ProblemEvaluationDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { addProblemEvaluation } = useCare();
+  const { addProblemEvaluation, updateProblem, archiveProblem } = useCare();
   const [summary, setSummary] = useState("");
   const [goalsMet, setGoalsMet] = useState<"yes" | "partial" | "no">("partial");
   const [progress, setProgress] = useState<
     "improved" | "stable" | "deteriorated" | "resolved" | "requires_revision"
   >("stable");
+  const [statusAction, setStatusAction] = useState<
+    "none" | "discontinued" | "entered_in_error" | "superseded" | "archived"
+  >("none");
   const [nextEvaluationDate, setNextEvaluationDate] = useState(
     new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
   );
@@ -414,6 +474,19 @@ function ProblemEvaluationDialog({
             </div>
           </div>
           <div>
+            <Label>Care plan status</Label>
+            <Select value={statusAction} onValueChange={(value) => setStatusAction(value as typeof statusAction)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No status change</SelectItem>
+                <SelectItem value="discontinued">Discontinued</SelectItem>
+                <SelectItem value="entered_in_error">Entered in Error</SelectItem>
+                <SelectItem value="superseded">Superseded</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label>Next Review of Outcome</Label>
             <Input
               type="date"
@@ -438,8 +511,25 @@ function ProblemEvaluationDialog({
                 recommendations: "",
                 nextEvaluationDate,
               });
+              if (statusAction === "archived") {
+                archiveProblem(problemId, summary || "Archived from care plan review");
+              } else if (statusAction !== "none") {
+                updateProblem(
+                  problemId,
+                  {
+                    status: statusAction,
+                    resolvedAt: new Date().toISOString(),
+                    resolvedReason: summary,
+                    ...(statusAction === "discontinued" || statusAction === "superseded"
+                      ? { riskLevel: "resolved" as const }
+                      : {}),
+                  },
+                  `Status changed to ${statusAction.replace("_", " ")} from care plan review`,
+                );
+              }
               toast.success("Review recorded");
               setSummary("");
+              setStatusAction("none");
               onOpenChange(false);
             }}
           >
@@ -487,7 +577,7 @@ function CarePlansPage() {
 
   const governanceView = currentRole === "cnm" || currentRole === "don";
   const visibleTabs = governanceView
-    ? (["active", "reviews", "evaluations", "completed", "archived", "governance"] as const)
+    ? (["active", "reviews", "evaluations", "discontinued", "archived", "governance"] as const)
     : (["active", "reviews", "evaluations"] as const);
 
   const rows = useMemo(() => {
@@ -555,9 +645,9 @@ function CarePlansPage() {
           title: `${CATEGORY_LABELS[problem.category]} care plan`,
           problem: problem.problemStatement,
           status:
-            problem.status === "resolved"
-              ? "completed"
-              : problem.status === "archived"
+            problem.status === "resolved" || problem.status === "discontinued" || problem.status === "superseded"
+              ? "discontinued"
+              : problem.status === "archived" || problem.status === "entered_in_error"
                 ? "archived"
                 : "active",
           reviewDate: problem.reviewDate,
@@ -620,9 +710,7 @@ function CarePlansPage() {
         ...carePlans
           .filter(
             (plan) =>
-              plan.status !== "completed" &&
-              plan.status !== "archived" &&
-              plan.status !== "superseded",
+              !INACTIVE_STATUSES.includes(plan.status),
           )
           .map((plan) => plan.residentId),
         ...residentCarePlans.filter((plan) => plan.status === "active").map((plan) => plan.residentId),
@@ -635,18 +723,13 @@ function CarePlansPage() {
     const tabFiltered = rows.filter((row) => {
       switch (tab) {
         case "active":
-          return !["completed", "archived", "superseded"].includes(row.plan.status);
+          return !INACTIVE_STATUSES.includes(row.plan.status);
         case "reviews":
-          return (
-            !["completed", "archived", "superseded"].includes(row.plan.status) && row.isReviewDue
-          );
+          return !INACTIVE_STATUSES.includes(row.plan.status) && row.isReviewDue;
         case "evaluations":
-          return (
-            !["completed", "archived", "superseded"].includes(row.plan.status) &&
-            row.isEvaluationDue
-          );
-        case "completed":
-          return row.plan.status === "completed";
+          return !INACTIVE_STATUSES.includes(row.plan.status) && row.isEvaluationDue;
+        case "discontinued":
+          return row.plan.status === "discontinued" || row.plan.status === "completed";
         case "archived":
           return row.plan.status === "archived" || row.plan.status === "superseded";
         case "governance":
@@ -668,8 +751,8 @@ function CarePlansPage() {
           return row.isEvaluationDue;
         case "overdue":
           return row.hasOverdue;
-        case "completed":
-          return row.plan.status === "completed";
+        case "discontinued":
+          return row.plan.status === "discontinued" || row.plan.status === "completed";
       }
     });
   }, [filter, rows, tab]);
@@ -701,12 +784,16 @@ function CarePlansPage() {
         const isReviewDue = reviewDays !== null && reviewDays <= DUE_SOON_DAYS;
         const isEvaluationDue = evaluationDays !== null && evaluationDays <= DUE_SOON_DAYS;
         const status =
-          residentPlan?.status === "archived" || problems.every((problem) => problem.status === "archived")
+          residentPlan?.status === "archived" ||
+          problems.every((problem) => problem.status === "archived" || problem.status === "entered_in_error")
             ? "archived"
             : activeProblems.length > 0 || residentPlan?.status === "active"
               ? "active"
-              : problems.length > 0 && problems.every((problem) => problem.status === "resolved")
-                ? "completed"
+              : problems.length > 0 &&
+                  problems.every((problem) =>
+                    ["resolved", "discontinued", "superseded"].includes(problem.status),
+                  )
+                ? "discontinued"
                 : "active";
         const residentIsMine =
           resident.keyWorkers?.namedNurse === currentUserName ||
@@ -816,7 +903,7 @@ function CarePlansPage() {
       .filter((row) => {
         if (tab === "reviews") return row.status === "active" && row.isReviewDue;
         if (tab === "evaluations") return row.status === "active" && row.isEvaluationDue;
-        if (tab === "completed") return row.status === "completed";
+        if (tab === "discontinued") return row.status === "discontinued" || row.status === "completed";
         if (tab === "archived") return row.status === "archived";
         return row.status === "active";
       })
@@ -826,7 +913,7 @@ function CarePlansPage() {
         if (filter === "review_due" && !row.isReviewDue) return false;
         if (filter === "evaluation_due" && !row.isEvaluationDue) return false;
         if (filter === "overdue" && !row.hasOverdue) return false;
-        if (filter === "completed" && row.status !== "completed") return false;
+        if (filter === "discontinued" && row.status !== "discontinued" && row.status !== "completed") return false;
         if (query) {
           const haystack = `${row.resident.firstName} ${row.resident.lastName} ${row.resident.roomNumber}`.toLowerCase();
           if (!haystack.includes(query)) return false;
@@ -927,24 +1014,15 @@ function CarePlansPage() {
       (row) =>
         row.reviewDays !== null &&
         row.reviewDays < 0 &&
-        row.plan.status !== "completed" &&
-        row.plan.status !== "archived" &&
-        row.plan.status !== "superseded",
+        !INACTIVE_STATUSES.includes(row.plan.status),
     );
     const overdueEvaluations = rows.filter(
       (row) =>
         row.evaluationDays !== null &&
         row.evaluationDays < 0 &&
-        row.plan.status !== "completed" &&
-        row.plan.status !== "archived" &&
-        row.plan.status !== "superseded",
+        !INACTIVE_STATUSES.includes(row.plan.status),
     );
-    const activeRows = rows.filter(
-      (row) =>
-        row.plan.status !== "completed" &&
-        row.plan.status !== "archived" &&
-        row.plan.status !== "superseded",
-    );
+    const activeRows = rows.filter((row) => !INACTIVE_STATUSES.includes(row.plan.status));
     const compliant = activeRows.filter((row) => !row.hasOverdue).length;
     const compliance =
       activeRows.length === 0 ? 100 : Math.round((compliant / activeRows.length) * 100);
@@ -1119,7 +1197,7 @@ function CarePlansPage() {
               {value === "active" && "Active Nursing Care Plans"}
               {value === "reviews" && "Reviews Due"}
               {value === "evaluations" && "Reviews of Outcome Due"}
-              {value === "completed" && "Completed Nursing Care Plans"}
+              {value === "discontinued" && "Discontinued Nursing Care Plans"}
               {value === "archived" && "Archived Nursing Care Plans"}
               {value === "governance" && "Governance"}
             </TabsTrigger>
@@ -1192,10 +1270,10 @@ function CarePlansPage() {
                 </QuickFilterButton>
                 {governanceView && (
                   <QuickFilterButton
-                    active={filter === "completed"}
-                    onClick={() => setFilter("completed")}
+                    active={filter === "discontinued"}
+                    onClick={() => setFilter("discontinued")}
                   >
-                    Completed
+                    Discontinued
                   </QuickFilterButton>
                 )}
               </div>
@@ -1255,7 +1333,7 @@ function CarePlansPage() {
                       <SelectContent>
                         <SelectItem value="all">All progress</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="discontinued">Discontinued</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
                       </SelectContent>
                     </Select>

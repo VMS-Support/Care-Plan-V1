@@ -43,10 +43,18 @@ export const Route = createFileRoute("/care-plans/$id")({
 
 function statusCls(status: string) {
   if (status === "active") return "bg-success/10 text-success border-success/30";
+  if (status === "under_review") return "bg-blue-500/10 text-blue-700 border-blue-200";
+  if (status === "discontinued") return "bg-slate-100 text-slate-700 border-slate-200";
+  if (status === "entered_in_error") return "bg-destructive/10 text-destructive border-destructive/30";
   if (status === "superseded") return "bg-muted text-muted-foreground";
   if (status === "completed") return "bg-info/10 text-info border-info/30";
   if (status.includes("overdue")) return "bg-destructive/10 text-destructive border-destructive/30";
   return "bg-warning/15 text-warning-foreground border-warning/40";
+}
+
+function carePlanStatusLabel(status: string) {
+  if (status === "completed") return "Completed (Legacy)";
+  return status.replace("_", " ");
 }
 
 function EvaluateDialog({
@@ -489,7 +497,7 @@ function CarePlanDetail() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-semibold tracking-tight">{plan.title}</h1>
                 <Badge variant="outline" className={`capitalize ${statusCls(plan.status)}`}>
-                  {plan.status.replace("_", " ")}
+                  {carePlanStatusLabel(plan.status)}
                 </Badge>
                 {plan.priority && (
                   <Badge variant="outline" className="capitalize">
@@ -540,7 +548,7 @@ function CarePlanDetail() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 mt-4">
-            <HeaderMeta label="Progress" value={plan.status.replace("_", " ")} />
+            <HeaderMeta label="Progress" value={carePlanStatusLabel(plan.status)} />
             <HeaderMeta label="Created Date" value={plan.createdAt.slice(0, 10)} />
             <HeaderMeta label="Care Plan Review Date" value={plan.reviewDate} />
             <HeaderMeta label="Next Review of Outcome" value={plan.evaluationDate || "—"} />
@@ -837,7 +845,7 @@ function CarePlanDetail() {
                             variant="outline"
                             className={`capitalize text-[10px] ${statusCls(version.status)}`}
                           >
-                            {version.status.replace("_", " ")}
+                            {carePlanStatusLabel(version.status)}
                           </Badge>
                           {version.id !== plan.id && (
                             <Link

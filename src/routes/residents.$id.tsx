@@ -1211,6 +1211,15 @@ function ResidentDetail() {
       nextEvaluationDate: evaluationDraft.nextEvaluationDate || undefined,
     });
 
+    const reviewStatusAction = [
+      "discontinued",
+      "entered_in_error",
+      "superseded",
+      "archived",
+    ].includes(evaluationDraft.revisionRequired)
+      ? evaluationDraft.revisionRequired
+      : "";
+
     if (evaluationDraft.revisionRequired === "yes") {
       if (evaluationDraft.revisionAddIntervention.trim()) {
         addProblemIntervention({
@@ -1259,15 +1268,53 @@ function ResidentDetail() {
           evaluationDraft.revisionReason || "Revision updated review date",
         );
       }
-
-      addProblemReview({
-        problemId: selectedProblem.id,
-        reviewDate: evaluationDraft.date,
-        outcome: "modify",
-        comments: evaluationDraft.revisionReason || "Amendment required from review",
-        nextReviewDate: evaluationDraft.revisionReviewDate || selectedProblem.reviewDate,
-      });
     }
+
+    if (reviewStatusAction === "archived") {
+      archiveProblem(
+        selectedProblem.id,
+        evaluationDraft.revisionReason ||
+          evaluationDraft.recommendations ||
+          evaluationDraft.summary ||
+          "Archived from care plan review",
+      );
+    } else if (reviewStatusAction) {
+      updateProblem(
+        selectedProblem.id,
+        {
+          status: reviewStatusAction as any,
+          resolvedAt: new Date().toISOString(),
+          resolvedReason:
+            evaluationDraft.revisionReason ||
+            evaluationDraft.recommendations ||
+            evaluationDraft.summary,
+          ...(reviewStatusAction === "discontinued" || reviewStatusAction === "superseded"
+            ? { riskLevel: "resolved" as const }
+            : {}),
+        },
+        `Status changed to ${reviewStatusAction.replace(/_/g, " ")} from care plan review`,
+      );
+    }
+
+    addProblemReview({
+      problemId: selectedProblem.id,
+      reviewDate: evaluationDraft.date,
+      outcome:
+        evaluationDraft.revisionRequired === "yes"
+          ? "modify"
+          : reviewStatusAction
+            ? "resolve"
+            : "continue",
+      comments:
+        evaluationDraft.revisionReason ||
+        evaluationDraft.recommendations ||
+        evaluationDraft.summary ||
+        "Review completed",
+      nextReviewDate:
+        evaluationDraft.revisionReviewDate ||
+        evaluationDraft.nextEvaluationDate ||
+        selectedProblem.reviewDate,
+    });
 
     setEvaluationOpen(false);
     toast.success("Review saved");
@@ -3891,7 +3938,7 @@ function ResidentDetail() {
               />
             </div>
             <div>
-              <Label>Continue / Amend Plan</Label>
+              <Label>Status</Label>
               <Select
                 value={evaluationDraft.revisionRequired}
                 onValueChange={(v) => setEvaluationDraft((s) => ({ ...s, revisionRequired: v }))}
@@ -3902,6 +3949,10 @@ function ResidentDetail() {
                 <SelectContent>
                   <SelectItem value="no">Continue Plan</SelectItem>
                   <SelectItem value="yes">Amend Plan</SelectItem>
+                  <SelectItem value="discontinued">Discontinued</SelectItem>
+                  <SelectItem value="entered_in_error">Entered in Error</SelectItem>
+                  <SelectItem value="superseded">Superseded</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
             </div>

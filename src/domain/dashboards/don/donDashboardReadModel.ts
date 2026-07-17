@@ -1,6 +1,7 @@
 import { getTrainingComplianceMetric } from "@/domain/workforce";
+import { getDonRiskAssessmentMetric } from "@/domain/assessments/riskAssessmentComplianceService";
 
-type Availability = "available" | "not_configured" | "source_unavailable" | "not_applicable";
+type Availability = "available" | "partially_available" | "not_configured" | "source_unavailable" | "not_applicable";
 type Tone = "blue" | "green" | "orange" | "red";
 
 export interface DonDashboardMetric {
@@ -95,18 +96,10 @@ export function getDonDashboard(input: {
     numerator: activeProblems.length - dueCarePlans.length,
     denominator: activeProblems.length,
     empty: "No active care plan problems configured.",
-    helper: "Up to Date",
+    helper: dueCarePlans.length ? "Requires Review" : "Up to Date",
     route: "/care-plans",
   });
-  const riskAssessmentCompletion = percentageMetric({
-    label: "Risk Assessments",
-    numerator: assessments.filter((assessment) => !isAssessmentDue(assessment, reportingDate)).length,
-    denominator: assessments.length,
-    empty: "No assessment records available.",
-    helper: "Up to Date",
-    route: "/assessments",
-    warningBelow: 85,
-  });
+  const riskAssessmentCompletion = donRiskAssessmentCard(care, reportingDate);
   const incidentManagement = percentageMetric({
     label: "Incident Management",
     numerator: openIncidents.filter((incident) => incident.status === "closed" || incidentActions.some((action) => action.incidentId === incident.id)).length,
@@ -279,6 +272,48 @@ function unavailableMetric(label: string, helper: string, route: string): DonDas
     tone: "orange",
     route,
     availability: "source_unavailable",
+  };
+}
+
+function donRiskAssessmentCard(care: StoreLike, reportingDate: string): DonDashboardMetric {
+  const metric = getDonRiskAssessmentMetric({
+    residents: activeRows(care.residents),
+    assessments: activeRows(care.assessments),
+    assessmentRequirements: activeRows(care.assessmentRequirements || care.assessmentRequirementState?.requirements),
+    nursingHomeId: care.activeFacilityId,
+    reportingDate,
+    route: `/assessments?metric=don-risk-assessments&date=${reportingDate}`,
+    reassessmentTriggers: activeRows(care.assessmentReviewTriggerEvents),
+  });
+  if (metric.status === "not_configured") {
+    return {
+      label: "Risk Assessments",
+      value: "Not Configured",
+      helper: metric.displayLabel,
+      tone: "orange",
+      route: metric.route,
+      availability: "not_configured",
+    };
+  }
+  if (metric.status === "not_applicable") {
+    return {
+      label: "Risk Assessments",
+      value: "Not Applicable",
+      helper: metric.displayLabel,
+      tone: "orange",
+      route: metric.route,
+      availability: "not_applicable",
+    };
+  }
+  const percentage = metric.value === undefined ? undefined : Math.round(metric.value);
+  return {
+    label: "Risk Assessments",
+    value: percentage === undefined ? "Partially Available" : `${percentage}%`,
+    helper: metric.displayLabel,
+    percentage,
+    tone: metric.status === "critical" ? "red" : metric.status === "poor" || metric.status === "attention" || metric.status === "partially_available" ? "orange" : "green",
+    route: metric.route,
+    availability: metric.status === "partially_available" ? "partially_available" : "available",
   };
 }
 
