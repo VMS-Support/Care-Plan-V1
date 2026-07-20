@@ -1,4 +1,4 @@
-import type { Facility, HomeAssignment, StaffMember, StaffMemberStatus, UserAccount, UserProfile } from "@/lib/care/types";
+import type { EmploymentContractType, EmploymentStatus, Facility, HomeAssignment, StaffMember, StaffMemberStatus, UserAccount, UserProfile } from "@/lib/care/types";
 import { createStaffMemberId, type NursingHomeId } from "@/types/entityIds";
 import { staffInWorkforceScope, type WorkforceAuthorizationContext, type WorkforceScope } from "../workforceScope";
 import { STAFF_DIRECTORY_ACTIVE_STATUSES, normaliseStaffStatus } from "./staffMemberStatus";
@@ -14,6 +14,10 @@ export interface StaffDirectoryFilters {
   roleKeys?: string[];
   roleGroup?: string;
   linkedUserAccount?: "linked" | "not_linked";
+  accountStatuses?: UserAccount["accountStatus"][];
+  employmentStatuses?: EmploymentStatus[];
+  employmentTypes?: EmploymentContractType[];
+  departments?: string[];
   search?: string;
 }
 
@@ -81,6 +85,10 @@ export function getStaffDirectory(
       if (filters.statuses?.length && !filters.statuses.includes(status)) return false;
       if (filters.linkedUserAccount === "linked" && !row.linkedUserAccount) return false;
       if (filters.linkedUserAccount === "not_linked" && row.linkedUserAccount) return false;
+      if (filters.accountStatuses?.length && !filters.accountStatuses.includes(row.userAccount?.status || "disabled")) return false;
+      if (filters.employmentStatuses?.length && !filters.employmentStatuses.includes(row.employmentStatus as EmploymentStatus)) return false;
+      if (filters.employmentTypes?.length && !filters.employmentTypes.includes(row.employmentType as EmploymentContractType)) return false;
+      if (filters.departments?.length && !filters.departments.includes(row.department || "")) return false;
       if (filters.roleKeys?.length && !filters.roleKeys.includes(row.primaryRole?.key || "")) return false;
       if (filters.roleGroup && displayGroupForRoleKey(row.primaryRole?.key)?.key !== filters.roleGroup) return false;
       return staffMatchesSearch(staff, row, filters.search);

@@ -2731,11 +2731,13 @@ interface CareCtx extends Store {
   recordResidentDeathInPathway: (pathwayId: string, observedBy: string) => void;
   updateUser: (id: string, patch: Partial<UserProfile>) => void;
   createStaffUser: (input: {
+    staffMemberId?: string;
     name: string;
     role: Role;
     email: string;
     temporaryPassword?: string;
     status: UserProfile["status"];
+    accountStatus?: UserAccount["accountStatus"];
   }) => UserProfile;
   createStaffMember: (input: SaveStaffMemberInput) => StaffMember;
   updateStaffMember: (id: string, input: Partial<SaveStaffMemberInput>) => void;
@@ -3799,6 +3801,16 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (currentRole !== "don" && currentRole !== "group_owner") {
           throw new Error("Only a DON or Group Owner can create staff logins.");
         }
+        const linkedStaff = input.staffMemberId ? store.staffMembers.find((staff) => String(staff.id) === input.staffMemberId) : undefined;
+        if (input.staffMemberId && !linkedStaff) {
+          throw new Error("The Staff Member could not be loaded.");
+        }
+        if (linkedStaff?.linkedUserAccountId || store.userAccounts.some((account) => input.staffMemberId && String(account.staffMemberId || "") === input.staffMemberId)) {
+          throw new Error("This Staff Member already has a User Account.");
+        }
+        if (store.users.some((user) => (user.email || "").trim().toLowerCase() === input.email.trim().toLowerCase()) || store.userAccounts.some((account) => (account.email || account.username || "").trim().toLowerCase() === input.email.trim().toLowerCase())) {
+          throw new Error("This email address is already linked to another User Account.");
+        }
         const existingDon = store.users.some(
           (user) =>
             user.role === "don" &&
@@ -3808,8 +3820,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
           throw new Error("This nursing home already has a DON.");
         }
         const now = new Date().toISOString();
+        const userId = `u-${activeFacilityId.replace("facility-", "")}-${uid()}`;
+        const accountId = `user-account-${userId}`;
         const staffUser: UserProfile = {
-          id: `u-${activeFacilityId.replace("facility-", "")}-${uid()}`,
+          id: userId,
           facilityId: activeFacilityId,
           facilityIds: [activeFacilityId],
           name: input.name.trim(),
@@ -3832,14 +3846,47 @@ export function CareProvider({ children }: { children: ReactNode }) {
           avatarSeed: input.name.replace(/\s+/g, ""),
           notificationPrefs: { email: true, sms: false, inApp: true, criticalAlertsOnly: false },
         };
-        setStore((s) => ({ ...s, users: [staffUser, ...s.users] }));
+        const userAccount: UserAccount = {
+          id: accountId as any,
+          email: input.email.trim(),
+          username: input.email.trim(),
+          authenticationProvider: "local",
+          staffMemberId: input.staffMemberId as any,
+          accountStatus: input.accountStatus || (input.status === "invited" ? "invited" : input.status === "inactive" ? "disabled" : "active"),
+          defaultNursingHomeId: activeFacilityId as any,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: currentUser.id as any,
+          updatedBy: currentUser.id as any,
+        };
+        const linkEvent = input.staffMemberId
+          ? createStaffDirectoryEvent({
+              type: "StaffMemberUserAccountLinked",
+              staffMemberId: input.staffMemberId,
+              nursingHomeId: linkedStaff?.primaryNursingHomeId ? String(linkedStaff.primaryNursingHomeId) : activeFacilityId,
+              actorUserAccountId: currentUser.id,
+              actorRole: currentRole,
+              changedFields: ["linkedUserAccountId"],
+              occurredAt: now,
+            })
+          : undefined;
+        setStore((s) => ({
+          ...s,
+          users: [staffUser, ...s.users],
+          userAccounts: [userAccount, ...s.userAccounts],
+          staffMembers: input.staffMemberId
+            ? s.staffMembers.map((staff) => String(staff.id) === input.staffMemberId ? { ...staff, linkedUserAccountId: userAccount.id, updatedAt: now, updatedBy: currentUser.id as any } : staff)
+            : s.staffMembers,
+          staffDirectoryEvents: linkEvent ? [linkEvent, ...(s.staffDirectoryEvents || [])] : s.staffDirectoryEvents,
+        }));
         logAudit({
           facilityId: activeFacilityId,
           user: currentUserName,
           role: currentRole,
           action: "Created staff account",
           entity: staffUser.id,
-          after: JSON.stringify({ role: staffUser.role, user: staffUser.name }),
+          entityType: "user_account",
+          after: JSON.stringify({ role: staffUser.role, user: staffUser.name, staffMemberId: input.staffMemberId, accountStatus: userAccount.accountStatus }),
         });
         return staffUser;
       },

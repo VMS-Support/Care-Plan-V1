@@ -143,7 +143,7 @@ function StaffProfilePage() {
           </div>
           <div className="text-sm text-muted-foreground">
             <div className="flex items-center gap-2"><Home className="h-4 w-4" /> {row.primaryHome?.name || "Primary Home Not Recorded"}</div>
-            <div className="mt-2 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> {row.linkedUserAccount ? "User Account Linked" : "No User Account Linked"}</div>
+            <div className="mt-2 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> {row.userAccount?.label || "No User Account"}</div>
           </div>
         </CardContent>
       </Card>
@@ -183,7 +183,7 @@ function StaffProfilePage() {
 
         <Section title="Account Link">
           {canAccount ? (
-            <p className="text-sm">{row.linkedUserAccount ? "This Staff Member is linked to a User Account." : "No User Account Linked"}</p>
+            <p className="text-sm">{row.userAccount?.label ? `Login status: ${row.userAccount.label}.` : "No User Account has been created for this Staff Member."}</p>
           ) : <p className="text-sm text-muted-foreground">Account link details are restricted.</p>}
         </Section>
       </div>
