@@ -11,21 +11,29 @@ import {
   type ScheduledIntervention,
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
-import type { Resident, UserProfile } from "@/lib/care/types";
+import type { CarePlanProblem, Resident, UserProfile } from "@/lib/care/types";
+import type { Role, Task } from "@/lib/care/types";
+import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
+import { IncidentDialog } from "@/components/care/IncidentDialog";
+import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { RecordDailyCareDialog } from "@/components/dailyCare/RecordDailyCareDialog";
 import { HcaEscalateToNurseDialog } from "@/components/dailyCare/HcaEscalateToNurse";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Users,
   AlertTriangle,
@@ -132,12 +140,19 @@ function RoleSpecificDashboard({ role }: { role: UserProfile["role"] }) {
   return <HcaDashboard />;
 }
 
-function useRoleDashboardData(scope: "home" | "assigned" = "home") {
+function useRoleDashboardData(
+  scope: "home" | "assigned" = "home",
+  options: { date?: string; now?: Date; wingId?: string } = {},
+) {
   const care = useCare();
-  const today = new Date().toISOString().slice(0, 10);
-  const weekStart = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  const residents = care.residents.filter((r) => r.status !== "deleted");
+  const now = options.now || new Date();
+  const today = options.date || now.toISOString().slice(0, 10);
+  const selectedDay = new Date(`${today}T12:00:00`);
+  const weekStartDate = new Date(selectedDay);
+  weekStartDate.setDate(weekStartDate.getDate() - 6);
+  const weekStart = weekStartDate.toISOString().slice(0, 10);
+  const monthStart = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), 1).toISOString().slice(0, 10);
+  const residents = care.residents.filter((r) => r.status !== "deleted" && (!options.wingId || r.wingId === options.wingId));
   const assignedWings = care.currentUser.assignedWings || [];
   const scopedResidents =
     scope === "home" || care.currentUser.role === "don" || care.currentUser.role === "group_owner" || assignedWings.length === 0
@@ -161,7 +176,6 @@ function useRoleDashboardData(scope: "home" | "assigned" = "home") {
   const dueCarePlans = activeProblems.filter((p) => p.reviewDate <= today || p.evaluationDate <= today);
   const interventions = care.problemInterventions.filter((i) => residentIds.has(i.residentId));
   const logs = care.problemInterventionLogs.filter((l) => residentIds.has(l.residentId));
-  const now = new Date();
   const scheduled = getUpcomingScheduledInterventions(interventions, logs, problems, now, {
     residentIds,
     currentUser: care.currentUser,
@@ -386,7 +400,7 @@ function EnterpriseOverviewDashboard() {
         </div>
       </div>
 
-      <section className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
         <EnterpriseMetric icon={Home} title="Care Homes" value="8" sub="Active Homes" tone="purple" />
         <EnterpriseMetric icon={Users} title="Occupancy" value="92.3%" sub="vs 91.0% last month" tone="blue" trend />
         <EnterpriseMetric icon={ShieldCheck} title="Clinical Quality Score" value="91%" sub="vs 88% last month" tone="green" trend />
@@ -396,9 +410,9 @@ function EnterpriseOverviewDashboard() {
         <EnterpriseMetric icon={Bell} title="Group Alerts" value="12" sub="Require Attention" tone="red" danger />
       </section>
 
-      <section className="mb-4 grid gap-3 xl:grid-cols-[1fr_320px]">
+      <section className="mb-4 grid gap-3 2xl:grid-cols-[1fr_320px]">
         <EnterprisePanel title="Performance Overview" action="View All Metrics">
-          <div className="grid gap-5 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             <EnterpriseRing title="Occupancy" value="92%" label="Group Average" tone="blue" percent={92} />
             <EnterpriseRing title="Clinical Quality" value="91%" label="Group Average" tone="green" percent={91} />
             <EnterpriseRing title="Medication Compliance" value="99%" label="Group Average" tone="purple" percent={99} />
@@ -422,14 +436,14 @@ function EnterpriseOverviewDashboard() {
         </EnterprisePanel>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[1.35fr_0.75fr_1.15fr]">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1.35fr_0.75fr_1.15fr]">
         <EnterprisePanel title="Care Homes Performance" action="View All">
           <EnterpriseCareHomeTable />
         </EnterprisePanel>
 
         <div className="space-y-3">
           <EnterprisePanel title="Top Alert Categories" action="View All">
-            <div className="grid gap-4 md:grid-cols-[150px_1fr] xl:grid-cols-1 2xl:grid-cols-[150px_1fr]">
+            <div className="grid gap-4 md:grid-cols-[150px_1fr]">
               <EnterpriseDonut value="12" label="Total" colors={["#7b3fd6", "#f59b21", "#e22d35", "#1aa6b0", "#1f70d6"]} />
               <div className="space-y-3 text-sm">
                 <EnterpriseLegend label="Medication" value="3" tone="purple" />
@@ -555,8 +569,8 @@ function EnterpriseCareHomeTable() {
     ["Oakridge Care Home", "87%", "84%", "96%", "81%", "2", "red"],
   ];
   return (
-    <div>
-      <div className="grid grid-cols-[1.6fr_repeat(5,0.7fr)] border-b pb-2 text-xs font-semibold text-[#536176]">
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[760px] grid-cols-[1.6fr_repeat(5,0.7fr)] border-b pb-2 text-xs font-semibold text-[#536176]">
         <span>Care Home</span>
         <span>Occupancy</span>
         <span>Clinical Quality</span>
@@ -565,7 +579,7 @@ function EnterpriseCareHomeTable() {
         <span>Alerts</span>
       </div>
       {rows.map(([home, occupancy, quality, med, staffing, alerts, tone], index) => (
-        <div key={home} className="grid grid-cols-[1.6fr_repeat(5,0.7fr)] items-center border-b py-2 text-sm last:border-b-0">
+        <div key={home} className="grid min-w-[760px] grid-cols-[1.6fr_repeat(5,0.7fr)] items-center border-b py-2 text-sm last:border-b-0">
           <span className="flex items-center gap-3">
             <Avatar className="h-8 w-8"><AvatarFallback className="bg-blue-100 text-[10px] text-blue-700">{index + 1}</AvatarFallback></Avatar>
             {home}
@@ -625,7 +639,7 @@ function EnterpriseFinancialGrid() {
     [Users, "Net Profit", "€324K", "vs €287K last month", "green"],
   ] as const;
   return (
-    <div className="grid grid-cols-3 gap-0">
+    <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-3">
       {items.map(([Icon, label, value, meta, tone], index) => (
         <div key={label} className={`p-4 ${index < 3 ? "border-b" : ""} ${index % 3 !== 2 ? "border-r" : ""}`}>
           <div className="flex items-start gap-3">
@@ -675,7 +689,7 @@ function EnterpriseTrendSummary() {
     [TrendingDown, "Incident Rate", "-0.1", "red"],
   ] as const;
   return (
-    <div className="grid grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
       {items.map(([Icon, label, value, tone]) => (
         <div key={label} className="text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ backgroundColor: `${enterpriseTone(tone)}12`, color: enterpriseTone(tone) }}>
@@ -773,7 +787,7 @@ function DonDashboard() {
 
       <div className="space-y-4 p-3 md:p-4">
         <section className="rounded-[9px] bg-white shadow-[0_8px_18px_rgba(10,31,68,0.12)]">
-          <div className="grid grid-cols-1 divide-y divide-[#e4e8ee] md:grid-cols-3 md:divide-x md:divide-y-0 xl:grid-cols-6">
+          <div className="grid grid-cols-1 divide-y divide-[#e4e8ee] md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-3 2xl:grid-cols-6">
             <DonTopMetric icon={Users} metric={dashboard.topMetrics.residents} />
             <DonTopMetric icon={Shield} metric={dashboard.topMetrics.clinicalRisk} />
             <DonTopMetric icon={Bell} metric={dashboard.topMetrics.outstandingAlerts} />
@@ -783,7 +797,7 @@ function DonDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           <DonGaugeCard icon={Pill} metric={dashboard.complianceCards[0]} link="View Medication" />
           <DonGaugeCard icon={ClipboardList} metric={dashboard.complianceCards[1]} link="View Care Plans" />
           <DonGaugeCard icon={ShieldCheck} metric={dashboard.complianceCards[2]} link="View Assessments" />
@@ -796,7 +810,7 @@ function DonDashboard() {
           <DonGaugeCard icon={Euro} metric={dashboard.complianceCards[9]} link="View Financials" />
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           <DonListCard icon={ClipboardList} title="Today's Priorities" rows={dashboard.priorities} />
           <DonListCard icon={AlertTriangle} title={`Incidents (${dateLabel})`} rows={dashboard.incidentsToday} />
           <DonListCard icon={UserCheck} title="Residents Requiring Attention" rows={dashboard.residentsRequiringAttention} />
@@ -930,7 +944,7 @@ function CnmDashboard() {
   const incidentsOpen = d.incidents.filter((i) => i.status !== "closed" || i.followUpRequired);
   return (
     <RolePage title="CNM dashboard" subtitle="unit workload and shift oversight">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <RoleMetric icon={Users} label="Residents in My Unit" value={d.activeResidents.length} href="/residents" />
         <RoleMetric icon={UserCheck} label="Admissions Today" value={d.residents.filter((r) => r.admissionDate === d.today).length} href="/residents" tone="info" />
         <RoleMetric icon={ArrowRight} label="Discharges / Returns" value={d.residents.filter((r) => r.status === "discharged").length} href="/incidents" tone="warn" />
@@ -964,9 +978,33 @@ type WorkQueueItem = {
   dueLabel: string;
   dueAt?: Date;
   status: WorkQueueFilter;
+  assignment?: string;
   href: string;
   tone: "danger" | "warn" | "info" | "default";
 };
+
+type NurseScheduleItem = {
+  id: string;
+  time: string;
+  sortAt: number;
+  windowStartAt?: number;
+  title: string;
+  meta: string;
+  residentName: string;
+  room: string;
+  kind: string;
+  icon: typeof Users;
+  tone: string;
+  href: string;
+  details?: string[];
+  status?: string;
+  assignment?: string;
+  count?: number;
+  children?: NurseScheduleItem[];
+  dismissRequiresReason?: boolean;
+};
+
+const NURSE_SCHEDULE_GROUPING_WINDOW_MINUTES = 30;
 
 function DoctorDashboard() {
   const d = useRoleDashboardData("assigned");
@@ -991,7 +1029,7 @@ function DoctorDashboard() {
 
   return (
     <RolePage title="Doctor dashboard" subtitle="clinical review and medical follow-up">
-      <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <RoleMetric icon={HeartPulse} label="Clinical Reviews" value={reviewAlerts.length + abnormalVitals.length} href="/alerts" tone="danger" />
         <RoleMetric icon={Activity} label="Abnormal Vitals" value={abnormalVitals.length} href="/vitals" tone="warn" />
         <RoleMetric icon={ClipboardList} label="Treatment Reviews" value={medicalProblems.length} href="/care-plans" tone="info" />
@@ -1011,11 +1049,256 @@ function DoctorDashboard() {
   );
 }
 
+function scheduleDateTime(date: string, time?: string) {
+  const cleanTime = time?.trim();
+  if (cleanTime && /^\d{1,2}:\d{2}/.test(cleanTime)) {
+    const [hour = "00", minute = "00"] = cleanTime.split(":");
+    return new Date(`${date}T${hour.padStart(2, "0")}:${minute.slice(0, 2)}`);
+  }
+  return new Date(`${date}T23:59:00`);
+}
+
+function formatScheduleTime(value?: Date | string) {
+  if (!value) return "Today";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Today";
+  return date.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+}
+
+function scheduleDateKey(value?: Date | string) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function workQueueScheduleKind(item: WorkQueueItem) {
+  if (item.workType === "Care intervention") return { kind: "Care Action", icon: ClipboardCheck, tone: "orange" };
+  if (item.workType === "Observation") return { kind: "Observation", icon: HeartPulse, tone: "purple" };
+  if (item.workType === "Assessment") return { kind: "Assessment", icon: ClipboardList, tone: "blue" };
+  if (item.workType === "Clinical alert") return { kind: "Alert", icon: AlertTriangle, tone: "red" };
+  if (item.workType === "Documentation") return { kind: "Documentation", icon: FileText, tone: "teal" };
+  return { kind: "Task", icon: ClipboardList, tone: "blue" };
+}
+
+function pluralScheduleKind(kind: string, count: number) {
+  if (count === 1) return kind;
+  if (kind === "Care Action") return "Care Actions";
+  if (kind === "Care Plan Review") return "Care Plan Reviews";
+  return `${kind}s`;
+}
+
+function schedulePreviewDetails(details: string[] = [], limit = 3) {
+  const visible = details.slice(0, limit);
+  const remaining = details.length - visible.length;
+  return remaining > 0 ? [...visible, `+${remaining} more`] : visible;
+}
+
+function groupNurseScheduleItems(items: NurseScheduleItem[]) {
+  const windowMs = NURSE_SCHEDULE_GROUPING_WINDOW_MINUTES * 60 * 1000;
+  const sorted = [...items].sort(
+    (left, right) => left.sortAt - right.sortAt || left.id.localeCompare(right.id),
+  );
+  const groups: NurseScheduleItem[][] = [];
+
+  for (const item of sorted) {
+    const lastGroup = groups[groups.length - 1];
+    const first = lastGroup?.[0];
+    const canJoin =
+      first &&
+      first.kind === item.kind &&
+      first.residentName === item.residentName &&
+      first.room === item.room &&
+      (first.status || "") === (item.status || "") &&
+      (first.assignment || "") === (item.assignment || "") &&
+      item.sortAt - first.sortAt <= windowMs;
+
+    if (canJoin && lastGroup) {
+      lastGroup.push(item);
+    } else {
+      groups.push([item]);
+    }
+  }
+
+  return groups.map((group) => {
+    if (group.length === 1) return { ...group[0], count: 1, children: undefined };
+    const first = group[0];
+    const details = group.flatMap((item) => item.details?.length ? item.details : [item.title]);
+    return {
+      ...first,
+      id: `schedule-group-${first.kind}-${first.residentName}-${first.room}-${first.sortAt}`,
+      title: `${group.length} ${pluralScheduleKind(first.kind, group.length)}`,
+      meta: `${first.residentName} · Room ${first.room}`,
+      details,
+      count: group.length,
+      children: group,
+      dismissRequiresReason: group.some((item) => item.dismissRequiresReason),
+    };
+  });
+}
+
+function buildNurseScheduleItems(
+  d: ReturnType<typeof useRoleDashboardData>,
+  residentIds: Set<string>,
+  workQueue: WorkQueueItem[],
+  selectedDate: string,
+): NurseScheduleItem[] {
+  const items: NurseScheduleItem[] = [];
+  const add = (item: NurseScheduleItem) => items.push(item);
+  const residentFor = (residentId?: string) => d.residentFor(residentId);
+  const residentName = (residentId?: string) => rdName(residentFor(residentId));
+  const room = (residentId?: string) => residentFor(residentId)?.roomNumber || "-";
+
+  workQueue.forEach((item) => {
+    const classified = workQueueScheduleKind(item);
+    const taskId = item.id.startsWith("task-") ? item.id.replace("task-", "") : "";
+    const task = taskId ? d.tasks.find((candidate) => candidate.id === taskId) : undefined;
+    const isAppointment = Boolean(task?.appointmentType || task?.appointmentTime || /appointment|clinic|hospital|gp|review/i.test(`${task?.title || ""} ${task?.description || ""}`));
+    const at = task
+      ? scheduleDateTime(task.dueDate.slice(0, 10), task.appointmentTime)
+      : item.dueAt || new Date(`${selectedDate}T12:00:00`);
+    add({
+      id: item.id,
+      time: formatScheduleTime(at),
+      sortAt: at.getTime(),
+      title: item.title,
+      meta: task?.appointmentLocation
+        ? `${residentName(item.residentId)} · ${task.appointmentLocation}`
+        : `${item.residentName} · Room ${item.room}`,
+      residentName: item.residentName,
+      room: item.room,
+      kind: isAppointment ? "Appointment" : classified.kind,
+      icon: isAppointment ? CalendarClock : classified.icon,
+      tone: isAppointment ? "green" : classified.tone,
+      href: item.href,
+      details: item.workType === "Observation" ? [item.title] : undefined,
+      status: item.status,
+      assignment: item.assignment || task?.assignedTo || task?.assignedRole || task?.assignedWingId || "",
+      dismissRequiresReason: ["Observation", "Assessment", "Clinical alert"].includes(item.workType) || isAppointment,
+    });
+  });
+
+  d.dueCarePlans
+    .filter((plan) => residentIds.has(plan.residentId) && (plan.reviewDate === selectedDate || plan.evaluationDate === selectedDate))
+    .forEach((plan) => {
+      const at = new Date(`${selectedDate}T12:00:00`);
+      add({
+        id: `care-plan-${plan.id}`,
+        time: "Review",
+        sortAt: at.getTime(),
+        title: plan.problemStatement,
+        meta: `${residentName(plan.residentId)} · Care plan review due`,
+        residentName: residentName(plan.residentId),
+        room: room(plan.residentId),
+        kind: "Care Plan Review",
+        icon: FileText,
+        tone: "teal",
+        href: `/residents/${plan.residentId}`,
+        status: plan.status,
+        assignment: "",
+        dismissRequiresReason: true,
+      });
+    });
+
+  d.visitors
+    .filter((visit: any) => residentIds.has(visit.residentId) && visit.date === selectedDate && !["completed", "cancelled", "deleted", "archived"].includes(visit.status))
+    .forEach((visit: any) => {
+      const at = scheduleDateTime(visit.date, visit.arrivalTime);
+      add({
+        id: `visit-${visit.id}`,
+        time: formatScheduleTime(at),
+        sortAt: at.getTime(),
+        title: `${visit.visitorName} visiting`,
+        meta: `${residentName(visit.residentId)} · ${visit.relationship}`,
+        residentName: residentName(visit.residentId),
+        room: room(visit.residentId),
+        kind: "Visit",
+        icon: Users,
+        tone: "green",
+        href: "/visitors",
+        status: visit.status || "scheduled",
+        assignment: "",
+        dismissRequiresReason: false,
+      });
+    });
+
+  d.outings
+    .filter((outing: any) => residentIds.has(outing.residentId) && outing.date === selectedDate && !["returned", "cancelled", "closed", "deleted", "archived"].includes(outing.status))
+    .forEach((outing: any) => {
+      const at = scheduleDateTime(outing.date, outing.departureTime);
+      add({
+        id: `outing-${outing.id}`,
+        time: formatScheduleTime(at),
+        sortAt: at.getTime(),
+        title: outing.destination,
+        meta: `${residentName(outing.residentId)} · Resident outing`,
+        residentName: residentName(outing.residentId),
+        room: room(outing.residentId),
+        kind: "Outing",
+        icon: CalendarDays,
+        tone: "green",
+        href: "/outings",
+        status: outing.status || "planned",
+        assignment: "",
+        dismissRequiresReason: true,
+      });
+    });
+
+  return groupNurseScheduleItems(items)
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index)
+    .sort((left, right) => left.sortAt - right.sortAt || left.title.localeCompare(right.title));
+}
+
 function NurseDashboard() {
-  const d = useRoleDashboardData("assigned");
+  const care = useCare();
+  const [clockNow, setClockNow] = useState(() => new Date());
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [dismissedScheduleItems, setDismissedScheduleItems] = useState<Record<string, { reason?: string; dismissedAt: string }>>({});
+  const [scheduleDismissItem, setScheduleDismissItem] = useState<NurseScheduleItem | null>(null);
+  const [scheduleDismissReason, setScheduleDismissReason] = useState("");
+  const [expandedScheduleItems, setExpandedScheduleItems] = useState<Record<string, boolean>>({});
+  const [scheduleAnnouncement, setScheduleAnnouncement] = useState("");
+  const [incidentQuickActionOpen, setIncidentQuickActionOpen] = useState(false);
+  const [medicationQuickActionOpen, setMedicationQuickActionOpen] = useState(false);
+  const [taskQuickActionOpen, setTaskQuickActionOpen] = useState(false);
+  const [carePlansQuickActionOpen, setCarePlansQuickActionOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(
+    () => care.operationalContext.operationalDate || new Date().toISOString().slice(0, 10),
+  );
+  const authorisedWingIds = care.currentUser.assignedWings || [];
+  const availableWings = care.wings.filter((wing) =>
+    authorisedWingIds.length ? authorisedWingIds.includes(wing.id) : true,
+  );
+  const [selectedWingId, setSelectedWingId] = useState(() => availableWings[0]?.id || "all");
+  const selectedReferenceTime = useMemo(() => {
+    const time = clockNow.toTimeString().slice(0, 8);
+    return new Date(`${selectedDate}T${time}`);
+  }, [clockNow, selectedDate]);
+  const d = useRoleDashboardData("assigned", {
+    date: selectedDate,
+    now: selectedReferenceTime,
+    wingId: selectedWingId === "all" ? undefined : selectedWingId,
+  });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(new Date()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (selectedWingId !== "all" && !availableWings.some((wing) => wing.id === selectedWingId)) {
+      setSelectedWingId(availableWings[0]?.id || "all");
+    }
+  }, [availableWings, selectedWingId]);
+
   const residents = (d.myResidents.length ? d.myResidents : d.activeResidents).slice(0, 22);
   const residentIds = new Set(residents.map((resident) => resident.id));
-  const workQueue = buildShiftWorkQueue(d, residentIds, false);
+  const workQueue = buildShiftWorkQueue(d, residentIds, false, selectedReferenceTime, {
+    exactDate: selectedDate,
+  });
   const careActions = d.scheduledDue.filter((item) => residentIds.has(item.intervention.residentId));
   const observationsDue = workQueue.filter((item) => item.workType === "Observation");
   const assessmentsDue = d.dueAssessments.filter((assessment) => residentIds.has(assessment.residentId));
@@ -1029,17 +1312,52 @@ function NurseDashboard() {
   );
   const highlightedResidents = residents.slice(0, 5);
   const next4Hours = workQueue
-    .filter((item) => item.dueAt && item.dueAt.getTime() <= Date.now() + 4 * 60 * 60 * 1000)
+    .filter((item) => item.dueAt && item.dueAt.getTime() <= selectedReferenceTime.getTime() + 4 * 60 * 60 * 1000)
     .slice(0, 8);
 
   const upcomingCareActions = careActions.slice(0, 8);
-  const schedule = [
-    { time: "08:00 - 10:00", title: "Morning Medications", meta: "Administer due medications", count: "5 Patients", icon: Pill, tone: "green" },
-    { time: "10:00 - 12:00", title: "Care Tasks", meta: "Personal care, mobilisations, meals", count: `${Math.max(6, dueTasks.length)} Tasks`, icon: ClipboardList, tone: "blue" },
-    { time: "12:00 - 14:00", title: "Observations", meta: "Vital signs and fluid balance", count: `${Math.max(3, observationsDue.length)} Patients`, icon: HeartPulse, tone: "purple" },
-    { time: "14:00 - 16:00", title: "Afternoon Medications", meta: "Administer due medications", count: "4 Patients", icon: ClipboardCheck, tone: "orange" },
-    { time: "16:00 - 18:00", title: "Evening Care", meta: "Personal care, meals, comfort rounds", count: "4 Tasks", icon: FileText, tone: "teal" },
-  ];
+  const dashboardTime = clockNow.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
+  const selectedWing = availableWings.find((wing) => wing.id === selectedWingId);
+  const metricTotal = Math.max(residents.length, 1);
+  const schedule = useMemo(
+    () => buildNurseScheduleItems(d, residentIds, workQueue, selectedDate),
+    [d, residentIds, selectedDate, workQueue],
+  );
+  const scheduleDismissKeyFor = (item: NurseScheduleItem) => `${selectedDate}:${selectedWingId}:${item.id}`;
+  const visibleSchedule = schedule.filter((item) => !dismissedScheduleItems[scheduleDismissKeyFor(item)]);
+  const schedulePreview = visibleSchedule.slice(0, 5);
+  const openDismissScheduleItem = (item: NurseScheduleItem) => {
+    setScheduleDismissItem(item);
+    setScheduleDismissReason("");
+    setScheduleDialogOpen(false);
+  };
+  const toggleScheduleItem = (item: NurseScheduleItem) => {
+    if (!item.children?.length) return;
+    setExpandedScheduleItems((expanded) => {
+      const nextOpen = !expanded[item.id];
+      setScheduleAnnouncement(
+        `${item.count || item.children?.length || 1} ${pluralScheduleKind(item.kind, item.count || item.children.length).toLowerCase()} ${nextOpen ? "expanded" : "collapsed"}`,
+      );
+      return { ...expanded, [item.id]: nextOpen };
+    });
+  };
+  const confirmDismissScheduleItem = () => {
+    if (!scheduleDismissItem) return;
+    if (scheduleDismissItem.dismissRequiresReason && !scheduleDismissReason.trim()) {
+      toast.error("Reason is required to dismiss this schedule item");
+      return;
+    }
+    setDismissedScheduleItems((items) => ({
+      ...items,
+      [scheduleDismissKeyFor(scheduleDismissItem)]: {
+        reason: scheduleDismissReason.trim() || undefined,
+        dismissedAt: new Date().toISOString(),
+      },
+    }));
+    toast.success("Schedule item dismissed");
+    setScheduleDismissItem(null);
+    setScheduleDismissReason("");
+  };
 
   return (
     <div className="min-h-screen bg-[#f4f8fd] p-4 md:p-6 xl:p-8">
@@ -1055,34 +1373,78 @@ function NurseDashboard() {
               <Sun className="h-7 w-7 text-amber-400" />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-[#071a3d]">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" />
-              20 May 2025
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-[#071a3d]">
+            <div className="flex min-w-[180px] items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Switch Ward/Wing</span>
+              <Select
+                value={selectedWingId}
+                onValueChange={(value) => {
+                  setSelectedWingId(value);
+                  if (value !== "all") {
+                    try {
+                      care.selectSingleWard(value);
+                    } catch {
+                      // Legacy wing selections are still valid for resident filtering.
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="h-10 min-w-[150px] border-slate-200 bg-white">
+                  <SelectValue placeholder="Select wing" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!authorisedWingIds.length && <SelectItem value="all">All Wings</SelectItem>}
+                  {availableWings.map((wing) => (
+                    <SelectItem key={wing.id} value={wing.id}>
+                      {wing.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <div className="h-6 w-px bg-slate-300" />
+            <label className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(event) => {
+                  setSelectedDate(event.target.value);
+                  care.setOperationalDate(event.target.value);
+                }}
+                className="h-10 w-[150px] border-slate-200 bg-white font-semibold"
+              />
+            </label>
             <div className="h-6 w-px bg-slate-300" />
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              08:30
+              {dashboardTime}
             </div>
             <div className="h-6 w-px bg-slate-300" />
-            <button type="button" className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-white"
+              onClick={() => {
+                setClockNow(new Date());
+                toast.success(`Dashboard refreshed for ${selectedWing?.name || "selected wing"}`);
+              }}
+            >
               <RefreshCw className="h-5 w-5" />
               Refresh
             </button>
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <NurseGaugeCard icon={Users} label="My Patients" value={residents.length} total={22} caption="Assigned to Me" color="#1f70d6" />
-          <NurseGaugeCard icon={Pill} label="Medications Due" value={5} total={22} caption="Due Today" color="#22a453" />
-          <NurseGaugeCard icon={ClipboardList} label="Care Tasks" value={Math.max(6, dueTasks.length)} total={22} caption="Due Today" color="#f59b21" />
-          <NurseGaugeCard icon={HeartPulse} label="Observations Due" value={Math.max(3, observationsDue.length)} total={22} caption="Due Today" color="#6f42c1" />
-          <NurseGaugeCard icon={FileText} label="Care Plans Due" value={Math.max(2, carePlansDue.length)} total={22} caption="Due Today" color="#24aaa5" />
-          <NurseGaugeCard icon={Bell} label="Alerts" value={Math.max(2, alerts.length)} total={0} caption="Require Attention" color="#ef4444" simple />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <NurseGaugeCard icon={Users} label="My Patients" value={residents.length} total={metricTotal} caption={selectedWing?.name || "Assigned to Me"} color="#1f70d6" />
+          <NurseGaugeCard icon={Pill} label="Medications Due" value={5} total={metricTotal} caption="Due Today" color="#22a453" />
+          <NurseGaugeCard icon={ClipboardList} label="Care Tasks" value={dueTasks.length} total={metricTotal} caption="Due Today" color="#f59b21" />
+          <NurseGaugeCard icon={HeartPulse} label="Observations Due" value={observationsDue.length} total={metricTotal} caption="Due Today" color="#6f42c1" />
+          <NurseGaugeCard icon={FileText} label="Care Plans Due" value={carePlansDue.length} total={metricTotal} caption="Due Today" color="#24aaa5" />
+          <NurseGaugeCard icon={Bell} label="Alerts" value={alerts.length} total={0} caption="Require Attention" color="#ef4444" simple />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_1.08fr]">
+        <div className="grid gap-4 2xl:grid-cols-[1fr_1.08fr]">
           <NursePanel title="My Patients - At a Glance" action="View All" href="/residents">
             <div className="overflow-hidden">
               <div className="grid grid-cols-[1.4fr_0.45fr_0.65fr_0.55fr_0.45fr_0.2fr] border-b px-2 pb-2 text-xs font-semibold text-slate-500">
@@ -1135,32 +1497,90 @@ function NurseDashboard() {
             <NursePanelFooter href="/residents" label="View All My Patients" />
           </NursePanel>
 
-          <NursePanel title="Today's Schedule" action="View All" href="/operations">
+          <NursePanel title="Today's Schedule" action="View All" onAction={() => setScheduleDialogOpen(true)}>
+            <div className="sr-only" aria-live="polite">{scheduleAnnouncement}</div>
             <div className="space-y-0">
-              {schedule.map((item, index) => (
-                <div key={item.title} className="grid grid-cols-[120px_36px_1fr_auto] items-center gap-3 py-3">
-                  <div className="flex items-center gap-3 text-sm font-medium text-[#071a3d]">
-                    <span className={`h-2.5 w-2.5 rounded-full ${nurseToneDot(item.tone)}`} />
-                    {item.time}
-                  </div>
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full ${nurseToneBg(item.tone)}`}>
-                    <item.icon className={`h-5 w-5 ${nurseToneText(item.tone)}`} />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-[#071a3d]">{item.title}</div>
-                    <div className="text-xs text-slate-500">{item.meta}</div>
-                  </div>
-                  <Badge className={`${nurseToneBadge(item.tone)} min-w-[88px] justify-center rounded-lg px-3 py-1`}>
-                    {item.count}
-                  </Badge>
+              {schedulePreview.length === 0 ? (
+                <div className="rounded-lg border p-8 text-center text-sm text-slate-500">
+                  No scheduled work for today.
                 </div>
-              ))}
+              ) : (
+                schedulePreview.map((item) => (
+                  <div key={item.id} className="border-b last:border-b-0">
+                    <div className="grid grid-cols-[82px_36px_1fr_auto_auto_auto] items-center gap-3 py-3">
+                      <div className="flex items-center gap-3 text-sm font-medium text-[#071a3d]">
+                        <span className={`h-2.5 w-2.5 rounded-full ${nurseToneDot(item.tone)}`} />
+                        {item.time}
+                      </div>
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full ${nurseToneBg(item.tone)}`}>
+                        <item.icon className={`h-5 w-5 ${nurseToneText(item.tone)}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-[#071a3d]">{item.title}</div>
+                        <div className="truncate text-xs text-slate-500">{item.meta}</div>
+                        {item.details && item.details.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {schedulePreviewDetails(item.details).map((detail, detailIndex) => (
+                              <span key={`${detail}-${detailIndex}`} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                {detail}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Badge className={`${nurseToneBadge(item.tone)} min-w-[112px] justify-center rounded-lg px-3 py-1`}>
+                        {item.kind} ({item.count || 1})
+                      </Badge>
+                      {item.children?.length ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          aria-expanded={Boolean(expandedScheduleItems[item.id])}
+                          aria-label={`${expandedScheduleItems[item.id] ? "Collapse" : "Expand"} ${item.title}`}
+                          onClick={() => toggleScheduleItem(item)}
+                        >
+                          {expandedScheduleItems[item.id] ? "Collapse" : "Open"}
+                        </Button>
+                      ) : (
+                        <Button asChild size="sm" variant="outline" className="h-8">
+                          <Link to={item.href as any}>Open</Link>
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs text-slate-500 hover:text-[#071a3d]"
+                        onClick={() => openDismissScheduleItem(item)}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                    {expandedScheduleItems[item.id] && item.children?.length && (
+                      <div className="mb-3 ml-[118px] space-y-2 rounded-lg bg-slate-50 p-3">
+                        {item.children.map((child) => (
+                          <div key={child.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-md bg-white px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-[#071a3d]">{child.title}</div>
+                              <div className="text-xs text-slate-500">{child.status?.replace(/_/g, " ") || "Open"}</div>
+                            </div>
+                            <Badge variant="outline">{child.kind}</Badge>
+                            <Button asChild size="sm" variant="ghost" className="h-8">
+                              <Link to={child.href as any}>Open</Link>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-            <NursePanelFooter href="/operations" label="View Full Schedule" />
+            <NursePanelFooter label="View Full Schedule" onClick={() => setScheduleDialogOpen(true)} />
           </NursePanel>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_1.08fr]">
+        <div className="grid gap-4 2xl:grid-cols-[1fr_1.08fr]">
           <NursePanel title="Alerts & Notifications" action="View All" href="/alerts">
             <div className="space-y-3">
               {(alerts.length ? alerts.slice(0, 2) : [
@@ -1197,11 +1617,14 @@ function NurseDashboard() {
 
           <NursePanel title="Quick Actions">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <NurseAction href="/residents" icon={Users} label="Record Observation" tone="blue" />
-              <NurseAction href="/tasks" icon={Pill} label="Administer Medication" tone="green" />
-              <NurseAction href="/tasks" icon={ClipboardList} label="Create Task" tone="purple" />
-              <NurseAction href="/incidents" icon={AlertTriangle} label="Report Incident" tone="red" />
-              <NurseAction href="/care-plans" icon={FileText} label="View Care Plans" tone="teal" />
+              <RecordObservationFlow
+                trigger={<NurseAction icon={Users} label="Record Observation" tone="blue" />}
+                onRecorded={() => toast.success("Dashboard updated")}
+              />
+              <NurseAction icon={Pill} label="Administer Medication" tone="green" onClick={() => setMedicationQuickActionOpen(true)} />
+              <NurseAction icon={ClipboardList} label="Create Task" tone="purple" onClick={() => setTaskQuickActionOpen(true)} />
+              <NurseAction icon={AlertTriangle} label="Report Incident" tone="red" onClick={() => setIncidentQuickActionOpen(true)} />
+              <NurseAction icon={FileText} label="View Care Plans" tone="teal" onClick={() => setCarePlansQuickActionOpen(true)} />
             </div>
           </NursePanel>
         </div>
@@ -1279,7 +1702,528 @@ function NurseDashboard() {
           </Card>
         </div>
       </div>
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[86vh] overflow-y-auto border-0 bg-[#f4f8fd] p-0">
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-[#071a3d]">Full Schedule</DialogTitle>
+              <DialogDescription>
+                {formatDonDate(selectedDate)} · {selectedWing?.name || "All Wings"} · upcoming resident work, appointments and actions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4 space-y-1">
+              {visibleSchedule.length === 0 ? (
+                <div className="rounded-lg border p-8 text-center text-sm text-slate-500">
+                  No scheduled work for today.
+                </div>
+              ) : (
+                visibleSchedule.map((item) => (
+                  <NurseScheduleDialogRow
+                    key={item.id}
+                    item={item}
+                    expanded={Boolean(expandedScheduleItems[item.id])}
+                    onToggle={() => toggleScheduleItem(item)}
+                    onDismiss={() => openDismissScheduleItem(item)}
+                    onOpen={() => setScheduleDialogOpen(false)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(scheduleDismissItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setScheduleDismissItem(null);
+            setScheduleDismissReason("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg border-0 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#071a3d]">Dismiss Schedule Item</DialogTitle>
+            <DialogDescription>
+              {scheduleDismissItem
+                ? `${scheduleDismissItem.title} · ${scheduleDismissItem.residentName}`
+                : "Confirm this schedule item should be hidden from the dashboard."}
+            </DialogDescription>
+          </DialogHeader>
+          {scheduleDismissItem?.details && scheduleDismissItem.details.length > 1 && (
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Grouped observations</div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {scheduleDismissItem.details.map((detail, detailIndex) => (
+                  <span key={`${detail}-${detailIndex}`} className="rounded-md bg-white px-2 py-1 text-xs font-medium text-slate-600">
+                    {detail}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            <div className="text-sm font-semibold text-[#071a3d]">
+              Reason {scheduleDismissItem?.dismissRequiresReason ? "*" : "(optional)"}
+            </div>
+            <Textarea
+              value={scheduleDismissReason}
+              onChange={(event) => setScheduleDismissReason(event.target.value)}
+              placeholder="Enter reason for dismissing this item"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setScheduleDismissItem(null);
+                setScheduleDismissReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDismissScheduleItem}
+              disabled={Boolean(scheduleDismissItem?.dismissRequiresReason && !scheduleDismissReason.trim())}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <NurseMedicationDialog
+        open={medicationQuickActionOpen}
+        onOpenChange={setMedicationQuickActionOpen}
+        residents={residents}
+      />
+      <NurseTaskDialog
+        open={taskQuickActionOpen}
+        onOpenChange={setTaskQuickActionOpen}
+        residents={residents}
+        selectedWingId={selectedWingId === "all" ? undefined : selectedWingId}
+      />
+      <IncidentDialog
+        open={incidentQuickActionOpen}
+        onOpenChange={setIncidentQuickActionOpen}
+        mode="create"
+      />
+      <NurseCarePlansDialog
+        open={carePlansQuickActionOpen}
+        onOpenChange={setCarePlansQuickActionOpen}
+        residents={residents}
+        carePlans={d.activeProblems.filter((plan) => residentIds.has(plan.residentId))}
+        residentFor={d.residentFor}
+      />
     </div>
+  );
+}
+
+function NurseScheduleDialogRow({
+  item,
+  expanded,
+  onToggle,
+  onDismiss,
+  onOpen,
+}: {
+  item: NurseScheduleItem;
+  expanded: boolean;
+  onToggle: () => void;
+  onDismiss: () => void;
+  onOpen: () => void;
+}) {
+  const isGrouped = Boolean(item.children?.length);
+
+  return (
+    <div className="rounded-lg hover:bg-blue-50/60">
+      <div className="grid grid-cols-[92px_40px_1fr_auto_auto_auto] items-center gap-3 px-3 py-3">
+        <div className="flex items-center gap-3 text-sm font-semibold text-[#071a3d]">
+          <span className={`h-2.5 w-2.5 rounded-full ${nurseToneDot(item.tone)}`} />
+          {item.time}
+        </div>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-full ${nurseToneBg(item.tone)}`}>
+          <item.icon className={`h-5 w-5 ${nurseToneText(item.tone)}`} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate font-semibold text-[#071a3d]">{item.title}</div>
+          <div className="truncate text-xs text-slate-500">{item.meta}</div>
+          {item.details && item.details.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {schedulePreviewDetails(item.details).map((detail, detailIndex) => (
+                <span key={`${detail}-${detailIndex}`} className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                  {detail}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <Badge className={`${nurseToneBadge(item.tone)} min-w-[116px] justify-center rounded-lg px-3 py-1`}>
+          {item.kind} ({item.count || 1})
+        </Badge>
+        {isGrouped ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${item.title}`}
+            onClick={onToggle}
+          >
+            {expanded ? "Collapse" : "Open"}
+          </Button>
+        ) : (
+          <Button asChild size="sm" variant="outline" className="h-8">
+            <Link to={item.href as any} onClick={onOpen}>
+              Open
+            </Link>
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 px-2 text-xs text-slate-500 hover:text-[#071a3d]"
+          onClick={onDismiss}
+        >
+          Dismiss
+        </Button>
+      </div>
+      {expanded && item.children?.length && (
+        <div className="mx-3 mb-3 ml-[132px] space-y-2 rounded-lg bg-slate-50 p-3">
+          {item.children.map((child) => (
+            <div key={child.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-md bg-white px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-[#071a3d]">{child.title}</div>
+                <div className="text-xs capitalize text-slate-500">
+                  {child.time} Â· {child.status?.replace(/_/g, " ") || "Open"}
+                </div>
+              </div>
+              <Badge variant="outline">{child.kind}</Badge>
+              <Button asChild size="sm" variant="ghost" className="h-8">
+                <Link to={child.href as any} onClick={onOpen}>
+                  Open
+                </Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type NurseQuickTaskForm = {
+  residentId: string;
+  title: string;
+  description: string;
+  category: NonNullable<Task["category"]>;
+  taskType: string;
+  priority: NonNullable<Task["priority"]>;
+  dueDate: string;
+  assignedToType: NonNullable<Task["assignedToType"]>;
+  assignedRole: Role;
+};
+
+const NURSE_QUICK_TASK_TYPES: Record<NonNullable<Task["category"]>, string[]> = {
+  clinical: ["GP Request", "Medication Review", "Wound Review", "Observation Follow-up", "MDT Follow-up"],
+  operational: ["Equipment Check", "Transport Booking", "Stock Request", "Room Support"],
+  administrative: ["Documentation", "Consent Required", "Family Update", "Audit Action"],
+  resident: ["Appointment", "Chiropodist", "Optician", "Dentist", "Activity"],
+  general: ["Custom Action"],
+};
+
+function nurseQuickDueTime() {
+  const date = new Date();
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function NurseTaskDialog({
+  open,
+  onOpenChange,
+  residents,
+  selectedWingId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  residents: Resident[];
+  selectedWingId?: string;
+}) {
+  const { addTask, currentUserName } = useCare();
+  const blank = (): NurseQuickTaskForm => ({
+    residentId: residents[0]?.id || "none",
+    title: "",
+    description: "",
+    category: "clinical",
+    taskType: "GP Request",
+    priority: "normal",
+    dueDate: nurseQuickDueTime(),
+    assignedToType: selectedWingId ? "wing" : "staff",
+    assignedRole: "nurse",
+  });
+  const [form, setForm] = useState<NurseQuickTaskForm>(blank);
+
+  useEffect(() => {
+    if (open) setForm(blank());
+  }, [open, residents, selectedWingId]);
+
+  const save = () => {
+    if (!form.title.trim()) return toast.error("Task title is required");
+    addTask({
+      residentId: form.residentId === "none" ? undefined : form.residentId,
+      title: form.title.trim(),
+      description: form.description.trim() || undefined,
+      category: form.category,
+      taskType: form.taskType,
+      priority: form.priority,
+      assignedTo: form.assignedToType === "role" ? "NURSE" : form.assignedToType === "wing" ? "Wing team" : currentUserName,
+      assignedToType: form.assignedToType,
+      assignedRole: form.assignedToType === "role" ? form.assignedRole : undefined,
+      assignedWingId: form.assignedToType === "wing" ? selectedWingId : undefined,
+      dueDate: form.dueDate,
+      recurrence: "none",
+      status: "pending",
+      followUpRequired: false,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUserName,
+    });
+    toast.success("Task created");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Create Task</DialogTitle>
+          <DialogDescription>Create a resident-linked or ward task without leaving the dashboard.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Title *</Label>
+            <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Resident</Label>
+            <Select value={form.residentId} onValueChange={(residentId) => setForm({ ...form, residentId })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No resident linked</SelectItem>
+                {residents.map((resident) => (
+                  <SelectItem key={resident.id} value={resident.id}>
+                    {rdName(resident)} - Room {resident.roomNumber}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Due date and time</Label>
+            <Input type="datetime-local" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={form.category}
+              onValueChange={(category) => setForm({
+                ...form,
+                category: category as NurseQuickTaskForm["category"],
+                taskType: NURSE_QUICK_TASK_TYPES[category as NurseQuickTaskForm["category"]][0],
+              })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="clinical">Clinical</SelectItem>
+                <SelectItem value="operational">Operational</SelectItem>
+                <SelectItem value="administrative">Administrative</SelectItem>
+                <SelectItem value="resident">Resident</SelectItem>
+                <SelectItem value="general">General</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Task type</Label>
+            <Select value={form.taskType} onValueChange={(taskType) => setForm({ ...form, taskType })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {NURSE_QUICK_TASK_TYPES[form.category].map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Priority</Label>
+            <Select value={form.priority} onValueChange={(priority) => setForm({ ...form, priority: priority as NurseQuickTaskForm["priority"] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["critical", "high", "normal", "low"].map((priority) => <SelectItem key={priority} value={priority} className="capitalize">{priority}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Assign to</Label>
+            <Select value={form.assignedToType} onValueChange={(assignedToType) => setForm({ ...form, assignedToType: assignedToType as NurseQuickTaskForm["assignedToType"] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="staff">Me</SelectItem>
+                <SelectItem value="role">Nurse role</SelectItem>
+                {selectedWingId && <SelectItem value="wing">Selected ward/wing</SelectItem>}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Details</Label>
+            <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save}>Create Task</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NurseMedicationDialog({ open, onOpenChange, residents }: { open: boolean; onOpenChange: (open: boolean) => void; residents: Resident[] }) {
+  const { addTask, currentUserName } = useCare();
+  const [residentId, setResidentId] = useState(residents[0]?.id || "");
+  const [medication, setMedication] = useState("");
+  const [notes, setNotes] = useState("");
+  const [dueDate, setDueDate] = useState(nurseQuickDueTime());
+
+  useEffect(() => {
+    if (open) {
+      setResidentId(residents[0]?.id || "");
+      setMedication("");
+      setNotes("");
+      setDueDate(nurseQuickDueTime());
+    }
+  }, [open, residents]);
+
+  const save = () => {
+    if (!residentId) return toast.error("Select resident");
+    if (!medication.trim()) return toast.error("Medication details are required");
+    addTask({
+      residentId,
+      title: `Administer medication: ${medication.trim()}`,
+      description: notes.trim() || undefined,
+      category: "clinical",
+      taskType: "Medication Administration",
+      priority: "normal",
+      assignedTo: currentUserName,
+      assignedToType: "staff",
+      dueDate,
+      recurrence: "none",
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      createdBy: currentUserName,
+    });
+    toast.success("Medication task created");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Administer Medication</DialogTitle>
+          <DialogDescription>Record the medication action as a task for follow-up and audit.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Resident *</Label>
+            <Select value={residentId} onValueChange={setResidentId}>
+              <SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger>
+              <SelectContent>
+                {residents.map((resident) => <SelectItem key={resident.id} value={resident.id}>{rdName(resident)} - Room {resident.roomNumber}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Medication / dose *</Label>
+            <Input value={medication} onChange={(event) => setMedication(event.target.value)} placeholder="Medication name and dose" />
+          </div>
+          <div className="space-y-2">
+            <Label>Due date and time</Label>
+            <Input type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional administration notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save}>Save Medication Task</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NurseCarePlansDialog({
+  open,
+  onOpenChange,
+  residents,
+  carePlans,
+  residentFor,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  residents: Resident[];
+  carePlans: CarePlanProblem[];
+  residentFor: (id?: string) => Resident | undefined;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[86vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Care Plans</DialogTitle>
+          <DialogDescription>Active nursing care plans for the selected dashboard residents.</DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end">
+          <CreateCarePlanDialog
+            trigger={<Button size="sm"><Plus className="mr-2 h-4 w-4" /> Create Care Plan</Button>}
+            onCreated={() => toast.success("Care plan list updated")}
+          />
+        </div>
+        <div className="space-y-2">
+          {carePlans.length === 0 ? (
+            <div className="rounded-lg border p-8 text-center text-sm text-slate-500">No active care plans for these residents.</div>
+          ) : (
+            carePlans.map((plan) => {
+              const resident = residentFor(plan.residentId);
+              return (
+                <div key={plan.id} className="rounded-lg border p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[#071a3d]">{plan.problemStatement}</div>
+                      <div className="text-xs text-slate-500">
+                        {rdName(resident)} - Room {resident?.roomNumber || "-"}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="capitalize">{plan.riskLevel.replace("_", " ")}</Badge>
+                  </div>
+                  <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                    <span>Review: {plan.reviewDate}</span>
+                    <span>Outcome review: {plan.evaluationDate}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button asChild>
+            <Link to="/care-plans">Open Care Plans Page</Link>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1332,11 +2276,13 @@ function NursePanel({
   title,
   action,
   href,
+  onAction,
   children,
 }: {
   title: string;
   action?: string;
   href?: string;
+  onAction?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -1348,15 +2294,30 @@ function NursePanel({
             {action}
           </Link>
         )}
+        {action && !href && onAction && (
+          <button type="button" onClick={onAction} className="text-sm font-semibold text-blue-700">
+            {action}
+          </button>
+        )}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
   );
 }
 
-function NursePanelFooter({ href, label }: { href: string; label: string }) {
+function NursePanelFooter({ href, label, onClick }: { href?: string; label: string; onClick?: () => void }) {
+  const className = "mt-3 flex w-full items-center justify-between border-t pt-4 text-sm font-semibold text-blue-700";
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {label}
+        <ArrowRight className="h-5 w-5" />
+      </button>
+    );
+  }
+  if (!href) return null;
   return (
-    <Link to={href} className="mt-3 flex items-center justify-between border-t pt-4 text-sm font-semibold text-blue-700">
+    <Link to={href} className={className}>
       {label}
       <ArrowRight className="h-5 w-5" />
     </Link>
@@ -1373,12 +2334,16 @@ function NurseBubble({ value, tone }: { value: number; tone: "orange" | "red" | 
   return <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${cls}`}>{value}</span>;
 }
 
-function NurseAction({ href, icon: Icon, label, tone }: { href: string; icon: typeof Users; label: string; tone: string }) {
+function NurseAction({ icon: Icon, label, tone, onClick }: { icon: typeof Users; label: string; tone: string; onClick?: () => void }) {
   return (
-    <Link to={href} className="flex min-h-32 flex-col items-center justify-center gap-3 rounded-lg border bg-white p-3 text-center hover:bg-blue-50/60">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-32 flex-col items-center justify-center gap-3 rounded-lg border bg-white p-3 text-center hover:bg-blue-50/60"
+    >
       <Icon className={`h-9 w-9 ${nurseToneText(tone)}`} />
       <span className="text-sm font-semibold leading-snug text-[#071a3d]">{label}</span>
-    </Link>
+    </button>
   );
 }
 
@@ -1489,8 +2454,11 @@ function buildShiftWorkQueue(
   d: ReturnType<typeof useRoleDashboardData>,
   residentIds: Set<string>,
   hcaOnly: boolean,
+  referenceTime: Date = new Date(),
+  options: { exactDate?: string } = {},
 ): WorkQueueItem[] {
-  const now = new Date();
+  const now = referenceTime;
+  const exactDate = options.exactDate;
   const items: WorkQueueItem[] = [];
   const addResidentItem = (
     residentId: string,
@@ -1510,6 +2478,7 @@ function buildShiftWorkQueue(
   d.scheduledDue
     .filter((scheduled) => residentIds.has(scheduled.intervention.residentId))
     .filter((scheduled) => !hcaOnly || isHcaAppropriateIntervention(scheduled))
+    .filter((scheduled) => !exactDate || scheduleDateKey(scheduled.dueAt || undefined) === exactDate)
     .forEach((scheduled) => {
       addResidentItem(scheduled.intervention.residentId, {
         id: `intervention-${scheduled.intervention.id}`,
@@ -1518,13 +2487,28 @@ function buildShiftWorkQueue(
         dueLabel: scheduledInterventionDueLabel(scheduled, now),
         dueAt: scheduled.dueAt || undefined,
         status: scheduled.status,
+        assignment: [
+          scheduled.intervention.assignedTo,
+          scheduled.intervention.assignedRole,
+          scheduled.intervention.assignedWingId,
+          scheduled.intervention.assignedTeamId,
+        ].filter(Boolean).join("|"),
         tone: scheduled.status === "overdue" ? "danger" : scheduled.status === "due_now" ? "warn" : "info",
       });
     });
 
   if (!hcaOnly) {
     d.tasks
-      .filter((task) => task.status !== "completed" && task.status !== "deleted" && (!task.residentId || residentIds.has(task.residentId)))
+      .filter((task) => {
+        const taskDate = task.dueDate.slice(0, 10);
+        const selectedDate = exactDate || scheduleDateKey(now);
+        return (
+          task.status !== "completed" &&
+          task.status !== "deleted" &&
+          (exactDate ? taskDate === selectedDate : taskDate <= selectedDate) &&
+          (!task.residentId || residentIds.has(task.residentId))
+        );
+      })
       .forEach((task) => {
         const dueAt = new Date(`${task.dueDate.slice(0, 10)}T23:59`);
         const status = taskStatusForDueDate(task.dueDate, now);
@@ -1538,6 +2522,7 @@ function buildShiftWorkQueue(
             dueLabel: status === "overdue" ? "Overdue" : "Due today",
             dueAt,
             status,
+            assignment: [task.assignedTo, task.assignedRole, task.assignedWingId, task.assignedUnitId].filter(Boolean).join("|"),
             href: "/tasks",
             tone: status === "overdue" ? "danger" : "warn",
           });
@@ -1550,12 +2535,16 @@ function buildShiftWorkQueue(
           dueLabel: status === "overdue" ? "Overdue" : "Due today",
           dueAt,
           status: /note|document|handover|incident/i.test(task.title) ? "documentation" : status,
+          assignment: [task.assignedTo, task.assignedRole, task.assignedWingId, task.assignedUnitId].filter(Boolean).join("|"),
           tone: status === "overdue" ? "danger" : "warn",
         });
       });
 
     d.dueAssessments
-      .filter((assessment) => residentIds.has(assessment.residentId))
+      .filter((assessment: any) => {
+        const dueDate = assessment.dueDate || assessment.reviewDate || assessment.nextDueDate || assessment.date;
+        return residentIds.has(assessment.residentId) && (!exactDate || String(dueDate || "").slice(0, 10) === exactDate);
+      })
       .slice(0, 20)
       .forEach((assessment) => {
         addResidentItem(assessment.residentId, {
@@ -1564,6 +2553,7 @@ function buildShiftWorkQueue(
           title: `${assessment.type.replace("_", " ")} assessment due`,
           dueLabel: assessment.status === "review_due" ? "Review due" : "Due today",
           status: "due_today",
+          assignment: [assessment.assignedTo, assessment.assignedToName, assessment.assignedRole].filter(Boolean).join("|"),
           tone: "info",
         });
       });
@@ -1574,6 +2564,7 @@ function buildShiftWorkQueue(
     const compliance = complianceForResident(plan, d.vitals.filter((v) => v.residentId === plan.residentId), now);
     compliance.items
       .filter((item) => item.status === "missed" || item.status === "overdue" || item.status === "due_today")
+      .filter((item) => !exactDate || scheduleDateKey(item.nextDueAt) === exactDate)
       .forEach((item) => {
         const dueAt = item.nextDueAt ? new Date(item.nextDueAt) : undefined;
         addResidentItem(plan.residentId, {
@@ -1588,7 +2579,7 @@ function buildShiftWorkQueue(
       });
   });
 
-  if (!hcaOnly) {
+  if (!hcaOnly && !exactDate) {
     [...d.clinicalAlerts.filter(isActionableClinicalAlert), ...d.alerts.filter(isActionRequiredAlert)]
       .filter((alert: any) => residentIds.has(alert.residentId))
       .forEach((alert: any) => {

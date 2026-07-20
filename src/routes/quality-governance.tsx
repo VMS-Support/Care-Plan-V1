@@ -63,7 +63,7 @@ function QualityGovernanceDashboard() {
         </div>
       </div>
 
-      <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <GovernanceKpi icon={Shield} title="Overall Quality Score" value="84%" sub="Good" foot="vs last month" trend="up" delta="6%" tone="blue" percent={84} />
         <GovernanceKpi icon={ShieldCheck} title="Compliance Score" value="91%" sub="Compliant" foot="vs last month" trend="up" delta="4%" tone="green" percent={91} />
         <GovernanceKpi icon={AlertTriangle} title="Open Incidents" value="23" sub="Open" foot="vs last month" trend="down" delta="3" tone="red" percent={70} />
@@ -72,9 +72,10 @@ function QualityGovernanceDashboard() {
         <GovernanceKpi icon={FileText} title="Policies Up to Date" value="88%" sub="Up to Date" foot="vs last month" trend="up" delta="5%" tone="teal" percent={88} />
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1.1fr_1fr_1.1fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1.1fr_1fr_1.1fr]">
         <Panel title="Clinical Quality Indicators" subtitle="(This Month)" action="View All">
-          <div className="grid grid-cols-[1fr_80px_80px_90px] border-b pb-2 text-xs font-bold text-[#536176]">
+          <div className="overflow-x-auto">
+          <div className="grid min-w-[560px] grid-cols-[1fr_80px_80px_90px] border-b pb-2 text-xs font-bold text-[#536176]">
             <span>Indicator</span><span>Result</span><span>Target</span><span>vs Last Month</span>
           </div>
           {[
@@ -85,7 +86,7 @@ function QualityGovernanceDashboard() {
             ["Resident Satisfaction", "86.3%", ">= 85%", "up", "3.1%"],
             ["Complaints Upheld Rate", "4.2%", "<= 5%", "down", "1.1%"],
           ].map(([label, result, target, trend, delta]) => (
-            <div key={label} className="grid grid-cols-[1fr_80px_80px_90px] border-b py-2 text-xs last:border-b-0">
+            <div key={label} className="grid min-w-[560px] grid-cols-[1fr_80px_80px_90px] border-b py-2 text-xs last:border-b-0">
               <span>{label}</span>
               <span className="font-bold">{result}</span>
               <span>{target}</span>
@@ -95,6 +96,7 @@ function QualityGovernanceDashboard() {
               </span>
             </div>
           ))}
+          </div>
           <PanelFooter label="View All Indicators" />
         </Panel>
 
@@ -137,7 +139,7 @@ function QualityGovernanceDashboard() {
         </Panel>
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1fr_1fr_1.12fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.12fr]">
         <Panel title="Upcoming Inspections & Audits" action="View Calendar">
           <DataRows columns="grid-cols-[1fr_1fr_1fr_95px_55px]" headers={["Type", "Home", "Regulator / Auditor", "Date", "Days"]} rows={[
             ["HIQA Inspection", "Riverside Lodge", "HIQA", "28 May 2025", "8"],
@@ -190,9 +192,9 @@ function QualityGovernanceDashboard() {
         </Panel>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-3">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
         <Panel title="Complaints Overview" subtitle="(This Month)" action="View All">
-          <div className="grid grid-cols-[100px_repeat(4,1fr)] items-center gap-2 text-center text-xs">
+          <div className="grid grid-cols-2 items-center gap-2 text-center text-xs xl:grid-cols-[100px_repeat(4,1fr)]">
             <div className="flex items-center gap-3 text-left">
               <div className="grid h-11 w-11 place-items-center rounded-full bg-purple-100 text-purple-700"><MessageCircle className="h-6 w-6" /></div>
               <div><div className="text-2xl font-bold">12</div><div>Total Complaints</div></div>
@@ -205,7 +207,7 @@ function QualityGovernanceDashboard() {
         </Panel>
 
         <Panel title="Risk Register Summary" action="View Register">
-          <div className="grid grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 gap-3 text-center xl:grid-cols-4">
             <DocStat title="High Risks" value="6" sub="" tone="red" />
             <DocStat title="Medium Risks" value="13" sub="" tone="orange" />
             <DocStat title="Low Risks" value="21" sub="" tone="green" />
@@ -321,14 +323,14 @@ function MiniMetric({ label, value, tone, sub }: { label: string; value: string;
 
 function DataRows({ columns, headers, rows }: { columns: string; headers: string[]; rows: string[][] }) {
   return (
-    <>
-      <div className={`grid ${columns} border-b pb-2 text-xs font-bold text-[#536176]`}>{headers.map((header) => <span key={header}>{header}</span>)}</div>
+    <div className="overflow-x-auto">
+      <div className={`grid min-w-[620px] ${columns} border-b pb-2 text-xs font-bold text-[#536176]`}>{headers.map((header) => <span key={header}>{header}</span>)}</div>
       {rows.map((row) => (
-        <div key={row.join("-")} className={`grid ${columns} border-b py-2 text-xs last:border-b-0`}>
+        <div key={row.join("-")} className={`grid min-w-[620px] ${columns} border-b py-2 text-xs last:border-b-0`}>
           {row.map((cell, index) => <span key={`${cell}-${index}`} className={index === row.length - 1 ? "rounded-md bg-red-50 px-2 py-1 text-center font-bold text-red-600" : ""}>{cell}</span>)}
         </div>
       ))}
-    </>
+    </div>
   );
 }
 

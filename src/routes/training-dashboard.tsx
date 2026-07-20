@@ -88,7 +88,7 @@ function TrainingDashboard() {
         </div>
       </header>
 
-      <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <TrainingKpi icon={ShieldCheck} title="Overall Compliance" metric={dashboard.metrics.overallCompliance} tone="green" />
         <TrainingKpi icon={GraduationCap} title="Mandatory Training" metric={dashboard.metrics.mandatoryCompliance} tone="purple" />
         <TrainingKpi icon={Clock3} title="Overdue Training" metric={dashboard.metrics.overdueTraining} tone="red" />
@@ -97,7 +97,7 @@ function TrainingDashboard() {
         <TrainingKpi icon={Clock3} title="Total Training Hours" metric={dashboard.metrics.totalTrainingHours} tone="teal" />
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-3">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
         <Panel title="Mandatory Training Compliance by Category">
           {dashboard.mandatoryComplianceByCategory.length ? dashboard.mandatoryComplianceByCategory.map((item) => <CategoryRow key={item.category} label={title(item.category)} pct={item.compliancePercentage} target={item.targetPercentage} overdue={item.overdue} route={item.route} />) : <Empty text="No Training Requirements apply to the selected scope." />}
           <PanelLink to="/workforce/training?view=category-home" label="View Compliance by Home" />
@@ -202,7 +202,7 @@ function Panel({ title: panelTitle, suffix, action, actionTo, children, classNam
 }
 
 function CategoryRow({ label, pct, target, overdue, route }: { label: string; pct?: number; target?: number; overdue: number; route: string }) {
-  return <Link to={route as any} className="mb-3 grid grid-cols-[1fr_1.3fr_52px_80px] items-center gap-3 text-xs"><span>{label}</span><span className="h-2 rounded bg-[#edf1f6]"><span className="block h-full rounded bg-[#25a95a]" style={{ width: `${pct ?? 0}%` }} /></span><span>{pct === undefined ? "N/A" : `${pct}%`}</span><span className={overdue ? "text-[#ef3333]" : "text-[#536176]"}>{overdue ? `${overdue} overdue` : `target ${target}%`}</span></Link>;
+  return <Link to={route as any} className="mb-3 grid grid-cols-[1fr_auto] items-center gap-3 text-xs sm:grid-cols-[1fr_1.3fr_52px_80px]"><span>{label}</span><span className="h-2 rounded bg-[#edf1f6]"><span className="block h-full rounded bg-[#25a95a]" style={{ width: `${pct ?? 0}%` }} /></span><span>{pct === undefined ? "N/A" : `${pct}%`}</span><span className={overdue ? "text-[#ef3333]" : "text-[#536176]"}>{overdue ? `${overdue} overdue` : `target ${target}%`}</span></Link>;
 }
 
 function Donut({ value, label, percent }: { value: string; label: string; percent: number }) {
@@ -231,7 +231,7 @@ function DeliveryRow({ item }: { item: { deliveryMethod: string; count: number; 
 }
 
 function HomeTable({ rows }: { rows: Array<{ homeName: string; totalAssignments: number; compliant: number; inProgress: number; overdue: number; compliancePercentage?: number; route: string }> }) {
-  return <table className="w-full text-left text-xs"><thead><tr className="text-[#536176]">{["Home", "Assignments", "Compliant", "In Progress", "Overdue", "Compliance %"].map((header) => <th key={header} className="pb-3 font-medium">{header}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.homeName} className="border-t border-[#edf1f6]"><td className="py-3 font-medium"><Link to={row.route as any}>{row.homeName}</Link></td><td>{row.totalAssignments}</td><td>{row.compliant}</td><td>{row.inProgress}</td><td className={row.overdue ? "text-[#ef3333]" : ""}>{row.overdue}</td><td><span className="flex items-center gap-3">{row.compliancePercentage === undefined ? "N/A" : `${row.compliancePercentage}%`}<span className="h-1.5 flex-1 rounded bg-[#edf1f6]"><span className="block h-full rounded bg-[#25a95a]" style={{ width: `${row.compliancePercentage ?? 0}%` }} /></span></span></td></tr>)}</tbody></table>;
+  return <div className="overflow-x-auto"><table className="min-w-[680px] w-full text-left text-xs"><thead><tr className="text-[#536176]">{["Home", "Assignments", "Compliant", "In Progress", "Overdue", "Compliance %"].map((header) => <th key={header} className="pb-3 font-medium">{header}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.homeName} className="border-t border-[#edf1f6]"><td className="py-3 font-medium"><Link to={row.route as any}>{row.homeName}</Link></td><td>{row.totalAssignments}</td><td>{row.compliant}</td><td>{row.inProgress}</td><td className={row.overdue ? "text-[#ef3333]" : ""}>{row.overdue}</td><td><span className="flex items-center gap-3">{row.compliancePercentage === undefined ? "N/A" : `${row.compliancePercentage}%`}<span className="h-1.5 flex-1 rounded bg-[#edf1f6]"><span className="block h-full rounded bg-[#25a95a]" style={{ width: `${row.compliancePercentage ?? 0}%` }} /></span></span></td></tr>)}</tbody></table></div>;
 }
 
 function SummaryCard({ title: cardTitle, metric }: { title: string; metric: TrainingDashboardMetric }) {

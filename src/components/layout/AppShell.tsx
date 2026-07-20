@@ -304,10 +304,14 @@ function SidebarInner() {
     "/tasks",
     "/visitors",
   ]);
+  const donHidden = new Set([
+    "/quality-governance",
+  ]);
   const visible = nav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess))
-    .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to));
+    .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
+    .filter((i) => currentRole !== "don" || !donHidden.has(i.to));
   const visibleWorkforce = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess));
@@ -455,10 +459,14 @@ function MobileNav() {
     "/tasks",
     "/visitors",
   ]);
+  const donHidden = new Set([
+    "/quality-governance",
+  ]);
   const visible = nav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess))
     .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
+    .filter((i) => currentRole !== "don" || !donHidden.has(i.to))
   const workforceVisible = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess));

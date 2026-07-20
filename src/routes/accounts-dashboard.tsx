@@ -80,7 +80,7 @@ function AccountsDashboard() {
         </div>
       </div>
 
-      <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
         <FinanceKpi icon={BarChart3} title="Total Revenue (MTD)" value={`${EUR}2.48M`} foot="vs Apr: +8.6%" trend="up" tone="green" percent={72} />
         <FinanceKpi icon={BarChart3} title="Gross Profit (MTD)" value={`${EUR}1.48M`} sub="59.7% Margin" foot="vs Apr: +7.2%" trend="up" tone="purple" percent={64} />
         <FinanceKpi icon={BarChart3} title="Operating Expenses (MTD)" value={`${EUR}0.96M`} foot="vs Apr: +6.1%" trend="up" tone="orange" percent={68} />
@@ -90,7 +90,7 @@ function AccountsDashboard() {
         <FinanceKpi icon={WalletCards} title="Outstanding AP" value={`${EUR}0.68M`} sub="22 Days" foot="vs Apr: -2 Days" trend="downGood" tone="yellow" percent={72} />
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1fr_1fr_1.1fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.1fr]">
         <Panel title="Cash Position" action="View Cash Flow">
           <CashChart />
           <div className="mt-4 grid grid-cols-3 rounded-lg bg-[#f7f9fc] text-center text-sm">
@@ -130,7 +130,7 @@ function AccountsDashboard() {
         </Panel>
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1fr_1fr_1.1fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.1fr]">
         <Panel title="Accounts Receivable (AR)" action="View AR Aging">
           <Aging value={`${EUR}1.12M`} label="Total AR" rows={[
             ["0 - 30 Days", `${EUR}0.62M`, "(55%)", "green"],
@@ -176,9 +176,9 @@ function AccountsDashboard() {
         </Panel>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr]">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_0.9fr_0.9fr]">
         <Panel title="HR & People Overview" action="View HR Dashboard">
-          <div className="grid grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 gap-3 text-center xl:grid-cols-4">
             <PeopleStat icon={Users} label="Total Employees" value="312" tone="blue" />
             <PeopleStat icon={Users} label="On Leave Today" value="31" tone="green" />
             <PeopleStat icon={Users} label="New Starters (MTD)" value="8" tone="orange" />
@@ -213,7 +213,7 @@ function AccountsDashboard() {
         </Panel>
 
         <Panel title="Quick Actions">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             <Action icon={FileText} label="Create Invoice" />
             <Action icon={ReceiptText} label="Pay Bills" />
             <Action icon={ClipboardList} label="Run Payroll" />
@@ -311,7 +311,7 @@ function MiniMetric({ label, value, tone }: { label: string; value: string; tone
 }
 
 function DataRows({ columns, headers, rows }: { columns: string; headers: string[]; rows: string[][] }) {
-  return <><div className={`grid ${columns} border-b pb-2 text-xs font-bold text-[#536176]`}>{headers.map((header) => <span key={header}>{header}</span>)}</div>{rows.map((row) => <div key={row.join("-")} className={`grid ${columns} border-b py-3 text-sm last:border-b-0`}>{row.map((cell, index) => <span key={`${cell}-${index}`} className={index === row.length - 1 ? (cell.startsWith("-") ? "font-bold text-red-600" : "font-bold text-[#1f9d55]") : ""}>{cell}</span>)}</div>)}</>;
+  return <div className="overflow-x-auto"><div className={`grid min-w-[560px] ${columns} border-b pb-2 text-xs font-bold text-[#536176]`}>{headers.map((header) => <span key={header}>{header}</span>)}</div>{rows.map((row) => <div key={row.join("-")} className={`grid min-w-[560px] ${columns} border-b py-3 text-sm last:border-b-0`}>{row.map((cell, index) => <span key={`${cell}-${index}`} className={index === row.length - 1 ? (cell.startsWith("-") ? "font-bold text-red-600" : "font-bold text-[#1f9d55]") : ""}>{cell}</span>)}</div>)}</div>;
 }
 
 function FooterMetric({ label, value, foot }: { label: string; value: string; foot: string }) {

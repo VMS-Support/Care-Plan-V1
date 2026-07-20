@@ -46,7 +46,7 @@ export function getResidentHeader(data: ResidentHeaderData, residentId: string, 
   const preferredName = clean(resident.preferredName);
   const displayName = preferredName ? `${preferredName} ${resident.lastName}` : legalDisplayName;
   const rawAllergies = clean(resident.allergies);
-  const noKnown = Boolean(rawAllergies && /^(nka|nkda|no known allergies|none)$/i.test(rawAllergies));
+  const noKnown = Boolean(rawAllergies && /^(nka|nkda|no known allergies|no known drug allergies|none)$/i.test(rawAllergies));
   const allergies = !rawAllergies || noKnown ? [] : rawAllergies.split(/[;,]/).map((value, index) => ({ allergyId: `legacy-allergy:${resident.id}:${index + 1}`, substance: value.trim(), severity: "unknown" as const, status: "active" as const, sourceRoute: `/residents/${resident.id}?careSection=overview` })).filter((item) => item.substance);
   const dependencies = data.dependencyState.records.filter((item) => item.residentId === residentId && item.nursingHomeId === homeId && item.status === "current");
   const levels = [...new Set(dependencies.map((item) => item.dependencyLevel))];

@@ -152,7 +152,7 @@ function StaffManagementDashboard() {
         </div>
       </div>
 
-      <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-8">
+      <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
         <StaffKpi icon={Users} title="Total Staff" value={String(totalStaffMetric.value)} sub="In scope" foot={totalStaffMetric.availability === "available" ? `FTE: ${totalFteMetric.value}` : "Restricted"} percent={72} tone="blue" />
         <StaffKpi icon={Users} title="Active Staff" value={String(activeStaffMetric.value)} sub="Active" foot={activeStaffMetric.availability === "available" ? "Active / on leave" : "Restricted"} percent={60} tone="green" />
         <StaffKpi icon={BriefcaseBusiness} title="Vacant Positions" value={vacantPositionsMetric.value === undefined ? "N/A" : String(vacantPositionsMetric.value)} sub={vacantPositionsMetric.availability === "available" ? "Open" : "Not configured"} foot={vacantPositionsMetric.percentage === undefined ? vacantPositionsMetric.explanation : `${vacantPositionsMetric.percentage}% of Budgeted`} percent={vacantPositionsMetric.percentage ?? 0} tone="orange" />
@@ -163,7 +163,7 @@ function StaffManagementDashboard() {
         <StaffKpi icon={GraduationCap} title="Training Compliance" value={trainingComplianceMetric.percentage === undefined ? "N/A" : `${trainingComplianceMetric.percentage}%`} sub="Compliant" foot={`Overdue: ${trainingOverdueMetric.value}`} percent={trainingComplianceMetric.percentage ?? 0} tone="purple" compact />
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-3">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
         <Panel title="Staffing Summary" className="xl:col-span-1">
           <div className="grid gap-5 md:grid-cols-[150px_1fr]">
             <Donut value={totalStaffMetric.value} label="Total Staff" segments={["#1f70d6", "#23b3c7", "#6b3fd4", "#ff951b", "#f0bc22", "#064b95", "#b9c5d3"]} />
@@ -418,10 +418,12 @@ function MiniLine() {
 function SimpleTable({ headers, rows, footer, urgency }: { headers: string[]; rows: string[][]; footer: string; urgency?: boolean }) {
   return (
     <div>
-      <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto">
+      <table className="min-w-[520px] w-full text-left text-xs">
         <thead><tr className="text-[#536176]">{headers.map((header) => <th key={header} className="pb-3 font-medium">{header}</th>)}</tr></thead>
         <tbody>{rows.map((row) => <tr key={row.join("-")} className="border-t border-[#edf1f6]">{row.map((cell, index) => <td key={index} className="py-3">{urgency && index === row.length - 1 ? <Urgency value={cell} /> : index === row.length - 1 && /days/.test(cell) ? <span className="text-[#be7a13]">◷ {cell}</span> : cell}</td>)}</tr>)}</tbody>
       </table>
+      </div>
       <Link to="/reports" className="mt-5 flex items-center justify-between text-xs font-medium text-[#0b4f93]">{footer}<ArrowRight className="h-3.5 w-3.5" /></Link>
     </div>
   );

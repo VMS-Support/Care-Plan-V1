@@ -84,7 +84,7 @@ function MaintenanceHousekeepingDashboard() {
         </div>
       </div>
 
-      <section className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
         <MaintKpi icon={Wrench} title="Open Work Orders" value="42" foot="High Priority: 7" percent={42} tone="red" />
         <MaintKpi icon={CalendarDays} title="Planned Maintenance Due This Month" value="68" foot="78% Completed" percent={68} tone="orange" />
         <MaintKpi icon={ShieldCheck} title="Preventive Maintenance Compliance" value="92%" foot="vs 89% last month" percent={92} tone="green" trend />
@@ -94,7 +94,7 @@ function MaintenanceHousekeepingDashboard() {
         <MaintKpi icon={Home} title="Housekeeping Score" value="91%" foot="vs 88% last month" percent={91} tone="green" trend />
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1fr_1fr_1.12fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.12fr]">
         <Panel title="Work Orders Summary" action="View All">
           <div className="grid gap-4 md:grid-cols-[1fr_150px]">
             <StatusList rows={[
@@ -122,7 +122,8 @@ function MaintenanceHousekeepingDashboard() {
         </Panel>
 
         <Panel title="Compliance & Safety Overview" action="View All">
-          <div className="grid grid-cols-[1fr_80px_120px_120px] border-b pb-2 text-xs font-semibold text-[#536176]">
+          <div className="overflow-x-auto">
+          <div className="grid min-w-[520px] grid-cols-[1fr_80px_120px_120px] border-b pb-2 text-xs font-semibold text-[#536176]">
             <span>Area</span><span>Status</span><span>Due / Last Test</span><span>Next Due</span>
           </div>
           {[
@@ -135,13 +136,14 @@ function MaintenanceHousekeepingDashboard() {
             ["Gas Safety Check", "ok", "02 May 2025", "02 Nov 2025"],
             ["PAT Testing", "due", "10 May 2025", "10 Jun 2025"],
           ].map(([area, status, last, next]) => (
-            <div key={area} className="grid grid-cols-[1fr_80px_120px_120px] border-b py-2 text-xs last:border-b-0">
+            <div key={area} className="grid min-w-[520px] grid-cols-[1fr_80px_120px_120px] border-b py-2 text-xs last:border-b-0">
               <span>{area}</span>
               <span>{status === "ok" ? <CheckCircle2 className="h-4 w-4 text-[#28a956]" /> : <AlertTriangle className="h-4 w-4 text-[#f59b21]" />}</span>
               <span>{last}</span>
               <span>{next}</span>
             </div>
           ))}
+          </div>
           <div className="mt-5 flex gap-5 text-xs">
             <span className="flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-[#28a956]" /> Compliant</span>
             <span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4 text-[#f59b21]" /> Overdue / Due Soon</span>
@@ -149,7 +151,7 @@ function MaintenanceHousekeepingDashboard() {
         </Panel>
       </section>
 
-      <section className="mb-3 grid gap-3 xl:grid-cols-[1fr_1fr_1.12fr]">
+      <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.12fr]">
         <Panel title="Planned Maintenance Calendar" subtitle="(Next 7 Days)" action="View Calendar">
           <div className="grid grid-cols-7 overflow-hidden rounded-lg border text-center">
             {[
@@ -190,7 +192,7 @@ function MaintenanceHousekeepingDashboard() {
         </Panel>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-4">
+      <section className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-4">
         <Panel title="Critical Safety Items Requiring Attention">
           <IssueRows rows={[
             ["Fire Doors Need Checking", "12", Flame],

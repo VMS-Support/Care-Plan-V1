@@ -6,15 +6,11 @@ import { assessmentMeta } from "@/lib/care/scoring";
 import {
   getCarePlansGroupedByRltDomain,
   getRltDomainForCarePlanProblem,
-  RLT_DOMAINS,
-  RLT_DOMAIN_TO_DEFAULT_CATEGORY,
   type RltDomainId,
 } from "@/lib/care/rlt";
-import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import {
   carePlanQualityClass,
   getCarePlanQualityStatus,
-  getResidentRltCoverageChecks,
 } from "@/lib/care/quality";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -69,8 +65,6 @@ import { LatestVitalsCard } from "@/components/care/LatestVitalsCard";
 import { RecordObservationFlow } from "@/components/care/RecordObservationFlow";
 import { ObservationHistory } from "@/components/observations/ObservationHistory";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
-import { RltDependencyEditor } from "@/components/care/RltDependencyEditor";
-import { StrengthPreferencePanel } from "@/components/care/StrengthPreferencePanel";
 import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
 import { ResidentHeader } from "@/components/resident/ResidentHeader";
 import { EditResidentProfileDialog } from "@/components/resident/EditResidentProfileDialog";
@@ -84,11 +78,6 @@ import { getResidentContacts } from "@/lib/care/residentContacts";
 import { getResidentDocuments } from "@/lib/care/residentDocuments";
 import { getResidentAdministrativeDetails } from "@/lib/care/residentAdministrativeDetails";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
-import {
-  getResidentPreferencesByDomain,
-  getResidentStrengthPreferenceSummary,
-  getResidentStrengthsByDomain,
-} from "@/lib/care/residentStrengthPreferences";
 import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
 import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
 import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
@@ -109,7 +98,12 @@ import {
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
 import type { VitalSign } from "@/lib/care/types";
-import type { Resident } from "@/lib/care/types";
+import type {
+  ProblemCategory,
+  ProblemRiskLevel,
+  ProblemStatus,
+  Resident,
+} from "@/lib/care/types";
 import { calcNEWS2 } from "@/lib/care/vitals";
 import {
   formatVitalValues,
@@ -254,6 +248,45 @@ function DeleteAssessmentDialog({
   );
 }
 
+const carePlanCategoryOptions: Array<{ value: ProblemCategory; label: string }> = [
+  { value: "pressure", label: "Pressure" },
+  { value: "falls", label: "Falls" },
+  { value: "nutrition", label: "Nutrition" },
+  { value: "pain", label: "Pain" },
+  { value: "behaviour", label: "Behaviour" },
+  { value: "continence", label: "Continence" },
+  { value: "mobility", label: "Mobility" },
+  { value: "cognition", label: "Cognition" },
+  { value: "communication", label: "Communication" },
+  { value: "personal_care", label: "Personal Care" },
+  { value: "mental_health", label: "Mental Health" },
+  { value: "social", label: "Social" },
+  { value: "sleep", label: "Sleep" },
+  { value: "medication", label: "Medication" },
+  { value: "end_of_life", label: "End of Life" },
+  { value: "skin", label: "Skin" },
+  { value: "safeguarding", label: "Safeguarding" },
+  { value: "custom", label: "Custom" },
+];
+
+const carePlanRiskOptions: Array<{ value: ProblemRiskLevel; label: string }> = [
+  { value: "none", label: "None" },
+  { value: "low", label: "Low" },
+  { value: "moderate", label: "Moderate" },
+  { value: "high", label: "High" },
+  { value: "very_high", label: "Very High" },
+  { value: "resolved", label: "Resolved" },
+];
+
+const carePlanStatusOptions: Array<{ value: ProblemStatus; label: string }> = [
+  { value: "active", label: "Active" },
+  { value: "resolved", label: "Resolved" },
+  { value: "discontinued", label: "Discontinued" },
+  { value: "superseded", label: "Superseded" },
+  { value: "archived", label: "Archived / Inactive" },
+  { value: "entered_in_error", label: "Entered in Error / Delete" },
+];
+
 function ResidentDetail() {
   const { id } = Route.useParams();
   const { carePlanProblemId } = Route.useSearch();
@@ -362,14 +395,31 @@ function ResidentDetail() {
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
   const [newlyCreatedProblemId, setNewlyCreatedProblemId] = useState<string | null>(null);
   const [problemDetailOpen, setProblemDetailOpen] = useState(false);
-  const [inactiveProblemOpen, setInactiveProblemOpen] = useState(false);
-  const [inactiveProblemReason, setInactiveProblemReason] = useState("");
+  const [editProblemOpen, setEditProblemOpen] = useState(false);
+  const [editProblemDraft, setEditProblemDraft] = useState<{
+    problemStatement: string;
+    category: ProblemCategory;
+    riskLevel: ProblemRiskLevel;
+    reviewDate: string;
+    evaluationDate: string;
+    notes: string;
+    status: ProblemStatus;
+    reason: string;
+  }>({
+    problemStatement: "",
+    category: "custom",
+    riskLevel: "low",
+    reviewDate: "",
+    evaluationDate: "",
+    notes: "",
+    status: "active",
+    reason: "",
+  });
   const [evaluationOpen, setEvaluationOpen] = useState(false);
   const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
   const [auditDialogOpen, setAuditDialogOpen] = useState(false);
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [latestVitalsDialogOpen, setLatestVitalsDialogOpen] = useState(false);
-  const [selectedRltDomainId, setSelectedRltDomainId] = useState<RltDomainId | null>(null);
   const [selectedCarePlanGroupDomainId, setSelectedCarePlanGroupDomainId] = useState<RltDomainId | null>(null);
   const [activeTab, setActiveTab] = useState<
     | "overview"
@@ -469,20 +519,6 @@ function ResidentDetail() {
     );
 
   const residentFullName = `${r.firstName} ${r.lastName}`;
-  const summaryPreferenceCapabilities = [
-    "resident_preference.view",
-    "resident_preference.view_sensitive",
-    "resident_preference.view_highly_sensitive",
-  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
-    nursingHomeId: r.facilityId,
-    residentId: r.id,
-  }));
-  const strengthPreferenceSummary = getResidentStrengthPreferenceSummary(
-    strengthPreferenceState,
-    r.id,
-    r.facilityId || activeFacilityId,
-    summaryPreferenceCapabilities,
-  );
   const rltReadCapabilities = [
     "rlt_overview.view", "rlt_overview.view_risks", "rlt_overview.view_care_plans",
     "rlt_overview.view_preferences", "rlt_overview.view_sensitive_preferences",
@@ -527,6 +563,22 @@ function ResidentDetail() {
     "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
     "end_of_life.view", "end_of_life.view_sensitive", "end_of_life.view_highly_sensitive",
   ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
+  const latestHeaderWeight = [
+    ...weights
+      .filter((weight) => weight.residentId === r.id)
+      .map((weight) => ({
+        weightKg: weight.weightKg,
+        recordedAt: `${weight.date}T00:00:00`,
+        recordedBy: weight.staff,
+      })),
+    ...vitals
+      .filter((vital) => vital.residentId === r.id && !vital.deletedAt && typeof vital.weight === "number")
+      .map((vital) => ({
+        weightKg: vital.weight as number,
+        recordedAt: vital.recordedAt || `${vital.date}T${vital.time || "00:00"}:00`,
+        recordedBy: vital.recordedByName,
+      })),
+  ].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
   const residentHeader = getResidentHeader({ residents, users, wards, rooms, beds, bedAssignments, dependencyState: rltDependencyState, endOfLifeState, contacts: residentContacts }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: residentViewCapabilities });
   const canDeleteResident = currentRole === "don" || currentRole === "cnm";
   const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
@@ -667,18 +719,6 @@ function ResidentDetail() {
     }
     return quality;
   }, [problemGoals, rProblemEvaluations, rProblemInterventions, rProblems]);
-  const coverageGaps = useMemo(
-    () => getResidentRltCoverageChecks(id, { assessments: rA, carePlanProblems: activeProblems }),
-    [activeProblems, id, rA],
-  );
-  const coverageGapsByDomain = useMemo(() => {
-    return coverageGaps.reduce((map, gap) => {
-      const existing = map.get(gap.primaryDomainId) || [];
-      existing.push(gap);
-      map.set(gap.primaryDomainId, existing);
-      return map;
-    }, new Map<RltDomainId, typeof coverageGaps>());
-  }, [coverageGaps]);
   const allActiveCarePlansComplete =
     activeProblems.length > 0 &&
     activeProblems.every((problem) => carePlanQualityByProblemId.get(problem.id)?.status === "complete");
@@ -689,98 +729,6 @@ function ResidentDetail() {
     return scheduledInterventions(rProblemInterventions, rProblemLogs, rProblems, now);
   }, [now, rProblemInterventions, rProblemLogs, rProblems]);
 
-  const activityWorkspaces = useMemo(() => {
-    const latestWeight = activeVitalRows(rVitals).find((vital) => typeof vital.weight === "number");
-    const recentThreshold = new Date();
-    recentThreshold.setDate(recentThreshold.getDate() - 7);
-
-    return RLT_DOMAINS.map((domain) => {
-      const carePlans = activeProblems
-        .filter((problem) => getRltDomainForCarePlanProblem(problem)?.id === domain.id)
-        .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate));
-      const assessmentsForDomain = rA
-        .filter((assessment) =>
-          getApprovedRltDomainsForAssessmentRecord(assessment).some((mapped) => mapped.id === domain.id),
-        )
-        .sort((left, right) => right.date.localeCompare(left.date));
-      const latestAssessmentByType = Array.from(
-        assessmentsForDomain
-          .reduce((map, assessment) => {
-            if (!map.has(assessment.type)) map.set(assessment.type, assessment);
-            return map;
-          }, new Map<string, (typeof assessmentsForDomain)[number]>())
-          .values(),
-      );
-      const dueActions = upcomingInterventionTasks.filter((task) => {
-        const problem = task.problem || rProblems.find((item) => item.id === task.intervention.problemId);
-        return problem && getRltDomainForCarePlanProblem(problem)?.id === domain.id && task.status !== "completed";
-      });
-      const nextReview = carePlans[0]?.reviewDate;
-      const nextOutcomeReview = carePlans
-        .map((problem) => problem.evaluationDate)
-        .filter(Boolean)
-        .sort()[0];
-      const reviewDays = daysFromToday(nextReview);
-      const overdueAssessmentsForDomain = assessmentsForDomain.filter((assessment) => {
-        const dueDate = assessment.nextReassessmentDate || assessment.dueDate;
-        const days = daysFromToday(dueDate);
-        return days !== null && days <= 0 && assessment.status !== "archived" && assessment.status !== "superseded";
-      });
-      const highRiskAssessments = assessmentsForDomain.filter(
-        (assessment) => assessment.riskLevel === "high" || assessment.riskLevel === "very_high",
-      );
-      const highRiskPlans = carePlans.filter(
-        (problem) => problem.riskLevel === "high" || problem.riskLevel === "very_high",
-      );
-      const recentChanges = [
-        ...assessmentsForDomain.filter((assessment) => new Date(assessment.date) >= recentThreshold),
-        ...carePlans.filter((problem) => new Date(problem.createdAt) >= recentThreshold),
-      ];
-      const indicators = [
-        ...latestAssessmentByType.map((assessment) => ({
-          label: assessmentMeta[assessment.type]?.name || assessment.type,
-          value: `${riskLabel(assessment.riskLevel)}: ${assessment.interpretation}`,
-          tone: assessment.riskLevel,
-          assessmentId: assessment.id,
-        })),
-      ];
-      if (domain.id === "eating_drinking" && latestWeight?.weight) {
-        indicators.push({
-          label: "Weight",
-          value: `${latestWeight.weight}kg`,
-          tone: "low",
-          assessmentId: "",
-        });
-      }
-      const relevant =
-        carePlans.length > 0 ||
-        highRiskAssessments.length > 0 ||
-        overdueAssessmentsForDomain.length > 0 ||
-        dueActions.length > 0 ||
-        recentChanges.length > 0;
-
-      return {
-        domain,
-        carePlans,
-        assessments: latestAssessmentByType,
-        indicators,
-        knownRisks: [
-          ...highRiskAssessments.map((assessment) => `${assessmentMeta[assessment.type]?.name || assessment.type}: ${riskLabel(assessment.riskLevel)}`),
-          ...highRiskPlans.map((problem) => `${riskLabel(problem.riskLevel)} care need`),
-        ],
-        dueActions,
-        nextReview,
-        nextOutcomeReview,
-        reviewDays,
-        overdueAssessments: overdueAssessmentsForDomain,
-        relevant,
-      };
-    });
-  }, [activeProblems, rA, rProblems, rVitals, upcomingInterventionTasks]);
-
-  const visibleActivityWorkspaces = activityWorkspaces;
-  const selectedActivityWorkspace =
-    activityWorkspaces.find((workspace) => workspace.domain.id === selectedRltDomainId) || null;
   const selectedCarePlanGroup =
     groupedActiveCarePlans.find((group) => group.domain.id === selectedCarePlanGroupDomainId) || null;
 
@@ -1058,7 +1006,6 @@ function ResidentDetail() {
     canEdit: ["nurse", "cnm", "don"].includes(currentRole),
     canDisable: ["cnm", "don"].includes(currentRole),
     canArchiveDelete: ["don"].includes(currentRole),
-    canSetCarePlanInactive: ["nurse", "cnm", "don"].includes(currentRole),
   };
 
   const applyInterventionStatus = (intv: any, status: any, reason: string) => {
@@ -1121,18 +1068,96 @@ function ResidentDetail() {
     setEvaluationOpen(true);
   };
 
-  const submitSetProblemInactive = () => {
-    if (!selectedProblem || !inactiveProblemReason.trim()) {
-      toast.error("Reason for inactivation required");
+  const openEditProblemDialog = () => {
+    if (!selectedProblem) return;
+    setEditProblemDraft({
+      problemStatement: selectedProblem.problemStatement,
+      category: selectedProblem.category,
+      riskLevel: selectedProblem.riskLevel,
+      reviewDate: selectedProblem.reviewDate,
+      evaluationDate: selectedProblem.evaluationDate,
+      notes: selectedProblem.notes || "",
+      status: selectedProblem.status,
+      reason: "",
+    });
+    setEditProblemOpen(true);
+  };
+
+  const submitEditProblem = () => {
+    if (!selectedProblem) {
+      toast.error("No nursing care plan selected");
       return;
     }
-    archiveProblem(selectedProblem.id, inactiveProblemReason.trim());
-    toast.success("Care plan problem set inactive");
-    setInactiveProblemOpen(false);
-    setProblemDetailOpen(false);
-    setInactiveProblemReason("");
-    setNewlyCreatedProblemId(null);
-    setSelectedProblemId(null);
+
+    const problemStatement = editProblemDraft.problemStatement.trim();
+    const notes = editProblemDraft.notes.trim();
+    const reason = editProblemDraft.reason.trim();
+    const statusChanged = editProblemDraft.status !== selectedProblem.status;
+    const statusRequiresReason =
+      statusChanged && editProblemDraft.status !== "active";
+
+    if (!problemStatement) {
+      toast.error("Care plan name is required");
+      return;
+    }
+
+    if (!editProblemDraft.reviewDate) {
+      toast.error("Next review date is required");
+      return;
+    }
+
+    if (statusRequiresReason && !reason) {
+      toast.error("Reason is required for inactive, deleted or closed care plans");
+      return;
+    }
+
+    const editablePatch = {
+      problemStatement,
+      category: editProblemDraft.category,
+      riskLevel: editProblemDraft.riskLevel,
+      reviewDate: editProblemDraft.reviewDate,
+      evaluationDate: editProblemDraft.evaluationDate || editProblemDraft.reviewDate,
+      notes: notes || undefined,
+    };
+
+    const changeReason = reason || "Care plan details updated";
+
+    if (editProblemDraft.status === "archived") {
+      updateProblem(selectedProblem.id, editablePatch, changeReason);
+      archiveProblem(selectedProblem.id, reason || "Care plan archived");
+    } else {
+      updateProblem(
+        selectedProblem.id,
+        {
+          ...editablePatch,
+          status: editProblemDraft.status,
+          ...(editProblemDraft.status !== "active"
+            ? {
+                resolvedAt: new Date().toISOString(),
+                resolvedBy: currentUserName,
+                resolvedReason: reason,
+              }
+            : {
+                resolvedAt: undefined,
+                resolvedBy: undefined,
+                resolvedReason: undefined,
+                archivedAt: undefined,
+                archivedBy: undefined,
+                archivedReason: undefined,
+              }),
+        },
+        changeReason,
+      );
+    }
+
+    toast.success("Care plan updated");
+    setEditProblemOpen(false);
+
+    if (editProblemDraft.status !== "active") {
+      setProblemDetailOpen(false);
+      setNewlyCreatedProblemId(null);
+      setSelectedProblemId(null);
+    }
   };
 
   const submitAddGoal = () => {
@@ -1286,6 +1311,7 @@ function ResidentDetail() {
 
       <ResidentHeader
         header={residentHeader}
+        latestWeight={latestHeaderWeight}
         canEdit={residentViewCapabilities.includes("resident_profile.edit")}
         onEdit={() => setProfileEditOpen(true)}
         actions={<>
@@ -1744,9 +1770,7 @@ function ResidentDetail() {
         <div className="flex items-center gap-2 flex-wrap">
             <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="activities">
-                Activities of Living ({activityWorkspaces.filter((workspace) => workspace.relevant).length})
-              </TabsTrigger>
+              <TabsTrigger value="activities">Activities of Living</TabsTrigger>
               <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
             <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
             <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
@@ -1785,428 +1809,32 @@ function ResidentDetail() {
           <RltClinicalWorkspace
             overview={rltClinicalOverview}
             timelineItems={rltTimelineItems}
-            onOpenDomain={(domainId) => setSelectedRltDomainId(domainId)}
             onOpenCarePlan={(carePlanItemId) => openProblemDetail(carePlanItemId)}
-          />
-
-          <div className="border-t pt-4">
-            <h2 className="text-lg font-semibold">Detailed Activity Records</h2>
-            <p className="text-sm text-muted-foreground">Record dependency, strengths and preferences or open the full domain workflow.</p>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            {visibleActivityWorkspaces.map((workspace) => {
-              const hasOverdueReview = workspace.reviewDays !== null && workspace.reviewDays < 0;
-              const hasDueReview = workspace.reviewDays !== null && workspace.reviewDays <= 7;
-              const domainCoverageGaps = coverageGapsByDomain.get(workspace.domain.id) || [];
+            createCarePlanAction={(domain) => {
               const dependencyRecord = rltDependencyState.records.find(
                 (record) =>
                   record.residentId === r.id &&
-                  record.rltDomainId === workspace.domain.id &&
+                  record.rltDomainId === domain.rltDomainId &&
                   record.status === "current",
               );
-              const preferenceCapabilities = [
-                "resident_preference.view",
-                "resident_preference.view_sensitive",
-                "resident_preference.view_highly_sensitive",
-              ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
-                nursingHomeId: r.facilityId,
-                residentId: r.id,
-              }));
-              const domainStrengths = getResidentStrengthsByDomain(
-                strengthPreferenceState,
-                r.id,
-                workspace.domain.id,
-                r.facilityId || activeFacilityId,
-              );
-              const domainPreferences = getResidentPreferencesByDomain(
-                strengthPreferenceState,
-                r.id,
-                workspace.domain.id,
-                r.facilityId || activeFacilityId,
-                preferenceCapabilities,
-              );
               return (
-                <Card key={workspace.domain.id}>
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium">{workspace.domain.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {workspace.carePlans.length} Nursing Care Plan
-                          {workspace.carePlans.length === 1 ? "" : "s"}
-                          {workspace.dueActions.length > 0
-                            ? ` · ${workspace.dueActions.length} care action${workspace.dueActions.length === 1 ? "" : "s"} due`
-                            : ""}
-                        </div>
-                      </div>
-                      {workspace.carePlans.length > 0 ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedRltDomainId(workspace.domain.id)}
-                        >
-                          Open
-                        </Button>
-                      ) : (
-                        <CreateCarePlanDialog
-                          residentId={r.id}
-                          initialRltDomainId={workspace.domain.id}
-                          currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
-                          onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
-                          trigger={
-                            <Button size="sm" variant="outline">
-                              Create Nursing Care Plan
-                            </Button>
-                          }
-                        />
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {workspace.indicators.slice(0, 3).map((indicator) => (
-                        <Badge
-                          key={`${workspace.domain.id}-${indicator.label}`}
-                          variant="outline"
-                          className={`text-[10px] ${riskColor(indicator.tone)}`}
-                        >
-                          {indicator.label}: {indicator.value}
-                        </Badge>
-                      ))}
-                      {workspace.overdueAssessments.length > 0 && (
-                        <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
-                          Assessment overdue
-                        </Badge>
-                      )}
-                      {hasOverdueReview && (
-                        <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
-                          Review overdue
-                        </Badge>
-                      )}
-                      {!hasOverdueReview && hasDueReview && (
-                        <Badge variant="outline" className="text-[10px] border-warning/40 text-warning-foreground">
-                          Review due {workspace.nextReview}
-                        </Badge>
-                      )}
-                    </div>
-
-                    <RltDependencyEditor
-                      domain={workspace.domain}
-                      currentLevel={dependencyRecord?.dependencyLevel || null}
-                      lastReviewedAt={dependencyRecord?.reviewedAt}
-                      nextReviewDate={dependencyRecord?.nextReviewDate}
-                      canEdit={canAccess("rlt_dependency.record", {
-                        nursingHomeId: r.facilityId,
-                        residentId: r.id,
-                      })}
-                      onSave={(value) => {
-                        const now = new Date().toISOString();
-                        saveRltDependency({
-                          residentId: r.id,
-                          rltDomainId: workspace.domain.id,
-                          dependencyLevel: value.level,
-                          effectiveFrom: now,
-                          rationale: value.rationale,
-                          reasonCode: value.reasonCode,
-                          reasonText: value.reasonText,
-                          source: dependencyRecord ? "dependency_review" : "manual_clinical_entry",
-                        });
-                        toast.success(`${workspace.domain.title} dependency saved`);
-                      }}
-                    />
-
-                    <StrengthPreferencePanel
-                      domain={workspace.domain}
-                      residentId={r.id}
-                      strengths={domainStrengths}
-                      preferences={domainPreferences}
-                      canCreateStrength={canAccess("resident_strength.create", {
-                        nursingHomeId: r.facilityId,
-                        residentId: r.id,
-                      })}
-                      canCreatePreference={canAccess("resident_preference.create", {
-                        nursingHomeId: r.facilityId,
-                        residentId: r.id,
-                      })}
-                      onCreateStrength={(input) => {
-                        saveResidentStrength(input);
-                        toast.success("Resident strength recorded");
-                      }}
-                      onCreatePreference={(input) => {
-                        saveResidentPreference(input);
-                        toast.success("Resident preference recorded");
-                      }}
-                    />
-
-                    {workspace.domain.id === "dying" && <EndOfLifePathwayPanel residentId={r.id} />}
-
-                    {domainCoverageGaps.length > 0 && (
-                      <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
-                        <div className="space-y-1 text-warning-foreground">
-                          {domainCoverageGaps.slice(0, 2).map((gap) => (
-                            <p key={gap.id}>{gap.message}</p>
-                          ))}
-                        </div>
-                        {workspace.carePlans.length === 0 && (
-                          <div className="mt-2">
-                            <CreateCarePlanDialog
-                              residentId={r.id}
-                              initialRltDomainId={workspace.domain.id}
-                              currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
-                              onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
-                              trigger={
-                                <Button size="sm" variant="outline">
-                                  Create Nursing Care Plan
-                                </Button>
-                              }
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {workspace.carePlans[0] && (
-                      <div className="rounded-md bg-muted/25 px-3 py-2 text-sm">
-                        <div className="line-clamp-1">{workspace.carePlans[0].problemStatement}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Review {workspace.nextReview || "not set"}
-                          {workspace.nextOutcomeReview ? ` · Outcome review ${workspace.nextOutcomeReview}` : ""}
-                        </div>
-                      </div>
-                    )}
-                    {workspace.carePlans.length === 0 && (
-                      <div className="rounded-md bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                        0 Nursing Care Plans
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <CreateCarePlanDialog
+                  residentId={r.id}
+                  initialRltDomainId={domain.rltDomainId}
+                  currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
+                  onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      Create Care Plan
+                    </Button>
+                  }
+                />
               );
-            })}
-          </div>
-
-          <Dialog
-            open={!!selectedActivityWorkspace}
-            onOpenChange={(open) => {
-              if (!open) setSelectedRltDomainId(null);
             }}
-          >
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  Activity of Living: {selectedActivityWorkspace?.domain.title}
-                </DialogTitle>
-                <DialogDescription>
-                  Assessment context, known risks and active nursing care plans for this activity.
-                </DialogDescription>
-              </DialogHeader>
-
-              {selectedActivityWorkspace && (
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Related Assessments</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2 text-sm">
-                        {selectedActivityWorkspace.assessments.map((assessment) => (
-                          <div key={assessment.id} className="flex items-center justify-between gap-2">
-                            <div>
-                              <div className="font-medium">
-                                {assessmentMeta[assessment.type]?.name || assessment.type}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {assessment.interpretation} · {assessment.date.slice(0, 10)}
-                              </div>
-                            </div>
-                            <Button asChild size="sm" variant="ghost">
-                              <Link to="/assessments/$assessmentId" params={{ assessmentId: assessment.id }}>
-                                Open
-                              </Link>
-                            </Button>
-                          </div>
-                        ))}
-                        {selectedActivityWorkspace.assessments.length === 0 && (
-                          <p className="text-sm text-muted-foreground">No related assessments recorded.</p>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Known Risks</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2 text-sm">
-                        {selectedActivityWorkspace.knownRisks.map((risk, index) => (
-                          <div key={`${risk}-${index}`} className="rounded-md border px-3 py-2">
-                            {risk}
-                          </div>
-                        ))}
-                        {selectedActivityWorkspace.dueActions.length > 0 && (
-                          <div className="rounded-md border px-3 py-2">
-                            {selectedActivityWorkspace.dueActions.length} care action
-                            {selectedActivityWorkspace.dueActions.length === 1 ? "" : "s"} due
-                          </div>
-                        )}
-                        {selectedActivityWorkspace.knownRisks.length === 0 &&
-                          selectedActivityWorkspace.dueActions.length === 0 && (
-                            <p className="text-sm text-muted-foreground">No high-risk indicators currently recorded.</p>
-                          )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Nursing Care Plans</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {selectedActivityWorkspace.carePlans.map((problem) => {
-                        const planGoals = problemGoals.filter((goal) => goal.problemId === problem.id);
-                        const actions = rProblemInterventions.filter((action) => action.problemId === problem.id);
-                        const reviews = rProblemEvaluations.filter((review) => review.problemId === problem.id);
-                        return (
-                          <div key={problem.id} className="rounded-md border p-3 space-y-2">
-                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                              <div className="min-w-0">
-                                <div className="font-medium line-clamp-1">{problem.problemStatement}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  Plan: {planGoals[0]?.statement || "No plan recorded"}
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedRltDomainId(null);
-                                  openProblemDetail(problem.id);
-                                }}
-                              >
-                                Open Care Plan
-                              </Button>
-                            </div>
-                            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
-                              <div>Care Actions: {actions.length}</div>
-                              <div>Reviews: {reviews.length}</div>
-                              <div>Next Review: {problem.reviewDate}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {selectedActivityWorkspace.carePlans.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No active nursing care plan for this activity.</p>
-                      )}
-                      {selectedActivityWorkspace.domain.id !== "safe_environment" &&
-                        activeProblems.some(
-                          (problem) =>
-                            getRltDomainForCarePlanProblem(problem)?.id === "safe_environment",
-                        ) && (
-                          <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
-                            <div className="text-sm font-medium">Correct misplaced care plan</div>
-                            <p className="text-xs text-muted-foreground">
-                              Use this only for a care plan that was created for this Activity of Living but was
-                              saved under Maintaining a Safe Environment.
-                            </p>
-                            <div className="space-y-2">
-                              {activeProblems
-                                .filter(
-                                  (problem) =>
-                                    getRltDomainForCarePlanProblem(problem)?.id === "safe_environment",
-                                )
-                                .map((problem) => (
-                                  <div
-                                    key={problem.id}
-                                    className="flex flex-col gap-2 rounded-md bg-background px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
-                                  >
-                                    <div className="line-clamp-1">{problem.problemStatement}</div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        updateProblem(
-                                          problem.id,
-                                          {
-                                            rltDomainId: selectedActivityWorkspace.domain.id,
-                                            category:
-                                              RLT_DOMAIN_TO_DEFAULT_CATEGORY[
-                                                selectedActivityWorkspace.domain.id
-                                              ],
-                                          },
-                                          `Corrected Activity of Living to ${selectedActivityWorkspace.domain.title}`,
-                                        );
-                                        toast.success("Care plan Activity of Living corrected");
-                                      }}
-                                    >
-                                      Move Here
-                                    </Button>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        )}
-                    </CardContent>
-                  </Card>
-
-                  <div className="flex flex-wrap gap-2">
-                    <CreateCarePlanDialog
-                      residentId={r.id}
-                      initialRltDomainId={selectedActivityWorkspace.domain.id}
-                      onCreated={(problem) => {
-                        setSelectedRltDomainId(null);
-                        openNewlyCreatedProblemDetail(problem.id);
-                      }}
-                      trigger={<Button size="sm">Create Nursing Care Plan</Button>}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!selectedActivityWorkspace.carePlans[0]}
-                      onClick={() => {
-                        const problem = selectedActivityWorkspace.carePlans[0];
-                        if (!problem) return;
-                        setSelectedRltDomainId(null);
-                        openAddEvaluationForProblem(problem.id);
-                      }}
-                    >
-                      Record Review
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!selectedActivityWorkspace.carePlans[0]}
-                      onClick={() => {
-                        const problem = selectedActivityWorkspace.carePlans[0];
-                        if (!problem) return;
-                        setSelectedRltDomainId(null);
-                        openAddInterventionForProblem(problem.id);
-                      }}
-                    >
-                      Add Care Action
-                    </Button>
-                    {selectedActivityWorkspace.assessments[0] && (
-                      <Button asChild size="sm" variant="outline">
-                        <Link
-                          to="/assessments/$assessmentId"
-                          params={{ assessmentId: selectedActivityWorkspace.assessments[0].id }}
-                        >
-                          Open Assessment
-                        </Link>
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedRltDomainId(null);
-                        setTimelineDialogOpen(true);
-                      }}
-                    >
-                      Open Resident Timeline
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
+            domainSupplement={(domain) =>
+              domain.rltDomainId === "dying" ? <EndOfLifePathwayPanel residentId={r.id} /> : null
+            }
+          />
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
@@ -2223,20 +1851,6 @@ function ResidentDetail() {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-base">Strengths and Preferences</CardTitle>
-                <Button size="sm" variant="outline" onClick={() => setActiveTab("activities")}>View All Strengths and Preferences</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 text-sm md:grid-cols-3">
-              <div><div className="text-xs font-medium text-muted-foreground">Preferred Name</div><div>{strengthPreferenceSummary.preferredName || "Not recorded"}</div></div>
-              <div><div className="text-xs font-medium text-muted-foreground">Key Strengths</div><div>{strengthPreferenceSummary.keyStrengths.slice(0, 3).map((item) => item.title).join(" · ") || "No strengths recorded yet"}</div></div>
-              <div><div className="text-xs font-medium text-muted-foreground">Please Avoid</div><div>{strengthPreferenceSummary.pleaseAvoid.slice(0, 3).join(" · ") || "Nothing recorded"}</div></div>
-              {(strengthPreferenceSummary.safetyReviewRequiredCount > 0 || strengthPreferenceSummary.conflictCount > 0) && <div className="md:col-span-3 flex gap-2"><Badge variant="outline">{strengthPreferenceSummary.safetyReviewRequiredCount} safety review required</Badge><Badge variant="outline">{strengthPreferenceSummary.conflictCount} preference conflict</Badge></div>}
-            </CardContent>
-          </Card>
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
@@ -3533,17 +3147,14 @@ function ResidentDetail() {
 
           {selectedProblem && (
             <div className="space-y-4">
-              {selectedProblem.status === "active" && rolePermissions.canSetCarePlanInactive && (
+              {rolePermissions.canEdit && (
                 <div className="flex justify-end">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setInactiveProblemReason("");
-                      setInactiveProblemOpen(true);
-                    }}
+                    onClick={openEditProblemDialog}
                   >
-                    <Archive className="h-3 w-3 mr-1" /> Set Inactive
+                    Edit Care Plan
                   </Button>
                 </div>
               )}
@@ -3766,32 +3377,179 @@ function ResidentDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={inactiveProblemOpen} onOpenChange={setInactiveProblemOpen}>
-        <DialogContent>
+      <Dialog open={editProblemOpen} onOpenChange={setEditProblemOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Set Nursing Care Plan Inactive</DialogTitle>
+            <DialogTitle>Edit Care Plan</DialogTitle>
             <DialogDescription>
-              This will set this nursing care plan as inactive and also set all linked
-              care actions as inactive. The record will remain available for audit/history.
+              Update the permitted care plan details. Status changes are retained for audit.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Reason for inactivation *</Label>
-            <Textarea
-              value={inactiveProblemReason}
-              onChange={(event) => setInactiveProblemReason(event.target.value)}
-              placeholder="Enter the clinical reason"
-            />
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <Label>Care Plan Name</Label>
+              <Textarea
+                value={editProblemDraft.problemStatement}
+                onChange={(event) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    problemStatement: event.target.value,
+                  }))
+                }
+                placeholder="Describe the care need"
+              />
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Select
+                value={editProblemDraft.category}
+                onValueChange={(value) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    category: value as ProblemCategory,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {carePlanCategoryOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Risk Level</Label>
+              <Select
+                value={editProblemDraft.riskLevel}
+                onValueChange={(value) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    riskLevel: value as ProblemRiskLevel,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {carePlanRiskOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Next Review Date</Label>
+              <Input
+                type="date"
+                value={editProblemDraft.reviewDate}
+                onChange={(event) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    reviewDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div>
+              <Label>Next Review of Outcome</Label>
+              <Input
+                type="date"
+                value={editProblemDraft.evaluationDate}
+                onChange={(event) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    evaluationDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label>Progress / Status</Label>
+              <Select
+                value={editProblemDraft.status}
+                onValueChange={(value) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    status: value as ProblemStatus,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {carePlanStatusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use Archived / Inactive to remove a plan from active care. Use Entered in
+                Error / Delete only when the record should be hidden from active use but
+                retained for audit.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <Label>Details</Label>
+              <Textarea
+                value={editProblemDraft.notes}
+                onChange={(event) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    notes: event.target.value,
+                  }))
+                }
+                placeholder="Add permitted care plan details"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label>
+                Reason for Change
+                {selectedProblem &&
+                editProblemDraft.status !== selectedProblem.status &&
+                editProblemDraft.status !== "active"
+                  ? " *"
+                  : ""}
+              </Label>
+              <Textarea
+                value={editProblemDraft.reason}
+                onChange={(event) =>
+                  setEditProblemDraft((draft) => ({
+                    ...draft,
+                    reason: event.target.value,
+                  }))
+                }
+                placeholder="Required when setting inactive, discontinued, superseded, archived or entered in error"
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInactiveProblemOpen(false)}>
+            <Button variant="outline" onClick={() => setEditProblemOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={submitSetProblemInactive}
-              disabled={!inactiveProblemReason.trim()}
+              onClick={submitEditProblem}
+              disabled={
+                !editProblemDraft.problemStatement.trim() ||
+                !editProblemDraft.reviewDate ||
+                (!!selectedProblem &&
+                  editProblemDraft.status !== selectedProblem.status &&
+                  editProblemDraft.status !== "active" &&
+                  !editProblemDraft.reason.trim())
+              }
             >
-              Set Inactive
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
