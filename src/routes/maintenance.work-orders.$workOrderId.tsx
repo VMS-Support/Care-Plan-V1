@@ -16,6 +16,7 @@ import {
   type UpdateWorkOrderInput,
 } from "@/domain/maintenance/workOrders";
 import { WorkOrderForm } from "@/components/maintenance/WorkOrderForm";
+import { WorkOrderWorkflowActions } from "@/components/maintenance/WorkOrderWorkflowActions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +86,8 @@ function WorkOrderDetailRoute() {
         </div>
       </div>
 
+      <WorkOrderWorkflowActions record={record} />
+
       <section className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
         <Card>
           <CardHeader><CardTitle>Issue Details</CardTitle></CardHeader>
@@ -116,6 +119,8 @@ function WorkOrderDetailRoute() {
             <DetailRow label="Risk Level" value={record.riskLevel || "Not assessed"} />
             <DetailRow label="Status" value={workOrderStatusLabel(record.status)} />
             <DetailRow label="Assigned To" value={workOrderAssigneeLabel(record, care.users)} />
+            <DetailRow label="Assigned At" value={record.assignedAt ? formatDate(record.assignedAt) : "Not assigned"} />
+            <DetailRow label="Accepted" value={record.acceptedAt ? formatDate(record.acceptedAt) : "Not accepted"} />
             <DetailRow label="Reported By" value={record.reporterNameSnapshot || "Staff member"} />
             <DetailRow label="Reporter Contact" value={record.reporterContactDetails || "Not recorded"} />
             <DetailRow label="Reported At" value={formatDate(record.reportedAt)} />
@@ -153,10 +158,19 @@ function WorkOrderDetailRoute() {
       </section>
 
       <Card>
-        <CardHeader><CardTitle>Lifecycle Foundation</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Workflow Timeline</CardTitle></CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-3">
           <DetailRow label="Created" value={formatDate(record.createdAt)} />
+          <DetailRow label="Response Achieved" value={record.responseAchievedAt ? formatDate(record.responseAchievedAt) : "Not recorded"} />
           <DetailRow label="Started" value={record.startedAt ? formatDate(record.startedAt) : "Not started"} />
+          <DetailRow label="Waiting Since" value={record.waitingSince ? formatDate(record.waitingSince) : "Not waiting"} />
+          <DetailRow label="Waiting Reason" value={record.waitingReasonText || record.waitingReasonCategory || "Not recorded"} />
+          <DetailRow label="Resume Note" value={record.waitingResolutionNote || "Not recorded"} />
+          <DetailRow label="Expected Parts" value={record.expectedAvailabilityAt ? formatDate(record.expectedAvailabilityAt) : record.partsSummary || "Not recorded"} />
+          <DetailRow label="Expected Contractor" value={record.expectedAttendanceAt ? formatDate(record.expectedAttendanceAt) : record.contractorDetails || "Not recorded"} />
+          <DetailRow label="Next Access Attempt" value={record.nextAccessAttemptAt ? formatDate(record.nextAccessAttemptAt) : record.accessIssue || "Not recorded"} />
+          <DetailRow label="Active Work Time" value={formatDuration(record.totalActiveWorkMs)} />
+          <DetailRow label="Waiting Time" value={formatDuration(record.totalWaitingMs)} />
           <DetailRow label="Completed" value={record.completedAt ? formatDate(record.completedAt) : "Not completed"} />
           <DetailRow label="Verification Required" value={record.verificationRequired ? "Yes" : "No"} />
           <DetailRow label="Verified" value={record.verifiedAt ? formatDate(record.verifiedAt) : "Not verified"} />
@@ -264,6 +278,15 @@ function NotFoundState() {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function formatDuration(value?: number) {
+  if (!value) return "Not recorded";
+  const minutes = Math.round(value / 60000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? `${hours} hr ${remaining} min` : `${hours} hr`;
 }
 
 function canViewWorkOrderRecord(care: ReturnType<typeof useCare>, record: MaintenanceWorkOrder) {

@@ -168,6 +168,10 @@ import {
   type UpdateWorkOrderInput,
 } from "@/domain/maintenance/workOrders";
 import {
+  applyWorkOrderWorkflow,
+  type WorkOrderWorkflowInput,
+} from "@/domain/maintenance/workOrderWorkflow";
+import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
   createEmploymentRecord,
@@ -3085,6 +3089,7 @@ interface CareCtx extends Store {
   duplicateHandover: (id: string) => HandoverNote | undefined;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
+  workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
   archiveMaintenanceWorkOrder: (id: string, reason: string) => void;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
   recordAuditEvent: typeof recordAuditEvent;
@@ -7100,13 +7105,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return copy;
       },
       addMaintenanceWorkOrder: (input) => {
-        if (!canAccess("maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to create Work Orders for this Care Home.");
         }
         if (!userFacilityIds(currentUser).includes(input.homeId) && currentRole !== "group_owner") {
           throw new Error("You do not have access to the selected Care Home.");
         }
-        if (input.assignedUserId && !canAccess("maintenance.work_orders.edit", { nursingHomeId: input.homeId })) {
+        if ((input.assignedUserId || input.assignedTeamId) && !canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.assign", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to assign Work Orders during creation.");
         }
         const homeUsers = store.users.filter((user) => user.facilityIds?.includes(input.homeId) || user.facilityId === input.homeId);
@@ -7139,12 +7144,12 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return item;
       },
       updateMaintenanceWorkOrder: (id, input) => {
-        if (!canAccess("maintenance.work_orders.edit")) {
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.edit", { nursingHomeId: activeFacilityId })) {
           throw new Error("You do not have permission to edit Work Orders.");
         }
         const current = store.maintenanceWorkOrders.find((record) => record.id === id);
         if (!current) throw new Error("Work Order not found.");
-        if (!canAccess("maintenance.work_orders.edit", { nursingHomeId: current.homeId })) {
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.edit", { nursingHomeId: current.homeId })) {
           throw new Error("You do not have permission to edit Work Orders for this Care Home.");
         }
         const homeUsers = store.users.filter((user) => user.facilityIds?.includes(current.homeId) || user.facilityId === current.homeId);
@@ -7175,8 +7180,44 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ].slice(0, 500),
         }));
       },
+      workflowMaintenanceWorkOrder: (id, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === id);
+        if (!current) throw new Error("Work Order not found.");
+        const now = new Date().toISOString();
+        const result = applyWorkOrderWorkflow(current, input, {
+          currentUser,
+          users: store.users,
+          canAccess: (capability, resource) =>
+            canAccess(
+              scopedStore,
+              createStaffAccessContext(currentUser, activeFacilityId, resource?.wardId),
+              capability,
+              resource || { nursingHomeId: current.homeId },
+            ),
+          now,
+        });
+        if (!result) return current;
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: (s.maintenanceWorkOrders || []).map((record) => (record.id === id ? result.record : record)),
+          auditLogs: [
+            workOrderAuditLog({
+              id: uid(),
+              action: result.auditAction,
+              record: result.record,
+              user: currentUser,
+              before: result.before,
+              after: result.after,
+              reason: result.reason,
+              timestamp: now,
+            }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return result.record;
+      },
       archiveMaintenanceWorkOrder: (id, reason) => {
-        if (!canAccess("maintenance.work_orders.edit")) {
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.edit", { nursingHomeId: activeFacilityId })) {
           throw new Error("You do not have permission to archive Work Orders.");
         }
         const current = store.maintenanceWorkOrders.find((record) => record.id === id);

@@ -228,7 +228,12 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
                   <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
                   <td className="px-4 py-3">{workOrderLocationLabel(record, care)}</td>
                   <td className="px-4 py-3"><DueLabel record={record} /></td>
-                  <td className="px-4 py-3">{workOrderAssigneeLabel(record, care.users)}</td>
+                  <td className="px-4 py-3">
+                    <div>{workOrderAssigneeLabel(record, care.users)}</div>
+                    {WAITING_WORK_ORDER_STATUSES.includes(record.status) && record.waitingSince && (
+                      <div className="text-xs text-muted-foreground">Waiting since {new Date(record.waitingSince).toLocaleString()}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right"><Button asChild size="sm" variant="outline"><Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }}>Open</Link></Button></td>
                 </tr>
               ))}
@@ -245,15 +250,17 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
 
 function BoardView({ records }: { records: ReturnType<typeof queryWorkOrders>["allFiltered"] }) {
   const columns = [
-    { label: "Open", statuses: ["OPEN", "ASSIGNED", "ACCEPTED"] as MaintenanceWorkOrderStatus[] },
+    { label: "Open", statuses: ["OPEN"] as MaintenanceWorkOrderStatus[] },
+    { label: "Assigned", statuses: ["ASSIGNED"] as MaintenanceWorkOrderStatus[] },
+    { label: "Accepted", statuses: ["ACCEPTED"] as MaintenanceWorkOrderStatus[] },
     { label: "In Progress", statuses: ["IN_PROGRESS"] as MaintenanceWorkOrderStatus[] },
-    { label: "Waiting", statuses: WAITING_WORK_ORDER_STATUSES },
-    { label: "Verification", statuses: ["VERIFICATION_REQUIRED"] as MaintenanceWorkOrderStatus[] },
-    { label: "Completed", statuses: ["COMPLETED", "VERIFIED", "CLOSED"] as MaintenanceWorkOrderStatus[] },
-    { label: "Cancelled", statuses: ["CANCELLED", "ENTERED_IN_ERROR"] as MaintenanceWorkOrderStatus[] },
+    { label: "On Hold", statuses: ["ON_HOLD"] as MaintenanceWorkOrderStatus[] },
+    { label: "Awaiting Parts", statuses: ["AWAITING_PARTS"] as MaintenanceWorkOrderStatus[] },
+    { label: "Awaiting Contractor", statuses: ["AWAITING_CONTRACTOR"] as MaintenanceWorkOrderStatus[] },
+    { label: "Awaiting Access", statuses: ["AWAITING_ACCESS"] as MaintenanceWorkOrderStatus[] },
   ];
   return (
-    <div className="grid gap-3 overflow-x-auto pb-2 lg:grid-cols-3 2xl:grid-cols-6">
+    <div className="grid gap-3 overflow-x-auto pb-2 lg:grid-cols-4 2xl:grid-cols-8">
       {columns.map((column) => {
         const columnRecords = records.filter((record) => column.statuses.includes(record.status));
         return (
@@ -289,6 +296,9 @@ function WorkOrderCard({ record }: { record: ReturnType<typeof queryWorkOrders>[
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <div>{workOrderLocationLabel(record, care)}</div>
         <div>{workOrderAssigneeLabel(record, care.users)}</div>
+        {WAITING_WORK_ORDER_STATUSES.includes(record.status) && record.waitingReasonText && (
+          <div>{record.waitingReasonText}</div>
+        )}
         <DueLabel record={record} />
       </div>
       <div className="mt-3"><StatusBadge status={record.status} /></div>

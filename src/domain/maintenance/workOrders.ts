@@ -186,6 +186,7 @@ export interface CreateWorkOrderInput {
   affectedAssetDescription?: string;
   reporterContactDetails?: string;
   assignedUserId?: string;
+  assignedTeamId?: string;
   supervisorUserId?: string;
   requiredResponseAt?: string;
   dueAt?: string;
@@ -229,6 +230,7 @@ export type UpdateWorkOrderInput = Partial<
     | "affectedAssetDescription"
     | "reporterContactDetails"
     | "assignedUserId"
+    | "assignedTeamId"
     | "supervisorUserId"
     | "requiredResponseAt"
     | "dueAt"
@@ -371,8 +373,19 @@ export function workOrderLocationLabel(record: MaintenanceWorkOrder, source: Pic
 }
 
 export function workOrderAssigneeLabel(record: MaintenanceWorkOrder, users: UserProfile[]) {
-  if (!record.assignedUserId) return "Unassigned";
-  return users.find((user) => user.id === record.assignedUserId)?.name || "Assigned staff";
+  const user = record.assignedUserId ? users.find((item) => item.id === record.assignedUserId) : undefined;
+  if (user && record.assignedTeamId) return `${user.name} / ${teamLabel(record.assignedTeamId)}`;
+  if (user) return user.name;
+  if (record.assignedTeamId) return teamLabel(record.assignedTeamId);
+  return "Unassigned";
+}
+
+function teamLabel(teamId: string) {
+  return teamId
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export function defaultWorkOrderQuery(input: Partial<WorkOrderQuery> = {}): WorkOrderQuery {
@@ -478,7 +491,7 @@ export function createWorkOrderRecord(params: {
     category: params.input.category,
     subcategory: params.input.subcategory?.trim() || undefined,
     priority: params.input.priority,
-    status: params.input.assignedUserId ? "ASSIGNED" : "OPEN",
+    status: params.input.assignedUserId || params.input.assignedTeamId ? "ASSIGNED" : "OPEN",
     homeId: params.input.homeId,
     nursingHomeId: params.input.homeId,
     facilityId: params.input.homeId,
@@ -492,9 +505,10 @@ export function createWorkOrderRecord(params: {
     reporterNameSnapshot: params.currentUser.name,
     reporterContactDetails: params.input.reporterContactDetails?.trim() || params.currentUser.phone || params.currentUser.email || undefined,
     assignedUserId: params.input.assignedUserId || undefined,
+    assignedTeamId: params.input.assignedTeamId || undefined,
     supervisorUserId: params.input.supervisorUserId || undefined,
-    assignedAt: params.input.assignedUserId ? now : undefined,
-    assignedByUserId: params.input.assignedUserId ? params.currentUser.id : undefined,
+    assignedAt: params.input.assignedUserId || params.input.assignedTeamId ? now : undefined,
+    assignedByUserId: params.input.assignedUserId || params.input.assignedTeamId ? params.currentUser.id : undefined,
     requiredResponseAt: params.input.requiredResponseAt || suggestedResponseAt(params.input.priority, new Date(now)),
     dueAt: params.input.dueAt || suggestedDueAt(params.input.priority, new Date(now)),
     residentSafetyImpact: Boolean(params.input.residentSafetyImpact),
@@ -525,6 +539,18 @@ export function updateWorkOrderRecord(
   }
   if (input.status && HISTORICAL_WORK_ORDER_STATUSES.includes(input.status)) {
     throw new Error("Use the correct workflow action to complete, close or cancel a Work Order.");
+  }
+  if (input.status && input.status !== record.status) {
+    throw new Error("Use the Work Order workflow actions to change status.");
+  }
+  if ("assignedUserId" in input && input.assignedUserId !== record.assignedUserId) {
+    throw new Error("Use the Work Order workflow actions to change assignment.");
+  }
+  if ("assignedTeamId" in input && input.assignedTeamId !== record.assignedTeamId) {
+    throw new Error("Use the Work Order workflow actions to change assignment.");
+  }
+  if ("supervisorUserId" in input && input.supervisorUserId !== record.supervisorUserId) {
+    throw new Error("Use the Work Order workflow actions to change assignment.");
   }
   if (input.expectedVersion !== undefined && input.expectedVersion !== record.version) {
     throw new Error("This Work Order has changed since you opened it. Refresh the record before saving.");

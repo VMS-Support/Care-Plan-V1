@@ -6,7 +6,6 @@ import {
   WORK_ORDER_CATEGORIES,
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_SOURCES,
-  WORK_ORDER_STATUSES,
   WORK_ORDER_TYPES,
   calculateMaintenanceRisk,
   minimumPriorityForRisk,
@@ -47,13 +46,12 @@ const steps = [
 ] as const;
 
 const draftKey = "maintenance-work-order-create-draft-v1";
-const editableStatusOptions = WORK_ORDER_STATUSES.filter((item) => ["DRAFT", "OPEN", "ASSIGNED"].includes(item.value));
 
 type FormState = CreateWorkOrderInput & { status?: MaintenanceWorkOrder["status"] };
 
 export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrderFormProps) {
   const care = useCare();
-  const canAssign = care.canAccess("maintenance.work_orders.edit", { nursingHomeId: workOrder?.homeId || care.activeFacilityId });
+  const canAssign = mode === "create" && care.canAccess("maintenance.work_orders.assign", { nursingHomeId: workOrder?.homeId || care.activeFacilityId });
   const initial = useMemo(() => initialState(mode, care, workOrder, canAssign), [mode, care.activeFacilityId, care.currentRole, workOrder?.id, canAssign]);
   const [form, setForm] = useState<FormState>(() => initial);
   const [step, setStep] = useState(0);
@@ -450,13 +448,6 @@ function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form:
         <Field label="Due Date">
           <Input type="datetime-local" value={form.dueAt || ""} onChange={(event) => update("dueAt", event.target.value)} />
         </Field>
-        {workOrder && ["DRAFT", "OPEN", "ASSIGNED"].includes(workOrder.status) && (
-          <Field label="Status">
-            <select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={form.status} onChange={(event) => update("status", event.target.value as any)}>
-              {editableStatusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </Field>
-        )}
         {canAssign ? (
           <Field label="Assigned To">
             <select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={form.assignedUserId || ""} onChange={(event) => update("assignedUserId", event.target.value)}>
@@ -485,7 +476,7 @@ function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form:
           <p>Risk: {risk?.calculatedLevel || "LOW"} ({risk?.score || 4})</p>
           <p>Response target: {form.requiredResponseAt ? new Date(form.requiredResponseAt).toLocaleString() : "Not set"}</p>
           <p>Due date: {form.dueAt ? new Date(form.dueAt).toLocaleString() : "Not set"}</p>
-          <p>Status after save: {form.assignedUserId ? "Assigned" : form.status || "Open"}</p>
+          <p>Status after save: {mode === "create" && form.assignedUserId ? "Assigned" : workOrder?.status || "Open"}</p>
         </div>
       </Summary>
     </section>
@@ -587,7 +578,7 @@ function toPayload(form: FormState, mode: Mode): CreateWorkOrderInput | UpdateWo
     requiredResponseAt: form.requiredResponseAt ? new Date(form.requiredResponseAt).toISOString() : undefined,
   };
   if (mode === "edit") {
-    const { homeId: _homeId, ...editable } = payload;
+    const { homeId: _homeId, status: _status, assignedUserId: _assignedUserId, assignedTeamId: _assignedTeamId, supervisorUserId: _supervisorUserId, ...editable } = payload;
     return editable;
   }
   return payload;

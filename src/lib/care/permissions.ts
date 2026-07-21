@@ -156,7 +156,14 @@ export type Permission =
   | "staffing_wte.approve_adjustment" | "staffing_wte.view_source_details"
   | "maintenance.work_orders.view" | "maintenance.work_orders.create" | "maintenance.work_orders.edit"
   | "maintenance.work_orders.view_all_for_home" | "maintenance.work_orders.view_assigned"
-  | "maintenance.work_orders.view_reported_own" | "maintenance.work_orders.view_archived";
+  | "maintenance.work_orders.view_reported_own" | "maintenance.work_orders.view_archived"
+  | "maintenance.work_orders.assign" | "maintenance.work_orders.assign_self"
+  | "maintenance.work_orders.reassign" | "maintenance.work_orders.unassign"
+  | "maintenance.work_orders.accept" | "maintenance.work_orders.accept_team_work"
+  | "maintenance.work_orders.accept_on_behalf" | "maintenance.work_orders.start"
+  | "maintenance.work_orders.pause" | "maintenance.work_orders.await_parts"
+  | "maintenance.work_orders.await_contractor" | "maintenance.work_orders.await_access"
+  | "maintenance.work_orders.resume";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -376,10 +383,16 @@ export function can(role: Role, perm: Permission): boolean {
     if (["maintenance.work_orders.view", "maintenance.work_orders.create", "maintenance.work_orders.view_reported_own"].includes(perm)) {
       return role === "nurse" || role === "cnm" || role === "don" || role === "carer";
     }
+    if (["maintenance.work_orders.assign_self", "maintenance.work_orders.accept", "maintenance.work_orders.start", "maintenance.work_orders.pause", "maintenance.work_orders.await_parts", "maintenance.work_orders.await_contractor", "maintenance.work_orders.await_access", "maintenance.work_orders.resume"].includes(perm)) {
+      return role === "cnm" || role === "don" || role === "carer";
+    }
     if (["maintenance.work_orders.edit", "maintenance.work_orders.view_all_for_home", "maintenance.work_orders.view_archived"].includes(perm)) {
       return role === "cnm" || role === "don";
     }
-    if (perm === "maintenance.work_orders.view_assigned") return role === "cnm" || role === "don";
+    if (["maintenance.work_orders.assign", "maintenance.work_orders.reassign", "maintenance.work_orders.unassign", "maintenance.work_orders.accept_team_work", "maintenance.work_orders.accept_on_behalf"].includes(perm)) {
+      return role === "cnm" || role === "don";
+    }
+    if (perm === "maintenance.work_orders.view_assigned") return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
   }
   return Boolean(matrix[role]?.includes(perm));
 }
