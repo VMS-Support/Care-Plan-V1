@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
@@ -42,7 +42,7 @@ import {
 
 export const Route = createFileRoute("/workforce/staff")({
   head: () => ({ meta: [{ title: "Staff Directory - NuCare" }] }),
-  component: StaffDirectoryPage,
+  component: WorkforceStaffRoute,
 });
 
 const ALL = "__all__";
@@ -83,6 +83,12 @@ const STAFF_ROLE_TO_CATEGORY: Record<Role, "clinical" | "care" | "management" | 
   don: "management",
   group_owner: "administration",
 };
+
+function WorkforceStaffRoute() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname.replace(/\/+$/, "") });
+  if (pathname !== "/workforce/staff") return <Outlet />;
+  return <StaffDirectoryPage />;
+}
 
 function StaffDirectoryPage() {
   const care = useCare();
@@ -314,6 +320,7 @@ function StaffDirectoryPage() {
                               <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild><Link to="/workforce/staff/$staffMemberId" params={{ staffMemberId: row.staffMemberId }}>Open Profile</Link></DropdownMenuItem>
                               {canEdit && staff && <DropdownMenuItem onClick={() => setDialog({ mode: "edit", staff })}><Pencil className="mr-2 h-4 w-4" /> Edit Profile</DropdownMenuItem>}
                               {canManageAccounts && staff && !row.linkedUserAccount && <DropdownMenuItem onClick={() => setLoginStaff(staff)}>Create Login</DropdownMenuItem>}
                               {canManageAccounts && row.linkedUserAccount && <DropdownMenuItem onClick={() => toast.info("Open the staff profile User Account tab to manage this login.")}><ShieldCheck className="mr-2 h-4 w-4" /> Manage Login</DropdownMenuItem>}

@@ -13,6 +13,7 @@ import { isActionableClinicalAlert } from "@/lib/care/alerts";
 
 function severityCls(s: ClinicalAlert["severity"]) {
   if (s === "critical") return "border-destructive/40 text-destructive bg-destructive/5";
+  if (s === "high") return "border-warning/60 text-warning-foreground bg-warning/10";
   if (s === "warning") return "border-warning/40 text-warning-foreground bg-warning/5";
   return "border-info/40 text-info bg-info/5";
 }

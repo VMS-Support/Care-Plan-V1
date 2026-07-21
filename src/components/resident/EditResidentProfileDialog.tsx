@@ -80,6 +80,7 @@ export function EditResidentProfileDialog({
 
   const [form, setForm] = useState<FormState>(initial);
   const [baseline, setBaseline] = useState("");
+  const [photoLoading, setPhotoLoading] = useState(false);
   const dirty = JSON.stringify(form) !== baseline;
 
   useEffect(() => {
@@ -116,16 +117,52 @@ export function EditResidentProfileDialog({
       </div>
     );
 
-  const handlePhotoFile = (file?: File) => {
+  const imageToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Unable to read image"));
+      reader.onload = () => {
+        const image = new Image();
+        image.onerror = () => reject(new Error("Unable to load image"));
+        image.onload = () => {
+          const maxSize = 320;
+          const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+          const width = Math.max(1, Math.round(image.width * scale));
+          const height = Math.max(1, Math.round(image.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            reject(new Error("Unable to process image"));
+            return;
+          }
+          context.drawImage(image, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.72));
+        };
+        image.src = String(reader.result || "");
+      };
+      reader.readAsDataURL(file);
+    });
+
+  const handlePhotoFile = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Choose an image file");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => update({ photoUrl: String(reader.result || "") });
-    reader.onerror = () => toast.error("Unable to read image");
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Choose an image smaller than 8 MB");
+      return;
+    }
+    setPhotoLoading(true);
+    try {
+      update({ photoUrl: await imageToDataUrl(file) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to process image");
+    } finally {
+      setPhotoLoading(false);
+    }
   };
 
   const save = () => {
@@ -174,8 +211,8 @@ export function EditResidentProfileDialog({
                 </div>
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">
                   <Camera className="h-4 w-4" />
-                  Upload image
-                  <input type="file" accept="image/*" className="sr-only" onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
+                  {photoLoading ? "Processing image..." : "Upload image"}
+                  <input type="file" accept="image/*" className="sr-only" disabled={photoLoading} onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
                 </label>
               </div>
             </div>
@@ -259,8 +296,8 @@ export function EditResidentProfileDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button disabled={!dirty} onClick={save}>Save Changes</Button>
+          <Button type="button" variant="outline" onClick={close}>Cancel</Button>
+          <Button type="button" disabled={!dirty || photoLoading} onClick={save}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

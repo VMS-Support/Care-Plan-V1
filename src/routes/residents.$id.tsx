@@ -1315,7 +1315,7 @@ function ResidentDetail() {
         canEdit={residentViewCapabilities.includes("resident_profile.edit")}
         onEdit={() => setProfileEditOpen(true)}
         actions={<>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>Record Daily Care</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>Record Daily Care</DropdownMenuItem><RecordObservationFlow residentId={r.id} onRecorded={() => setActiveTab("vitals")} trigger={<DropdownMenuItem onSelect={(event) => event.preventDefault()}>Record Observation</DropdownMenuItem>} /><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>Timeline</Button>
         </>}
       />
@@ -1923,6 +1923,27 @@ function ResidentDetail() {
               </CardContent>
             </Card>
           </div>
+
+          <ResidentDocuments
+            residentId={r.id}
+            nursingHomeId={r.facilityId || activeFacilityId}
+            state={residentDocumentState}
+            capabilities={residentDocumentCapabilities}
+            onUpload={(metadata, file) => uploadResidentDocument(r.id, metadata, file)}
+            onUploadVersion={(documentId, file) =>
+              uploadResidentDocumentVersion(documentId, file, "replacement")
+            }
+            onStatus={changeResidentDocumentStatus}
+            onOpenSource={(route) => {
+              if (typeof window !== "undefined") window.location.assign(route);
+            }}
+          />
+          <ResidentAdministrativeDetails
+            model={residentAdministrativeDetails}
+            canEdit={residentAdministrationCapabilities.includes("resident_administration.edit")}
+            onEdit={() => setProfileEditOpen(true)}
+            onOpenContacts={() => setActiveTab("nok")}
+          />
         </TabsContent>
 
         <TabsContent value="vitals" className="space-y-4">
@@ -1942,7 +1963,6 @@ function ResidentDetail() {
               trigger={<Button size="sm">Record New</Button>}
             />
           </div>
-          <LatestVitalsCard vitals={residentVitals} resident={r} />
           <ObservationHistory residentId={r.id} />
           <Card>
             <CardHeader className="pb-3">
@@ -3554,9 +3574,6 @@ function ResidentDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ResidentDocuments residentId={r.id} nursingHomeId={r.facilityId || activeFacilityId} state={residentDocumentState} capabilities={residentDocumentCapabilities} onUpload={(metadata,file)=>uploadResidentDocument(r.id,metadata,file)} onUploadVersion={(documentId,file)=>uploadResidentDocumentVersion(documentId,file,"replacement")} onStatus={changeResidentDocumentStatus} onOpenSource={(route)=>{if(typeof window!=="undefined")window.location.assign(route)}} />
-      <ResidentAdministrativeDetails model={residentAdministrativeDetails} canEdit={residentAdministrationCapabilities.includes("resident_administration.edit")} onEdit={()=>setProfileEditOpen(true)} onOpenContacts={()=>setActiveTab("nok")} />
 
       <Dialog open={evaluationOpen} onOpenChange={setEvaluationOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

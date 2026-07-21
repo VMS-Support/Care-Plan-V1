@@ -55,3 +55,4 @@ export * from "./probation/probationService";
 export * from "./probation/probationMetricsService";
 export * from "./establishment/staffingWteMetricsService";
 export * from "./staffProfile/staffProfileReadModel";
+export * from "./staffProfile/staffProfileRouting";

@@ -376,13 +376,16 @@ export function adaptCareActionToScheduledWork(
   resident?: Resident,
   completion?: ProblemInterventionLog,
 ): ScheduledWorkReference {
+  const startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(intervention.startTime || "")
+    ? intervention.startTime
+    : "08:00";
   return {
     id: intervention.id,
     workType: "care_action",
     nursingHomeId: intervention.facilityId || resident?.facilityId || "",
     wardId: resident?.wardId,
     residentId: intervention.residentId,
-    scheduledStart: `${intervention.startDate}T08:00:00.000`,
+    scheduledStart: `${intervention.startDate}T${startTime}:00.000`,
     dueAt: dueAt.toISOString(),
     persistedStatus:
       intervention.status === "completed"

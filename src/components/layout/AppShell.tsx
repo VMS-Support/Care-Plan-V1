@@ -1,6 +1,7 @@
 import { Link, useRouterState, Outlet } from "@tanstack/react-router";
 import { useState } from "react";
 import { CareProvider, useCare } from "@/lib/care/store";
+import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import {
   LayoutDashboard,
   Users,
@@ -19,12 +20,19 @@ import {
   Plane,
   ShieldCheck,
   Building2,
+  Home,
   Gauge,
   GraduationCap,
   IdCard,
   Landmark,
   Shield,
   Wrench,
+  Package,
+  BadgeCheck,
+  HardHat,
+  ClipboardCheck,
+  MapPin,
+  Settings,
   UserRoundCog,
   ChevronDown,
   BriefcaseBusiness,
@@ -39,7 +47,35 @@ import { UserMenu } from "@/components/care/UserMenu";
 import { OperationalContextSwitcher } from "@/components/care/OperationalContextSwitcher";
 
 type CapabilityCheck = (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
-type NavItem = { to: any; label: string; icon: any; exact?: boolean; capability?: string; visible?: (canAccess: CapabilityCheck) => boolean };
+type NavItem = {
+  to: any;
+  label: string;
+  icon: any;
+  exact?: boolean;
+  capability?: string;
+  visible?: (canAccess: CapabilityCheck, currentRole: ReturnType<typeof useCare>["currentRole"]) => boolean;
+};
+
+function openAlertCounts({
+  alerts,
+  clinicalAlerts,
+}: {
+  alerts: ReturnType<typeof useCare>["alerts"];
+  clinicalAlerts: ReturnType<typeof useCare>["clinicalAlerts"];
+}) {
+  const openClinical = clinicalAlerts.filter(
+    (alert) => isActionableClinicalAlert(alert) && !alert.dismissedAt && !alert.resolvedAt,
+  );
+  const openLegacy = alerts.filter(
+    (alert) => isActionRequiredAlert(alert) && !alert.acknowledged && !alert.resolvedAt,
+  );
+  return {
+    total: openClinical.length + openLegacy.length,
+    critical:
+      openClinical.filter((alert) => alert.severity === "critical").length +
+      openLegacy.filter((alert) => alert.priority === "critical").length,
+  };
+}
 
 const workforceNav: NavItem[] = [
   {
@@ -214,19 +250,13 @@ const nav: NavItem[] = [
     to: "/quality-governance",
     label: "Quality Governance",
     icon: Shield,
-    capability: "permission.manage",
+    visible: (_canAccess, currentRole) => currentRole === "group_owner" || currentRole === "don",
   },
   {
     to: "/accounts-dashboard",
     label: "Accounts",
     icon: Landmark,
     capability: "finance.view",
-  },
-  {
-    to: "/maintenance-housekeeping",
-    label: "Maintenance",
-    icon: Wrench,
-    capability: "permission.manage",
   },
   {
     to: "/assessments",
@@ -275,10 +305,26 @@ const nav: NavItem[] = [
   { to: "/audit-logs", label: "Audit Trail", icon: History, capability: "audit.view" },
 ];
 
+const maintenanceNav: NavItem[] = [
+  { to: "/maintenance", label: "Overview", icon: Home, exact: true },
+  { to: "/maintenance/work-orders", label: "Work Orders", icon: ClipboardList, capability: "maintenance.work_orders.view" },
+  { to: "/maintenance/planned-maintenance", label: "Planned Maintenance", icon: CalendarDays, capability: "permission.manage" },
+  { to: "/maintenance/assets", label: "Assets", icon: Package, capability: "permission.manage" },
+  { to: "/maintenance/safety-compliance", label: "Safety & Compliance", icon: ShieldCheck, capability: "permission.manage" },
+  { to: "/maintenance/housekeeping", label: "Housekeeping", icon: UsersRound, capability: "permission.manage" },
+  { to: "/maintenance/certificates", label: "Certificates", icon: BadgeCheck, capability: "permission.manage" },
+  { to: "/maintenance/contractors", label: "Contractors", icon: HardHat, capability: "permission.manage" },
+  { to: "/maintenance/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck, capability: "permission.manage" },
+  { to: "/maintenance/rooms-locations", label: "Rooms & Locations", icon: MapPin, capability: "permission.manage" },
+  { to: "/maintenance/reports", label: "Reports", icon: BarChart3, capability: "permission.manage" },
+  { to: "/maintenance/settings", label: "Settings", icon: Settings, capability: "permission.manage" },
+];
+
 function SidebarInner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { tasks, canAccess, currentRole } = useCare();
+  const { tasks, alerts, clinicalAlerts, canAccess, currentRole } = useCare();
   const [workforceOpen, setWorkforceOpen] = useState(pathname.startsWith("/workforce") || pathname.startsWith("/staff-management"));
+  const [maintenanceOpen, setMaintenanceOpen] = useState(pathname.startsWith("/maintenance"));
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -290,6 +336,11 @@ function SidebarInner() {
   const tasksAttentionCount = overdueTasks + dueTodayTasks;
   const tasksBadgeClass =
     overdueTasks > 0
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-warning/20 text-warning-foreground";
+  const alertCounts = openAlertCounts({ alerts, clinicalAlerts });
+  const alertsBadgeClass =
+    alertCounts.critical > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
   const groupOwnerHidden = new Set([
@@ -304,17 +355,19 @@ function SidebarInner() {
     "/tasks",
     "/visitors",
   ]);
-  const donHidden = new Set([
-    "/quality-governance",
-  ]);
+  const donHidden = new Set<string>([]);
   const visible = nav
     .filter((i) => !i.capability || canAccess(i.capability))
-    .filter((i) => !i.visible || i.visible(canAccess))
+    .filter((i) => !i.visible || i.visible(canAccess, currentRole))
     .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
     .filter((i) => currentRole !== "don" || !donHidden.has(i.to));
   const visibleWorkforce = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
-    .filter((i) => !i.visible || i.visible(canAccess));
+    .filter((i) => !i.visible || i.visible(canAccess, currentRole));
+  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view");
+  const visibleMaintenance = maintenanceNav
+    .filter((i) => !i.capability || canAccess(i.capability))
+    .filter((i) => !i.visible || i.visible(canAccess, currentRole));
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -356,9 +409,61 @@ function SidebarInner() {
                   {tasksAttentionCount}
                 </span>
               )}
+              {item.to === "/alerts" && alertCounts.total > 0 && (
+                <span
+                  className={cn(
+                    "text-[10px] rounded-full px-1.5 py-0.5 font-semibold",
+                    alertsBadgeClass,
+                  )}
+                >
+                  {alertCounts.total}
+                </span>
+              )}
             </Link>
           );
         })}
+        {canViewMaintenance && visibleMaintenance.length > 0 && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setMaintenanceOpen((open) => !open)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                pathname.startsWith("/maintenance")
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              )}
+              aria-expanded={maintenanceOpen}
+            >
+              <Wrench className="h-4 w-4" />
+              <span className="flex-1 text-left">Maintenance</span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", maintenanceOpen && "rotate-180")} />
+            </button>
+            {maintenanceOpen && (
+              <div className="mt-1 space-y-0.5 pl-5">
+                {visibleMaintenance.map((item) => {
+                  const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {visibleWorkforce.length > 0 && (
           <div className="pt-1">
             <button
@@ -407,7 +512,7 @@ function SidebarInner() {
 
 function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const current = [...nav, ...workforceNav].find((n) => (n.exact ? pathname === n.to : pathname.startsWith(n.to)));
+  const current = [...maintenanceNav, ...workforceNav, ...nav].find((n) => (n.exact ? pathname === n.to : pathname.startsWith(n.to)));
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b">
       <div className="flex min-h-14 items-center gap-3 px-4 py-2 md:px-6">
@@ -433,7 +538,7 @@ function TopBar() {
 
 function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { tasks, canAccess, currentRole } = useCare();
+  const { tasks, alerts, clinicalAlerts, canAccess, currentRole } = useCare();
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -445,6 +550,11 @@ function MobileNav() {
   const tasksAttentionCount = overdueTasks + dueTodayTasks;
   const tasksBadgeClass =
     overdueTasks > 0
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-warning/20 text-warning-foreground";
+  const alertCounts = openAlertCounts({ alerts, clinicalAlerts });
+  const alertsBadgeClass =
+    alertCounts.critical > 0
       ? "bg-destructive text-destructive-foreground"
       : "bg-warning/20 text-warning-foreground";
   const groupOwnerHidden = new Set([
@@ -459,18 +569,21 @@ function MobileNav() {
     "/tasks",
     "/visitors",
   ]);
-  const donHidden = new Set([
-    "/quality-governance",
-  ]);
+  const donHidden = new Set<string>([]);
   const visible = nav
     .filter((i) => !i.capability || canAccess(i.capability))
-    .filter((i) => !i.visible || i.visible(canAccess))
+    .filter((i) => !i.visible || i.visible(canAccess, currentRole))
     .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
     .filter((i) => currentRole !== "don" || !donHidden.has(i.to))
   const workforceVisible = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
-    .filter((i) => !i.visible || i.visible(canAccess));
-  const visibleMobile = [...visible, ...workforceVisible].slice(0, 5);
+    .filter((i) => !i.visible || i.visible(canAccess, currentRole));
+  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view");
+  const visibleMobile = [
+    ...visible,
+    ...(canViewMaintenance ? [{ to: "/maintenance", label: "Maintenance", icon: Wrench } as NavItem] : []),
+    ...workforceVisible,
+  ].slice(0, 5);
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar text-sidebar-foreground border-t border-sidebar-border flex justify-around py-1.5">
       {visibleMobile.map((item) => {
@@ -496,6 +609,16 @@ function MobileNav() {
                   )}
                 >
                   {tasksAttentionCount}
+                </span>
+              )}
+              {item.to === "/alerts" && alertCounts.total > 0 && (
+                <span
+                  className={cn(
+                    "text-[9px] rounded-full px-1 py-0.5 font-semibold",
+                    alertsBadgeClass,
+                  )}
+                >
+                  {alertCounts.total}
                 </span>
               )}
             </span>

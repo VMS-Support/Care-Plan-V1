@@ -10,10 +10,31 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isPhysiologicalLegacyAlert } from "@/lib/care/alerts";
 
 type Focus = "all" | "vitals" | "weight" | "pain" | "resolved";
 type QueueState = "open" | "dismissed" | "resolved" | "all";
 type DismissReason = NonNullable<ClinicalAlert["dismissedReason"]>;
+type QueueAlert = Pick<
+  ClinicalAlert,
+  | "residentId"
+  | "type"
+  | "severity"
+  | "title"
+  | "message"
+  | "recommendation"
+  | "currentValue"
+  | "previousValue"
+  | "sourceVitalId"
+  | "createdAt"
+  | "updatedAt"
+  | "acknowledged"
+  | "dismissedAt"
+  | "dismissedBy"
+  | "dismissedReason"
+  | "resolvedAt"
+  | "resolvedBy"
+> & { id: string; source: "clinical" | "legacy" };
 
 const CLINICAL_TYPES = new Set<ClinicalAlertType>([
   "weight_loss", "weight_gain", "high_news2", "abnormal_bp", "abnormal_temp", "low_spo2",
@@ -21,6 +42,12 @@ const CLINICAL_TYPES = new Set<ClinicalAlertType>([
 ]);
 const WEIGHT_TYPES = new Set<ClinicalAlertType>(["weight_loss", "weight_gain"]);
 const DISMISS_REASONS: DismissReason[] = ["Resolved", "Reviewed", "Expected Change", "Entered In Error", "Other"];
+const severityRank: Record<ClinicalAlert["severity"], number> = {
+  critical: 0,
+  high: 1,
+  warning: 2,
+  info: 3,
+};
 
 function scopeLabel(role: Role) {
   if (role === "don") return "Facility-wide clinical changes";
@@ -28,21 +55,42 @@ function scopeLabel(role: Role) {
   return "Clinical changes for residents assigned to you";
 }
 
-function isResolved(alert: ClinicalAlert) {
+function isResolved(alert: QueueAlert) {
   return !!alert.resolvedAt || alert.dismissedReason === "Resolved";
 }
 
-function alertGroup(alert: ClinicalAlert): Exclude<Focus, "all" | "resolved"> {
+function alertGroup(alert: Pick<QueueAlert, "type">): Exclude<Focus, "all" | "resolved"> {
   if (WEIGHT_TYPES.has(alert.type)) return "weight";
   if (alert.type === "high_pain") return "pain";
   return "vitals";
 }
 
+function legacyAlertType(alert: { title: string; description: string }): ClinicalAlertType {
+  const text = `${alert.title} ${alert.description}`.toLowerCase();
+  if (text.includes("weight") && /(gain|increase)/.test(text)) return "weight_gain";
+  if (text.includes("weight")) return "weight_loss";
+  if (text.includes("pain")) return "high_pain";
+  if (text.includes("spo2") || text.includes("oxygen")) return "low_spo2";
+  if (text.includes("glucose") || text.includes("hypoglycaemia")) return "hypoglycaemia";
+  if (text.includes("hyperglycaemia")) return "hyperglycaemia";
+  if (text.includes("fluid") || text.includes("hydration")) return "fluid_imbalance";
+  if (text.includes("news2")) return "high_news2";
+  if (text.includes("blood pressure") || /\bbp\b/.test(text)) return "abnormal_bp";
+  return "abnormal_temp";
+}
+
+function legacySeverity(priority: "low" | "medium" | "high" | "critical"): ClinicalAlert["severity"] {
+  if (priority === "critical") return "critical";
+  if (priority === "high") return "high";
+  if (priority === "medium") return "warning";
+  return "info";
+}
+
 export function ClinicalChangesQueue() {
-  const { clinicalAlerts, residents, vitals, currentRole, currentUser, dismissClinicalAlert } = useCare();
+  const { alerts: legacyAlerts, clinicalAlerts, residents, vitals, currentRole, currentUser, dismissClinicalAlert, resolveAlert } = useCare();
   const [focus, setFocus] = useState<Focus>("all");
   const [queueState, setQueueState] = useState<QueueState>("open");
-  const [dismissTarget, setDismissTarget] = useState<ClinicalAlert | null>(null);
+  const [dismissTarget, setDismissTarget] = useState<QueueAlert | null>(null);
   const [dismissReason, setDismissReason] = useState<DismissReason>("Reviewed");
 
   const residentMap = useMemo(() => new Map(residents.map((resident) => [resident.id, resident])), [residents]);
@@ -57,10 +105,41 @@ export function ClinicalChangesQueue() {
     return new Set(residents.filter((resident) => currentUser.assignedWings.includes(resident.wingId || "")).map((resident) => resident.id));
   }, [currentRole, currentUser.assignedWings, residents]);
 
-  const alerts = useMemo(() => clinicalAlerts
-    .filter((alert) => CLINICAL_TYPES.has(alert.type) && scopedResidents.has(alert.residentId))
-    .sort((a, b) => Number(b.severity === "critical") - Number(a.severity === "critical") || b.createdAt.localeCompare(a.createdAt)),
-  [clinicalAlerts, scopedResidents]);
+  const alerts = useMemo<QueueAlert[]>(() => {
+    const clinical = clinicalAlerts
+      .filter((alert) => CLINICAL_TYPES.has(alert.type) && scopedResidents.has(alert.residentId))
+      .map((alert) => ({ ...alert, source: "clinical" as const }));
+    const activeClinicalKeys = new Set(
+      clinical
+        .filter((alert) => !alert.dismissedAt && !isResolved(alert))
+        .map((alert) => `${alert.residentId}:${alert.type}`),
+    );
+    const legacy = legacyAlerts
+      .filter((alert) =>
+        scopedResidents.has(alert.residentId) &&
+        isPhysiologicalLegacyAlert(alert) &&
+        !activeClinicalKeys.has(`${alert.residentId}:${legacyAlertType(alert)}`),
+      )
+      .map<QueueAlert>((alert) => ({
+        id: alert.id,
+        source: "legacy",
+        residentId: alert.residentId,
+        type: legacyAlertType(alert),
+        severity: legacySeverity(alert.priority),
+        title: alert.title,
+        message: alert.description,
+        recommendation: "Review resident and document any action taken.",
+        createdAt: alert.createdAt,
+        acknowledged: alert.acknowledged,
+        acknowledgedBy: alert.acknowledgedBy,
+        acknowledgedAt: alert.acknowledgedAt,
+        resolvedAt: alert.resolvedAt,
+        resolvedBy: alert.resolvedBy,
+      }));
+    return [...clinical, ...legacy].sort(
+      (a, b) => severityRank[a.severity] - severityRank[b.severity] || b.createdAt.localeCompare(a.createdAt),
+    );
+  }, [clinicalAlerts, legacyAlerts, scopedResidents]);
 
   const counts = {
     open: alerts.filter((alert) => !alert.dismissedAt && !isResolved(alert)).length,
@@ -87,7 +166,8 @@ export function ClinicalChangesQueue() {
 
   const submitDismissal = () => {
     if (!dismissTarget) return;
-    dismissClinicalAlert(dismissTarget.id, dismissReason);
+    if (dismissTarget.source === "clinical") dismissClinicalAlert(dismissTarget.id, dismissReason);
+    else resolveAlert(dismissTarget.id);
     setDismissTarget(null);
     setDismissReason("Reviewed");
   };
@@ -138,7 +218,7 @@ export function ClinicalChangesQueue() {
           const sourceVital = alert.sourceVitalId ? vitalMap.get(alert.sourceVitalId) : undefined;
           const resolved = isResolved(alert);
           return (
-            <Card key={alert.id} className={alert.severity === "critical" ? "border-destructive/50" : "border-warning/40"}>
+            <Card key={alert.id} className={alert.severity === "critical" ? "border-destructive/50" : alert.severity === "info" ? "border-border" : "border-warning/40"}>
               <CardContent className="p-4">
                 <div className="flex flex-col lg:flex-row gap-4">
                   <div className="flex-1 min-w-0 space-y-4">

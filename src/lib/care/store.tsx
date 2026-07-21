@@ -155,7 +155,18 @@ import type {
   AuditRecord,
   ShiftDefinition,
   OperationalContext,
+  MaintenanceWorkOrder,
 } from "./types";
+import {
+  archiveWorkOrderRecord,
+  createWorkOrderRecord,
+  PRIORITY_RANK,
+  updateWorkOrderRecord,
+  validateWorkOrderInput,
+  workOrderAuditLog,
+  type CreateWorkOrderInput,
+  type UpdateWorkOrderInput,
+} from "@/domain/maintenance/workOrders";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -604,6 +615,32 @@ function clearPersistedTrainingCoursesOnce(parsed: Partial<Store>) {
   return record;
 }
 
+const MAX_PERSISTED_RESIDENT_PHOTO_LENGTH = 180_000;
+
+function sanitizePersistedResidentProfilePhotos(parsed: Partial<Store>) {
+  parsed.residents = (parsed.residents || []).map((resident) => {
+    if (!resident.photoUrl || resident.photoUrl.length <= MAX_PERSISTED_RESIDENT_PHOTO_LENGTH) return resident;
+    return { ...resident, photoUrl: undefined };
+  });
+
+  if (parsed.residentProfileState?.audit) {
+    parsed.residentProfileState = {
+      ...parsed.residentProfileState,
+      audit: parsed.residentProfileState.audit.map((entry) =>
+        entry.fieldKey === "photoUrl"
+          ? {
+              ...entry,
+              previousValue: entry.previousValue ? "[profile photo recorded]" : undefined,
+              newValue: entry.newValue ? "[profile photo recorded]" : undefined,
+            }
+          : entry,
+      ),
+    };
+  }
+
+  return parsed;
+}
+
 function mergeDefaultRiskAssessmentRequirements(requirements?: AssessmentRequirementRecord[]) {
   const existing = requirements || [];
   const existingIds = new Set(existing.map((requirement) => requirement.id));
@@ -623,22 +660,24 @@ function reconcileClinicalAlerts(
   residentId: string,
   seeds: AlertSeed[],
   now: string,
+  changedSourceVitalId?: string,
 ) {
   const next = [...existing];
   const activeForResident = next.filter(
     (alert) => alert.residentId === residentId && PHYSIOLOGICAL_ALERT_TYPES.has(alert.type) && !alert.dismissedAt && !alert.resolvedAt,
   );
-  const generatedTypes = new Set(seeds.map((seed) => seed.type));
+  const alertRuleKey = (item: Pick<ClinicalAlert, "type" | "sourceVitalId">) => `${item.type}:${item.sourceVitalId || "latest"}`;
+  const generatedKeys = new Set(seeds.map(alertRuleKey));
 
   for (const alert of activeForResident) {
-    if (!generatedTypes.has(alert.type)) {
+    if (changedSourceVitalId && alert.sourceVitalId === changedSourceVitalId && !generatedKeys.has(alertRuleKey(alert))) {
       const index = next.findIndex((candidate) => candidate.id === alert.id);
-      next[index] = { ...alert, resolvedAt: now, resolvedBy: "System", updatedAt: now };
+      next[index] = { ...alert, resolvedAt: now, resolvedBy: "System", dismissedReason: "Entered In Error", updatedAt: now };
     }
   }
 
   for (const seed of seeds) {
-    const active = activeForResident.find((alert) => alert.type === seed.type);
+    const active = activeForResident.find((alert) => alertRuleKey(alert) === alertRuleKey(seed));
     if (active) {
       const index = next.findIndex((candidate) => candidate.id === active.id);
       next[index] = { ...active, ...seed, updatedAt: now };
@@ -754,6 +793,135 @@ function seedRooms(): Room[] {
     }
   });
   return rooms;
+}
+
+function seedMaintenanceWorkOrders(): MaintenanceWorkOrder[] {
+  const now = "2026-07-21T08:30:00.000Z";
+  return [
+    {
+      id: "maintenance-work-order-seed-1",
+      workOrderNumber: "WO-2026-000001",
+      title: "Nurse call bell intermittent in Room 3",
+      description: "Call bell is working intermittently. Staff report delayed activation from the resident handset.",
+      type: "REACTIVE",
+      source: "STAFF_REPORT",
+      category: "NURSE_CALL",
+      priority: "CRITICAL",
+      status: "OPEN",
+      homeId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      wardId: "w-oak" as any,
+      roomId: "r-w-oak-3" as any,
+      reportedByUserId: "u-3",
+      reportedAt: "2026-07-21T08:05:00.000Z",
+      reporterNameSnapshot: "J. Roberts",
+      dueAt: "2026-07-21T12:00:00.000Z",
+      residentSafetyImpact: true,
+      serviceDisruption: true,
+      complianceImpact: false,
+      immediateRisk: true,
+      immediateControlSummary: "Hourly checks in place until maintenance review is completed.",
+      verificationRequired: true,
+      createdAt: "2026-07-21T08:05:00.000Z",
+      createdByUserId: "u-3",
+      updatedAt: now,
+      updatedByUserId: "u-3",
+      version: 1,
+    },
+    {
+      id: "maintenance-work-order-seed-2",
+      workOrderNumber: "WO-2026-000002",
+      title: "Leak under sluice sink",
+      description: "Small leak noted beneath the sluice sink. Area remains usable but requires prompt repair.",
+      type: "CORRECTIVE",
+      source: "MAINTENANCE_TEAM",
+      category: "PLUMBING",
+      priority: "HIGH",
+      status: "IN_PROGRESS",
+      homeId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      wardId: "w-maple" as any,
+      exactLocation: "Maple Wing sluice room",
+      reportedByUserId: "u-7",
+      reportedAt: "2026-07-20T14:20:00.000Z",
+      reporterNameSnapshot: "L. Mensah",
+      assignedUserId: "u-7",
+      assignedAt: "2026-07-20T15:00:00.000Z",
+      assignedByUserId: "u-7",
+      dueAt: "2026-07-21T16:00:00.000Z",
+      residentSafetyImpact: false,
+      serviceDisruption: true,
+      complianceImpact: false,
+      immediateRisk: false,
+      verificationRequired: false,
+      createdAt: "2026-07-20T14:20:00.000Z",
+      createdByUserId: "u-7",
+      updatedAt: now,
+      updatedByUserId: "u-7",
+      version: 1,
+    },
+    {
+      id: "maintenance-work-order-seed-3",
+      workOrderNumber: "WO-2026-000003",
+      title: "Medication room light flickering",
+      description: "Ceiling light flickers above the medication preparation counter.",
+      type: "REACTIVE",
+      source: "STAFF_REPORT",
+      category: "INTERNAL_LIGHTING",
+      priority: "MEDIUM",
+      status: "ON_HOLD",
+      homeId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      exactLocation: "Medication room",
+      reportedByUserId: "u-3",
+      reportedAt: "2026-07-19T09:15:00.000Z",
+      reporterNameSnapshot: "J. Roberts",
+      dueAt: "2026-07-20T17:00:00.000Z",
+      residentSafetyImpact: false,
+      serviceDisruption: false,
+      complianceImpact: true,
+      immediateRisk: false,
+      verificationRequired: false,
+      createdAt: "2026-07-19T09:15:00.000Z",
+      createdByUserId: "u-3",
+      updatedAt: now,
+      updatedByUserId: "u-7",
+      version: 1,
+    },
+    {
+      id: "maintenance-work-order-seed-4",
+      workOrderNumber: "WO-2026-000004",
+      title: "Housekeeping support for spill in dining room",
+      description: "Dining room floor requires cleaning support after fluid spill.",
+      type: "HOUSEKEEPING_REQUEST",
+      source: "HOUSEKEEPING",
+      category: "CLEANING_HOUSEKEEPING_SUPPORT",
+      priority: "LOW",
+      status: "COMPLETED",
+      homeId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      exactLocation: "Main dining room",
+      reportedByUserId: "u-1",
+      reportedAt: "2026-07-20T12:10:00.000Z",
+      reporterNameSnapshot: "C. Adeyemi",
+      completedAt: "2026-07-20T12:45:00.000Z",
+      completedByUserId: "u-1",
+      residentSafetyImpact: false,
+      serviceDisruption: false,
+      complianceImpact: false,
+      immediateRisk: false,
+      verificationRequired: false,
+      createdAt: "2026-07-20T12:10:00.000Z",
+      createdByUserId: "u-1",
+      updatedAt: "2026-07-20T12:45:00.000Z",
+      updatedByUserId: "u-1",
+      version: 1,
+    },
+  ];
 }
 
 // ============ Users ============
@@ -2057,6 +2225,7 @@ function seedData() {
     const rv = vitals.filter((v) => v.residentId === r.id);
     const seeds = derivedAlertsForResident(rv, r);
     seeds.forEach((s, idx) => {
+      const sourceVital = s.sourceVitalId ? rv.find((vital) => vital.id === s.sourceVitalId) : undefined;
       clinicalAlerts.push({
         id: `ca-${r.id}-${idx}`,
         residentId: r.id,
@@ -2068,7 +2237,7 @@ function seedData() {
         currentValue: s.currentValue,
         previousValue: s.previousValue,
         sourceVitalId: s.sourceVitalId,
-        createdAt: new Date().toISOString(),
+        createdAt: sourceVital?.recordedAt || new Date().toISOString(),
         acknowledged: false,
         escalations: [],
       });
@@ -2269,6 +2438,7 @@ function seedData() {
     visitors,
     outings,
     handovers,
+    maintenanceWorkOrders: seedMaintenanceWorkOrders(),
     interventionLogs: [] as InterventionLog[],
     readReceipts: [] as ReadReceipt[],
     carePlanTemplates: BUILT_IN_TEMPLATES.map((t) => ({
@@ -2342,6 +2512,7 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "visitors",
   "outings",
   "handovers",
+  "maintenanceWorkOrders",
   "interventionLogs",
   "readReceipts",
   "observations",
@@ -2675,6 +2846,7 @@ function loadInitialStore(): Store {
 
     const parsed = JSON.parse(raw) as Partial<Store>;
     clearPersistedTrainingCoursesOnce(parsed);
+    sanitizePersistedResidentProfilePhotos(parsed);
     const hasLegacyGeneratedVitals = parsed.vitals?.some((vital) => /^v-R-\d{4}-\d+$/.test(vital.id));
     if (hasLegacyGeneratedVitals) {
       const retainedVitals = (parsed.vitals || []).filter(
@@ -2911,6 +3083,9 @@ interface CareCtx extends Store {
   completeHandover: (id: string) => void;
   closeHandover: (id: string) => void;
   duplicateHandover: (id: string) => HandoverNote | undefined;
+  addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
+  updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
+  archiveMaintenanceWorkOrder: (id: string, reason: string) => void;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
   recordAuditEvent: typeof recordAuditEvent;
   getAuditForEntity: typeof getAuditForEntity;
@@ -3032,6 +3207,7 @@ interface CareCtx extends Store {
     assignedStaffId?: string;
     assignedStaffName?: string;
     startDate: string;
+    startTime?: string;
     reviewDate: string;
     endDate: string;
     status?: "active" | "review_due";
@@ -6923,6 +7099,108 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
         return copy;
       },
+      addMaintenanceWorkOrder: (input) => {
+        if (!canAccess("maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
+          throw new Error("You do not have permission to create Work Orders for this Care Home.");
+        }
+        if (!userFacilityIds(currentUser).includes(input.homeId) && currentRole !== "group_owner") {
+          throw new Error("You do not have access to the selected Care Home.");
+        }
+        if (input.assignedUserId && !canAccess("maintenance.work_orders.edit", { nursingHomeId: input.homeId })) {
+          throw new Error("You do not have permission to assign Work Orders during creation.");
+        }
+        const homeUsers = store.users.filter((user) => user.facilityIds?.includes(input.homeId) || user.facilityId === input.homeId);
+        const validation = validateWorkOrderInput(input, { ...store, users: homeUsers });
+        if (!validation.valid) {
+          throw new Error(Object.values(validation.fieldErrors)[0] || "Check the Work Order details.");
+        }
+        const now = new Date().toISOString();
+        const item = createWorkOrderRecord({
+          input,
+          records: store.maintenanceWorkOrders || [],
+          currentUser,
+          now,
+        });
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: [item, ...(s.maintenanceWorkOrders || [])],
+          auditLogs: [
+            workOrderAuditLog({
+              id: uid(),
+              action: "Work Order created",
+              record: item,
+              user: currentUser,
+              after: { workOrderNumber: item.workOrderNumber, title: item.title, priority: item.priority },
+              timestamp: now,
+            }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return item;
+      },
+      updateMaintenanceWorkOrder: (id, input) => {
+        if (!canAccess("maintenance.work_orders.edit")) {
+          throw new Error("You do not have permission to edit Work Orders.");
+        }
+        const current = store.maintenanceWorkOrders.find((record) => record.id === id);
+        if (!current) throw new Error("Work Order not found.");
+        if (!canAccess("maintenance.work_orders.edit", { nursingHomeId: current.homeId })) {
+          throw new Error("You do not have permission to edit Work Orders for this Care Home.");
+        }
+        const homeUsers = store.users.filter((user) => user.facilityIds?.includes(current.homeId) || user.facilityId === current.homeId);
+        const validation = validateWorkOrderInput({ ...input, homeId: current.homeId }, { ...store, users: homeUsers });
+        if (!validation.valid) {
+          throw new Error(Object.values(validation.fieldErrors)[0] || "Check the Work Order details.");
+        }
+        if (input.priority && current.priority && PRIORITY_RANK[input.priority] > PRIORITY_RANK[current.priority] && !input.changeReason?.trim()) {
+          throw new Error("Enter a reason when reducing Work Order priority.");
+        }
+        const now = new Date().toISOString();
+        const next = updateWorkOrderRecord(current, input, currentUser, now);
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: (s.maintenanceWorkOrders || []).map((record) => (record.id === id ? next : record)),
+          auditLogs: [
+            workOrderAuditLog({
+              id: uid(),
+              action: "Work Order updated",
+              record: next,
+              user: currentUser,
+              before: input,
+              after: { version: next.version, updatedAt: next.updatedAt },
+              reason: input.changeReason,
+              timestamp: now,
+            }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      archiveMaintenanceWorkOrder: (id, reason) => {
+        if (!canAccess("maintenance.work_orders.edit")) {
+          throw new Error("You do not have permission to archive Work Orders.");
+        }
+        const current = store.maintenanceWorkOrders.find((record) => record.id === id);
+        if (!current) throw new Error("Work Order not found.");
+        const now = new Date().toISOString();
+        const next = archiveWorkOrderRecord(current, currentUser, reason, now);
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: (s.maintenanceWorkOrders || []).map((record) => (record.id === id ? next : record)),
+          auditLogs: [
+            workOrderAuditLog({
+              id: uid(),
+              action: "Work Order archived",
+              record: next,
+              user: currentUser,
+              before: { archivedAt: current.archivedAt },
+              after: { archivedAt: next.archivedAt },
+              reason,
+              timestamp: now,
+            }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
       addObservation: (o) => {
         const item: Observation = { ...o, id: uid() };
         const ev: TimelineEvent = {
@@ -7846,6 +8124,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           assignedStaffId: input.assignedStaffId,
           assignedStaffName: input.assignedStaffName,
           startDate: input.startDate,
+          startTime: input.startTime,
           reviewDate: input.reviewDate,
           endDate: input.endDate,
           status: input.status || "active",
@@ -8474,7 +8753,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => {
           const vitals = [item, ...s.vitals];
           const resident = s.residents.find((candidate) => candidate.id === input.residentId);
-          const seeds = derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, input.residentId), resident);
+          const seeds = derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, input.residentId), resident, { sourceVitalId: item.id });
           return { ...s, vitals, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, input.residentId, seeds, now), timelineEvents: [ev, ...s.timelineEvents] };
         });
         logAudit({
@@ -8536,7 +8815,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const changed = vitals.find((v) => v.id === id);
           if (!changed) return s;
           const resident = s.residents.find((r) => r.id === changed.residentId);
-          return { ...s, vitals, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, changed.residentId), resident), now) };
+          return { ...s, vitals, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, changed.residentId), resident, { sourceVitalId: changed.id }), now, changed.id) };
         });
         logAudit({
           user: currentUserName,
@@ -8576,7 +8855,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const changed = vitals.find((v) => v.id === id);
           if (!changed) return s;
           const resident = s.residents.find((r) => r.id === changed.residentId);
-          return { ...s, vitals, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, changed.residentId), resident), now) };
+          return { ...s, vitals, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, derivedAlertsForResident(alertVitalsForResident(vitals, s.clinicalObservations, changed.residentId), resident, { sourceVitalId: changed.id }), now, changed.id) };
         });
         logAudit({
           user: currentUserName,
@@ -8723,6 +9002,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const seeds = derivedAlertsForResident(
             alertVitalsForResident(s.vitals, clinicalObservations, input.residentId),
             resident,
+            { sourceVitalId: item.id },
           );
           return {
             ...s,
@@ -8768,8 +9048,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const changed = clinicalObservations.find((observation) => observation.id === id);
           if (!changed) return s;
           const resident = s.residents.find((candidate) => candidate.id === changed.residentId);
-          const seeds = derivedAlertsForResident(alertVitalsForResident(s.vitals, clinicalObservations, changed.residentId), resident);
-          return { ...s, clinicalObservations, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, seeds, now) };
+          const seeds = derivedAlertsForResident(alertVitalsForResident(s.vitals, clinicalObservations, changed.residentId), resident, { sourceVitalId: changed.id });
+          return { ...s, clinicalObservations, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, seeds, now, changed.id) };
         });
         logAudit({
           user: currentUserName,
@@ -8807,8 +9087,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
           const changed = clinicalObservations.find((observation) => observation.id === id);
           if (!changed) return s;
           const resident = s.residents.find((candidate) => candidate.id === changed.residentId);
-          const seeds = derivedAlertsForResident(alertVitalsForResident(s.vitals, clinicalObservations, changed.residentId), resident);
-          return { ...s, clinicalObservations, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, seeds, now) };
+          const seeds = derivedAlertsForResident(alertVitalsForResident(s.vitals, clinicalObservations, changed.residentId), resident, { sourceVitalId: changed.id });
+          return { ...s, clinicalObservations, clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, changed.residentId, seeds, now, changed.id) };
         });
         logAudit({
           user: currentUserName,

@@ -65,6 +65,7 @@ const empty = (residentId: string): Omit<ProblemIntervention, "id"> => ({
   assignedStaffId: undefined,
   assignedStaffName: "",
   startDate: new Date().toISOString().slice(0, 10),
+  startTime: "08:00",
   reviewDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   status: "active",
@@ -81,7 +82,7 @@ export function AddInterventionModal({
   initialProblemId,
   lockProblemSelection,
 }: Props) {
-  const { carePlanProblems, residents, currentUserName, currentRole, addProblemIntervention } =
+  const { carePlanProblems, residents, users, currentUserName, currentRole, addProblemIntervention } =
     useCare();
   const [form, setForm] = useState<Omit<ProblemIntervention, "id">>(empty(residentId));
   const [frequency, setFrequency] = useState<FrequencyType>("daily");
@@ -103,6 +104,9 @@ export function AddInterventionModal({
   const problems = carePlanProblems.filter(
     (p) => p.residentId === residentId && p.status === "active",
   );
+  const assignedRoleUsers = users
+    .filter((user) => user.role === (form.assignedRole || "nurse") && user.status !== "inactive")
+    .sort((left, right) => left.name.localeCompare(right.name));
 
   function validateForm() {
     if (!form.problemId.trim()) {
@@ -115,6 +119,10 @@ export function AddInterventionModal({
     }
     if (actionType === "scheduled" && !form.startDate) {
       toast.error("Start date is required");
+      return false;
+    }
+    if (actionType === "scheduled" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(form.startTime || "")) {
+      toast.error("Start time is required");
       return false;
     }
     if (actionType === "scheduled" && !form.endDate) {
@@ -269,7 +277,14 @@ export function AddInterventionModal({
             <Label>Role</Label>
             <Select
               value={form.assignedRole || "nurse"}
-              onValueChange={(v) => setForm({ ...form, assignedRole: v as Role })}
+              onValueChange={(v) =>
+                setForm({
+                  ...form,
+                  assignedRole: v as Role,
+                  assignedStaffId: undefined,
+                  assignedStaffName: "",
+                })
+              }
             >
               <SelectTrigger>
                 <SelectValue />
@@ -287,11 +302,38 @@ export function AddInterventionModal({
           {/* Assigned Staff */}
           <div className="space-y-1.5">
             <Label>Assigned To</Label>
-            <Input
-              placeholder="e.g., J. Roberts (RN)"
-              value={form.assignedStaffName || ""}
-              onChange={(e) => setForm({ ...form, assignedStaffName: e.target.value })}
-            />
+            <Select
+              value={form.assignedStaffId || "__unassigned"}
+              onValueChange={(value) => {
+                if (value === "__unassigned") {
+                  setForm({ ...form, assignedStaffId: undefined, assignedStaffName: "" });
+                  return;
+                }
+                const user = users.find((item) => item.id === value);
+                setForm({
+                  ...form,
+                  assignedStaffId: user?.id,
+                  assignedStaffName: user?.name || "",
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select staff member" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unassigned">Unassigned</SelectItem>
+                {assignedRoleUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {assignedRoleUsers.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No active users found for this role.
+              </p>
+            )}
           </div>
 
           {actionType === "scheduled" && <>
@@ -302,6 +344,14 @@ export function AddInterventionModal({
               type="date"
               value={form.startDate}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Start Time *</Label>
+            <Input
+              type="time"
+              value={form.startTime || ""}
+              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
             />
           </div>
           </>}

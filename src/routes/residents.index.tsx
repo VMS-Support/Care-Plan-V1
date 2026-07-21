@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,27 @@ export const Route = createFileRoute("/residents/")({
 });
 
 type Filter = "all" | "active" | "inactive" | "active_respite" | "inactive_respite";
+
+const bedTypeLabels: Record<NonNullable<Resident["bed"]>["bedType"], string> = {
+  standard: "Standard",
+  low: "Low",
+  profiling: "Profiling",
+  bariatric: "Bariatric",
+  pressure_relief: "Pressure relief",
+  air_mattress: "Air mattress",
+  specialist: "Specialist",
+};
+
+const mattressTypeLabels: Record<NonNullable<Resident["bed"]>["mattressType"], string> = {
+  standard: "Standard",
+  foam: "Foam",
+  dynamic: "Dynamic",
+  air_mattress: "Air mattress",
+  pressure_relieving: "Pressure relieving",
+  alternating_air: "Alternating air",
+  low_air_loss: "Low air loss",
+  gel: "Gel",
+};
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
@@ -413,7 +434,7 @@ function ResidentsList() {
         <CardContent className="p-4 flex flex-col sm:flex-row gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Search by name, room, ID…" value={q} onChange={e => setQ(e.target.value)} />
+            <Input className="pl-8" placeholder="Search by name, room, ID..." value={q} onChange={e => setQ(e.target.value)} />
           </div>
           <div className="flex gap-1 flex-wrap">
             {FILTERS.map(f => (
@@ -436,25 +457,29 @@ function ResidentsList() {
             .sort((a, b) => b.date.localeCompare(a.date))[0];
           return (
             <Link key={r.id} to="/residents/$id" params={{ id: r.id }}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-12 w-12"><AvatarFallback className="bg-accent text-accent-foreground font-semibold">{r.firstName[0]}{r.lastName[0]}</AvatarFallback></Avatar>
+              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <Avatar className="h-20 w-20 rounded-lg">
+                      <AvatarImage src={r.photoUrl} alt={`${r.firstName} ${r.lastName}`} className="rounded-lg object-cover" />
+                      <AvatarFallback className="rounded-lg bg-accent text-lg text-accent-foreground font-semibold">{r.firstName[0]}{r.lastName[0]}</AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">{r.firstName} {r.lastName}</div>
-                      <div className="text-xs text-muted-foreground">{r.id} · Age {age(r.dob)} · Room {r.roomNumber}</div>
-                      <div className="text-xs text-muted-foreground mt-1 truncate">{r.primaryDiagnosis}</div>
+                      <div className="text-lg font-semibold truncate">{r.firstName} {r.lastName}</div>
+                      <div className="text-sm text-muted-foreground">{r.id} - Age {age(r.dob)} - Room {r.roomNumber}</div>
+                      <div className="text-sm text-muted-foreground mt-2 line-clamp-2">{r.primaryDiagnosis}</div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                    <Badge variant="secondary" className="text-[10px] capitalize">{(r.residentType || "active").replace("_", " ")}</Badge>
-                    {r.bed && <Badge variant="outline" className="text-[10px] capitalize">{r.bed.bedType.replace("_", " ")}</Badge>}
-                    {r.endOfLife && <Badge variant="outline" className="text-[10px] border-destructive/40 text-destructive">EoL</Badge>}
+                  <div className="flex flex-wrap items-center gap-2 mt-5">
+                    <Badge variant="secondary" className="text-xs capitalize">Status: {(r.residentType || "active").replace("_", " ")}</Badge>
+                    {r.bed?.bedType && <Badge variant="outline" className="text-xs">Bed: {bedTypeLabels[r.bed.bedType]}</Badge>}
+                    {r.bed?.mattressType && <Badge variant="outline" className="text-xs">Mattress: {mattressTypeLabels[r.bed.mattressType]}</Badge>}
+                    {r.endOfLife && <Badge variant="outline" className="text-xs border-destructive/40 text-destructive">EoL</Badge>}
                     {highest && (highest.riskLevel === "high" || highest.riskLevel === "very_high") && (
-                      <Badge variant="outline" className="text-[10px] border-warning/50 text-warning-foreground bg-warning/10">High risk</Badge>
+                      <Badge variant="outline" className="text-xs border-warning/50 text-warning-foreground bg-warning/10">High risk</Badge>
                     )}
                     {rAlerts.length > 0 && (
-                      <Badge variant="outline" className="text-[10px] border-destructive/40 text-destructive">{rAlerts.length} alert{rAlerts.length > 1 ? "s" : ""}</Badge>
+                      <Badge variant="outline" className="text-xs border-destructive/40 text-destructive">{rAlerts.length} alert{rAlerts.length > 1 ? "s" : ""}</Badge>
                     )}
                   </div>
                 </CardContent>

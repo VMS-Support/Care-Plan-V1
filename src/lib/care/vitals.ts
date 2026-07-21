@@ -213,18 +213,104 @@ export interface AlertSeed {
   sourceVitalId?: string;
 }
 
-export function derivedAlertsForResident(residentVitals: VitalSign[], _resident?: Resident): AlertSeed[] {
+interface DerivedAlertOptions {
+  sourceVitalId?: string;
+}
+
+const WEIGHT_THRESHOLDS = {
+  warningPct: 4.5,
+  highPct: 7.5,
+  criticalPct: 10,
+};
+
+const TEMPERATURE_THRESHOLDS_C = {
+  lowBelow: 36,
+  highAtOrAbove: 38,
+  highSeverityAtOrAbove: 39,
+  criticalAtOrAbove: 40,
+};
+
+function detailValue(vital: VitalSign, keys: string[]) {
+  for (const key of keys) {
+    const value = vital.observationDetails?.[key];
+    if (value !== undefined && value !== "") return String(value).toLowerCase();
+  }
+  return undefined;
+}
+
+function normaliseWeightKg(vital: VitalSign) {
+  if (vital.weight === undefined || !Number.isFinite(vital.weight) || vital.weight <= 0) return undefined;
+  const unit = detailValue(vital, ["weightUnit", "weight_unit", "unit"]) || "kg";
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return vital.weight;
+  if (["g", "gram", "grams"].includes(unit)) return vital.weight / 1000;
+  if (["lb", "lbs", "pound", "pounds"].includes(unit)) return vital.weight * 0.45359237;
+  if (["st", "stone", "stones"].includes(unit)) return vital.weight * 6.35029318;
+  return undefined;
+}
+
+function originalWeightUnit(vital: VitalSign) {
+  return detailValue(vital, ["weightUnit", "weight_unit", "unit"]) || "kg";
+}
+
+function formatWeightValue(vital: VitalSign, kg: number) {
+  const unit = originalWeightUnit(vital);
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return `${formatNumber(kg)} kg`;
+  return `${formatNumber(vital.weight!)} ${unit} (${formatNumber(kg)} kg)`;
+}
+
+function normaliseTemperatureC(vital: VitalSign) {
+  if (vital.temperature === undefined || !Number.isFinite(vital.temperature)) return undefined;
+  const unit = detailValue(vital, ["temperatureUnit", "temperature_unit", "tempUnit", "unit"]) || "c";
+  if (["c", "celsius", "°c"].includes(unit)) return vital.temperature;
+  if (["f", "fahrenheit", "°f"].includes(unit)) return (vital.temperature - 32) * 5 / 9;
+  return undefined;
+}
+
+function originalTemperatureUnit(vital: VitalSign) {
+  const unit = detailValue(vital, ["temperatureUnit", "temperature_unit", "tempUnit", "unit"]);
+  return unit && ["f", "fahrenheit", "°f"].includes(unit) ? "°F" : "°C";
+}
+
+function formatNumber(value: number, decimals = 1) {
+  return value.toFixed(decimals);
+}
+
+function formatDateTime(vital: VitalSign) {
+  return `${vital.date} at ${vital.time}`;
+}
+
+function alertTarget<T extends keyof VitalSign>(sorted: VitalSign[], key: T, options?: DerivedAlertOptions) {
+  const source = options?.sourceVitalId ? sorted.find((vital) => vital.id === options.sourceVitalId && vital[key] !== undefined) : undefined;
+  return source || sorted.find((vital) => vital[key] !== undefined);
+}
+
+export function derivedAlertsForResident(residentVitals: VitalSign[], _resident?: Resident, options?: DerivedAlertOptions): AlertSeed[] {
   const out: AlertSeed[] = [];
   const sorted = residentVitals.filter((v) => !v.deletedAt).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   if (sorted.length === 0) return out;
   const readingsWith = (key: keyof VitalSign) => sorted.filter((v) => v[key] !== undefined);
-  const [currentTemp, previousTemp] = readingsWith("temperature");
+  const currentTemp = alertTarget(sorted, "temperature", options);
+  const previousTemp = currentTemp
+    ? readingsWith("temperature").find((vital) => vital.id !== currentTemp.id && vital.recordedAt < currentTemp.recordedAt)
+    : undefined;
+  const currentTempC = currentTemp ? normaliseTemperatureC(currentTemp) : undefined;
 
-  if (currentTemp?.temperature !== undefined && (currentTemp.temperature > 38 || currentTemp.temperature < 35.5)) {
-    out.push({ type: "abnormal_temp", severity: currentTemp.temperature >= 39 || currentTemp.temperature < 35.5 ? "critical" : "warning",
-      title: currentTemp.temperature < 35.5 ? "Low Temperature" : "High Temperature",
-      message: "Temperature is outside the expected clinical range.", recommendation: "Repeat observations and review resident.",
-      currentValue: `${currentTemp.temperature}°C`, previousValue: previousTemp?.temperature !== undefined ? `${previousTemp.temperature}°C` : undefined, sourceVitalId: currentTemp.id });
+  if (currentTemp && currentTempC !== undefined && (currentTempC < TEMPERATURE_THRESHOLDS_C.lowBelow || currentTempC >= TEMPERATURE_THRESHOLDS_C.highAtOrAbove)) {
+    const low = currentTempC < TEMPERATURE_THRESHOLDS_C.lowBelow;
+    const critical = currentTempC >= TEMPERATURE_THRESHOLDS_C.criticalAtOrAbove;
+    const highSeverity = low || currentTempC >= TEMPERATURE_THRESHOLDS_C.highSeverityAtOrAbove;
+    const threshold = low ? `Below ${formatNumber(TEMPERATURE_THRESHOLDS_C.lowBelow)}°C` : `${formatNumber(critical ? TEMPERATURE_THRESHOLDS_C.criticalAtOrAbove : TEMPERATURE_THRESHOLDS_C.highAtOrAbove)}°C`;
+    const unit = originalTemperatureUnit(currentTemp);
+    out.push({
+      type: "abnormal_temp",
+      severity: critical ? "critical" : highSeverity ? "high" : "warning",
+      title: low ? "Low Temperature" : critical ? "Critical High Temperature" : "High Temperature",
+      message: `${_resident ? `${_resident.firstName} ${_resident.lastName}` : "Resident"} recorded a temperature of ${formatNumber(currentTemp.temperature!)}${unit}. Alert threshold: ${threshold}.`,
+      recommendation: critical ? "Immediate clinical review required." : "Repeat observations and review resident.",
+      currentValue: `${formatNumber(currentTemp.temperature!)}${unit}${unit === "°F" ? ` (${formatNumber(currentTempC)}°C)` : ""}`,
+      previousValue: previousTemp?.temperature !== undefined ? `${formatNumber(previousTemp.temperature)}${originalTemperatureUnit(previousTemp)}` : undefined,
+      sourceVitalId: currentTemp.id,
+    });
   }
 
   const [currentSpo2, previousSpo2] = readingsWith("spo2");
@@ -269,23 +355,41 @@ export function derivedAlertsForResident(residentVitals: VitalSign[], _resident?
       currentValue: `${news.total}`, previousValue: previousNews ? `${previousNews.total}` : undefined, sourceVitalId: currentNews.vital.id });
   }
 
-  const weights = sorted.filter((v) => v.weight !== undefined);
-  const currentWeight = weights[0];
+  const weights = sorted.filter((v) => normaliseWeightKg(v) !== undefined);
+  const currentWeight = alertTarget(sorted, "weight", options);
   if (currentWeight?.weight !== undefined) {
-    const currentAt = new Date(currentWeight.recordedAt).getTime();
-    const readingsWithin = (days: number) => weights.filter((v) => currentAt - new Date(v.recordedAt).getTime() <= days * 86400000);
-    const previous30 = readingsWithin(30).at(-1);
-    const previous3 = readingsWithin(3).at(-1);
-    if (previous30?.weight !== undefined && previous30.id !== currentWeight.id) {
-      const lossPct = ((previous30.weight - currentWeight.weight) / previous30.weight) * 100;
-      if (lossPct > 5) out.push({ type: "weight_loss", severity: lossPct > 10 ? "critical" : "warning", title: "Significant Weight Loss",
-        message: `Weight reduced by ${lossPct.toFixed(1)}% within 30 days.`, recommendation: lossPct > 10 ? "Escalate nutritional review." : "Review nutrition and hydration.",
-        currentValue: `${currentWeight.weight} kg`, previousValue: `${previous30.weight} kg`, sourceVitalId: currentWeight.id });
-    }
-    if (previous3?.weight !== undefined && previous3.id !== currentWeight.id && currentWeight.weight - previous3.weight > 2) {
-      out.push({ type: "weight_gain", severity: "warning", title: "Rapid Weight Gain",
-        message: `Weight increased by ${(currentWeight.weight - previous3.weight).toFixed(1)} kg within 3 days.`, recommendation: "Assess fluid retention.",
-        currentValue: `${currentWeight.weight} kg`, previousValue: `${previous3.weight} kg`, sourceVitalId: currentWeight.id });
+    const currentKg = normaliseWeightKg(currentWeight);
+    const previousWeight = weights.find((vital) => vital.id !== currentWeight.id && vital.recordedAt < currentWeight.recordedAt);
+    const previousKg = previousWeight ? normaliseWeightKg(previousWeight) : undefined;
+    if (currentKg !== undefined && previousWeight && previousKg !== undefined && previousKg > 0) {
+      const deltaKg = currentKg - previousKg;
+      const percentageChange = (deltaKg / previousKg) * 100;
+      const absolutePercentageChange = Math.abs(percentageChange);
+      if (absolutePercentageChange >= WEIGHT_THRESHOLDS.warningPct) {
+        const increase = percentageChange > 0;
+        const severity =
+          absolutePercentageChange >= WEIGHT_THRESHOLDS.criticalPct
+            ? "critical"
+            : absolutePercentageChange >= WEIGHT_THRESHOLDS.highPct
+              ? "high"
+              : "warning";
+        const direction = increase ? "increased" : "decreased";
+        const recommendation = increase
+          ? "Review resident and assess for fluid retention or other clinical causes."
+          : severity === "critical"
+            ? "Escalate nutritional review."
+            : "Review nutrition and hydration.";
+        out.push({
+          type: increase ? "weight_gain" : "weight_loss",
+          severity,
+          title: increase ? "Significant Weight Increase" : "Significant Weight Decrease",
+          message: `${_resident ? `${_resident.firstName} ${_resident.lastName}` : "Resident"}'s weight ${direction} from ${formatNumber(previousKg)} kg to ${formatNumber(currentKg)} kg. Change: ${deltaKg >= 0 ? "+" : ""}${formatNumber(deltaKg)} kg (${percentageChange >= 0 ? "+" : ""}${formatNumber(percentageChange)}%). Previous valid weight recorded on ${formatDateTime(previousWeight)}.`,
+          recommendation,
+          currentValue: formatWeightValue(currentWeight, currentKg),
+          previousValue: formatWeightValue(previousWeight, previousKg),
+          sourceVitalId: currentWeight.id,
+        });
+      }
     }
   }
 

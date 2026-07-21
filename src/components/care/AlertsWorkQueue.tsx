@@ -72,6 +72,7 @@ function priorityClass(priority: AlertPriority) {
 
 function clinicalPriority(alert: ClinicalAlert): AlertPriority {
   if (alert.severity === "critical") return "critical";
+  if (alert.severity === "high") return "high";
   if (alert.type === "weight_loss" || alert.type === "high_news2") return "high";
   return alert.severity === "warning" ? "medium" : "low";
 }

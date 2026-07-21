@@ -26,14 +26,17 @@ export const Route = createFileRoute("/quality-governance")({
 });
 
 function QualityGovernanceDashboard() {
-  const { currentRole } = useCare();
+  const { currentRole, activeFacility } = useCare();
+  const isGroupOwner = currentRole === "group_owner";
+  const isDon = currentRole === "don";
+  const scopeLabel = isGroupOwner ? "All Care Homes" : activeFacility?.name || "Current Nursing Home";
 
-  if (currentRole !== "group_owner") {
+  if (!isGroupOwner && !isDon) {
     return (
       <div className="p-6">
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Quality & Governance is available to Group Owner users only.
+            Quality & Governance is available to Group Owner and DON users only.
           </CardContent>
         </Card>
       </div>
@@ -46,12 +49,14 @@ function QualityGovernanceDashboard() {
         <div>
           <h1 className="text-[28px] font-bold tracking-tight">Quality & Governance Dashboard</h1>
           <p className="mt-1 text-sm text-[#536176]">
-            Real-time overview of quality, compliance and governance across all care homes.
+            {isGroupOwner
+              ? "Real-time overview of quality, compliance and governance across all care homes."
+              : `Real-time overview of quality, compliance and governance for ${scopeLabel}.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <TopButton icon={CalendarDays} label="20 May 2025" />
-          <TopButton label="All Care Homes" />
+          <TopButton label={scopeLabel} />
           <TopButton icon={Filter} label="Filters" />
           <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
             <Bell className="h-5 w-5" />
@@ -141,11 +146,16 @@ function QualityGovernanceDashboard() {
 
       <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.12fr]">
         <Panel title="Upcoming Inspections & Audits" action="View Calendar">
-          <DataRows columns="grid-cols-[1fr_1fr_1fr_95px_55px]" headers={["Type", "Home", "Regulator / Auditor", "Date", "Days"]} rows={[
+          <DataRows columns="grid-cols-[1fr_1fr_1fr_95px_55px]" headers={["Type", "Home", "Regulator / Auditor", "Date", "Days"]} rows={isGroupOwner ? [
             ["HIQA Inspection", "Riverside Lodge", "HIQA", "28 May 2025", "8"],
             ["Fire Safety Audit", "Oakview Care Home", "Fire Authority", "02 Jun 2025", "13"],
             ["Medication Audit", "Lakeside Manor", "Internal", "05 Jun 2025", "16"],
             ["HIQA Inspection", "Greenfield House", "HIQA", "12 Jun 2025", "23"],
+          ] : [
+            ["HIQA Inspection", scopeLabel, "HIQA", "28 May 2025", "8"],
+            ["Fire Safety Audit", scopeLabel, "Fire Authority", "02 Jun 2025", "13"],
+            ["Medication Audit", scopeLabel, "Internal", "05 Jun 2025", "16"],
+            ["Governance Audit", scopeLabel, "Internal", "12 Jun 2025", "23"],
           ]} />
           <PanelFooter label="View All Inspections & Audits" />
         </Panel>

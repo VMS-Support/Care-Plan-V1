@@ -1065,6 +1065,32 @@ function formatScheduleTime(value?: Date | string) {
   return date.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
 }
 
+function linkedAlertVital(alert: any, vitals: any[]) {
+  return alert.sourceVitalId
+    ? vitals.find((vital) => vital.id === alert.sourceVitalId || vital.canonicalObservation?.id === alert.sourceVitalId)
+    : undefined;
+}
+
+function alertNotificationSortTime(alert: any, vitals: any[]) {
+  const vital = linkedAlertVital(alert, vitals);
+  if (vital?.date && vital?.time) {
+    const date = scheduleDateTime(vital.date, vital.time);
+    if (!Number.isNaN(date.getTime())) return date.getTime();
+  }
+  const timestamp = alert.updatedAt || alert.createdAt;
+  const date = timestamp ? new Date(timestamp) : undefined;
+  return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+}
+
+function formatAlertNotificationTime(alert: any, vitals: any[]) {
+  const vital = linkedAlertVital(alert, vitals);
+  if (typeof vital?.time === "string" && vital.time.trim()) return vital.time.slice(0, 5);
+  if (typeof alert.time === "string" && alert.time.trim()) return alert.time.slice(0, 5);
+  const timestamp = alert.updatedAt || alert.createdAt;
+  if (timestamp) return formatScheduleTime(timestamp);
+  return "Recent";
+}
+
 function scheduleDateKey(value?: Date | string) {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
@@ -1302,8 +1328,13 @@ function NurseDashboard() {
   const careActions = d.scheduledDue.filter((item) => residentIds.has(item.intervention.residentId));
   const observationsDue = workQueue.filter((item) => item.workType === "Observation");
   const assessmentsDue = d.dueAssessments.filter((assessment) => residentIds.has(assessment.residentId));
-  const carePlansDue = d.dueCarePlans.filter((plan) => residentIds.has(plan.residentId));
-  const alerts = [...d.clinicalAlerts, ...d.alerts].filter((alert: any) => residentIds.has(alert.residentId));
+  const carePlansDue = d.dueCarePlans.filter((plan) => residentIds.has(plan.residentId) && plan.rltDomainId !== "dying");
+  const totalCarePlansInScope = d.problems.filter(
+    (plan) => residentIds.has(plan.residentId) && plan.rltDomainId !== "dying" && plan.status === "active",
+  ).length;
+  const alerts = [...d.clinicalAlerts, ...d.alerts]
+    .filter((alert: any) => residentIds.has(alert.residentId))
+    .sort((left: any, right: any) => alertNotificationSortTime(right, d.vitals) - alertNotificationSortTime(left, d.vitals));
   const dueTasks = d.tasks.filter(
     (task) =>
       task.status !== "completed" &&
@@ -1440,7 +1471,7 @@ function NurseDashboard() {
           <NurseGaugeCard icon={Pill} label="Medications Due" value={5} total={metricTotal} caption="Due Today" color="#22a453" />
           <NurseGaugeCard icon={ClipboardList} label="Care Tasks" value={dueTasks.length} total={metricTotal} caption="Due Today" color="#f59b21" />
           <NurseGaugeCard icon={HeartPulse} label="Observations Due" value={observationsDue.length} total={metricTotal} caption="Due Today" color="#6f42c1" />
-          <NurseGaugeCard icon={FileText} label="Care Plans Due" value={carePlansDue.length} total={metricTotal} caption="Due Today" color="#24aaa5" />
+          <NurseGaugeCard icon={FileText} label="Care Plans Due" value={carePlansDue.length} total={totalCarePlansInScope} caption="Due Today" color="#24aaa5" />
           <NurseGaugeCard icon={Bell} label="Alerts" value={alerts.length} total={0} caption="Require Attention" color="#ef4444" simple />
         </div>
 
@@ -1587,6 +1618,7 @@ function NurseDashboard() {
                 { id: "demo-bp", residentId: highlightedResidents[2]?.id, title: "Bridie Walsh - Blood Pressure High", message: "Last reading: 168/92", time: "08:15" },
                 { id: "demo-care-plan", residentId: highlightedResidents[4]?.id, title: "Eileen Byrne - Care Plan Review Due", message: "Review due today", time: "07:45" },
               ] as any[]).map((alert: any, index: number) => {
+                const displayTime = formatAlertNotificationTime(alert, d.vitals);
                 const content = (
                   <>
                     <div className={`flex h-8 w-8 items-center justify-center rounded-full ${index === 0 ? "bg-red-100" : "bg-amber-100"}`}>
@@ -1596,7 +1628,7 @@ function NurseDashboard() {
                       <div className="font-semibold text-[#071a3d]">{alert.title}</div>
                       <div className="text-sm text-slate-500">{alert.message || alert.description || "Requires nursing review"}</div>
                     </div>
-                    <span className="text-sm font-medium text-[#071a3d]">{alert.time || "08:15"}</span>
+                    <span className="text-sm font-medium text-[#071a3d]">{displayTime}</span>
                     <ArrowRight className="h-4 w-4 text-blue-700" />
                   </>
                 );

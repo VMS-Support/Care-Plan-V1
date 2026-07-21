@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowRight,
@@ -27,14 +27,11 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCare } from "@/lib/care/store";
+import { workOrderDashboardMetrics } from "@/domain/maintenance/workOrders";
 
-export const Route = createFileRoute("/maintenance-housekeeping")({
-  head: () => ({ meta: [{ title: "Maintenance & Housekeeping Dashboard - NuCare" }] }),
-  component: MaintenanceHousekeepingDashboard,
-});
-
-function MaintenanceHousekeepingDashboard() {
-  const { currentRole } = useCare();
+export function MaintenanceHousekeepingDashboard() {
+  const { currentRole, maintenanceWorkOrders } = useCare();
+  const metrics = workOrderDashboardMetrics(maintenanceWorkOrders || []);
 
   if (currentRole !== "don" && currentRole !== "group_owner") {
     return (
@@ -85,39 +82,39 @@ function MaintenanceHousekeepingDashboard() {
       </div>
 
       <section className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
-        <MaintKpi icon={Wrench} title="Open Work Orders" value="42" foot="High Priority: 7" percent={42} tone="red" />
+        <MaintKpi icon={Wrench} title="Open Work Orders" value={String(metrics.open)} foot={`High Priority: ${metrics.high}`} percent={Math.min(100, metrics.open * 10)} tone="red" to="/maintenance/work-orders?status=OPEN" />
         <MaintKpi icon={CalendarDays} title="Planned Maintenance Due This Month" value="68" foot="78% Completed" percent={68} tone="orange" />
         <MaintKpi icon={ShieldCheck} title="Preventive Maintenance Compliance" value="92%" foot="vs 89% last month" percent={92} tone="green" trend />
         <MaintKpi icon={ShieldCheck} title="Safety & Compliance Score" value="94%" foot="vs 91% last month" percent={94} tone="teal" trend />
-        <MaintKpi icon={ClipboardList} title="Overdue Inspections" value="9" foot="Require Attention" percent={0} tone="red" simple />
+        <MaintKpi icon={ClipboardList} title="Overdue Inspections" value={String(metrics.overdue)} foot="Require Attention" percent={0} tone="red" simple to="/maintenance/work-orders?preset=overdue" />
         <MaintKpi icon={Box} title="Total Assets" value="1,248" foot="Operational: 1,102" percent={74} tone="purple" />
         <MaintKpi icon={Home} title="Housekeeping Score" value="91%" foot="vs 88% last month" percent={91} tone="green" trend />
       </section>
 
       <section className="mb-3 grid gap-3 xl:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.12fr]">
-        <Panel title="Work Orders Summary" action="View All">
+        <Panel title="Work Orders Summary" action="View All" actionTo="/maintenance/work-orders">
           <div className="grid gap-4 md:grid-cols-[1fr_150px]">
             <StatusList rows={[
-              ["Open", "42", "red", Wrench],
-              ["In Progress", "18", "orange", Settings],
-              ["On Hold", "6", "yellow", Package],
-              ["Completed This Month", "156", "green", CheckCircle2],
-              ["Cancelled", "3", "slate", AlertTriangle],
+              ["Open", String(metrics.open), "red", Wrench],
+              ["In Progress", String(metrics.inProgress), "orange", Settings],
+              ["On Hold", String(metrics.onHold), "yellow", Package],
+              ["Completed This Month", String(metrics.completed), "green", CheckCircle2],
+              ["Cancelled", String(metrics.cancelled), "slate", AlertTriangle],
             ]} />
-            <Donut value={225} label="Total" colors={["#ef3434", "#f78f1e", "#f6c344", "#35a85a", "#9aa4b2"]} />
+            <Donut value={metrics.total} label="Total" colors={["#ef3434", "#f78f1e", "#f6c344", "#35a85a", "#9aa4b2"]} />
           </div>
         </Panel>
 
-        <Panel title="Work Orders by Priority" action="View All">
+        <Panel title="Work Orders by Priority" action="View All" actionTo="/maintenance/work-orders?view=board">
           <div className="grid gap-4 md:grid-cols-[1fr_150px]">
             <PlainRows rows={[
-              ["Critical", "7", "16%", "red"],
-              ["High", "35", "78%", "orange"],
-              ["Medium", "52", "23%", "yellow"],
-              ["Low", "95", "42%", "green"],
-              ["Routine", "36", "16%", "slate"],
+              ["Critical", String(metrics.critical), "", "red"],
+              ["High", String(metrics.high), "", "orange"],
+              ["Medium", String(metrics.medium), "", "yellow"],
+              ["Low", String(metrics.low), "", "green"],
+              ["Routine", String(metrics.routine), "", "slate"],
             ]} />
-            <Donut value={225} label="Total" colors={["#ef3434", "#f78f1e", "#f6c344", "#35a85a", "#9aa4b2"]} />
+            <Donut value={metrics.total} label="Total" colors={["#ef3434", "#f78f1e", "#f6c344", "#35a85a", "#9aa4b2"]} />
           </div>
         </Panel>
 
@@ -267,6 +264,7 @@ function MaintKpi({
   tone,
   trend,
   simple,
+  to,
 }: {
   icon: typeof Wrench;
   title: string;
@@ -276,9 +274,10 @@ function MaintKpi({
   tone: "red" | "orange" | "green" | "teal" | "purple";
   trend?: boolean;
   simple?: boolean;
+  to?: string;
 }) {
   const color = toneColor(tone);
-  return (
+  const content = (
     <div className="rounded-xl bg-white p-5 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="grid h-9 w-9 place-items-center rounded-full bg-[#f2f6fb]">
@@ -298,16 +297,18 @@ function MaintKpi({
       </div>
     </div>
   );
+  return to ? <Link to={to as any} className="block focus:outline-none focus:ring-2 focus:ring-[#0b4f93] focus:ring-offset-2">{content}</Link> : content;
 }
 
-function Panel({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: string; children: React.ReactNode }) {
+function Panel({ title, subtitle, action, actionTo, children }: { title: string; subtitle?: string; action?: string; actionTo?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <h2 className="text-base font-bold">
           {title} {subtitle && <span className="text-xs font-medium text-[#536176]">{subtitle}</span>}
         </h2>
-        {action && <button className="text-xs font-semibold text-[#0b4f93]">{action}</button>}
+        {action && actionTo && <Link to={actionTo as any} className="text-xs font-semibold text-[#0b4f93]">{action}</Link>}
+        {action && !actionTo && <button className="text-xs font-semibold text-[#0b4f93]">{action}</button>}
       </div>
       {children}
     </div>

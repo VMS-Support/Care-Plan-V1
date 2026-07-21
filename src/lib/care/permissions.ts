@@ -153,7 +153,10 @@ export type Permission =
   | "staffing_wte.view_required" | "staffing_wte.view_actual" | "staffing_wte.view_agency"
   | "staffing_wte.view_vacancy" | "staffing_wte.view_safe_staffing"
   | "staffing_wte.manage_policy" | "staffing_wte.create_adjustment"
-  | "staffing_wte.approve_adjustment" | "staffing_wte.view_source_details";
+  | "staffing_wte.approve_adjustment" | "staffing_wte.view_source_details"
+  | "maintenance.work_orders.view" | "maintenance.work_orders.create" | "maintenance.work_orders.edit"
+  | "maintenance.work_orders.view_all_for_home" | "maintenance.work_orders.view_assigned"
+  | "maintenance.work_orders.view_reported_own" | "maintenance.work_orders.view_archived";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -179,7 +182,7 @@ const matrix: Record<Role, Permission[]> = {
     "resident_preference.view", "resident_preference.create", "resident_preference.edit", "resident_preference.review", "resident_preference.view_history", "resident_preference.view_sensitive", "resident_preference.manage_accommodation", "resident_preference.manage_safety_review",
     "care_action.view", "care_action.create_scheduled", "care_action.create_prn", "care_action.create_triggered", "care_action.create_one_off", "care_action.invoke_prn", "care_action.activate_triggered", "care_action.manage_type",
     "end_of_life.view", "end_of_life.view_sensitive", "end_of_life.view_highly_sensitive", "end_of_life.create", "end_of_life.activate", "end_of_life.review", "end_of_life.record_wishes", "end_of_life.view_advance_decisions", "end_of_life.manage_family_support", "end_of_life.manage_spiritual_support", "end_of_life.record_death", "end_of_life.manage_after_death_care",
-    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.manage_contacts", "resident_profile.assign_named_nurse", "resident_profile.assign_key_worker", "resident_profile.assign_gp", "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
+    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.edit_photo", "resident_profile.manage_contacts", "resident_profile.assign_named_nurse", "resident_profile.assign_key_worker", "resident_profile.assign_gp", "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
     "rlt_overview.view", "rlt_overview.view_risks", "rlt_overview.view_care_plans", "rlt_overview.view_preferences", "rlt_overview.view_sensitive_preferences", "rlt_timeline.view", "rlt_timeline.view_sensitive", "rlt_timeline.tag_event",
     "evaluation.create",
     "incident.view", "incident.create",
@@ -195,7 +198,7 @@ const matrix: Record<Role, Permission[]> = {
     "resident_strength.view", "resident_preference.view", "resident_preference.view_sensitive",
     "care_action.view", "care_action.create_scheduled", "care_action.create_prn", "care_action.create_triggered", "care_action.create_one_off", "care_action.invoke_prn", "care_action.activate_triggered", "care_action.manage_type",
     "end_of_life.view", "end_of_life.view_sensitive", "end_of_life.view_highly_sensitive", "end_of_life.create", "end_of_life.activate", "end_of_life.review", "end_of_life.record_wishes", "end_of_life.view_advance_decisions", "end_of_life.manage_family_support", "end_of_life.manage_spiritual_support", "end_of_life.record_death", "end_of_life.manage_after_death_care",
-    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.manage_contacts", "resident_profile.assign_gp", "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
+    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.edit_photo", "resident_profile.manage_contacts", "resident_profile.assign_gp", "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
     "rlt_overview.view", "rlt_overview.view_risks", "rlt_overview.view_care_plans", "rlt_overview.view_preferences", "rlt_timeline.view", "rlt_timeline.view_sensitive",
     "vital.view", "vital.comment", "vital.escalate",
     "observation.view", "observation.escalate",
@@ -368,6 +371,15 @@ export function can(role: Role, perm: Permission): boolean {
   if (perm.startsWith("staffing_wte.")) {
     if (["staffing_wte.view", "staffing_wte.view_budgeted", "staffing_wte.view_required", "staffing_wte.view_actual", "staffing_wte.view_agency", "staffing_wte.view_vacancy", "staffing_wte.view_safe_staffing"].includes(perm)) return role === "cnm" || role === "don";
     return role === "don";
+  }
+  if (perm.startsWith("maintenance.work_orders.")) {
+    if (["maintenance.work_orders.view", "maintenance.work_orders.create", "maintenance.work_orders.view_reported_own"].includes(perm)) {
+      return role === "nurse" || role === "cnm" || role === "don" || role === "carer";
+    }
+    if (["maintenance.work_orders.edit", "maintenance.work_orders.view_all_for_home", "maintenance.work_orders.view_archived"].includes(perm)) {
+      return role === "cnm" || role === "don";
+    }
+    if (perm === "maintenance.work_orders.view_assigned") return role === "cnm" || role === "don";
   }
   return Boolean(matrix[role]?.includes(perm));
 }

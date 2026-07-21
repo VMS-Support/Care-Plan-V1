@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { VitalSign } from "./types.ts";
-import { calcNEWS2 } from "./vitals.ts";
+import { calcNEWS2, derivedAlertsForResident } from "./vitals.ts";
 
 const normal: Partial<VitalSign> = {
   temperature: 36.7,
@@ -87,3 +87,91 @@ for (const [label, field, value, expected] of boundaries) {
     assert.equal(result.total, expected);
   });
 }
+
+function vital(id: string, recordedAt: string, fields: Partial<VitalSign>): VitalSign {
+  return {
+    id,
+    residentId: "R-TEST",
+    date: recordedAt.slice(0, 10),
+    time: recordedAt.slice(11, 16),
+    recordedAt,
+    recordedByUserId: "U-TEST",
+    recordedByName: "Tester",
+    recordedByRole: "nurse",
+    createdAt: recordedAt,
+    auditTrail: [],
+    ...fields,
+  };
+}
+
+test("weight increase alert triggers at 4.5 percent inclusive", () => {
+  const previous = vital("w-prev", "2026-07-01T09:00:00.000Z", { weight: 70 });
+  const current = vital("w-current", "2026-07-20T09:00:00.000Z", { weight: 73.15 });
+  const alerts = derivedAlertsForResident([current, previous], undefined, { sourceVitalId: current.id });
+  const weightAlert = alerts.find((alert) => alert.type === "weight_gain");
+  assert.equal(weightAlert?.severity, "warning");
+  assert.equal(weightAlert?.sourceVitalId, current.id);
+});
+
+test("weight decrease alert triggers at 4.5 percent inclusive", () => {
+  const previous = vital("w-prev", "2026-07-01T09:00:00.000Z", { weight: 70 });
+  const current = vital("w-current", "2026-07-20T09:00:00.000Z", { weight: 66.85 });
+  const alerts = derivedAlertsForResident([current, previous], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.find((alert) => alert.type === "weight_loss")?.severity, "warning");
+});
+
+test("weight change below 4.5 percent does not alert", () => {
+  const previous = vital("w-prev", "2026-07-01T09:00:00.000Z", { weight: 70 });
+  const current = vital("w-current", "2026-07-20T09:00:00.000Z", { weight: 72.8 });
+  const alerts = derivedAlertsForResident([current, previous], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.some((alert) => alert.type === "weight_gain" || alert.type === "weight_loss"), false);
+});
+
+test("first valid weight reading does not alert", () => {
+  const current = vital("w-current", "2026-07-20T09:00:00.000Z", { weight: 70 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.some((alert) => alert.type === "weight_gain" || alert.type === "weight_loss"), false);
+});
+
+test("temperature 37.9 C does not alert", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", { temperature: 37.9 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.some((alert) => alert.type === "abnormal_temp"), false);
+});
+
+test("temperature 38.0 C alerts as warning", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", { temperature: 38 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.find((alert) => alert.type === "abnormal_temp")?.severity, "warning");
+});
+
+test("temperature 39.2 C alerts as high", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", { temperature: 39.2 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.find((alert) => alert.type === "abnormal_temp")?.severity, "high");
+});
+
+test("temperature 40.0 C alerts as critical", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", { temperature: 40 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  assert.equal(alerts.find((alert) => alert.type === "abnormal_temp")?.severity, "critical");
+});
+
+test("temperature below 36.0 C alerts as high", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", { temperature: 35.9 });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  const alert = alerts.find((item) => item.type === "abnormal_temp");
+  assert.equal(alert?.severity, "high");
+  assert.equal(alert?.title, "Low Temperature");
+});
+
+test("fahrenheit temperatures are normalised before alerting", () => {
+  const current = vital("temp-current", "2026-07-20T09:00:00.000Z", {
+    temperature: 100.4,
+    observationDetails: { temperatureUnit: "F" },
+  });
+  const alerts = derivedAlertsForResident([current], undefined, { sourceVitalId: current.id });
+  const alert = alerts.find((item) => item.type === "abnormal_temp");
+  assert.equal(alert?.severity, "warning");
+  assert.match(alert?.currentValue || "", /38\.0/);
+});

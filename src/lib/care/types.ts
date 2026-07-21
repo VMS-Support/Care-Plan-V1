@@ -2097,6 +2097,142 @@ export type CarePlanStatus =
   | "inactive";
 export type CarePlanPriority = "low" | "medium" | "high" | "critical";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "overdue" | "deleted";
+export type MaintenanceWorkOrderType =
+  | "REACTIVE"
+  | "PREVENTIVE"
+  | "CORRECTIVE"
+  | "EMERGENCY"
+  | "INSPECTION_FOLLOW_UP"
+  | "COMPLIANCE_ACTION"
+  | "CONTRACTOR_WORK"
+  | "HOUSEKEEPING_REQUEST"
+  | "OTHER";
+export type MaintenanceWorkOrderSource =
+  | "STAFF_REPORT"
+  | "MAINTENANCE_TEAM"
+  | "PLANNED_MAINTENANCE"
+  | "SAFETY_INSPECTION"
+  | "COMPLIANCE_INSPECTION"
+  | "AUDIT"
+  | "INCIDENT"
+  | "COMPLAINT"
+  | "HOUSEKEEPING"
+  | "CONTRACTOR"
+  | "SYSTEM_GENERATED"
+  | "OTHER";
+export type MaintenanceWorkOrderCategory =
+  | "FIRE_SAFETY"
+  | "WATER_SAFETY"
+  | "ELECTRICAL"
+  | "HEATING_VENTILATION"
+  | "NURSE_CALL"
+  | "RESIDENT_EQUIPMENT"
+  | "KITCHEN_EQUIPMENT"
+  | "LAUNDRY_EQUIPMENT"
+  | "SLUICE_EQUIPMENT"
+  | "INTERNAL_LIGHTING"
+  | "PLUMBING"
+  | "GENERAL_EQUIPMENT"
+  | "CLEANING_HOUSEKEEPING_SUPPORT"
+  | "OTHER";
+export type MaintenanceWorkOrderPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "ROUTINE";
+export type MaintenanceRiskLikelihood = 1 | 2 | 3 | 4 | 5;
+export type MaintenanceRiskConsequence = 1 | 2 | 3 | 4 | 5;
+export type MaintenanceRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type MaintenanceWorkOrderStatus =
+  | "DRAFT"
+  | "OPEN"
+  | "ASSIGNED"
+  | "ACCEPTED"
+  | "IN_PROGRESS"
+  | "ON_HOLD"
+  | "AWAITING_ACCESS"
+  | "AWAITING_PARTS"
+  | "AWAITING_CONTRACTOR"
+  | "COMPLETED"
+  | "VERIFICATION_REQUIRED"
+  | "VERIFIED"
+  | "CLOSED"
+  | "CANCELLED"
+  | "ENTERED_IN_ERROR";
+
+export interface MaintenanceWorkOrder {
+  id: string;
+  workOrderNumber: string;
+  title: string;
+  description: string;
+  type: MaintenanceWorkOrderType;
+  source: MaintenanceWorkOrderSource;
+  category: MaintenanceWorkOrderCategory;
+  subcategory?: string;
+  priority: MaintenanceWorkOrderPriority;
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  status: MaintenanceWorkOrderStatus;
+  organisationId?: string;
+  providerId?: string;
+  enterpriseId?: EnterpriseId | string;
+  homeId: string;
+  nursingHomeId?: NursingHomeId | string;
+  facilityId?: string;
+  buildingId?: string;
+  floorId?: string;
+  unitId?: string;
+  wardId?: WardId | string;
+  roomId?: RoomId | string;
+  areaName?: string;
+  exactLocation?: string;
+  assetId?: string;
+  affectedAssetDescription?: string;
+  reportedByUserId: string;
+  reportedAt: string;
+  reporterNameSnapshot?: string;
+  reporterContactDetails?: string;
+  assignedUserId?: string;
+  assignedTeamId?: string;
+  supervisorUserId?: string;
+  assignedAt?: string;
+  assignedByUserId?: string;
+  requiredResponseAt?: string;
+  dueAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  verifiedAt?: string;
+  cancelledAt?: string;
+  closedAt?: string;
+  residentSafetyImpact: boolean;
+  serviceDisruption: boolean;
+  complianceImpact: boolean;
+  immediateRisk: boolean;
+  immediateControlSummary?: string;
+  completionSummary?: string;
+  completedByUserId?: string;
+  verificationRequired: boolean;
+  verifiedByUserId?: string;
+  riskAssessment?: {
+    likelihood: MaintenanceRiskLikelihood;
+    consequence: MaintenanceRiskConsequence;
+    score: number;
+    calculatedLevel: MaintenanceRiskLevel;
+    manualOverrideLevel?: MaintenanceRiskLevel;
+    manualOverrideReason?: string;
+    requiresImmediateAction: boolean;
+    vulnerablePersonAffected: boolean;
+    essentialServiceAffected: boolean;
+    areaRestricted: boolean;
+    areaRestrictionDetails?: string;
+    controlMeasures?: string;
+    assessedByUserId?: string;
+    assessedAt?: string;
+  };
+  archivedAt?: string;
+  archivedByUserId?: string;
+  archiveReason?: string;
+  createdAt: string;
+  createdByUserId: string;
+  updatedAt: string;
+  updatedByUserId?: string;
+  version: number;
+}
 export type BedType =
   | "standard"
   | "low"
@@ -3299,6 +3435,7 @@ export interface ProblemIntervention {
   assignedStaffId?: string;
   assignedStaffName?: string;
   startDate: string;
+  startTime?: string; // HH:mm
   reviewDate: string;
   endDate: string;
   status: InterventionStatus;
@@ -3566,7 +3703,7 @@ export type ClinicalAlertType =
   | "bmi_high"
   | "missed_observation";
 
-export type ClinicalAlertSeverity = "info" | "warning" | "critical";
+export type ClinicalAlertSeverity = "info" | "warning" | "high" | "critical";
 
 export interface ClinicalEscalationNote {
   id: string;

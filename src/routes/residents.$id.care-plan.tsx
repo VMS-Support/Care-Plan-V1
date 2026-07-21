@@ -6,7 +6,7 @@ import {
 } from "@/lib/care/problems";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import type {
-  CarePlanProblem, FrequencyType, ProblemCategory, ProblemRiskLevel,
+  CarePlanProblem, FrequencyType, ProblemCategory, ProblemRiskLevel, Role,
 } from "@/lib/care/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,13 @@ import {
   CalendarClock, FileCheck2, Sparkles, X, Trash2, PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const ASSIGNED_ROLES: Array<{ value: Role; label: string }> = [
+  { value: "carer", label: "Carer" },
+  { value: "nurse", label: "Nurse" },
+  { value: "doctor", label: "Doctor" },
+  { value: "cnm", label: "Clinical Nurse Manager" },
+];
 
 export const Route = createFileRoute("/residents/$id/care-plan")({
   head: ({ params }) => ({ meta: [{ title: `Care Plan â€” ${params.id} â€” CarePath` }] }),
@@ -478,7 +485,13 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
   const [freqType, setFreqType] = useState<FrequencyType>("daily");
   const [freqValue, setFreqValue] = useState<number>(1);
   const [freqInstr, setFreqInstr] = useState("");
-  const [assignedStaff, setAssignedStaff] = useState("");
+  const [assignedRole, setAssignedRole] = useState<Role>("nurse");
+  const [assignedStaff, setAssignedStaff] = useState("__unassigned");
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState("08:00");
+  const roleUsers = users
+    .filter((user) => user.role === assignedRole && user.status !== "inactive")
+    .sort((left, right) => left.name.localeCompare(right.name));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -515,13 +528,34 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
             <Label>Instructions (optional)</Label>
             <Input value={freqInstr} onChange={e => setFreqInstr(e.target.value)} placeholder="e.g. Every Monday 09:00" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Start date</Label>
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>Start time</Label>
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+            </div>
+          </div>
           <div>
-            <Label>Assigned staff</Label>
-            <Select value={assignedStaff} onValueChange={setAssignedStaff}>
-              <SelectTrigger><SelectValue placeholder="Care team" /></SelectTrigger>
+            <Label>Role</Label>
+            <Select value={assignedRole} onValueChange={(value) => { setAssignedRole(value as Role); setAssignedStaff("__unassigned"); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Care team</SelectItem>
-                {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>)}
+                {ASSIGNED_ROLES.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Assigned To</Label>
+            <Select value={assignedStaff} onValueChange={setAssignedStaff}>
+              <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unassigned">Unassigned</SelectItem>
+                {roleUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -529,16 +563,22 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button disabled={!name.trim()} onClick={() => {
-            const staff = users.find(u => u.id === assignedStaff);
+            const staff = assignedStaff === "__unassigned" ? undefined : users.find(u => u.id === assignedStaff);
             addProblemIntervention({
               problemId, name: name.trim(),
               frequencyType: freqType,
               frequencyValue: freqType === "prn" || freqType === "custom" ? undefined : freqValue,
               frequencyInstructions: freqInstr || undefined,
-              assignedRole: staff?.role, assignedStaffId: staff?.id, assignedStaffName: staff?.name,
+              assignedRole,
+              assignedStaffId: staff?.id,
+              assignedStaffName: staff?.name,
+              startDate,
+              startTime,
+              reviewDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+              endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
             });
             toast.success("Intervention added");
-            setOpen(false); setName(""); setFreqInstr("");
+            setOpen(false); setName(""); setFreqInstr(""); setAssignedRole("nurse"); setAssignedStaff("__unassigned"); setStartDate(new Date().toISOString().slice(0, 10)); setStartTime("08:00");
           }}>Add</Button>
         </DialogFooter>
       </DialogContent>

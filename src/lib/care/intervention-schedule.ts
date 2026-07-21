@@ -50,6 +50,12 @@ export function interventionFrequencyMinutes(frequency: ProblemIntervention["fre
   return null;
 }
 
+function interventionStartTime(intervention: ProblemIntervention) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(intervention.startTime || "")
+    ? intervention.startTime
+    : "08:00";
+}
+
 export function endOfCurrentShift(now: Date) {
   const end = new Date(now);
   const hour = end.getHours();
@@ -93,7 +99,7 @@ export function scheduledInterventions(
       const intervalMinutes = interventionFrequencyMinutes(intervention.frequencyType);
       const baseTimestamp = completion
         ? new Date(`${completion.date}T${completion.time || "08:00"}`).getTime()
-        : new Date(`${intervention.startDate}T08:00`).getTime();
+        : new Date(`${intervention.startDate}T${interventionStartTime(intervention)}`).getTime();
       const dueTimestamp = completion && intervalMinutes
         ? baseTimestamp + intervalMinutes * 60000
         : baseTimestamp;

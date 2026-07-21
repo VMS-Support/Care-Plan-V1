@@ -11,7 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import type { Role } from "@/lib/care/types";
 
@@ -57,7 +63,8 @@ function ProfilePage() {
     temporaryPassword: "TempPass123!",
     status: "active" as const,
   });
-  const canResetDemoData = currentUser.role === "cnm" || currentUser.role === "don" || currentUser.role === "group_owner";
+  const canResetDemoData =
+    currentUser.role === "cnm" || currentUser.role === "don" || currentUser.role === "group_owner";
   const isDon = currentUser.role === "don" || currentUser.role === "group_owner";
   const facilityHasDon = users.some((user) => user.role === "don" && user.status !== "inactive");
 
@@ -71,7 +78,13 @@ function ProfilePage() {
       dateDisplayFormat: currentUser.preferences?.dateDisplayFormat || "medium",
       timeDisplayFormat: currentUser.preferences?.timeDisplayFormat || "24h",
     });
-  }, [activeFacility.id, currentUser.email, currentUser.phone, currentUser.preferences, operationalContext.shiftId]);
+  }, [
+    activeFacility.id,
+    currentUser.email,
+    currentUser.phone,
+    currentUser.preferences,
+    operationalContext.shiftId,
+  ]);
 
   const handleResetDemoData = () => {
     const confirmed = window.confirm(
@@ -104,10 +117,25 @@ function ProfilePage() {
       : currentUser.assignedWings
           .map((id) => wings.find((w) => w.id === id)?.name || id)
           .join(", ");
-  const authorisedHomes = facilities.filter((facility) => (currentUser.facilityIds?.length ? currentUser.facilityIds.includes(facility.id) : facility.id === currentUser.facilityId));
+  const authorisedHomes = facilities.filter((facility) =>
+    currentUser.facilityIds?.length
+      ? currentUser.facilityIds.includes(facility.id)
+      : facility.id === currentUser.facilityId,
+  );
   const defaultWardOptions = getWardsForNursingHome(preferenceDraft.defaultHomeId);
   const defaultShiftOptions = getConfiguredShifts(preferenceDraft.defaultHomeId);
-  const availableRoles = Array.from(new Set(users.filter((user) => user.status !== "inactive" && (user.facilityIds?.includes(activeFacility.id) || user.facilityId === activeFacility.id)).map((user) => user.role)));
+  const availableRoles = Array.from(
+    new Set(
+      users
+        .filter(
+          (user) =>
+            user.status !== "inactive" &&
+            (user.facilityIds?.includes(activeFacility.id) ||
+              user.facilityId === activeFacility.id),
+        )
+        .map((user) => user.role),
+    ),
+  );
 
   const myResidentIds =
     currentUser.assignedWings.length === 0
@@ -119,7 +147,8 @@ function ProfilePage() {
 
   const myStats = {
     residents: myResidentIds.length,
-    tasks: tasks.filter((t) => t.status !== "deleted" && (!t.residentId || mySet.has(t.residentId))).length,
+    tasks: tasks.filter((t) => t.status !== "deleted" && (!t.residentId || mySet.has(t.residentId)))
+      .length,
     interventions: interventions.filter(
       (i) => mySet.has(i.residentId) && i.staff === currentUser.name,
     ).length,
@@ -274,29 +303,80 @@ function ProfilePage() {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Default Home</Label>
-                <Select value={preferenceDraft.defaultHomeId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultHomeId: value, defaultWardId: "none" })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{authorisedHomes.map((home) => <SelectItem key={home.id} value={home.id}>{home.name}</SelectItem>)}</SelectContent>
+                <Select
+                  value={preferenceDraft.defaultHomeId}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({
+                      ...preferenceDraft,
+                      defaultHomeId: value,
+                      defaultWardId: "none",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {authorisedHomes.map((home) => (
+                      <SelectItem key={home.id} value={home.id}>
+                        {home.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Default Ward</Label>
-                <Select value={preferenceDraft.defaultWardId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultWardId: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">No default Ward</SelectItem>{defaultWardOptions.map((ward) => <SelectItem key={ward.id} value={ward.id}>{ward.name}</SelectItem>)}</SelectContent>
+                <Select
+                  value={preferenceDraft.defaultWardId}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({ ...preferenceDraft, defaultWardId: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No default Ward</SelectItem>
+                    {defaultWardOptions.map((ward) => (
+                      <SelectItem key={ward.id} value={ward.id}>
+                        {ward.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Default Shift</Label>
-                <Select value={preferenceDraft.defaultShiftId} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultShiftId: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{defaultShiftOptions.map((shift) => <SelectItem key={shift.id} value={shift.id}>{shift.label}</SelectItem>)}</SelectContent>
+                <Select
+                  value={preferenceDraft.defaultShiftId}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({ ...preferenceDraft, defaultShiftId: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {defaultShiftOptions.map((shift) => (
+                      <SelectItem key={shift.id} value={shift.id}>
+                        {shift.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Preferred Landing Dashboard</Label>
-                <Select value={preferenceDraft.defaultLandingPage} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, defaultLandingPage: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={preferenceDraft.defaultLandingPage}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({ ...preferenceDraft, defaultLandingPage: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="/">My Dashboard</SelectItem>
                     <SelectItem value="/operations">Operations</SelectItem>
@@ -307,25 +387,61 @@ function ProfilePage() {
               </div>
               <div>
                 <Label>Date Display Format</Label>
-                <Select value={preferenceDraft.dateDisplayFormat} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, dateDisplayFormat: value as any })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="short">Short</SelectItem><SelectItem value="medium">13 Jul 2026</SelectItem><SelectItem value="long">Monday, 13 July 2026</SelectItem></SelectContent>
+                <Select
+                  value={preferenceDraft.dateDisplayFormat}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({ ...preferenceDraft, dateDisplayFormat: value as any })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="short">Short</SelectItem>
+                    <SelectItem value="medium">13 Jul 2026</SelectItem>
+                    <SelectItem value="long">Monday, 13 July 2026</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Time Display Format</Label>
-                <Select value={preferenceDraft.timeDisplayFormat} onValueChange={(value) => setPreferenceDraft({ ...preferenceDraft, timeDisplayFormat: value as any })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="24h">24 hour</SelectItem><SelectItem value="12h">12 hour</SelectItem></SelectContent>
+                <Select
+                  value={preferenceDraft.timeDisplayFormat}
+                  onValueChange={(value) =>
+                    setPreferenceDraft({ ...preferenceDraft, timeDisplayFormat: value as any })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="24h">24 hour</SelectItem>
+                    <SelectItem value="12h">12 hour</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <Button onClick={() => { updateUser(currentUser.id, { preferences: { ...currentUser.preferences, ...preferenceDraft, defaultWardId: preferenceDraft.defaultWardId === "none" ? undefined : preferenceDraft.defaultWardId } as any }); toast.success("Profile preferences saved"); }}>
+                <Button
+                  onClick={() => {
+                    updateUser(currentUser.id, {
+                      preferences: {
+                        ...currentUser.preferences,
+                        ...preferenceDraft,
+                        defaultWardId:
+                          preferenceDraft.defaultWardId === "none"
+                            ? undefined
+                            : preferenceDraft.defaultWardId,
+                      } as any,
+                    });
+                    toast.success("Profile preferences saved");
+                  }}
+                >
                   Save Preferences
                 </Button>
               </div>
               <p className="md:col-span-2 text-xs text-muted-foreground">
-                These are defaults only. Operational Home, Ward, Shift and Date can still be changed from the application header while working.
+                These are defaults only. Operational Home, Ward, Shift and Date can still be changed
+                from the application header while working.
               </p>
             </CardContent>
           </Card>
@@ -360,17 +476,25 @@ function ProfilePage() {
               </div>
               <div className="rounded-md border">
                 {availableRoles.map((role) => (
-                  <div key={role} className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
+                  <div
+                    key={role}
+                    className="flex items-center justify-between border-b px-3 py-2 last:border-b-0"
+                  >
                     <div>
                       <div className="text-sm font-medium">{roleLabels[role]}</div>
                       <div className="text-xs text-muted-foreground">{activeFacility.name}</div>
                     </div>
-                    {role === currentUser.role ? <Badge variant="outline">Current</Badge> : <Badge variant="secondary">Available</Badge>}
+                    {role === currentUser.role ? (
+                      <Badge variant="outline">Current</Badge>
+                    ) : (
+                      <Badge variant="secondary">Available</Badge>
+                    )}
                   </div>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                You can switch to authorised roles from the profile menu in the application header. Permissions cannot be edited from your own profile.
+                You can switch to authorised roles from the profile menu in the application header.
+                Permissions cannot be edited from your own profile.
               </p>
             </CardContent>
           </Card>
@@ -391,7 +515,9 @@ function ProfilePage() {
                     <span>Status</span>
                   </div>
                   {users.length === 0 ? (
-                    <div className="px-3 py-6 text-sm text-muted-foreground">No staff logins yet.</div>
+                    <div className="px-3 py-6 text-sm text-muted-foreground">
+                      No staff logins yet.
+                    </div>
                   ) : (
                     users.map((user) => (
                       <div
@@ -419,14 +545,20 @@ function ProfilePage() {
                     <Label>Role</Label>
                     <Select
                       value={staffDraft.role}
-                      onValueChange={(value) => setStaffDraft({ ...staffDraft, role: value as Role })}
+                      onValueChange={(value) =>
+                        setStaffDraft({ ...staffDraft, role: value as Role })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {(["nurse", "cnm", "doctor", "carer", "don"] as Role[]).map((role) => (
-                          <SelectItem key={role} value={role} disabled={role === "don" && facilityHasDon}>
+                          <SelectItem
+                            key={role}
+                            value={role}
+                            disabled={role === "don" && facilityHasDon}
+                          >
                             {roleLabels[role]}
                           </SelectItem>
                         ))}
@@ -459,7 +591,10 @@ function ProfilePage() {
                     <Select
                       value={staffDraft.status}
                       onValueChange={(value) =>
-                        setStaffDraft({ ...staffDraft, status: value as "active" | "inactive" | "suspended" })
+                        setStaffDraft({
+                          ...staffDraft,
+                          status: value as "active" | "inactive" | "suspended",
+                        })
                       }
                     >
                       <SelectTrigger>

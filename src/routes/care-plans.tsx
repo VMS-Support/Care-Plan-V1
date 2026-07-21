@@ -54,20 +54,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, ClipboardCheck, FileWarning, Layers3, MoreHorizontal, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
+import type { ProblemStatus } from "@/lib/care/types";
 
 export const Route = createFileRoute("/care-plans")({
   head: () => ({ meta: [{ title: "Care Plans — CarePath" }] }),
   component: CarePlansPage,
 });
 
-type WorkflowTab = "active" | "reviews" | "evaluations" | "discontinued" | "archived" | "governance";
+type WorkflowTab = "register" | "governance";
 type QuickFilter =
   | "all"
   | "mine"
   | "high_risk"
-  | "review_due"
-  | "evaluation_due"
-  | "overdue"
   | "discontinued";
 
 const DUE_SOON_DAYS = 7;
@@ -80,9 +78,22 @@ const RISK_RANK: Record<string, number> = {
   moderate: 2,
   low: 1,
 };
-const INACTIVE_STATUSES = ["completed", "discontinued", "archived", "superseded", "entered_in_error"];
+const CURRENT_INACTIVE_STATUSES = new Set<ProblemStatus>([
+  "resolved",
+  "discontinued",
+  "superseded",
+  "archived",
+  "entered_in_error",
+]);
+const INACTIVE_STATUSES: readonly string[] = ["completed", ...Array.from(CURRENT_INACTIVE_STATUSES)];
+const REGISTER_INACTIVE_STATUSES: readonly ProblemStatus[] = [
+  "resolved",
+  "discontinued",
+  "superseded",
+  "archived",
+];
 
-type RegisterStatusFilter = "all" | "active" | "discontinued" | "archived";
+type RegisterStatusFilter = "all" | "active" | "inactive" | ProblemStatus;
 type RegisterRiskFilter = "all" | "critical" | "high" | "medium" | "low";
 type RegisterDueFilter = "all" | "review_due" | "evaluation_due" | "overdue";
 type RegisterQualityFilter = "all" | CarePlanQualityStatus;
@@ -141,9 +152,9 @@ function statusMeta(plan: { status: string; reviewDate: string; evaluationDate?:
   const reviewDays = daysUntil(plan.reviewDate);
   const evaluationDays = daysUntil(plan.evaluationDate);
 
-  if (plan.status === "discontinued" || plan.status === "completed") {
+  if (plan.status === "resolved" || plan.status === "discontinued" || plan.status === "completed") {
     return {
-      label: plan.status === "completed" ? "Completed (Legacy)" : "Discontinued",
+      label: plan.status === "completed" ? "Completed (Legacy)" : plan.status === "resolved" ? "Resolved" : "Discontinued",
       tone: "bg-slate-100 text-slate-700 border-slate-200",
       dot: "bg-slate-500",
     };
@@ -198,6 +209,26 @@ function statusMeta(plan: { status: string; reviewDate: string; evaluationDate?:
     tone: "bg-emerald-500/10 text-emerald-700 border-emerald-300",
     dot: "bg-emerald-500",
   };
+}
+
+function inactiveCarePlanStatus(status?: string) {
+  return !!status && INACTIVE_STATUSES.includes(status);
+}
+
+function residentRegisterStatus(problems: Array<{ status: ProblemStatus }>) {
+  if (problems.length === 0) return "none";
+  if (problems.some((problem) => problem.status === "active")) return "active";
+  if (problems.every((problem) => problem.status === "archived" || problem.status === "entered_in_error")) {
+    return "archived";
+  }
+  if (problems.every((problem) => inactiveCarePlanStatus(problem.status))) return "discontinued";
+  return "discontinued";
+}
+
+function statusLabel(status: string) {
+  if (status === "inactive") return "Inactive";
+  if (status === "entered_in_error") return "Entered in Error";
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 }
 
 function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
@@ -559,7 +590,7 @@ function CarePlansPage() {
     archiveProblem,
   } = useCare();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<WorkflowTab>("active");
+  const [tab, setTab] = useState<WorkflowTab>("register");
   const [filter, setFilter] = useState<QuickFilter>("all");
   const [search, setSearch] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
@@ -577,8 +608,8 @@ function CarePlansPage() {
 
   const governanceView = currentRole === "cnm" || currentRole === "don";
   const visibleTabs = governanceView
-    ? (["active", "reviews", "evaluations", "discontinued", "archived", "governance"] as const)
-    : (["active", "reviews", "evaluations"] as const);
+    ? (["register", "governance"] as const)
+    : (["register"] as const);
 
   const rows = useMemo(() => {
     const legacyRows = carePlans
@@ -644,12 +675,7 @@ function CarePlansPage() {
           residentId: problem.residentId,
           title: `${CATEGORY_LABELS[problem.category]} care plan`,
           problem: problem.problemStatement,
-          status:
-            problem.status === "resolved" || problem.status === "discontinued" || problem.status === "superseded"
-              ? "discontinued"
-              : problem.status === "archived" || problem.status === "entered_in_error"
-                ? "archived"
-                : "active",
+          status: problem.status,
           reviewDate: problem.reviewDate,
           evaluationDate: problem.evaluationDate,
           updatedAt: undefined,
@@ -745,12 +771,6 @@ function CarePlansPage() {
           return row.residentIsMine;
         case "high_risk":
           return row.isHighRisk;
-        case "review_due":
-          return row.isReviewDue;
-        case "evaluation_due":
-          return row.isEvaluationDue;
-        case "overdue":
-          return row.hasOverdue;
         case "discontinued":
           return row.plan.status === "discontinued" || row.plan.status === "completed";
       }
@@ -771,6 +791,7 @@ function CarePlansPage() {
 
         const activeProblems = problems.filter((problem) => problem.status === "active");
         const visibleProblems = activeProblems.length > 0 ? activeProblems : problems;
+        const problemStatuses = Array.from(new Set(problems.map((problem) => problem.status)));
         const highestRisk = visibleProblems
           .map((problem) => problem.riskLevel)
           .sort((left, right) => (RISK_RANK[right] || 0) - (RISK_RANK[left] || 0))[0];
@@ -783,18 +804,7 @@ function CarePlansPage() {
           (evaluationDays !== null && evaluationDays < 0);
         const isReviewDue = reviewDays !== null && reviewDays <= DUE_SOON_DAYS;
         const isEvaluationDue = evaluationDays !== null && evaluationDays <= DUE_SOON_DAYS;
-        const status =
-          residentPlan?.status === "archived" ||
-          problems.every((problem) => problem.status === "archived" || problem.status === "entered_in_error")
-            ? "archived"
-            : activeProblems.length > 0 || residentPlan?.status === "active"
-              ? "active"
-              : problems.length > 0 &&
-                  problems.every((problem) =>
-                    ["resolved", "discontinued", "superseded"].includes(problem.status),
-                  )
-                ? "discontinued"
-                : "active";
+        const status = residentRegisterStatus(problems);
         const residentIsMine =
           resident.keyWorkers?.namedNurse === currentUserName ||
           resident.keyWorkers?.keyWorker === currentUserName ||
@@ -839,10 +849,31 @@ function CarePlansPage() {
             const rightReview = daysUntil(right.reviewDate) ?? 9999;
             return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
           });
+        const allProblemItems = problems
+          .map((problem) => {
+            const quality = activeProblemQuality.find((item) => item.problemId === problem.id)?.quality;
+            return {
+              id: problem.id,
+              statement: problem.problemStatement,
+              status: problem.status,
+              domain: getRltDomainForCarePlanProblem(problem),
+              riskLevel: problem.riskLevel,
+              reviewDate: problem.reviewDate,
+              quality,
+            };
+          })
+          .sort((left, right) => {
+            const statusDelta = Number(right.status === "active") - Number(left.status === "active");
+            if (statusDelta !== 0) return statusDelta;
+            const leftReview = daysUntil(left.reviewDate) ?? 9999;
+            const rightReview = daysUntil(right.reviewDate) ?? 9999;
+            return leftReview - rightReview || (RISK_RANK[right.riskLevel] || 0) - (RISK_RANK[left.riskLevel] || 0);
+          });
 
         return {
           resident,
           status,
+          problemStatuses,
           rltDomain: getRltDomainForCarePlanProblem(primaryProblem),
           activeDomains: groupedActivities.map((group) => group.domain),
           highestRisk,
@@ -867,6 +898,7 @@ function CarePlansPage() {
           primaryCarePlanId: primaryProblem?.residentCarePlanId || residentPlan?.id,
           activeProblemIds: activeProblems.map((problem) => problem.id),
           activeProblemItems,
+          allProblemItems,
         };
       })
       .filter((item): item is NonNullable<typeof item> => !!item);
@@ -901,19 +933,9 @@ function CarePlansPage() {
     const query = search.trim().toLowerCase();
     return registerRows
       .filter((row) => {
-        if (tab === "reviews") return row.status === "active" && row.isReviewDue;
-        if (tab === "evaluations") return row.status === "active" && row.isEvaluationDue;
-        if (tab === "discontinued") return row.status === "discontinued" || row.status === "completed";
-        if (tab === "archived") return row.status === "archived";
-        return row.status === "active";
-      })
-      .filter((row) => {
         if (filter === "mine" && !row.residentIsMine) return false;
         if (filter === "high_risk" && !row.isHighRisk) return false;
-        if (filter === "review_due" && !row.isReviewDue) return false;
-        if (filter === "evaluation_due" && !row.isEvaluationDue) return false;
-        if (filter === "overdue" && !row.hasOverdue) return false;
-        if (filter === "discontinued" && row.status !== "discontinued" && row.status !== "completed") return false;
+        if (filter === "discontinued" && !row.problemStatuses.some((status) => ["resolved", "discontinued", "superseded"].includes(status))) return false;
         if (query) {
           const haystack = `${row.resident.firstName} ${row.resident.lastName} ${row.resident.roomNumber}`.toLowerCase();
           if (!haystack.includes(query)) return false;
@@ -930,7 +952,8 @@ function CarePlansPage() {
           return false;
         }
         if (nurseFilter !== "all" && row.resident.keyWorkers?.namedNurse !== nurseFilter) return false;
-        if (statusFilter !== "all" && row.status !== statusFilter) return false;
+        if (statusFilter === "inactive" && !row.problemStatuses.some((status) => REGISTER_INACTIVE_STATUSES.includes(status))) return false;
+        if (statusFilter !== "all" && statusFilter !== "inactive" && !row.problemStatuses.includes(statusFilter)) return false;
         if (riskFilter !== "all") {
           const normalizedRisk = row.highestRisk === "very_high" ? "critical" : row.highestRisk;
           if (normalizedRisk !== riskFilter) return false;
@@ -971,7 +994,6 @@ function CarePlansPage() {
     roomFilter,
     search,
     statusFilter,
-    tab,
     wingFilter,
   ]);
 
@@ -983,14 +1005,24 @@ function CarePlansPage() {
     registerRows.find((row) => row.resident.id === selectorResidentId) ||
     null;
 
+  const problemItemsForCurrentStatus = (row: (typeof registerRows)[number]) => {
+    if (statusFilter === "all") return row.allProblemItems;
+    if (statusFilter === "inactive") {
+      return row.allProblemItems.filter((problem) => REGISTER_INACTIVE_STATUSES.includes(problem.status));
+    }
+    return row.allProblemItems.filter((problem) => problem.status === statusFilter);
+  };
+
   const openCarePlanForRow = (row: (typeof registerRows)[number]) => {
-    if (row.activeProblemItems.length <= 1) {
+    const problemItems = problemItemsForCurrentStatus(row);
+    const targetProblem = problemItems[0] || row.allProblemItems[0];
+    if (problemItems.length <= 1) {
       navigate({
         to: "/residents/$id",
         params: { id: row.resident.id },
         search: {
           carePlanId: row.primaryCarePlanId,
-          carePlanProblemId: row.primaryProblemId,
+          carePlanProblemId: targetProblem?.id || row.primaryProblemId,
         },
       });
       return;
@@ -998,16 +1030,26 @@ function CarePlansPage() {
     setSelectorResidentId(row.resident.id);
   };
 
-  const workQueueSummary = useMemo(() => {
-    const active = registerRows.filter((row) => row.status === "active");
-    return {
-      active: active.length,
-      reviewOverdue: active.filter((row) => row.qualityStatus === "review_overdue").length,
-      incomplete: active.filter((row) => row.qualityStatus === "incomplete").length,
-      needsAttention: active.filter((row) => row.qualityStatus === "needs_attention").length,
-      complete: active.filter((row) => row.qualityStatus === "complete").length,
+  const statusBreakdown = useMemo(() => {
+    const counts: Record<ProblemStatus, number> = {
+      active: 0,
+      resolved: 0,
+      discontinued: 0,
+      superseded: 0,
+      archived: 0,
+      entered_in_error: 0,
     };
-  }, [registerRows]);
+    for (const problem of carePlanProblems) {
+      if (problem.status in counts) counts[problem.status] += 1;
+    }
+    const inactive =
+      counts.resolved + counts.discontinued + counts.superseded + counts.archived;
+    return {
+      total: Object.values(counts).reduce((sum, value) => sum + value, 0),
+      inactive,
+      ...counts,
+    };
+  }, [carePlanProblems]);
 
   const governance = useMemo(() => {
     const overdueReviews = rows.filter(
@@ -1096,86 +1138,102 @@ function CarePlansPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-        <CarePlanSummaryCard
-          label="Active Nursing Care Plans"
-          value={workQueueSummary.active}
-          onClick={() => {
-            setTab("active");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("all");
-            setQualityFilter("all");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Review Overdue"
-          value={workQueueSummary.reviewOverdue}
-          tone="danger"
-          onClick={() => {
-            setTab("active");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("all");
-            setQualityFilter("review_overdue");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Incomplete"
-          value={workQueueSummary.incomplete}
-          tone="warn"
-          onClick={() => {
-            setTab("active");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("all");
-            setQualityFilter("incomplete");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Needs Attention"
-          value={workQueueSummary.needsAttention}
-          tone="warn"
-          onClick={() => {
-            setTab("active");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("all");
-            setQualityFilter("needs_attention");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-        <CarePlanSummaryCard
-          label="Complete"
-          value={workQueueSummary.complete}
-          onClick={() => {
-            setTab("active");
-            setFilter("all");
-            setStatusFilter("all");
-            setRiskFilter("all");
-            setDueFilter("all");
-            setQualityFilter("complete");
-            setRoomFilter("");
-            setActivityFilter("all");
-            setPage(1);
-          }}
-        />
-      </div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold">Care Plan Status Register</h2>
+              <p className="text-xs text-muted-foreground">
+                Counts are based on care-plan records, not resident rows.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={statusFilter === "all" ? "default" : "outline"}
+              onClick={() => {
+                setStatusFilter("all");
+                setPage(1);
+              }}
+            >
+              See All
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+            <StatusCountPill
+              label="All"
+              value={statusBreakdown.total}
+              active={statusFilter === "all"}
+              onClick={() => {
+                setStatusFilter("all");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Active"
+              value={statusBreakdown.active}
+              active={statusFilter === "active"}
+              onClick={() => {
+                setStatusFilter("active");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Inactive"
+              value={statusBreakdown.inactive}
+              active={statusFilter === "inactive"}
+              onClick={() => {
+                setStatusFilter("inactive");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Resolved"
+              value={statusBreakdown.resolved}
+              active={statusFilter === "resolved"}
+              onClick={() => {
+                setStatusFilter("resolved");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Discontinued"
+              value={statusBreakdown.discontinued}
+              active={statusFilter === "discontinued"}
+              onClick={() => {
+                setStatusFilter("discontinued");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Superseded"
+              value={statusBreakdown.superseded}
+              active={statusFilter === "superseded"}
+              onClick={() => {
+                setStatusFilter("superseded");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Archived"
+              value={statusBreakdown.archived}
+              active={statusFilter === "archived"}
+              onClick={() => {
+                setStatusFilter("archived");
+                setPage(1);
+              }}
+            />
+            <StatusCountPill
+              label="Entered in Error"
+              value={statusBreakdown.entered_in_error}
+              active={statusFilter === "entered_in_error"}
+              onClick={() => {
+                setStatusFilter("entered_in_error");
+                setPage(1);
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4 flex flex-wrap items-center gap-3 text-sm">
@@ -1194,18 +1252,14 @@ function CarePlansPage() {
         <TabsList className="flex-wrap h-auto">
           {visibleTabs.map((value) => (
             <TabsTrigger key={value} value={value}>
-              {value === "active" && "Active Nursing Care Plans"}
-              {value === "reviews" && "Reviews Due"}
-              {value === "evaluations" && "Reviews of Outcome Due"}
-              {value === "discontinued" && "Discontinued Nursing Care Plans"}
-              {value === "archived" && "Archived Nursing Care Plans"}
+              {value === "register" && "Care Plan Register"}
               {value === "governance" && "Governance"}
             </TabsTrigger>
           ))}
         </TabsList>
 
         <TabsContent value={tab} className="space-y-4">
-          {tab !== "governance" && (
+          {tab === "register" && (
             <>
               <div className="flex flex-wrap gap-2">
                 <QuickFilterButton
@@ -1237,36 +1291,6 @@ function CarePlansPage() {
                   }}
                 >
                   High Risk
-                </QuickFilterButton>
-                <QuickFilterButton
-                  active={filter === "review_due"}
-                  onClick={() => {
-                    setFilter("review_due");
-                    setQualityFilter("all");
-                    setPage(1);
-                  }}
-                >
-                  Review Due
-                </QuickFilterButton>
-                <QuickFilterButton
-                  active={filter === "evaluation_due"}
-                  onClick={() => {
-                    setFilter("evaluation_due");
-                    setQualityFilter("all");
-                    setPage(1);
-                  }}
-                >
-                  Review of Outcome Due
-                </QuickFilterButton>
-                <QuickFilterButton
-                  active={filter === "overdue"}
-                  onClick={() => {
-                    setFilter("overdue");
-                    setQualityFilter("all");
-                    setPage(1);
-                  }}
-                >
-                  Overdue
                 </QuickFilterButton>
                 {governanceView && (
                   <QuickFilterButton
@@ -1333,8 +1357,12 @@ function CarePlansPage() {
                       <SelectContent>
                         <SelectItem value="all">All progress</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
                         <SelectItem value="discontinued">Discontinued</SelectItem>
+                        <SelectItem value="superseded">Superseded</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
+                        <SelectItem value="entered_in_error">Entered in Error</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select value={riskFilter} onValueChange={(value) => { setRiskFilter(value as RegisterRiskFilter); setPage(1); }}>
@@ -1405,7 +1433,19 @@ function CarePlansPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pagedRegisterRows.map((row) => (
+                      {pagedRegisterRows.map((row) => {
+                        const displayedProblemItems = problemItemsForCurrentStatus(row);
+                        const displayedDomains = Array.from(
+                          new Map(
+                            displayedProblemItems
+                              .map((problem) => problem.domain)
+                              .filter(Boolean)
+                              .map((domain) => [domain!.id, domain!]),
+                          ).values(),
+                        );
+                        const statusLabelForRow =
+                          statusFilter === "all" ? statusLabel(row.status) : statusLabel(statusFilter);
+                        return (
                         <TableRow key={row.resident.id}>
                           <TableCell>
                             <div className="font-medium">
@@ -1420,17 +1460,17 @@ function CarePlansPage() {
                           <TableCell>Room {row.resident.roomNumber}</TableCell>
                           <TableCell className="max-w-[260px]">
                             <div className="flex flex-wrap gap-1">
-                              {row.activeDomains.slice(0, 3).map((domain) => (
+                              {displayedDomains.slice(0, 3).map((domain) => (
                                 <Badge key={domain.id} variant="secondary" className="text-[10px]">
                                   {domain.shortLabel}
                                 </Badge>
                               ))}
-                              {row.activeDomains.length > 3 && (
+                              {displayedDomains.length > 3 && (
                                 <Badge variant="outline" className="text-[10px]">
-                                  +{row.activeDomains.length - 3}
+                                  +{displayedDomains.length - 3}
                                 </Badge>
                               )}
-                              {row.activeDomains.length === 0 && (
+                              {displayedDomains.length === 0 && (
                                 <span className="text-xs text-muted-foreground">Mapped from legacy care plan</span>
                               )}
                             </div>
@@ -1453,7 +1493,7 @@ function CarePlansPage() {
                           <TableCell>{formatDate(row.nextEvaluationDate)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
-                              {row.status}
+                              {statusLabelForRow}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1493,7 +1533,8 @@ function CarePlansPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      );
+                      })}
                       {pagedRegisterRows.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={9} className="py-10 text-center">
@@ -1521,7 +1562,19 @@ function CarePlansPage() {
               </Card>
 
               <div className="space-y-2 md:hidden">
-                {pagedRegisterRows.map((row) => (
+                {pagedRegisterRows.map((row) => {
+                  const displayedProblemItems = problemItemsForCurrentStatus(row);
+                  const displayedDomains = Array.from(
+                    new Map(
+                      displayedProblemItems
+                        .map((problem) => problem.domain)
+                        .filter(Boolean)
+                        .map((domain) => [domain!.id, domain!]),
+                    ).values(),
+                  );
+                  const statusLabelForRow =
+                    statusFilter === "all" ? statusLabel(row.status) : statusLabel(statusFilter);
+                  return (
                   <Card key={row.resident.id}>
                     <CardContent className="p-3 space-y-3">
                       <div className="flex items-start justify-between gap-3">
@@ -1531,14 +1584,14 @@ function CarePlansPage() {
                           </div>
                           <div className="text-xs text-muted-foreground">Room {row.resident.roomNumber}</div>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {row.activeDomains.slice(0, 3).map((domain) => (
+                            {displayedDomains.slice(0, 3).map((domain) => (
                               <Badge key={domain.id} variant="secondary" className="text-[10px]">
                                 {domain.shortLabel}
                               </Badge>
                             ))}
-                            {row.activeDomains.length > 3 && (
+                            {displayedDomains.length > 3 && (
                               <Badge variant="outline" className="text-[10px]">
-                                +{row.activeDomains.length - 3}
+                                +{displayedDomains.length - 3}
                               </Badge>
                             )}
                           </div>
@@ -1559,7 +1612,7 @@ function CarePlansPage() {
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <div>Review {formatDate(row.nextReviewDate)}</div>
                         <div>Outcome review {formatDate(row.nextEvaluationDate)}</div>
-                        <div className="capitalize">Progress {row.status}</div>
+                        <div>Progress {statusLabelForRow}</div>
                         <div>Updated {formatDateTime(row.lastUpdated)}</div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -1598,7 +1651,8 @@ function CarePlansPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                );
+                })}
                 {pagedRegisterRows.length === 0 && (
                   <Card>
                     <CardContent className="p-6 text-center space-y-3">
@@ -1667,7 +1721,7 @@ function CarePlansPage() {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-2">
-                    {selectorRow?.activeProblemItems.map((problem) => (
+                    {selectorRow && problemItemsForCurrentStatus(selectorRow).map((problem) => (
                       <div
                         key={problem.id}
                         className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -1821,39 +1875,32 @@ function QuickFilterButton({
   );
 }
 
-function CarePlanSummaryCard({
+function StatusCountPill({
   label,
   value,
-  tone = "default",
+  active,
   onClick,
 }: {
   label: string;
   value: number;
-  tone?: "default" | "warn" | "danger";
+  active?: boolean;
   onClick?: () => void;
 }) {
-  const toneClass =
-    tone === "danger"
-      ? "text-destructive"
-      : tone === "warn"
-        ? "text-warning-foreground"
-        : "";
-  const content = (
-    <CardContent className="p-4 text-left">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums mt-1 ${toneClass}`}>{value}</div>
-    </CardContent>
-  );
   return (
-    <Card className={onClick ? "transition-colors hover:border-primary/50" : ""}>
-      {onClick ? (
-        <button type="button" className="block w-full" onClick={onClick}>
-          {content}
-        </button>
-      ) : (
-        content
-      )}
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md border px-3 py-2 text-left transition-colors ${
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "bg-muted/20 hover:border-primary/50 hover:bg-muted/40"
+      }`}
+    >
+      <div className={`text-[11px] font-medium uppercase tracking-wide ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+        {label}
+      </div>
+      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
+    </button>
   );
 }
 
