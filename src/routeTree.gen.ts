@@ -88,6 +88,7 @@ import { Route as ResidentsIdAssessmentsRouteImport } from './routes/residents.$
 import { Route as MaintenanceWorkOrdersNewRouteImport } from './routes/maintenance.work-orders.new'
 import { Route as MaintenanceWorkOrdersWorkOrderIdRouteImport } from './routes/maintenance.work-orders.$workOrderId'
 import { Route as AssessmentsNewResidentIdRouteImport } from './routes/assessments.new.$residentId'
+import { Route as MaintenanceWorkOrdersWorkOrderIdEditRouteImport } from './routes/maintenance.work-orders.$workOrderId.edit'
 
 const VitalsRoute = VitalsRouteImport.update({
   id: '/vitals',
@@ -505,6 +506,12 @@ const AssessmentsNewResidentIdRoute =
     path: '/new/$residentId',
     getParentRoute: () => AssessmentsRoute,
   } as any)
+const MaintenanceWorkOrdersWorkOrderIdEditRoute =
+  MaintenanceWorkOrdersWorkOrderIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => MaintenanceWorkOrdersWorkOrderIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -566,7 +573,7 @@ export interface FileRoutesByFullPath {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
-  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRoute
+  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
@@ -586,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -645,7 +653,7 @@ export interface FileRoutesByTo {
   '/assessments': typeof AssessmentsIndexRoute
   '/residents': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
-  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRoute
+  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
@@ -665,6 +673,7 @@ export interface FileRoutesByTo {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -727,7 +736,7 @@ export interface FileRoutesById {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
-  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRoute
+  '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
   '/residents/$id/care-plan': typeof ResidentsIdCarePlanRoute
@@ -747,6 +756,7 @@ export interface FileRoutesById {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -830,6 +840,7 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -909,6 +920,7 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/work-orders/$workOrderId/edit'
   id:
     | '__root__'
     | '/'
@@ -990,6 +1002,7 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1589,6 +1602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssessmentsNewResidentIdRouteImport
       parentRoute: typeof AssessmentsRoute
     }
+    '/maintenance/work-orders/$workOrderId/edit': {
+      id: '/maintenance/work-orders/$workOrderId/edit'
+      path: '/edit'
+      fullPath: '/maintenance/work-orders/$workOrderId/edit'
+      preLoaderRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRouteImport
+      parentRoute: typeof MaintenanceWorkOrdersWorkOrderIdRoute
+    }
   }
 }
 
@@ -1622,13 +1642,29 @@ const CarePlansRouteWithChildren = CarePlansRoute._addFileChildren(
   CarePlansRouteChildren,
 )
 
+interface MaintenanceWorkOrdersWorkOrderIdRouteChildren {
+  MaintenanceWorkOrdersWorkOrderIdEditRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
+}
+
+const MaintenanceWorkOrdersWorkOrderIdRouteChildren: MaintenanceWorkOrdersWorkOrderIdRouteChildren =
+  {
+    MaintenanceWorkOrdersWorkOrderIdEditRoute:
+      MaintenanceWorkOrdersWorkOrderIdEditRoute,
+  }
+
+const MaintenanceWorkOrdersWorkOrderIdRouteWithChildren =
+  MaintenanceWorkOrdersWorkOrderIdRoute._addFileChildren(
+    MaintenanceWorkOrdersWorkOrderIdRouteChildren,
+  )
+
 interface MaintenanceWorkOrdersRouteChildren {
-  MaintenanceWorkOrdersWorkOrderIdRoute: typeof MaintenanceWorkOrdersWorkOrderIdRoute
+  MaintenanceWorkOrdersWorkOrderIdRoute: typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   MaintenanceWorkOrdersNewRoute: typeof MaintenanceWorkOrdersNewRoute
 }
 
 const MaintenanceWorkOrdersRouteChildren: MaintenanceWorkOrdersRouteChildren = {
-  MaintenanceWorkOrdersWorkOrderIdRoute: MaintenanceWorkOrdersWorkOrderIdRoute,
+  MaintenanceWorkOrdersWorkOrderIdRoute:
+    MaintenanceWorkOrdersWorkOrderIdRouteWithChildren,
   MaintenanceWorkOrdersNewRoute: MaintenanceWorkOrdersNewRoute,
 }
 

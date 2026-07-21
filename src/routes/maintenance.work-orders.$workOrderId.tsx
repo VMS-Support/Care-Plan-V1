@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Archive, ArrowRight, Edit, Wrench } from "lucide-react";
@@ -30,6 +30,9 @@ export const Route = createFileRoute("/maintenance/work-orders/$workOrderId")({
 
 function WorkOrderDetailRoute() {
   const { workOrderId } = Route.useParams();
+  const pathname = useRouterState({ select: (state) => state.location.pathname.replace(/\/+$/, "") });
+  if (pathname !== `/maintenance/work-orders/${workOrderId}`) return <Outlet />;
+
   const care = useCare();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
