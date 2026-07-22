@@ -194,6 +194,25 @@ import type {
   SafetyChecklistResponseType,
   SafetySeverity,
   SafetyVerificationRejectionReason,
+  HousekeepingTemplate,
+  HousekeepingTemplateSection,
+  HousekeepingTemplateItem,
+  HousekeepingSchedule,
+  HousekeepingTask,
+  HousekeepingTaskResponse,
+  HousekeepingEvidence,
+  HousekeepingException,
+  CleaningAudit,
+  CleaningAuditResponse,
+  QualityInspection,
+  QualityInspectionResponse,
+  HousekeepingReinspection,
+  RoomReadinessRecord,
+  RoomStatusHistory,
+  HousekeepingCleaningType,
+  HousekeepingEvidenceType,
+  HousekeepingExceptionType,
+  HousekeepingSeverity,
 } from "./types";
 import {
   archiveWorkOrderRecord,
@@ -271,6 +290,14 @@ import {
   validateSafetySchedule,
   validateSafetyTemplate,
 } from "@/domain/maintenance/safetyCompliance";
+import {
+  createHousekeepingResponsesFromTemplate,
+  evaluateHousekeepingTask,
+  nextHousekeepingDueDate,
+  responseResultFromHousekeepingValue,
+  validateHousekeepingSchedule,
+  validateHousekeepingTemplate,
+} from "@/domain/maintenance/housekeeping";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -1316,6 +1343,149 @@ function safetyInspection(id: string, categoryId: string, templateId: string, oc
 
 function safetyResponse(inspectionId: string, item: SafetyInspectionTemplateItem, result: SafetyInspectionResponse["result"], value: string, user: string, at: string, observation?: string): SafetyInspectionResponse {
   return { id: `safety-response-${inspectionId}-${item.itemCode}`, inspectionId, templateItemId: item.id, templateItemCode: item.itemCode, sectionName: item.sectionName, questionLabelSnapshot: item.label, responseType: item.responseType, responseValue: value, result, observation, mandatory: item.mandatory, failureSeverity: item.failureSeverity, correctiveActionRequired: item.failureTriggersCorrectiveAction, evidenceRequired: item.failureRequiresEvidence || item.failureRequiresPhoto, answeredBy: user, answeredAt: at, displayOrder: item.displayOrder };
+}
+
+function seedHousekeepingData() {
+  const now = "2026-07-21T08:30:00.000Z";
+  const templates: HousekeepingTemplate[] = [
+    housekeepingTemplate("hk-template-routine-bedroom", "Routine Bedroom Cleaning", "HK-ROUTINE-BEDROOM", "ROUTINE", "Daily bedroom and bathroom cleaning.", "daily", 1, 30, false, false, false),
+    housekeepingTemplate("hk-template-deep-bedroom", "Bedroom Deep Clean", "HK-DEEP-BEDROOM", "DEEP", "Full bedroom deep clean with photo evidence.", "monthly", 1, 90, true, true, false),
+    housekeepingTemplate("hk-template-enhanced-touchpoints", "Enhanced High-Touch Cleaning", "HK-ENHANCED-TOUCH", "ENHANCED", "Additional high-touch cleaning for elevated environmental risk.", "daily", 1, 45, true, true, false),
+    housekeepingTemplate("hk-template-terminal-room", "Terminal Room Cleaning", "HK-TERMINAL-ROOM", "TERMINAL", "Terminal cleaning before a room is returned to service.", "custom_days", 1, 150, true, true, true),
+  ];
+  const sections: HousekeepingTemplateSection[] = [];
+  const items: HousekeepingTemplateItem[] = [];
+  const addSection = (templateId: string, name: string, order: number) => {
+    const section: HousekeepingTemplateSection = { id: `hk-section-${templateId}-${order}`, templateId, name, displayOrder: order, active: true };
+    sections.push(section);
+    return section.id;
+  };
+  const addItem = (templateId: string, sectionId: string, code: string, label: string, order: number, failurePhoto = false, failureException = false) => {
+    items.push({
+      id: `hk-item-${templateId}-${code.toLowerCase()}`,
+      templateId,
+      sectionId,
+      code,
+      label,
+      responseType: "PASS_FAIL_NA",
+      mandatory: true,
+      allowNotApplicable: true,
+      notApplicableReasonRequired: true,
+      failureRequiresObservation: true,
+      failureRequiresPhoto: failurePhoto,
+      failureRequiresException: failureException,
+      failureSeverity: failureException ? "HIGH" : "MEDIUM",
+      displayOrder: order,
+      active: true,
+    });
+  };
+  templates.forEach((template) => {
+    const preparation = addSection(template.id, "Preparation", 1);
+    const cleaning = addSection(template.id, "Cleaning", 2);
+    const finalCheck = addSection(template.id, "Final Check", 3);
+    addItem(template.id, preparation, "ACCESS_SAFE", "Area is accessible and safe to clean", 1, false, true);
+    addItem(template.id, cleaning, "WASTE_REMOVED", "Waste removed and disposed of correctly", 2);
+    addItem(template.id, cleaning, "SURFACES_CLEANED", "Surfaces and high-touch points cleaned", 3, template.photoEvidenceRequired);
+    addItem(template.id, cleaning, "FLOOR_CLEANED", "Floor cleaned and left dry", 4);
+    addItem(template.id, finalCheck, "ROOM_READY", "Room or area left ready for use", 5, template.photoEvidenceRequired, template.roomReadinessRequired);
+  });
+  const schedules: HousekeepingSchedule[] = [
+    housekeepingSchedule("hk-schedule-room-1-daily", templates[0], "Room 1 Daily Cleaning", "room:r-w-oak-1", "r-w-oak-1", "Oak Wing - Room 1", "2026-07-22", "09:00", "housekeeping"),
+    housekeepingSchedule("hk-schedule-room-3-terminal", templates[3], "Room 3 Terminal Cleaning", "room:r-w-oak-3", "r-w-oak-3", "Oak Wing - Room 3", "2026-07-22", "11:00", "housekeeping-supervisor"),
+    housekeepingSchedule("hk-schedule-dining-enhanced", templates[2], "Dining Room Enhanced Cleaning", "location:dining-main", undefined, "Ground Floor - Dining Room", "2026-07-22", "14:00", "housekeeping"),
+  ];
+  const tasks: HousekeepingTask[] = [
+    housekeepingTask("hk-task-0001", templates[0], schedules[0], "HK-2026-0001", "Room 1 Routine Cleaning", "2026-07-22", "09:00", "ASSIGNED", "u-8"),
+    housekeepingTask("hk-task-0002", templates[3], schedules[1], "HK-2026-0002", "Room 3 Terminal Cleaning", "2026-07-22", "11:00", "IN_PROGRESS", "u-8"),
+    housekeepingTask("hk-task-0003", templates[2], schedules[2], "HK-2026-0003", "Dining Room Enhanced Cleaning", "2026-07-21", "14:00", "FAILED", "u-8"),
+    housekeepingTask("hk-task-0004", templates[1], undefined, "HK-2026-0004", "Room 7 Deep Clean", "2026-07-20", "10:00", "COMPLETED", "u-8"),
+  ];
+  tasks[1].startedBy = "A. Khan"; tasks[1].startedAt = "2026-07-22T11:05:00.000Z"; tasks[1].roomStatusBefore = "CLEANING_REQUIRED"; tasks[1].roomStatusAfter = "CLEANING_IN_PROGRESS";
+  tasks[2].startedBy = "A. Khan"; tasks[2].startedAt = "2026-07-21T14:05:00.000Z"; tasks[2].failedBy = "A. Khan"; tasks[2].failedAt = "2026-07-21T14:35:00.000Z"; tasks[2].overallResult = "FAIL"; tasks[2].completionNotes = "Waste bin damaged and spill could not be fully cleared.";
+  tasks[3].startedBy = "A. Khan"; tasks[3].startedAt = "2026-07-20T10:00:00.000Z"; tasks[3].completedBy = "A. Khan"; tasks[3].completedAt = "2026-07-20T11:20:00.000Z"; tasks[3].overallResult = "PASS_WITH_OBSERVATIONS"; tasks[3].completionNotes = "Deep clean completed; minor scuffing noted on skirting.";
+  const responses = tasks.flatMap((task) => {
+    const taskSections = sections.filter((section) => section.templateId === task.templateId);
+    const taskItems = items.filter((item) => item.templateId === task.templateId);
+    const next = createHousekeepingResponsesFromTemplate(task.id, taskSections, taskItems, "System", now);
+    return next.map((response, index) => {
+      if (task.status === "COMPLETED") return { ...response, result: "PASS" as const, responseValue: "Pass", answeredBy: "A. Khan", answeredAt: task.completedAt };
+      if (task.status === "FAILED" && index === 1) return { ...response, result: "FAIL" as const, responseValue: "Fail", observation: "Waste bin damaged and spill remained after initial clean.", answeredBy: "A. Khan", answeredAt: task.failedAt };
+      if (task.status === "FAILED" || task.status === "IN_PROGRESS") return { ...response, result: index < 2 ? "PASS" as const : "UNANSWERED" as const, responseValue: index < 2 ? "Pass" : undefined, answeredBy: "A. Khan", answeredAt: task.startedAt };
+      return response;
+    });
+  });
+  const evidence: HousekeepingEvidence[] = [
+    { id: "hk-evidence-0001", taskId: tasks[3].id, evidenceType: "PHOTO", fileReference: "housekeeping/room-7-after.jpg", fileName: "room-7-after.jpg", caption: "Room 7 after deep clean", uploadedBy: "A. Khan", uploadedAt: "2026-07-20T11:10:00.000Z", active: true },
+    { id: "hk-evidence-0002", taskId: tasks[2].id, responseId: responses.find((item) => item.taskId === tasks[2].id && item.result === "FAIL")?.id, evidenceType: "PHOTO", fileReference: "housekeeping/dining-spill.jpg", fileName: "dining-spill.jpg", caption: "Dining room spill and damaged bin", uploadedBy: "A. Khan", uploadedAt: "2026-07-21T14:30:00.000Z", active: true },
+  ];
+  const exceptions: HousekeepingException[] = [
+    {
+      id: "hk-exception-0001",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      taskId: tasks[2].id,
+      locationId: "location:dining-main",
+      locationLabel: "Ground Floor - Dining Room",
+      exceptionType: "WASTE",
+      category: "Damaged waste bin",
+      description: "Waste bin split during cleaning and requires replacement before area can be signed off.",
+      severity: "HIGH",
+      status: "ACTION_REQUIRED",
+      immediateActionTaken: "Area cordoned and supervisor informed.",
+      requiresSupervisorReview: true,
+      requiresMaintenanceWorkOrder: true,
+      maintenanceWorkOrderId: "maintenance-work-order-seed-2",
+      requiresReinspection: true,
+      reportedBy: "A. Khan",
+      reportedAt: "2026-07-21T14:34:00.000Z",
+      createdAt: "2026-07-21T14:34:00.000Z",
+      updatedAt: "2026-07-21T14:34:00.000Z",
+    },
+  ];
+  const qualityInspections: QualityInspection[] = [
+    { id: "hk-quality-0001", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, taskId: tasks[2].id, locationId: "location:dining-main", locationLabel: "Ground Floor - Dining Room", inspectorId: "u-7", status: "FAILED", result: "FAIL", score: 58, inspectionNotes: "Failed due to unresolved waste exception.", failedItemCount: 1, photoEvidenceRequired: true, reinspectionRequired: true, inspectedAt: "2026-07-21T15:00:00.000Z", createdAt: "2026-07-21T14:50:00.000Z", updatedAt: "2026-07-21T15:00:00.000Z", version: 1 },
+    { id: "hk-quality-0002", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, taskId: tasks[3].id, roomId: "r-w-oak-7", locationLabel: "Oak Wing - Room 7", inspectorId: "u-7", status: "PASSED", result: "PASS_WITH_OBSERVATIONS", score: 92, inspectionNotes: "Passed. Skirting scuffing noted for routine follow-up.", failedItemCount: 0, photoEvidenceRequired: true, reinspectionRequired: false, inspectedAt: "2026-07-20T11:40:00.000Z", createdAt: "2026-07-20T11:25:00.000Z", updatedAt: "2026-07-20T11:40:00.000Z", version: 1 },
+  ];
+  const qualityInspectionResponses: QualityInspectionResponse[] = [
+    { id: "hk-quality-response-0001", inspectionId: "hk-quality-0001", checklistItemCode: "WASTE_REMOVED", questionSnapshot: "Waste removed and disposed of correctly", result: "FAIL", observation: "Damaged bin remains.", severity: "HIGH", evidenceRequired: true, displayOrder: 1 },
+    { id: "hk-quality-response-0002", inspectionId: "hk-quality-0002", checklistItemCode: "ROOM_READY", questionSnapshot: "Room or area left ready for use", result: "PASS", evidenceRequired: false, displayOrder: 1 },
+  ];
+  const audits: CleaningAudit[] = [
+    { id: "hk-audit-0001", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, auditNumber: "HKA-2026-0001", auditType: "SUPERVISOR_AUDIT", locationId: "location:dining-main", locationLabel: "Ground Floor - Dining Room", taskId: tasks[2].id, auditDate: "2026-07-21", auditorId: "u-7", status: "FAILED", result: "FAIL", score: 58, observations: "Waste exception and reinspection required.", correctiveActionRequired: true, reinspectionRequired: true, completedAt: "2026-07-21T15:05:00.000Z", createdAt: "2026-07-21T15:00:00.000Z", updatedAt: "2026-07-21T15:05:00.000Z" },
+  ];
+  const auditResponses: CleaningAuditResponse[] = [
+    { id: "hk-audit-response-0001", auditId: "hk-audit-0001", checklistItemId: "WASTE_REMOVED", questionSnapshot: "Waste removed and disposed of correctly", response: "Fail", result: "FAIL", observation: "Damaged waste bin blocks completion.", evidenceRequired: true, displayOrder: 1 },
+  ];
+  const reinspections: HousekeepingReinspection[] = [
+    { id: "hk-reinspection-0001", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, originalTaskId: tasks[2].id, originalInspectionId: "hk-quality-0001", failedTaskId: tasks[2].id, assignedUserId: "u-7", assignedTeamId: "housekeeping-supervisor", reason: "Failed enhanced cleaning due to unresolved waste exception.", status: "ASSIGNED", scheduledDate: "2026-07-22", dueDate: "2026-07-22", createdBy: "L. Hartley", createdAt: "2026-07-21T15:10:00.000Z", updatedAt: "2026-07-21T15:10:00.000Z" },
+  ];
+  const roomReadiness: RoomReadinessRecord[] = [
+    housekeepingReadiness("hk-readiness-room-1", "r-w-oak-1", "OCCUPIED", "routine_cleaning", false, true, false, true, true, true, "Room occupied; routine cleaning scheduled."),
+    housekeepingReadiness("hk-readiness-room-3", "r-w-oak-3", "CLEANING_IN_PROGRESS", "terminal_cleaning", true, false, true, false, false, false, "Terminal clean in progress before room can be released."),
+    housekeepingReadiness("hk-readiness-room-7", "r-w-oak-7", "READY", "deep_clean", false, true, true, true, true, true, "Deep clean and inspection completed."),
+  ];
+  const roomStatusHistory: RoomStatusHistory[] = [
+    { id: "hk-room-history-0001", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, roomId: "r-w-oak-3", previousStatus: "CLEANING_REQUIRED", newStatus: "CLEANING_IN_PROGRESS", reason: "Terminal cleaning started.", sourceType: "HOUSEKEEPING_TASK", sourceId: tasks[1].id, changedBy: "A. Khan", changedAt: "2026-07-22T11:05:00.000Z" },
+    { id: "hk-room-history-0002", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, roomId: "r-w-oak-7", previousStatus: "AWAITING_INSPECTION", newStatus: "READY", reason: "Quality inspection passed.", sourceType: "QUALITY_INSPECTION", sourceId: "hk-quality-0002", changedBy: "L. Hartley", changedAt: "2026-07-20T11:45:00.000Z" },
+  ];
+  return { templates, sections, items, schedules, tasks, responses, evidence, exceptions, qualityInspections, qualityInspectionResponses, audits, auditResponses, reinspections, roomReadiness, roomStatusHistory };
+}
+
+function housekeepingTemplate(id: string, name: string, code: string, cleaningType: HousekeepingCleaningType, description: string, frequencyType: PlannedMaintenanceFrequencyType, interval: number, duration: number, photo: boolean, inspection: boolean, roomReadiness: boolean): HousekeepingTemplate {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, name, code, description, cleaningType, applicableLocationTypes: ["Bedroom", "Bathroom", "Communal", "Dining"], applicableRoomTypes: ["Single", "Shared", "Respite"], estimatedDurationMinutes: duration, defaultFrequencyType: frequencyType, defaultFrequencyInterval: interval, preferredTime: cleaningType === "ROUTINE" ? "09:00" : "11:00", defaultPriority: cleaningType === "TERMINAL" ? "HIGH" : "MEDIUM", photoEvidenceRequired: photo, minimumPhotoCount: photo ? 1 : 0, qualityInspectionRequired: inspection, roomReadinessRequired: roomReadiness, verificationRequired: inspection, supervisorSignOffRequired: inspection, instructions: "Follow ORITAS housekeeping procedure and record exceptions immediately.", safetyPrecautions: "Use correct PPE and signage. Do not store clinical details in housekeeping records.", active: true, status: "ACTIVE", version: 1, effectiveFrom: "2026-07-01", createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function housekeepingSchedule(id: string, template: HousekeepingTemplate, name: string, locationId: string, roomId: string | undefined, locationLabel: string, nextDueDate: string, preferredTime: string, team: string): HousekeepingSchedule {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, templateId: template.id, locationId, locationLabel, roomId, scheduleName: name, cleaningType: template.cleaningType, frequencyType: template.defaultFrequencyType, frequencyInterval: template.defaultFrequencyInterval, startDate: "2026-07-20", nextDueDate, preferredTime, assignedTeamId: team, defaultAssignedUserId: "u-8", priority: template.defaultPriority, generateDaysBeforeDue: 1, dueSoonHours: 4, active: true, paused: false, createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function housekeepingTask(id: string, template: HousekeepingTemplate, schedule: HousekeepingSchedule | undefined, number: string, title: string, dueDate: string, dueTime: string, status: HousekeepingTask["status"], assignedUserId?: string): HousekeepingTask {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, scheduleId: schedule?.id, templateId: template.id, templateVersion: template.version, locationId: schedule?.locationId || "ad-hoc", locationLabel: schedule?.locationLabel || title, roomId: schedule?.roomId, taskNumber: number, cleaningType: template.cleaningType, title, description: template.description, plannedDate: dueDate, dueDate, dueTime, priority: template.defaultPriority, status, assignedTeamId: schedule?.assignedTeamId || "housekeeping", assignedUserId, qualityInspectionRequired: template.qualityInspectionRequired, roomReadinessRequired: template.roomReadinessRequired, photoEvidenceRequired: template.photoEvidenceRequired, minimumPhotoCount: template.minimumPhotoCount, verificationRequired: template.verificationRequired, overallResult: "NOT_COMPLETED", cleanerDeclarationAccepted: ["COMPLETED", "FAILED"].includes(status), version: 1, createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function housekeepingReadiness(id: string, roomId: string, status: RoomReadinessRecord["readinessStatus"], triggerType: string, cleaningRequired: boolean, cleaningCompleted: boolean, inspectionRequired: boolean, inspectionPassed: boolean, linenReady: boolean, wasteCleared: boolean, notes: string): RoomReadinessRecord {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, roomId, locationId: `room:${roomId}`, readinessStatus: status, triggerType, currentOccupancyStatus: status === "OCCUPIED" ? "Occupied" : "Vacant", cleaningRequired, cleaningCompleted, qualityInspectionRequired: inspectionRequired, qualityInspectionPassed: inspectionPassed, maintenanceIssueOpen: false, linenReady, wasteCleared, suppliesReady: linenReady && wasteCleared, readinessNotes: notes, lastUpdatedBy: "System", lastUpdatedAt: "2026-07-21T08:30:00.000Z" };
 }
 
 function seedMaintenanceTemplates() {
@@ -2824,6 +2994,7 @@ function seedData() {
   }
   const maintenanceTemplateSeed = seedMaintenanceTemplates();
   const safetyComplianceSeed = seedSafetyComplianceData();
+  const housekeepingSeed = seedHousekeepingData();
 
   return {
     enterprises: ENTERPRISES_SEED,
@@ -3010,6 +3181,21 @@ function seedData() {
     safetyInspectionEvidence: safetyComplianceSeed.inspectionEvidence,
     safetyCertificates: safetyComplianceSeed.certificates,
     safetyInspectionVerifications: safetyComplianceSeed.verifications,
+    housekeepingTemplates: housekeepingSeed.templates,
+    housekeepingTemplateSections: housekeepingSeed.sections,
+    housekeepingTemplateItems: housekeepingSeed.items,
+    housekeepingSchedules: housekeepingSeed.schedules,
+    housekeepingTasks: housekeepingSeed.tasks,
+    housekeepingTaskResponses: housekeepingSeed.responses,
+    housekeepingEvidence: housekeepingSeed.evidence,
+    housekeepingExceptions: housekeepingSeed.exceptions,
+    housekeepingCleaningAudits: housekeepingSeed.audits,
+    housekeepingCleaningAuditResponses: housekeepingSeed.auditResponses,
+    housekeepingQualityInspections: housekeepingSeed.qualityInspections,
+    housekeepingQualityInspectionResponses: housekeepingSeed.qualityInspectionResponses,
+    housekeepingReinspections: housekeepingSeed.reinspections,
+    housekeepingRoomReadiness: housekeepingSeed.roomReadiness,
+    housekeepingRoomStatusHistory: housekeepingSeed.roomStatusHistory,
     workOrderNotes: [] as WorkOrderNote[],
     workOrderAttachments: [] as WorkOrderAttachment[],
     workOrderLabourEntries: [] as WorkOrderLabourEntry[],
@@ -3105,6 +3291,16 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "safetyInspections",
   "safetyInspectionEvidence",
   "safetyCertificates",
+  "housekeepingTemplates",
+  "housekeepingSchedules",
+  "housekeepingTasks",
+  "housekeepingEvidence",
+  "housekeepingExceptions",
+  "housekeepingCleaningAudits",
+  "housekeepingQualityInspections",
+  "housekeepingReinspections",
+  "housekeepingRoomReadiness",
+  "housekeepingRoomStatusHistory",
   "workOrderNotes",
   "workOrderAttachments",
   "workOrderLabourEntries",
@@ -3750,6 +3946,44 @@ interface CareCtx extends Store {
   updateSafetyCertificate: (id: string, input: Partial<SafetyCertificate>) => void;
   revokeSafetyCertificate: (id: string, reason: string) => void;
   supersedeSafetyCertificate: (id: string, replacementId?: string) => void;
+  createHousekeepingTemplate: (input: Partial<HousekeepingTemplate> & { name: string; code: string; cleaningType: HousekeepingCleaningType; sections?: Partial<HousekeepingTemplateSection>[]; items?: Partial<HousekeepingTemplateItem>[] }) => HousekeepingTemplate;
+  updateHousekeepingTemplate: (id: string, input: Partial<HousekeepingTemplate> & { sections?: Partial<HousekeepingTemplateSection>[]; items?: Partial<HousekeepingTemplateItem>[] }) => void;
+  duplicateHousekeepingTemplate: (id: string) => HousekeepingTemplate | undefined;
+  activateHousekeepingTemplate: (id: string) => void;
+  deactivateHousekeepingTemplate: (id: string) => void;
+  archiveHousekeepingTemplate: (id: string, reason: string) => void;
+  createHousekeepingSchedule: (input: Partial<HousekeepingSchedule>) => HousekeepingSchedule;
+  updateHousekeepingSchedule: (id: string, input: Partial<HousekeepingSchedule>) => void;
+  pauseHousekeepingSchedule: (id: string, reason: string) => void;
+  resumeHousekeepingSchedule: (id: string) => void;
+  archiveHousekeepingSchedule: (id: string, reason: string) => void;
+  generateHousekeepingTask: (scheduleId: string) => HousekeepingTask;
+  createAdHocHousekeepingTask: (input: Partial<HousekeepingTask> & { templateId: string; title: string; dueDate: string }) => HousekeepingTask;
+  assignHousekeepingTask: (id: string, input: { assignedUserId?: string; assignedTeamId?: string }) => void;
+  startHousekeepingTask: (id: string) => void;
+  pauseHousekeepingTask: (id: string, reason?: string) => void;
+  resumeHousekeepingTask: (id: string) => void;
+  updateHousekeepingTaskResponse: (responseId: string, input: { responseValue?: string; result?: HousekeepingTaskResponse["result"]; observation?: string; notApplicableReason?: string }) => void;
+  addHousekeepingEvidence: (input: { taskId?: string; responseId?: string; inspectionId?: string; exceptionId?: string; evidenceType: HousekeepingEvidenceType; fileName: string; fileReference?: string; caption?: string }) => HousekeepingEvidence;
+  deleteHousekeepingEvidence: (id: string, reason: string) => void;
+  completeHousekeepingTask: (id: string, input: { completionNotes?: string; cleanerDeclarationAccepted: boolean }) => HousekeepingTask;
+  failHousekeepingTask: (id: string, reason: string) => HousekeepingTask;
+  cancelHousekeepingTask: (id: string, reason: string) => void;
+  skipHousekeepingTask: (id: string, reason: string) => void;
+  createHousekeepingException: (input: Partial<HousekeepingException> & { taskId: string; exceptionType: HousekeepingExceptionType; category: string; description: string; severity: HousekeepingSeverity }) => HousekeepingException;
+  updateHousekeepingException: (id: string, input: Partial<HousekeepingException>) => void;
+  resolveHousekeepingException: (id: string, notes: string) => void;
+  closeHousekeepingException: (id: string, notes?: string) => void;
+  createHousekeepingExceptionWorkOrder: (id: string) => MaintenanceWorkOrder;
+  createHousekeepingQualityInspection: (taskId: string, input?: Partial<QualityInspection>) => QualityInspection;
+  startHousekeepingQualityInspection: (id: string) => void;
+  completeHousekeepingQualityInspection: (id: string, input: { result: Extract<HousekeepingResult, "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL">; score?: number; notes?: string }) => QualityInspection;
+  createHousekeepingAudit: (input: Partial<CleaningAudit> & { auditType: CleaningAudit["auditType"]; auditDate: string }) => CleaningAudit;
+  completeHousekeepingAudit: (id: string, input: { result: Extract<HousekeepingResult, "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL">; score?: number; observations?: string }) => void;
+  createHousekeepingReinspection: (input: Partial<HousekeepingReinspection> & { originalTaskId: string; reason: string; dueDate: string }) => HousekeepingReinspection;
+  completeHousekeepingReinspection: (id: string, result: Extract<HousekeepingResult, "PASS" | "FAIL">, notes?: string) => void;
+  markRoomReady: (roomId: string, reason: string) => void;
+  markRoomUnavailable: (roomId: string, reason: string) => void;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
   workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
@@ -8494,6 +8728,100 @@ export function CareProvider({ children }: { children: ReactNode }) {
         api.updateSafetyCertificate(id, { status: "REVOKED", notes: reason });
       },
       supersedeSafetyCertificate: (id, replacementId) => api.updateSafetyCertificate(id, { status: "SUPERSEDED", notes: replacementId ? `Superseded by ${replacementId}` : "Superseded" }),
+      createHousekeepingTemplate: (input) => {
+        const validation = validateHousekeepingTemplate(input);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the housekeeping template.");
+        const now = new Date().toISOString();
+        const template: HousekeepingTemplate = { id: `hk-template-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, name: input.name.trim(), code: input.code.trim(), description: input.description, cleaningType: input.cleaningType, applicableLocationTypes: input.applicableLocationTypes || [], applicableRoomTypes: input.applicableRoomTypes || [], estimatedDurationMinutes: Number(input.estimatedDurationMinutes || 30), defaultFrequencyType: input.defaultFrequencyType || "daily", defaultFrequencyInterval: Number(input.defaultFrequencyInterval || 1), preferredTime: input.preferredTime, defaultPriority: input.defaultPriority || "MEDIUM", photoEvidenceRequired: Boolean(input.photoEvidenceRequired), minimumPhotoCount: Number(input.minimumPhotoCount || (input.photoEvidenceRequired ? 1 : 0)), qualityInspectionRequired: Boolean(input.qualityInspectionRequired), roomReadinessRequired: Boolean(input.roomReadinessRequired), verificationRequired: Boolean(input.verificationRequired), supervisorSignOffRequired: Boolean(input.supervisorSignOffRequired), instructions: input.instructions, safetyPrecautions: input.safetyPrecautions, active: input.active ?? input.status === "ACTIVE", status: input.status || "DRAFT", version: 1, effectiveFrom: input.effectiveFrom || now.slice(0, 10), effectiveTo: input.effectiveTo, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        const sections = (input.sections?.length ? input.sections : [{ name: "Preparation" }, { name: "Cleaning" }, { name: "Final Check" }]).map((section, index) => ({ id: `hk-section-${uid()}`, templateId: template.id, name: section.name || `Section ${index + 1}`, description: section.description, displayOrder: index + 1, active: section.active ?? true } satisfies HousekeepingTemplateSection));
+        const items = (input.items?.length ? input.items : [{ label: "Area accessible and safe" }, { label: "Cleaning completed" }, { label: "Area left ready for use" }]).map((item, index) => ({ id: `hk-item-${uid()}`, templateId: template.id, sectionId: item.sectionId || sections[0].id, code: item.code || `ITEM_${index + 1}`, label: item.label || "Checklist item", description: item.description, responseType: item.responseType || "PASS_FAIL_NA", mandatory: item.mandatory ?? true, allowNotApplicable: item.allowNotApplicable ?? true, notApplicableReasonRequired: item.notApplicableReasonRequired ?? false, failureRequiresObservation: item.failureRequiresObservation ?? true, failureRequiresPhoto: item.failureRequiresPhoto ?? false, failureRequiresException: item.failureRequiresException ?? false, failureSeverity: item.failureSeverity || "MEDIUM", displayOrder: index + 1, helpText: item.helpText, active: item.active ?? true } satisfies HousekeepingTemplateItem));
+        setStore((s) => ({ ...s, housekeepingTemplates: [template, ...s.housekeepingTemplates], housekeepingTemplateSections: [...sections, ...s.housekeepingTemplateSections], housekeepingTemplateItems: [...items, ...s.housekeepingTemplateItems] }));
+        return template;
+      },
+      updateHousekeepingTemplate: (id, input) => {
+        const current = store.housekeepingTemplates.find((item) => item.id === id);
+        if (!current) throw new Error("Housekeeping template not found.");
+        if (current.status === "ARCHIVED") throw new Error("Archived templates cannot be edited.");
+        const validation = validateHousekeepingTemplate({ ...current, ...input });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the housekeeping template.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, housekeepingTemplates: s.housekeepingTemplates.map((item) => item.id === id ? { ...item, ...input, version: s.housekeepingTasks.some((task) => task.templateId === id) ? item.version + 1 : item.version, updatedBy: currentUserName, updatedAt: now } : item) }));
+      },
+      duplicateHousekeepingTemplate: (id) => {
+        const source = store.housekeepingTemplates.find((item) => item.id === id);
+        if (!source) return undefined;
+        return api.createHousekeepingTemplate({ ...source, name: `${source.name} Copy`, code: `${source.code}-COPY`, active: false, status: "DRAFT", sections: store.housekeepingTemplateSections.filter((item) => item.templateId === id), items: store.housekeepingTemplateItems.filter((item) => item.templateId === id) });
+      },
+      activateHousekeepingTemplate: (id) => api.updateHousekeepingTemplate(id, { active: true, status: "ACTIVE" }),
+      deactivateHousekeepingTemplate: (id) => api.updateHousekeepingTemplate(id, { active: false, status: "INACTIVE" }),
+      archiveHousekeepingTemplate: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, housekeepingTemplates: s.housekeepingTemplates.map((item) => item.id === id ? { ...item, active: false, status: "ARCHIVED", archivedBy: currentUserName, archivedAt: now, updatedBy: currentUserName, updatedAt: now } : item) }));
+      },
+      createHousekeepingSchedule: (input) => {
+        const template = store.housekeepingTemplates.find((item) => item.id === input.templateId);
+        const candidate = { ...input, homeId: input.homeId || activeFacilityId, cleaningType: input.cleaningType || template?.cleaningType };
+        const validation = validateHousekeepingSchedule(candidate, { templates: store.housekeepingTemplates, assets: store.maintenanceAssets });
+        if (!validation.valid || !template) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the cleaning schedule.");
+        const now = new Date().toISOString();
+        const schedule: HousekeepingSchedule = { id: `hk-schedule-${uid()}`, tenantId: "tenant-oritas-demo", homeId: candidate.homeId!, facilityId: candidate.homeId!, templateId: template.id, locationId: input.locationId, locationLabel: input.locationLabel, roomId: input.roomId, scheduleName: input.scheduleName || template.name, cleaningType: template.cleaningType, frequencyType: input.frequencyType || template.defaultFrequencyType, frequencyInterval: Number(input.frequencyInterval || template.defaultFrequencyInterval || 1), startDate: input.startDate || now.slice(0, 10), endDate: input.endDate, nextDueDate: input.nextDueDate || input.startDate || now.slice(0, 10), preferredTime: input.preferredTime || template.preferredTime, assignedTeamId: input.assignedTeamId || "housekeeping", defaultAssignedUserId: input.defaultAssignedUserId, priority: input.priority || template.defaultPriority, generateDaysBeforeDue: Number(input.generateDaysBeforeDue || 1), dueSoonHours: Number(input.dueSoonHours || 4), active: input.active ?? true, paused: false, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({ ...s, housekeepingSchedules: [schedule, ...s.housekeepingSchedules] }));
+        return schedule;
+      },
+      updateHousekeepingSchedule: (id, input) => setStore((s) => ({ ...s, housekeepingSchedules: s.housekeepingSchedules.map((item) => item.id === id ? { ...item, ...input, updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) })),
+      pauseHousekeepingSchedule: (id, reason) => { if (!reason.trim()) throw new Error("Enter a pause reason."); setStore((s) => ({ ...s, housekeepingSchedules: s.housekeepingSchedules.map((item) => item.id === id ? { ...item, paused: true, pausedBy: currentUserName, pausedAt: new Date().toISOString(), pauseReason: reason } : item) })); },
+      resumeHousekeepingSchedule: (id) => setStore((s) => ({ ...s, housekeepingSchedules: s.housekeepingSchedules.map((item) => item.id === id ? { ...item, paused: false, pausedBy: undefined, pausedAt: undefined, pauseReason: undefined } : item) })),
+      archiveHousekeepingSchedule: (id, reason) => { if (!reason.trim()) throw new Error("Enter an archive reason."); setStore((s) => ({ ...s, housekeepingSchedules: s.housekeepingSchedules.map((item) => item.id === id ? { ...item, active: false, archivedBy: currentUserName, archivedAt: new Date().toISOString() } : item) })); },
+      generateHousekeepingTask: (scheduleId) => {
+        const schedule = store.housekeepingSchedules.find((item) => item.id === scheduleId);
+        if (!schedule) throw new Error("Cleaning schedule not found.");
+        if (!schedule.active || schedule.paused || schedule.archivedAt) throw new Error("Paused, archived or inactive schedules cannot generate tasks.");
+        if (store.housekeepingTasks.some((item) => item.scheduleId === schedule.id && item.plannedDate === schedule.nextDueDate)) throw new Error("This cleaning task has already been generated.");
+        return api.createAdHocHousekeepingTask({ homeId: schedule.homeId, scheduleId: schedule.id, templateId: schedule.templateId, title: schedule.scheduleName, dueDate: schedule.nextDueDate, dueTime: schedule.preferredTime, locationId: schedule.locationId, locationLabel: schedule.locationLabel, roomId: schedule.roomId, assignedTeamId: schedule.assignedTeamId, assignedUserId: schedule.defaultAssignedUserId });
+      },
+      createAdHocHousekeepingTask: (input) => {
+        const template = store.housekeepingTemplates.find((item) => item.id === input.templateId && item.active && item.status === "ACTIVE");
+        if (!template) throw new Error("Select an active cleaning template.");
+        const now = new Date().toISOString();
+        const task: HousekeepingTask = { id: `hk-task-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, scheduleId: input.scheduleId, templateId: template.id, templateVersion: template.version, locationId: input.locationId, locationLabel: input.locationLabel, roomId: input.roomId, taskNumber: `HK-${new Date().getFullYear()}-${String(store.housekeepingTasks.length + 1).padStart(4, "0")}`, cleaningType: input.cleaningType || template.cleaningType, title: input.title.trim(), description: input.description || template.description, plannedDate: input.plannedDate || input.dueDate, dueDate: input.dueDate, dueTime: input.dueTime, priority: input.priority || template.defaultPriority, status: input.assignedUserId ? "ASSIGNED" : "UNASSIGNED", assignedTeamId: input.assignedTeamId || "housekeeping", assignedUserId: input.assignedUserId, qualityInspectionRequired: template.qualityInspectionRequired, roomReadinessRequired: template.roomReadinessRequired, photoEvidenceRequired: template.photoEvidenceRequired, minimumPhotoCount: template.minimumPhotoCount, verificationRequired: template.verificationRequired, overallResult: "NOT_COMPLETED", cleanerDeclarationAccepted: false, version: 1, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        const responses = createHousekeepingResponsesFromTemplate(task.id, store.housekeepingTemplateSections.filter((item) => item.templateId === template.id), store.housekeepingTemplateItems.filter((item) => item.templateId === template.id), currentUserName, now);
+        setStore((s) => ({ ...s, housekeepingTasks: [task, ...s.housekeepingTasks], housekeepingTaskResponses: [...responses, ...s.housekeepingTaskResponses], housekeepingSchedules: input.scheduleId ? s.housekeepingSchedules.map((item) => item.id === input.scheduleId ? { ...item, nextDueDate: nextHousekeepingDueDate(item.nextDueDate, item.frequencyType, item.frequencyInterval) } : item) : s.housekeepingSchedules }));
+        return task;
+      },
+      assignHousekeepingTask: (id, input) => setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? { ...item, assignedUserId: input.assignedUserId, assignedTeamId: input.assignedTeamId || item.assignedTeamId, status: input.assignedUserId ? "ASSIGNED" : "UNASSIGNED", updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      startHousekeepingTask: (id) => setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? { ...item, status: "IN_PROGRESS", startedBy: item.startedBy || currentUserName, startedAt: item.startedAt || new Date().toISOString(), updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      pauseHousekeepingTask: (id) => setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id && item.status === "IN_PROGRESS" ? { ...item, status: "PAUSED", pausedBy: currentUserName, pausedAt: new Date().toISOString(), updatedBy: currentUserName, version: item.version + 1 } : item) })),
+      resumeHousekeepingTask: (id) => api.startHousekeepingTask(id),
+      updateHousekeepingTaskResponse: (responseId, input) => setStore((s) => ({ ...s, housekeepingTaskResponses: s.housekeepingTaskResponses.map((item) => item.id === responseId ? { ...item, ...input, result: input.result || (input.responseValue === undefined ? item.result : responseResultFromHousekeepingValue(input.responseValue)), answeredBy: currentUserName, answeredAt: new Date().toISOString() } : item) })),
+      addHousekeepingEvidence: (input) => { const evidence: HousekeepingEvidence = { id: `hk-evidence-${uid()}`, taskId: input.taskId, responseId: input.responseId, inspectionId: input.inspectionId, exceptionId: input.exceptionId, evidenceType: input.evidenceType, fileReference: input.fileReference || `housekeeping/${input.fileName}`, fileName: input.fileName, caption: input.caption, uploadedBy: currentUserName, uploadedAt: new Date().toISOString(), active: true }; setStore((s) => ({ ...s, housekeepingEvidence: [evidence, ...s.housekeepingEvidence] })); return evidence; },
+      deleteHousekeepingEvidence: (id, reason) => { if (!reason.trim()) throw new Error("Enter a delete reason."); setStore((s) => ({ ...s, housekeepingEvidence: s.housekeepingEvidence.map((item) => item.id === id ? { ...item, active: false, deletedAt: new Date().toISOString(), deletedBy: currentUserName } : item) })); },
+      completeHousekeepingTask: (id, input) => {
+        const task = store.housekeepingTasks.find((item) => item.id === id); if (!task) throw new Error("Housekeeping task not found.");
+        const evaluation = evaluateHousekeepingTask({ task: { ...task, ...input }, responses: store.housekeepingTaskResponses.filter((item) => item.taskId === id), evidence: store.housekeepingEvidence.filter((item) => item.taskId === id), exceptions: store.housekeepingExceptions.filter((item) => item.taskId === id) });
+        if (!evaluation.canComplete) throw new Error(evaluation.blockers[0] || "Task cannot be completed.");
+        const now = new Date().toISOString();
+        const next = { ...task, status: evaluation.nextStatus, overallResult: evaluation.overallResult, completionNotes: input.completionNotes, cleanerDeclarationAccepted: true, completedBy: evaluation.nextStatus === "COMPLETED" ? currentUserName : undefined, completedAt: evaluation.nextStatus === "COMPLETED" ? now : undefined, failedBy: evaluation.nextStatus === "FAILED" ? currentUserName : undefined, failedAt: evaluation.nextStatus === "FAILED" ? now : undefined, updatedBy: currentUserName, updatedAt: now, version: task.version + 1 };
+        setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? next : item) }));
+        return next;
+      },
+      failHousekeepingTask: (id, reason) => { if (!reason.trim()) throw new Error("Enter a failure reason."); const now = new Date().toISOString(); const task = store.housekeepingTasks.find((item) => item.id === id); if (!task) throw new Error("Task not found."); const next = { ...task, status: "FAILED" as const, overallResult: "FAIL" as const, failedBy: currentUserName, failedAt: now, completionNotes: reason, updatedBy: currentUserName, updatedAt: now, version: task.version + 1 }; setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? next : item) })); return next; },
+      cancelHousekeepingTask: (id, reason) => { if (!reason.trim()) throw new Error("Enter a cancellation reason."); setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? { ...item, status: "CANCELLED", completionNotes: reason, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })); },
+      skipHousekeepingTask: (id, reason) => { if (!reason.trim()) throw new Error("Enter a skip reason."); setStore((s) => ({ ...s, housekeepingTasks: s.housekeepingTasks.map((item) => item.id === id ? { ...item, status: "SKIPPED", completionNotes: reason, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })); },
+      createHousekeepingException: (input) => { const task = store.housekeepingTasks.find((item) => item.id === input.taskId); if (!task) throw new Error("Housekeeping task not found."); const now = new Date().toISOString(); const exception: HousekeepingException = { id: `hk-exception-${uid()}`, tenantId: "tenant-oritas-demo", homeId: task.homeId, facilityId: task.homeId, taskId: task.id, locationId: input.locationId || task.locationId, locationLabel: input.locationLabel || task.locationLabel, roomId: input.roomId || task.roomId, exceptionType: input.exceptionType, category: input.category, description: input.description, severity: input.severity, status: input.status || "OPEN", immediateActionTaken: input.immediateActionTaken, requiresSupervisorReview: input.requiresSupervisorReview ?? ["HIGH", "CRITICAL"].includes(input.severity), requiresMaintenanceWorkOrder: Boolean(input.requiresMaintenanceWorkOrder), maintenanceWorkOrderId: input.maintenanceWorkOrderId, requiresReinspection: Boolean(input.requiresReinspection), reportedBy: currentUserName, reportedAt: now, createdAt: now, updatedAt: now }; setStore((s) => ({ ...s, housekeepingExceptions: [exception, ...s.housekeepingExceptions] })); return exception; },
+      updateHousekeepingException: (id, input) => setStore((s) => ({ ...s, housekeepingExceptions: s.housekeepingExceptions.map((item) => item.id === id ? { ...item, ...input, updatedAt: new Date().toISOString() } : item) })),
+      resolveHousekeepingException: (id, notes) => setStore((s) => ({ ...s, housekeepingExceptions: s.housekeepingExceptions.map((item) => item.id === id ? { ...item, status: "RESOLVED", resolvedBy: currentUserName, resolvedAt: new Date().toISOString(), resolutionNotes: notes, updatedAt: new Date().toISOString() } : item) })),
+      closeHousekeepingException: (id, notes) => setStore((s) => ({ ...s, housekeepingExceptions: s.housekeepingExceptions.map((item) => item.id === id ? { ...item, status: "CLOSED", resolutionNotes: notes || item.resolutionNotes, updatedAt: new Date().toISOString() } : item) })),
+      createHousekeepingExceptionWorkOrder: (id) => { const exception = store.housekeepingExceptions.find((item) => item.id === id); if (!exception) throw new Error("Housekeeping exception not found."); if (exception.maintenanceWorkOrderId) { const existing = store.maintenanceWorkOrders.find((item) => item.id === exception.maintenanceWorkOrderId); if (existing) return existing; } const workOrder = api.addMaintenanceWorkOrder({ homeId: exception.homeId, title: `Housekeeping exception - ${exception.category}`, description: exception.description, type: "REACTIVE", source: "HOUSEKEEPING_REQUEST", category: exception.exceptionType === "MAINTENANCE" ? "GENERAL_MAINTENANCE" : "CLEANING_HOUSEKEEPING_SUPPORT", priority: exception.severity === "CRITICAL" ? "CRITICAL" : exception.severity === "HIGH" ? "HIGH" : "MEDIUM", exactLocation: exception.locationLabel, roomId: exception.roomId, complianceImpact: exception.severity === "CRITICAL", immediateRisk: exception.severity === "CRITICAL", immediateControlSummary: exception.immediateActionTaken, verificationRequired: true }); api.updateHousekeepingException(id, { maintenanceWorkOrderId: workOrder.id, requiresMaintenanceWorkOrder: true }); return workOrder; },
+      createHousekeepingQualityInspection: (taskId, input = {}) => { const task = store.housekeepingTasks.find((item) => item.id === taskId); if (!task) throw new Error("Housekeeping task not found."); const now = new Date().toISOString(); const inspection: QualityInspection = { id: `hk-quality-${uid()}`, tenantId: "tenant-oritas-demo", homeId: task.homeId, facilityId: task.homeId, taskId, locationId: task.locationId, locationLabel: task.locationLabel, roomId: task.roomId, status: "PENDING", failedItemCount: 0, photoEvidenceRequired: task.photoEvidenceRequired, reinspectionRequired: false, createdAt: now, updatedAt: now, version: 1, ...input }; setStore((s) => ({ ...s, housekeepingQualityInspections: [inspection, ...s.housekeepingQualityInspections] })); return inspection; },
+      startHousekeepingQualityInspection: (id) => setStore((s) => ({ ...s, housekeepingQualityInspections: s.housekeepingQualityInspections.map((item) => item.id === id ? { ...item, status: "IN_PROGRESS", inspectorId: currentUser.id, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      completeHousekeepingQualityInspection: (id, input) => { const inspection = store.housekeepingQualityInspections.find((item) => item.id === id); if (!inspection) throw new Error("Quality inspection not found."); const now = new Date().toISOString(); const next: QualityInspection = { ...inspection, result: input.result, score: input.score, inspectionNotes: input.notes, status: input.result === "FAIL" ? "FAILED" : "PASSED", failedItemCount: input.result === "FAIL" ? Math.max(1, inspection.failedItemCount) : 0, reinspectionRequired: input.result === "FAIL", inspectedAt: now, inspectorId: inspection.inspectorId || currentUser.id, updatedAt: now, version: inspection.version + 1 }; setStore((s) => ({ ...s, housekeepingQualityInspections: s.housekeepingQualityInspections.map((item) => item.id === id ? next : item) })); return next; },
+      createHousekeepingAudit: (input) => { const now = new Date().toISOString(); const audit: CleaningAudit = { id: `hk-audit-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, auditNumber: `HKA-${new Date().getFullYear()}-${String(store.housekeepingCleaningAudits.length + 1).padStart(4, "0")}`, auditType: input.auditType, locationId: input.locationId, locationLabel: input.locationLabel, roomId: input.roomId, taskId: input.taskId, templateId: input.templateId, auditDate: input.auditDate, auditorId: input.auditorId || currentUser.id, status: input.status || "DRAFT", correctiveActionRequired: Boolean(input.correctiveActionRequired), reinspectionRequired: Boolean(input.reinspectionRequired), createdAt: now, updatedAt: now }; setStore((s) => ({ ...s, housekeepingCleaningAudits: [audit, ...s.housekeepingCleaningAudits] })); return audit; },
+      completeHousekeepingAudit: (id, input) => setStore((s) => ({ ...s, housekeepingCleaningAudits: s.housekeepingCleaningAudits.map((item) => item.id === id ? { ...item, status: input.result === "FAIL" ? "FAILED" : "COMPLETED", result: input.result, score: input.score, observations: input.observations, correctiveActionRequired: input.result === "FAIL", reinspectionRequired: input.result === "FAIL", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item) })),
+      createHousekeepingReinspection: (input) => { const task = store.housekeepingTasks.find((item) => item.id === input.originalTaskId); if (!task) throw new Error("Original housekeeping task not found."); const now = new Date().toISOString(); const reinspection: HousekeepingReinspection = { id: `hk-reinspection-${uid()}`, tenantId: "tenant-oritas-demo", homeId: task.homeId, facilityId: task.homeId, originalTaskId: task.id, originalInspectionId: input.originalInspectionId, failedTaskId: input.failedTaskId || task.id, assignedUserId: input.assignedUserId, assignedTeamId: input.assignedTeamId || "housekeeping-supervisor", reason: input.reason, status: input.status || "PENDING", scheduledDate: input.scheduledDate || input.dueDate, dueDate: input.dueDate, notes: input.notes, createdBy: currentUserName, createdAt: now, updatedAt: now }; setStore((s) => ({ ...s, housekeepingReinspections: [reinspection, ...s.housekeepingReinspections] })); return reinspection; },
+      completeHousekeepingReinspection: (id, result, notes) => setStore((s) => ({ ...s, housekeepingReinspections: s.housekeepingReinspections.map((item) => item.id === id ? { ...item, status: result === "PASS" ? "PASSED" : "FAILED", result, notes, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item) })),
+      markRoomReady: (roomId, reason) => { if (!reason.trim()) throw new Error("Enter a reason."); if (store.housekeepingExceptions.some((item) => item.roomId === roomId && ["OPEN", "IN_REVIEW", "ACTION_REQUIRED"].includes(item.status))) throw new Error("Room has open blockers and cannot be marked ready."); const now = new Date().toISOString(); const current = store.housekeepingRoomReadiness.find((item) => item.roomId === roomId); setStore((s) => ({ ...s, housekeepingRoomReadiness: s.housekeepingRoomReadiness.map((item) => item.roomId === roomId ? { ...item, readinessStatus: "READY", cleaningRequired: false, cleaningCompleted: true, qualityInspectionPassed: true, linenReady: true, wasteCleared: true, suppliesReady: true, markedReadyBy: currentUserName, markedReadyAt: now, readinessNotes: reason, lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item), housekeepingRoomStatusHistory: [{ id: `hk-room-history-${uid()}`, tenantId: "tenant-oritas-demo", homeId: activeFacilityId, facilityId: activeFacilityId, roomId, previousStatus: current?.readinessStatus, newStatus: "READY", reason, sourceType: "MANUAL", changedBy: currentUserName, changedAt: now }, ...s.housekeepingRoomStatusHistory] })); },
+      markRoomUnavailable: (roomId, reason) => { if (!reason.trim()) throw new Error("Enter a reason."); const now = new Date().toISOString(); const current = store.housekeepingRoomReadiness.find((item) => item.roomId === roomId); setStore((s) => ({ ...s, housekeepingRoomReadiness: s.housekeepingRoomReadiness.map((item) => item.roomId === roomId ? { ...item, readinessStatus: "UNAVAILABLE", readinessNotes: reason, lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item), housekeepingRoomStatusHistory: [{ id: `hk-room-history-${uid()}`, tenantId: "tenant-oritas-demo", homeId: activeFacilityId, facilityId: activeFacilityId, roomId, previousStatus: current?.readinessStatus, newStatus: "UNAVAILABLE", reason, sourceType: "MANUAL", changedBy: currentUserName, changedAt: now }, ...s.housekeepingRoomStatusHistory] })); },
       addMaintenanceWorkOrder: (input) => {
         if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to create Work Orders for this Care Home.");

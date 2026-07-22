@@ -2873,6 +2873,409 @@ export interface SafetyInspectionVerification {
   version: number;
 }
 
+export type HousekeepingCleaningType = "ROUTINE" | "DEEP" | "ENHANCED" | "TERMINAL";
+export type HousekeepingTemplateStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type HousekeepingChecklistResponseType =
+  | "PASS_FAIL"
+  | "PASS_FAIL_NA"
+  | "YES_NO"
+  | "YES_NO_NA"
+  | "TEXT"
+  | "NUMBER"
+  | "PHOTO_CONFIRMATION"
+  | "SIGNATURE_CONFIRMATION";
+export type HousekeepingTaskStatus =
+  | "SCHEDULED"
+  | "UNASSIGNED"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "PAUSED"
+  | "AWAITING_INSPECTION"
+  | "AWAITING_REINSPECTION"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "SKIPPED"
+  | "OVERDUE";
+export type HousekeepingResult = "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL" | "NOT_COMPLETED";
+export type HousekeepingResponseResult = "PASS" | "FAIL" | "NOT_APPLICABLE" | "INFORMATION_ONLY" | "UNANSWERED";
+export type HousekeepingEvidenceType = "PHOTO" | "DOCUMENT" | "SIGNATURE" | "OTHER";
+export type HousekeepingExceptionType = "CLEANING" | "WASTE" | "LINEN" | "ROOM" | "MAINTENANCE" | "SAFETY" | "ACCESS" | "SUPPLY" | "OTHER";
+export type HousekeepingExceptionStatus = "OPEN" | "IN_REVIEW" | "ACTION_REQUIRED" | "RESOLVED" | "CLOSED";
+export type HousekeepingSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type HousekeepingAuditType = "ROUTINE_AUDIT" | "RANDOM_AUDIT" | "SUPERVISOR_AUDIT" | "MANAGEMENT_AUDIT" | "FOLLOW_UP_AUDIT";
+export type HousekeepingAuditStatus = "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type HousekeepingQualityInspectionStatus = "PENDING" | "IN_PROGRESS" | "PASSED" | "FAILED" | "AWAITING_REINSPECTION" | "CANCELLED";
+export type HousekeepingReinspectionStatus = "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "PASSED" | "FAILED" | "CANCELLED";
+export type HousekeepingRoomReadinessStatus =
+  | "OCCUPIED"
+  | "CLEANING_REQUIRED"
+  | "CLEANING_IN_PROGRESS"
+  | "AWAITING_INSPECTION"
+  | "FAILED_INSPECTION"
+  | "MAINTENANCE_BLOCKED"
+  | "READY"
+  | "OUT_OF_SERVICE"
+  | "UNAVAILABLE";
+export type HousekeepingRoomStatusSource = "HOUSEKEEPING_TASK" | "QUALITY_INSPECTION" | "ROOM_READINESS" | "MAINTENANCE_WORK_ORDER" | "MANUAL";
+
+export interface HousekeepingTemplate {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  name: string;
+  code: string;
+  description?: string;
+  cleaningType: HousekeepingCleaningType;
+  applicableLocationTypes?: string[];
+  applicableRoomTypes?: string[];
+  estimatedDurationMinutes: number;
+  defaultFrequencyType: PlannedMaintenanceFrequencyType;
+  defaultFrequencyInterval: number;
+  preferredTime?: string;
+  defaultPriority: MaintenanceWorkOrderPriority;
+  photoEvidenceRequired: boolean;
+  minimumPhotoCount: number;
+  qualityInspectionRequired: boolean;
+  roomReadinessRequired: boolean;
+  verificationRequired: boolean;
+  supervisorSignOffRequired: boolean;
+  instructions?: string;
+  safetyPrecautions?: string;
+  active: boolean;
+  status: HousekeepingTemplateStatus;
+  version: number;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+}
+
+export interface HousekeepingTemplateSection {
+  id: string;
+  templateId: string;
+  name: string;
+  description?: string;
+  displayOrder: number;
+  active: boolean;
+}
+
+export interface HousekeepingTemplateItem {
+  id: string;
+  templateId: string;
+  sectionId: string;
+  code: string;
+  label: string;
+  description?: string;
+  responseType: HousekeepingChecklistResponseType;
+  mandatory: boolean;
+  allowNotApplicable: boolean;
+  notApplicableReasonRequired: boolean;
+  failureRequiresObservation: boolean;
+  failureRequiresPhoto: boolean;
+  failureRequiresException: boolean;
+  failureSeverity: HousekeepingSeverity;
+  displayOrder: number;
+  helpText?: string;
+  active: boolean;
+}
+
+export interface HousekeepingSchedule {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  templateId: string;
+  locationId?: string;
+  locationLabel?: string;
+  roomId?: string;
+  scheduleName: string;
+  cleaningType: HousekeepingCleaningType;
+  frequencyType: PlannedMaintenanceFrequencyType;
+  frequencyInterval: number;
+  startDate: string;
+  endDate?: string;
+  nextDueDate: string;
+  preferredTime?: string;
+  assignedTeamId: string;
+  defaultAssignedUserId?: string;
+  priority: MaintenanceWorkOrderPriority;
+  generateDaysBeforeDue: number;
+  dueSoonHours: number;
+  active: boolean;
+  paused: boolean;
+  pauseReason?: string;
+  pausedBy?: string;
+  pausedAt?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+}
+
+export interface HousekeepingTask {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  scheduleId?: string;
+  templateId: string;
+  templateVersion: number;
+  locationId?: string;
+  locationLabel?: string;
+  roomId?: string;
+  taskNumber: string;
+  cleaningType: HousekeepingCleaningType;
+  title: string;
+  description?: string;
+  plannedDate: string;
+  dueDate: string;
+  dueTime?: string;
+  priority: MaintenanceWorkOrderPriority;
+  status: HousekeepingTaskStatus;
+  assignedTeamId?: string;
+  assignedUserId?: string;
+  startedBy?: string;
+  startedAt?: string;
+  pausedBy?: string;
+  pausedAt?: string;
+  completedBy?: string;
+  completedAt?: string;
+  failedBy?: string;
+  failedAt?: string;
+  roomStatusBefore?: HousekeepingRoomReadinessStatus;
+  roomStatusAfter?: HousekeepingRoomReadinessStatus;
+  qualityInspectionRequired: boolean;
+  roomReadinessRequired: boolean;
+  photoEvidenceRequired: boolean;
+  minimumPhotoCount: number;
+  verificationRequired: boolean;
+  overallResult: HousekeepingResult;
+  completionNotes?: string;
+  cleanerDeclarationAccepted?: boolean;
+  version: number;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface HousekeepingTaskResponse {
+  id: string;
+  taskId: string;
+  templateItemId: string;
+  sectionNameSnapshot: string;
+  questionLabelSnapshot: string;
+  responseType: HousekeepingChecklistResponseType;
+  responseValue?: string;
+  result: HousekeepingResponseResult;
+  observation?: string;
+  notApplicableReason?: string;
+  failureSeverity: HousekeepingSeverity;
+  answeredBy?: string;
+  answeredAt?: string;
+  displayOrder: number;
+  mandatory: boolean;
+  failureRequiresObservation: boolean;
+  failureRequiresPhoto: boolean;
+  failureRequiresException: boolean;
+  notApplicableReasonRequired: boolean;
+}
+
+export interface HousekeepingEvidence {
+  id: string;
+  taskId?: string;
+  responseId?: string;
+  inspectionId?: string;
+  exceptionId?: string;
+  evidenceType: HousekeepingEvidenceType;
+  fileReference: string;
+  fileName: string;
+  mimeType?: string;
+  fileSize?: number;
+  caption?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  active: boolean;
+  deletedBy?: string;
+  deletedAt?: string;
+}
+
+export interface HousekeepingException {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  taskId: string;
+  locationId?: string;
+  locationLabel?: string;
+  roomId?: string;
+  exceptionType: HousekeepingExceptionType;
+  category: string;
+  description: string;
+  severity: HousekeepingSeverity;
+  status: HousekeepingExceptionStatus;
+  immediateActionTaken?: string;
+  requiresSupervisorReview: boolean;
+  requiresMaintenanceWorkOrder: boolean;
+  maintenanceWorkOrderId?: string;
+  requiresReinspection: boolean;
+  reportedBy: string;
+  reportedAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolutionNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CleaningAudit {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  auditNumber: string;
+  auditType: HousekeepingAuditType;
+  locationId?: string;
+  locationLabel?: string;
+  roomId?: string;
+  taskId?: string;
+  templateId?: string;
+  auditDate: string;
+  auditorId?: string;
+  status: HousekeepingAuditStatus;
+  result?: Extract<HousekeepingResult, "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL">;
+  score?: number;
+  observations?: string;
+  correctiveActionRequired: boolean;
+  reinspectionRequired: boolean;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CleaningAuditResponse {
+  id: string;
+  auditId: string;
+  checklistItemId: string;
+  questionSnapshot: string;
+  response?: string;
+  result: HousekeepingResponseResult;
+  observation?: string;
+  evidenceRequired: boolean;
+  displayOrder: number;
+}
+
+export interface QualityInspection {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  taskId: string;
+  locationId?: string;
+  locationLabel?: string;
+  roomId?: string;
+  inspectorId?: string;
+  assignedInspectorId?: string;
+  status: HousekeepingQualityInspectionStatus;
+  result?: Extract<HousekeepingResult, "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL">;
+  score?: number;
+  inspectionNotes?: string;
+  failedItemCount: number;
+  photoEvidenceRequired: boolean;
+  reinspectionRequired: boolean;
+  inspectedAt?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface QualityInspectionResponse {
+  id: string;
+  inspectionId: string;
+  checklistItemCode: string;
+  questionSnapshot: string;
+  result: HousekeepingResponseResult;
+  observation?: string;
+  severity?: HousekeepingSeverity;
+  evidenceRequired: boolean;
+  displayOrder: number;
+}
+
+export interface HousekeepingReinspection {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  originalTaskId: string;
+  originalInspectionId?: string;
+  failedTaskId?: string;
+  assignedUserId?: string;
+  assignedTeamId?: string;
+  reason: string;
+  status: HousekeepingReinspectionStatus;
+  result?: Extract<HousekeepingResult, "PASS" | "FAIL">;
+  scheduledDate: string;
+  dueDate: string;
+  startedAt?: string;
+  completedAt?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoomReadinessRecord {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  roomId: string;
+  locationId?: string;
+  readinessStatus: HousekeepingRoomReadinessStatus;
+  triggerType: string;
+  sourceTaskId?: string;
+  sourceInspectionId?: string;
+  currentOccupancyStatus?: string;
+  cleaningRequired: boolean;
+  cleaningCompleted: boolean;
+  qualityInspectionRequired: boolean;
+  qualityInspectionPassed: boolean;
+  maintenanceIssueOpen: boolean;
+  linenReady: boolean;
+  wasteCleared: boolean;
+  suppliesReady: boolean;
+  readinessNotes?: string;
+  markedReadyBy?: string;
+  markedReadyAt?: string;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
+}
+
+export interface RoomStatusHistory {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  roomId: string;
+  previousStatus?: HousekeepingRoomReadinessStatus;
+  newStatus: HousekeepingRoomReadinessStatus;
+  reason: string;
+  sourceType: HousekeepingRoomStatusSource;
+  sourceId?: string;
+  changedBy: string;
+  changedAt: string;
+}
+
 export type WorkOrderNoteType =
   | "GENERAL"
   | "PROGRESS_UPDATE"
