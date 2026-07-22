@@ -2854,6 +2854,234 @@ export interface SafetyCertificate {
   updatedAt?: string;
 }
 
+export type MaintenanceCertificateSubjectType = "ASSET" | "WORK_ORDER" | "SAFETY_INSPECTION" | "CONTRACTOR" | "HOME" | "LOCATION" | "OTHER";
+export type MaintenanceCertificateLifecycleStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type MaintenanceCertificateVersionStatus = "DRAFT" | "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "SUPERSEDED" | "REVOKED" | "ARCHIVED";
+export type MaintenanceCertificateComplianceStatus = "VALID" | "EXPIRING_SOON" | "EXPIRED" | "MISSING" | "REVOKED" | "NOT_APPLICABLE";
+export type MaintenanceCertificateTypeCategory = "SAFETY" | "SERVICE" | "INSPECTION" | "LEGAL" | "INSURANCE" | "CONTRACTOR_CERTIFICATION" | "ASSET_COMPLIANCE" | "CALIBRATION" | "WARRANTY" | "OTHER";
+export type MaintenanceCertificateAttachmentType = "CERTIFICATE_FILE" | "SUPPORTING_DOCUMENT" | "RENEWAL_DOCUMENT" | "ISSUER_CORRESPONDENCE" | "EVIDENCE" | "PHOTO" | "OTHER";
+export type MaintenanceCertificateLinkRelationship = "CERTIFIES" | "SERVICES" | "INSPECTS" | "CALIBRATES" | "WARRANTY_FOR" | "APPLIES_TO" | "ISSUED_FROM" | "REQUIRED_BY" | "EVIDENCE_FOR" | "RENEWED_BY" | "SUPPORTS_COMPLIANCE" | "RELATED_TO" | "HELD_BY" | "ISSUED_BY" | "INSURANCE_FOR" | "CERTIFICATION_FOR" | "PROVIDED_BY" | "OTHER";
+export type MaintenanceCertificateRequirementRecurrence = PlannedMaintenanceFrequencyType | "none";
+
+export interface MaintenanceCertificateType {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  description?: string;
+  category: MaintenanceCertificateTypeCategory;
+  defaultValidityMonths?: number;
+  expiryRequired: boolean;
+  certificateNumberRequired: boolean;
+  issuingOrganisationRequired: boolean;
+  attachmentRequired: boolean;
+  renewalAllowed: boolean;
+  warningDays: number;
+  criticalWarningDays: number;
+  applicableSubjectTypes: MaintenanceCertificateSubjectType[];
+  applicableAssetCategoryIds?: string[];
+  applicableSafetyCategories?: string[];
+  complianceCritical: boolean;
+  active: boolean;
+  systemType: boolean;
+  displayOrder: number;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+}
+
+export interface MaintenanceCertificate {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateTypeId: string;
+  certificateNumber: string;
+  title: string;
+  description?: string;
+  issuingOrganisation: string;
+  issuingOrganisationContact?: string;
+  subjectType: MaintenanceCertificateSubjectType;
+  primarySubjectId?: string;
+  currentVersionId?: string;
+  lifecycleStatus: MaintenanceCertificateLifecycleStatus;
+  complianceStatus: MaintenanceCertificateComplianceStatus;
+  active: boolean;
+  archived: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  version: number;
+}
+
+export interface MaintenanceCertificateVersion {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateId: string;
+  versionNumber: number;
+  certificateNumberSnapshot: string;
+  issuedDate: string;
+  validFromDate: string;
+  expiryDate?: string;
+  issuingOrganisation: string;
+  issuingOrganisationContact?: string;
+  status: MaintenanceCertificateVersionStatus;
+  supersedesVersionId?: string;
+  supersededByVersionId?: string;
+  renewalReason?: string;
+  revocationReason?: string;
+  notes?: string;
+  isCurrent: boolean;
+  issuedByUserId?: string;
+  recordedBy: string;
+  recordedAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  version: number;
+}
+
+export interface MaintenanceCertificateAttachment {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId: string;
+  fileReference: string;
+  fileName: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSize: number;
+  documentType: MaintenanceCertificateAttachmentType;
+  title: string;
+  description?: string;
+  primaryAttachment: boolean;
+  uploadedBy: string;
+  uploadedAt: string;
+  active: boolean;
+  removedBy?: string;
+  removedAt?: string;
+  removalReason?: string;
+}
+
+export interface MaintenanceCertificateAssetLink {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId?: string;
+  assetId: string;
+  relationshipType: MaintenanceCertificateLinkRelationship;
+  primary: boolean;
+  linkedBy: string;
+  linkedAt: string;
+  unlinkedBy?: string;
+  unlinkedAt?: string;
+}
+
+export interface MaintenanceCertificateWorkOrderLink {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId?: string;
+  workOrderId: string;
+  relationshipType: MaintenanceCertificateLinkRelationship;
+  linkedBy: string;
+  linkedAt: string;
+  unlinkedBy?: string;
+  unlinkedAt?: string;
+}
+
+export interface MaintenanceCertificateSafetyInspectionLink {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId?: string;
+  safetyInspectionId: string;
+  relationshipType: MaintenanceCertificateLinkRelationship;
+  linkedBy: string;
+  linkedAt: string;
+  unlinkedBy?: string;
+  unlinkedAt?: string;
+}
+
+export interface MaintenanceCertificateContractorLink {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId?: string;
+  contractorId: string;
+  relationshipType: MaintenanceCertificateLinkRelationship;
+  linkedBy: string;
+  linkedAt: string;
+  unlinkedBy?: string;
+  unlinkedAt?: string;
+}
+
+export interface MaintenanceCertificateRequirement {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateTypeId: string;
+  requirementName: string;
+  subjectType: MaintenanceCertificateSubjectType;
+  subjectId?: string;
+  assetCategoryId?: string;
+  safetyCategoryId?: string;
+  workOrderTypeId?: string;
+  contractorTradeId?: string;
+  mandatory: boolean;
+  recurrenceType?: MaintenanceCertificateRequirementRecurrence;
+  defaultValidityMonths?: number;
+  warningDays: number;
+  graceDays: number;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+}
+
+export interface MaintenanceCertificateTimelineEvent {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  certificateId: string;
+  certificateVersionId?: string;
+  eventType: string;
+  eventDate: string;
+  userId: string;
+  summary: string;
+  details?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  createdAt: string;
+}
+
 export interface SafetyInspectionVerification {
   id: string;
   inspectionId: string;

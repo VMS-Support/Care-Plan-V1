@@ -194,6 +194,20 @@ import type {
   SafetyChecklistResponseType,
   SafetySeverity,
   SafetyVerificationRejectionReason,
+  MaintenanceCertificate,
+  MaintenanceCertificateVersion,
+  MaintenanceCertificateType,
+  MaintenanceCertificateAttachment,
+  MaintenanceCertificateAssetLink,
+  MaintenanceCertificateWorkOrderLink,
+  MaintenanceCertificateSafetyInspectionLink,
+  MaintenanceCertificateContractorLink,
+  MaintenanceCertificateRequirement,
+  MaintenanceCertificateTimelineEvent,
+  MaintenanceCertificateSubjectType,
+  MaintenanceCertificateTypeCategory,
+  MaintenanceCertificateAttachmentType,
+  MaintenanceCertificateLinkRelationship,
   HousekeepingTemplate,
   HousekeepingTemplateSection,
   HousekeepingTemplateItem,
@@ -298,6 +312,12 @@ import {
   validateHousekeepingSchedule,
   validateHousekeepingTemplate,
 } from "@/domain/maintenance/housekeeping";
+import {
+  certificateComplianceStatus,
+  validateCertificateInput,
+  validateCertificateType,
+  validateRequirement,
+} from "@/domain/maintenance/certificates";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -1343,6 +1363,104 @@ function safetyInspection(id: string, categoryId: string, templateId: string, oc
 
 function safetyResponse(inspectionId: string, item: SafetyInspectionTemplateItem, result: SafetyInspectionResponse["result"], value: string, user: string, at: string, observation?: string): SafetyInspectionResponse {
   return { id: `safety-response-${inspectionId}-${item.itemCode}`, inspectionId, templateItemId: item.id, templateItemCode: item.itemCode, sectionName: item.sectionName, questionLabelSnapshot: item.label, responseType: item.responseType, responseValue: value, result, observation, mandatory: item.mandatory, failureSeverity: item.failureSeverity, correctiveActionRequired: item.failureTriggersCorrectiveAction, evidenceRequired: item.failureRequiresEvidence || item.failureRequiresPhoto, answeredBy: user, answeredAt: at, displayOrder: item.displayOrder };
+}
+
+function seedMaintenanceCertificateData() {
+  const now = "2026-07-21T08:30:00.000Z";
+  const types: MaintenanceCertificateType[] = [
+    certificateType("maintenance-cert-type-fire-alarm", "FIRE_ALARM", "Fire Alarm Test Certificate", "SAFETY", 3, true, true, true, true, 30, 7, ["HOME", "LOCATION", "SAFETY_INSPECTION"]),
+    certificateType("maintenance-cert-type-pat", "PAT_TESTING", "PAT Testing Certificate", "ASSET_COMPLIANCE", 12, true, true, true, true, 60, 14, ["ASSET", "SAFETY_INSPECTION"]),
+    certificateType("maintenance-cert-type-gas", "GAS_SAFETY", "Gas Safety Certificate", "LEGAL", 12, true, true, true, true, 90, 30, ["ASSET", "HOME", "SAFETY_INSPECTION"]),
+    certificateType("maintenance-cert-type-boiler", "BOILER_SERVICE", "Boiler Service Certificate", "SERVICE", 12, true, true, true, true, 90, 30, ["ASSET", "WORK_ORDER"]),
+    certificateType("maintenance-cert-type-calibration", "CALIBRATION", "Calibration Certificate", "CALIBRATION", 12, true, true, true, true, 90, 30, ["ASSET"]),
+    certificateType("maintenance-cert-type-warranty", "WARRANTY", "Warranty Certificate", "WARRANTY", undefined, false, false, false, false, 90, 30, ["ASSET"]),
+    certificateType("maintenance-cert-type-contractor-insurance", "CONTRACTOR_INSURANCE", "Contractor Insurance Certificate", "INSURANCE", 12, true, true, true, true, 60, 14, ["CONTRACTOR"]),
+  ];
+  const certificates: MaintenanceCertificate[] = [
+    certificateRecord("maintenance-cert-fire-2026", types[0], "FIRE-2026-0715", "Fire Alarm Test Certificate - Ballymore Haven", "SafeFire Ireland", "HOME", BALLYMORE_FACILITY_ID, "maintenance-cert-version-fire-1", "VALID"),
+    certificateRecord("maintenance-cert-pat-2026", types[1], "PAT-2026-0042", "PAT Testing Certificate - Portable Equipment", "ElectroSafe Ltd", "ASSET", "maintenance-asset-001", "maintenance-cert-version-pat-1", "EXPIRING_SOON"),
+    certificateRecord("maintenance-cert-gas-2025", types[2], "GAS-2025-0118", "Gas Safety Certificate - Main Boiler", "HeatCare Services", "ASSET", "maintenance-asset-002", "maintenance-cert-version-gas-1", "EXPIRED"),
+    certificateRecord("maintenance-cert-boiler-2026", types[3], "BOILER-2026-0007", "Boiler Service Certificate - Main Plant", "HeatCare Services", "ASSET", "maintenance-asset-002", "maintenance-cert-version-boiler-1", "VALID"),
+  ];
+  const versions: MaintenanceCertificateVersion[] = [
+    certificateVersion("maintenance-cert-version-fire-1", certificates[0], 1, "2026-07-15", "2026-07-15", "2026-10-15", "ACTIVE", true),
+    certificateVersion("maintenance-cert-version-pat-1", certificates[1], 1, "2026-01-31", "2026-01-31", "2026-08-15", "EXPIRING_SOON", true),
+    certificateVersion("maintenance-cert-version-gas-1", certificates[2], 1, "2025-06-15", "2025-06-15", "2026-06-15", "EXPIRED", true),
+    certificateVersion("maintenance-cert-version-boiler-0", certificates[3], 1, "2025-07-10", "2025-07-10", "2026-07-10", "SUPERSEDED", false),
+    certificateVersion("maintenance-cert-version-boiler-1", certificates[3], 2, "2026-07-18", "2026-07-18", "2027-07-18", "ACTIVE", true, "maintenance-cert-version-boiler-0", "Annual renewal after planned service."),
+  ];
+  versions[3].supersededByVersionId = versions[4].id;
+  const attachments: MaintenanceCertificateAttachment[] = [
+    certificateAttachment("maintenance-cert-attachment-fire-1", certificates[0], versions[0], "fire-alarm-test-2026.pdf", "CERTIFICATE_FILE", true),
+    certificateAttachment("maintenance-cert-attachment-pat-1", certificates[1], versions[1], "pat-testing-2026.pdf", "CERTIFICATE_FILE", true),
+    certificateAttachment("maintenance-cert-attachment-gas-1", certificates[2], versions[2], "gas-safety-2025.pdf", "CERTIFICATE_FILE", true),
+    certificateAttachment("maintenance-cert-attachment-boiler-1", certificates[3], versions[4], "boiler-service-2026.pdf", "CERTIFICATE_FILE", true),
+  ];
+  const assetLinks: MaintenanceCertificateAssetLink[] = [
+    certificateAssetLink("maintenance-cert-asset-link-pat", certificates[1], versions[1], "maintenance-asset-001", "CERTIFIES", true),
+    certificateAssetLink("maintenance-cert-asset-link-gas", certificates[2], versions[2], "maintenance-asset-002", "CERTIFIES", true),
+    certificateAssetLink("maintenance-cert-asset-link-boiler", certificates[3], versions[4], "maintenance-asset-002", "SERVICES", true),
+  ];
+  const workOrderLinks: MaintenanceCertificateWorkOrderLink[] = [
+    { id: "maintenance-cert-work-order-link-boiler", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, certificateId: certificates[3].id, certificateVersionId: versions[4].id, workOrderId: "maintenance-work-order-seed-1", relationshipType: "ISSUED_FROM", linkedBy: "L. Hartley", linkedAt: "2026-07-18T13:20:00.000Z" },
+  ];
+  const safetyInspectionLinks: MaintenanceCertificateSafetyInspectionLink[] = [
+    { id: "maintenance-cert-safety-link-fire", tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, certificateId: certificates[0].id, certificateVersionId: versions[0].id, safetyInspectionId: "safety-inspection-fire-completed", relationshipType: "ISSUED_FROM", linkedBy: "L. Hartley", linkedAt: "2026-07-15T09:25:00.000Z" },
+  ];
+  const contractorLinks: MaintenanceCertificateContractorLink[] = [];
+  const requirements: MaintenanceCertificateRequirement[] = [
+    certificateRequirement("maintenance-cert-req-fire", types[0], "Current fire alarm certificate required", "HOME", BALLYMORE_FACILITY_ID, undefined, 30),
+    certificateRequirement("maintenance-cert-req-pat", types[1], "PAT certificate required for portable electrical assets", "ASSET", undefined, "maintenance-asset-category-electrical", 60),
+    certificateRequirement("maintenance-cert-req-gas", types[2], "Gas safety certificate required for gas plant", "ASSET", "maintenance-asset-002", undefined, 90),
+    certificateRequirement("maintenance-cert-req-calibration", types[4], "Calibration certificate required for clinical test equipment", "ASSET", undefined, "maintenance-asset-category-medical-equipment", 90),
+  ];
+  const timelineEvents: MaintenanceCertificateTimelineEvent[] = [
+    timelineEvent("maintenance-cert-event-boiler-renewed", certificates[3], versions[4], "CERTIFICATE_RENEWED", "Boiler certificate renewed", "Previous version superseded and new version activated.", "2026-07-18T13:20:00.000Z"),
+    timelineEvent("maintenance-cert-event-pat-warning", certificates[1], versions[1], "CERTIFICATE_EXPIRING_SOON", "PAT certificate is due soon", "Expiry falls within the warning window.", now),
+  ];
+  return { types, certificates, versions, attachments, assetLinks, workOrderLinks, safetyInspectionLinks, contractorLinks, requirements, timelineEvents };
+}
+
+function certificateType(id: string, code: string, name: string, category: MaintenanceCertificateTypeCategory, defaultValidityMonths: number | undefined, expiryRequired: boolean, numberRequired: boolean, issuerRequired: boolean, attachmentRequired: boolean, warningDays: number, criticalWarningDays: number, subjects: MaintenanceCertificateSubjectType[]): MaintenanceCertificateType {
+  return { id, tenantId: "tenant-oritas-demo", code, name, description: `${name} used by Maintenance compliance workflows.`, category, defaultValidityMonths, expiryRequired, certificateNumberRequired: numberRequired, issuingOrganisationRequired: issuerRequired, attachmentRequired, renewalAllowed: true, warningDays, criticalWarningDays, applicableSubjectTypes: subjects, complianceCritical: ["SAFETY", "LEGAL", "ASSET_COMPLIANCE", "CALIBRATION"].includes(category), active: true, systemType: true, displayOrder: 1, createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function certificateRecord(id: string, type: MaintenanceCertificateType, number: string, title: string, issuer: string, subjectType: MaintenanceCertificateSubjectType, subjectId: string, currentVersionId: string, complianceStatus: MaintenanceCertificate["complianceStatus"]): MaintenanceCertificate {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, certificateTypeId: type.id, certificateNumber: number, title, description: type.description, issuingOrganisation: issuer, subjectType, primarySubjectId: subjectId, currentVersionId, lifecycleStatus: "ACTIVE", complianceStatus, active: true, archived: false, createdBy: "L. Hartley", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "L. Hartley", updatedAt: "2026-07-21T08:30:00.000Z", version: 1 };
+}
+
+function certificateVersion(id: string, certificate: MaintenanceCertificate, versionNumber: number, issuedDate: string, validFromDate: string, expiryDate: string | undefined, status: MaintenanceCertificateVersion["status"], isCurrent: boolean, supersedesVersionId?: string, renewalReason?: string): MaintenanceCertificateVersion {
+  return { id, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, versionNumber, certificateNumberSnapshot: certificate.certificateNumber, issuedDate, validFromDate, expiryDate, issuingOrganisation: certificate.issuingOrganisation, issuingOrganisationContact: certificate.issuingOrganisationContact, status, supersedesVersionId, renewalReason, notes: renewalReason, isCurrent, recordedBy: "L. Hartley", recordedAt: `${issuedDate}T12:00:00.000Z`, updatedBy: "L. Hartley", updatedAt: `${issuedDate}T12:00:00.000Z`, version: 1 };
+}
+
+function certificateAttachment(id: string, certificate: MaintenanceCertificate, version: MaintenanceCertificateVersion, fileName: string, documentType: MaintenanceCertificateAttachmentType, primary: boolean): MaintenanceCertificateAttachment {
+  return { id, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, certificateVersionId: version.id, fileReference: `maintenance/certificates/${certificate.id}/${version.id}/${fileName}`, fileName, originalFileName: fileName, mimeType: "application/pdf", fileSize: 248000, documentType, title: fileName.replace(".pdf", ""), primaryAttachment: primary, uploadedBy: "L. Hartley", uploadedAt: version.recordedAt, active: true };
+}
+
+function certificateAssetLink(id: string, certificate: MaintenanceCertificate, version: MaintenanceCertificateVersion, assetId: string, relationshipType: MaintenanceCertificateLinkRelationship, primary: boolean): MaintenanceCertificateAssetLink {
+  return { id, tenantId: certificate.tenantId, homeId: certificate.homeId || BALLYMORE_FACILITY_ID, facilityId: certificate.facilityId, certificateId: certificate.id, certificateVersionId: version.id, assetId, relationshipType, primary, linkedBy: "L. Hartley", linkedAt: version.recordedAt };
+}
+
+function certificateRequirement(id: string, type: MaintenanceCertificateType, name: string, subjectType: MaintenanceCertificateSubjectType, subjectId: string | undefined, assetCategoryId: string | undefined, warningDays: number): MaintenanceCertificateRequirement {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, certificateTypeId: type.id, requirementName: name, subjectType, subjectId, assetCategoryId, mandatory: true, recurrenceType: "annual", defaultValidityMonths: type.defaultValidityMonths, warningDays, graceDays: 0, active: true, effectiveFrom: "2026-07-01", createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function timelineEvent(id: string, certificate: MaintenanceCertificate, version: MaintenanceCertificateVersion | undefined, eventType: string, summary: string, details: string, eventDate: string): MaintenanceCertificateTimelineEvent {
+  return { id, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, certificateVersionId: version?.id, eventType, eventDate, userId: "L. Hartley", summary, details, createdAt: eventDate };
+}
+
+function maintenanceCertificateAttachmentRecord(certificate: MaintenanceCertificate, version: MaintenanceCertificateVersion, fileName: string, documentType: MaintenanceCertificateAttachmentType, primary: boolean, user: string, now: string, description?: string): MaintenanceCertificateAttachment {
+  return { id: `maintenance-cert-attachment-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, certificateVersionId: version.id, fileReference: `maintenance/certificates/${certificate.id}/${version.id}/${fileName.trim()}`, fileName: fileName.trim(), originalFileName: fileName.trim(), mimeType: fileName.toLowerCase().endsWith(".png") ? "image/png" : fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".jpeg") ? "image/jpeg" : "application/pdf", fileSize: 256000, documentType, title: fileName.trim().replace(/\.[^.]+$/, ""), description, primaryAttachment: primary, uploadedBy: user, uploadedAt: now, active: true };
+}
+
+function maintenanceCertificateTimelineEvent(certificate: MaintenanceCertificate, version: MaintenanceCertificateVersion | undefined, eventType: string, summary: string, details: string | undefined, user: string, now: string): MaintenanceCertificateTimelineEvent {
+  return { id: `maintenance-cert-event-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, certificateVersionId: version?.id, eventType, eventDate: now, userId: user, summary, details, createdAt: now };
+}
+
+function addMonths(date: string, months: number) {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCMonth(d.getUTCMonth() + Math.max(1, Number(months || 1)));
+  return d.toISOString().slice(0, 10);
 }
 
 function seedHousekeepingData() {
@@ -2995,6 +3113,7 @@ function seedData() {
   const maintenanceTemplateSeed = seedMaintenanceTemplates();
   const safetyComplianceSeed = seedSafetyComplianceData();
   const housekeepingSeed = seedHousekeepingData();
+  const certificateSeed = seedMaintenanceCertificateData();
 
   return {
     enterprises: ENTERPRISES_SEED,
@@ -3181,6 +3300,16 @@ function seedData() {
     safetyInspectionEvidence: safetyComplianceSeed.inspectionEvidence,
     safetyCertificates: safetyComplianceSeed.certificates,
     safetyInspectionVerifications: safetyComplianceSeed.verifications,
+    maintenanceCertificateTypes: certificateSeed.types,
+    maintenanceCertificates: certificateSeed.certificates,
+    maintenanceCertificateVersions: certificateSeed.versions,
+    maintenanceCertificateAttachments: certificateSeed.attachments,
+    maintenanceCertificateAssetLinks: certificateSeed.assetLinks,
+    maintenanceCertificateWorkOrderLinks: certificateSeed.workOrderLinks,
+    maintenanceCertificateSafetyInspectionLinks: certificateSeed.safetyInspectionLinks,
+    maintenanceCertificateContractorLinks: certificateSeed.contractorLinks,
+    maintenanceCertificateRequirements: certificateSeed.requirements,
+    maintenanceCertificateTimelineEvents: certificateSeed.timelineEvents,
     housekeepingTemplates: housekeepingSeed.templates,
     housekeepingTemplateSections: housekeepingSeed.sections,
     housekeepingTemplateItems: housekeepingSeed.items,
@@ -3291,6 +3420,15 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "safetyInspections",
   "safetyInspectionEvidence",
   "safetyCertificates",
+  "maintenanceCertificates",
+  "maintenanceCertificateVersions",
+  "maintenanceCertificateAttachments",
+  "maintenanceCertificateAssetLinks",
+  "maintenanceCertificateWorkOrderLinks",
+  "maintenanceCertificateSafetyInspectionLinks",
+  "maintenanceCertificateContractorLinks",
+  "maintenanceCertificateRequirements",
+  "maintenanceCertificateTimelineEvents",
   "housekeepingTemplates",
   "housekeepingSchedules",
   "housekeepingTasks",
@@ -3946,6 +4084,29 @@ interface CareCtx extends Store {
   updateSafetyCertificate: (id: string, input: Partial<SafetyCertificate>) => void;
   revokeSafetyCertificate: (id: string, reason: string) => void;
   supersedeSafetyCertificate: (id: string, replacementId?: string) => void;
+  createMaintenanceCertificateType: (input: Partial<MaintenanceCertificateType> & { code: string; name: string; category: MaintenanceCertificateTypeCategory }) => MaintenanceCertificateType;
+  updateMaintenanceCertificateType: (id: string, input: Partial<MaintenanceCertificateType>) => void;
+  activateMaintenanceCertificateType: (id: string) => void;
+  deactivateMaintenanceCertificateType: (id: string) => void;
+  archiveMaintenanceCertificateType: (id: string, reason: string) => void;
+  createMaintenanceCertificate: (input: Partial<MaintenanceCertificate> & Partial<MaintenanceCertificateVersion> & { certificateTypeId: string; title: string; certificateNumber?: string; issuingOrganisation?: string; issuedDate: string; validFromDate: string; attachmentFileName?: string }) => MaintenanceCertificate;
+  updateMaintenanceCertificate: (id: string, input: Partial<MaintenanceCertificate> & Partial<MaintenanceCertificateVersion>, reason?: string) => void;
+  archiveMaintenanceCertificate: (id: string, reason: string) => void;
+  restoreMaintenanceCertificate: (id: string) => void;
+  renewMaintenanceCertificate: (id: string, input: Partial<MaintenanceCertificateVersion> & { issuedDate: string; validFromDate: string; expiryDate?: string; renewalReason: string; attachmentFileName?: string; activate?: boolean }) => MaintenanceCertificateVersion;
+  revokeMaintenanceCertificateVersion: (certificateId: string, versionId: string, reason: string) => void;
+  addMaintenanceCertificateAttachment: (certificateId: string, versionId: string, input: { fileName: string; documentType?: MaintenanceCertificateAttachmentType; primaryAttachment?: boolean; description?: string }) => MaintenanceCertificateAttachment;
+  removeMaintenanceCertificateAttachment: (attachmentId: string, reason: string) => void;
+  setPrimaryMaintenanceCertificateAttachment: (attachmentId: string) => void;
+  linkMaintenanceCertificateAsset: (certificateId: string, assetId: string, relationshipType?: MaintenanceCertificateLinkRelationship) => MaintenanceCertificateAssetLink;
+  unlinkMaintenanceCertificateAsset: (linkId: string) => void;
+  linkMaintenanceCertificateWorkOrder: (certificateId: string, workOrderId: string, relationshipType?: MaintenanceCertificateLinkRelationship) => MaintenanceCertificateWorkOrderLink;
+  unlinkMaintenanceCertificateWorkOrder: (linkId: string) => void;
+  linkMaintenanceCertificateSafetyInspection: (certificateId: string, safetyInspectionId: string, relationshipType?: MaintenanceCertificateLinkRelationship) => MaintenanceCertificateSafetyInspectionLink;
+  unlinkMaintenanceCertificateSafetyInspection: (linkId: string) => void;
+  createMaintenanceCertificateRequirement: (input: Partial<MaintenanceCertificateRequirement> & { certificateTypeId: string; requirementName: string; subjectType: MaintenanceCertificateSubjectType }) => MaintenanceCertificateRequirement;
+  updateMaintenanceCertificateRequirement: (id: string, input: Partial<MaintenanceCertificateRequirement>) => void;
+  archiveMaintenanceCertificateRequirement: (id: string, reason: string) => void;
   createHousekeepingTemplate: (input: Partial<HousekeepingTemplate> & { name: string; code: string; cleaningType: HousekeepingCleaningType; sections?: Partial<HousekeepingTemplateSection>[]; items?: Partial<HousekeepingTemplateItem>[] }) => HousekeepingTemplate;
   updateHousekeepingTemplate: (id: string, input: Partial<HousekeepingTemplate> & { sections?: Partial<HousekeepingTemplateSection>[]; items?: Partial<HousekeepingTemplateItem>[] }) => void;
   duplicateHousekeepingTemplate: (id: string) => HousekeepingTemplate | undefined;
@@ -8728,6 +8889,155 @@ export function CareProvider({ children }: { children: ReactNode }) {
         api.updateSafetyCertificate(id, { status: "REVOKED", notes: reason });
       },
       supersedeSafetyCertificate: (id, replacementId) => api.updateSafetyCertificate(id, { status: "SUPERSEDED", notes: replacementId ? `Superseded by ${replacementId}` : "Superseded" }),
+      createMaintenanceCertificateType: (input) => {
+        const now = new Date().toISOString();
+        const record: MaintenanceCertificateType = { id: `maintenance-cert-type-${uid()}`, tenantId: "tenant-oritas-demo", code: input.code.trim(), name: input.name.trim(), description: input.description, category: input.category, defaultValidityMonths: input.defaultValidityMonths, expiryRequired: input.expiryRequired ?? true, certificateNumberRequired: input.certificateNumberRequired ?? true, issuingOrganisationRequired: input.issuingOrganisationRequired ?? true, attachmentRequired: input.attachmentRequired ?? true, renewalAllowed: input.renewalAllowed ?? true, warningDays: Number(input.warningDays ?? 90), criticalWarningDays: Number(input.criticalWarningDays ?? 30), applicableSubjectTypes: input.applicableSubjectTypes?.length ? input.applicableSubjectTypes : ["ASSET", "HOME"], applicableAssetCategoryIds: input.applicableAssetCategoryIds || [], applicableSafetyCategories: input.applicableSafetyCategories || [], complianceCritical: input.complianceCritical ?? true, active: input.active ?? true, systemType: false, displayOrder: input.displayOrder ?? store.maintenanceCertificateTypes.length + 1, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        const validation = validateCertificateType(record, store.maintenanceCertificateTypes);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        setStore((s) => ({ ...s, maintenanceCertificateTypes: [record, ...s.maintenanceCertificateTypes] }));
+        return record;
+      },
+      updateMaintenanceCertificateType: (id, input) => {
+        const current = store.maintenanceCertificateTypes.find((item) => item.id === id);
+        if (!current) throw new Error("Certificate type not found.");
+        const next = { ...current, ...input, updatedBy: currentUserName, updatedAt: new Date().toISOString() };
+        const validation = validateCertificateType(next, store.maintenanceCertificateTypes);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        setStore((s) => ({ ...s, maintenanceCertificateTypes: s.maintenanceCertificateTypes.map((item) => item.id === id ? next : item) }));
+      },
+      activateMaintenanceCertificateType: (id) => setStore((s) => ({ ...s, maintenanceCertificateTypes: s.maintenanceCertificateTypes.map((item) => item.id === id ? { ...item, active: true, updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) })),
+      deactivateMaintenanceCertificateType: (id) => setStore((s) => ({ ...s, maintenanceCertificateTypes: s.maintenanceCertificateTypes.map((item) => item.id === id ? { ...item, active: false, updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) })),
+      archiveMaintenanceCertificateType: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        setStore((s) => ({ ...s, maintenanceCertificateTypes: s.maintenanceCertificateTypes.map((item) => item.id === id ? { ...item, active: false, archivedBy: currentUserName, archivedAt: new Date().toISOString(), updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) }));
+      },
+      createMaintenanceCertificate: (input) => {
+        const now = new Date().toISOString();
+        const type = store.maintenanceCertificateTypes.find((item) => item.id === input.certificateTypeId && item.active);
+        if (!type) throw new Error("Select an active certificate type.");
+        const certificateId = `maintenance-cert-${uid()}`;
+        const versionId = `maintenance-cert-version-${uid()}`;
+        const certificate: MaintenanceCertificate = { id: certificateId, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, certificateTypeId: type.id, certificateNumber: input.certificateNumber?.trim() || `CERT-${new Date().getFullYear()}-${String(store.maintenanceCertificates.length + 1).padStart(4, "0")}`, title: input.title.trim(), description: input.description?.trim(), issuingOrganisation: input.issuingOrganisation?.trim() || "", issuingOrganisationContact: input.issuingOrganisationContact?.trim(), subjectType: input.subjectType || "HOME", primarySubjectId: input.primarySubjectId, currentVersionId: versionId, lifecycleStatus: "ACTIVE", complianceStatus: "VALID", active: true, archived: false, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now, version: 1 };
+        const version: MaintenanceCertificateVersion = { id: versionId, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, versionNumber: 1, certificateNumberSnapshot: certificate.certificateNumber, issuedDate: input.issuedDate, validFromDate: input.validFromDate, expiryDate: input.expiryDate || (type.defaultValidityMonths ? addMonths(input.validFromDate, type.defaultValidityMonths) : undefined), issuingOrganisation: certificate.issuingOrganisation, issuingOrganisationContact: certificate.issuingOrganisationContact, status: "ACTIVE", isCurrent: true, recordedBy: currentUserName, recordedAt: now, updatedBy: currentUserName, updatedAt: now, version: 1 };
+        const attachment = input.attachmentFileName ? maintenanceCertificateAttachmentRecord(certificate, version, input.attachmentFileName, "CERTIFICATE_FILE", true, currentUserName, now) : undefined;
+        const validation = validateCertificateInput({ ...certificate, ...version }, { types: store.maintenanceCertificateTypes, attachments: attachment ? [attachment] : [] });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        const finalCertificate = { ...certificate, complianceStatus: certificateComplianceStatus({ certificate, version, type, attachments: attachment ? [attachment] : [], today: new Date() }) };
+        const event = maintenanceCertificateTimelineEvent(finalCertificate, version, "CERTIFICATE_CREATED", "Certificate created", finalCertificate.title, currentUserName, now);
+        setStore((s) => ({ ...s, maintenanceCertificates: [finalCertificate, ...s.maintenanceCertificates], maintenanceCertificateVersions: [version, ...s.maintenanceCertificateVersions], maintenanceCertificateAttachments: attachment ? [attachment, ...s.maintenanceCertificateAttachments] : s.maintenanceCertificateAttachments, maintenanceCertificateTimelineEvents: [event, ...s.maintenanceCertificateTimelineEvents] }));
+        return finalCertificate;
+      },
+      updateMaintenanceCertificate: (id, input, reason) => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === id);
+        if (!certificate) throw new Error("Certificate not found.");
+        const currentVersion = store.maintenanceCertificateVersions.find((item) => item.id === certificate.currentVersionId);
+        if (!currentVersion) throw new Error("Current certificate version not found.");
+        const now = new Date().toISOString();
+        const nextCertificate: MaintenanceCertificate = { ...certificate, title: input.title?.trim() ?? certificate.title, description: input.description?.trim() ?? certificate.description, certificateNumber: input.certificateNumber?.trim() ?? certificate.certificateNumber, issuingOrganisation: input.issuingOrganisation?.trim() ?? certificate.issuingOrganisation, issuingOrganisationContact: input.issuingOrganisationContact?.trim() ?? certificate.issuingOrganisationContact, subjectType: input.subjectType ?? certificate.subjectType, primarySubjectId: input.primarySubjectId ?? certificate.primarySubjectId, updatedBy: currentUserName, updatedAt: now, version: certificate.version + 1 };
+        const nextVersion: MaintenanceCertificateVersion = { ...currentVersion, certificateNumberSnapshot: nextCertificate.certificateNumber, issuedDate: input.issuedDate ?? currentVersion.issuedDate, validFromDate: input.validFromDate ?? currentVersion.validFromDate, expiryDate: input.expiryDate ?? currentVersion.expiryDate, issuingOrganisation: nextCertificate.issuingOrganisation, issuingOrganisationContact: nextCertificate.issuingOrganisationContact, updatedBy: currentUserName, updatedAt: now, version: currentVersion.version + 1 };
+        const type = store.maintenanceCertificateTypes.find((item) => item.id === nextCertificate.certificateTypeId);
+        const attachments = store.maintenanceCertificateAttachments.filter((item) => item.certificateId === id && item.certificateVersionId === nextVersion.id);
+        const validation = validateCertificateInput({ ...nextCertificate, ...nextVersion }, { types: store.maintenanceCertificateTypes, attachments });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        nextCertificate.complianceStatus = certificateComplianceStatus({ certificate: nextCertificate, version: nextVersion, type, attachments, today: new Date() });
+        const event = maintenanceCertificateTimelineEvent(nextCertificate, nextVersion, "CERTIFICATE_UPDATED", "Certificate updated", reason || "Metadata updated", currentUserName, now);
+        setStore((s) => ({ ...s, maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === id ? nextCertificate : item), maintenanceCertificateVersions: s.maintenanceCertificateVersions.map((item) => item.id === nextVersion.id ? nextVersion : item), maintenanceCertificateTimelineEvents: [event, ...s.maintenanceCertificateTimelineEvents] }));
+      },
+      archiveMaintenanceCertificate: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === id ? { ...item, lifecycleStatus: "ARCHIVED", complianceStatus: "NOT_APPLICABLE", active: false, archived: true, archivedAt: now, archivedBy: currentUserName, archiveReason: reason, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item) }));
+      },
+      restoreMaintenanceCertificate: (id) => setStore((s) => ({ ...s, maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === id ? { ...item, lifecycleStatus: "ACTIVE", active: true, archived: false, archivedAt: undefined, archivedBy: undefined, archiveReason: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      renewMaintenanceCertificate: (id, input) => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === id && !item.archived);
+        if (!certificate) throw new Error("Certificate not found.");
+        const type = store.maintenanceCertificateTypes.find((item) => item.id === certificate.certificateTypeId);
+        if (!type?.renewalAllowed) throw new Error("Renewal is not allowed for this certificate type.");
+        if (!input.renewalReason.trim()) throw new Error("Enter a renewal reason.");
+        const now = new Date().toISOString();
+        const previousCurrent = store.maintenanceCertificateVersions.find((item) => item.id === certificate.currentVersionId);
+        const nextNumber = Math.max(0, ...store.maintenanceCertificateVersions.filter((item) => item.certificateId === id).map((item) => item.versionNumber)) + 1;
+        const version: MaintenanceCertificateVersion = { id: `maintenance-cert-version-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId, facilityId: certificate.facilityId, certificateId: certificate.id, versionNumber: nextNumber, certificateNumberSnapshot: certificate.certificateNumber, issuedDate: input.issuedDate, validFromDate: input.validFromDate, expiryDate: input.expiryDate || (type.defaultValidityMonths ? addMonths(input.validFromDate, type.defaultValidityMonths) : undefined), issuingOrganisation: input.issuingOrganisation || certificate.issuingOrganisation, issuingOrganisationContact: input.issuingOrganisationContact || certificate.issuingOrganisationContact, status: input.activate === false ? "DRAFT" : "ACTIVE", supersedesVersionId: input.activate === false ? undefined : previousCurrent?.id, renewalReason: input.renewalReason, notes: input.notes, isCurrent: input.activate !== false, recordedBy: currentUserName, recordedAt: now, updatedBy: currentUserName, updatedAt: now, version: 1 };
+        const attachment = input.attachmentFileName ? maintenanceCertificateAttachmentRecord(certificate, version, input.attachmentFileName, "RENEWAL_DOCUMENT", true, currentUserName, now) : undefined;
+        const validation = validateCertificateInput({ ...certificate, ...version }, { types: store.maintenanceCertificateTypes, attachments: attachment ? [attachment] : [] });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        const nextCertificate = input.activate === false ? certificate : { ...certificate, currentVersionId: version.id, complianceStatus: certificateComplianceStatus({ certificate, version, type, attachments: attachment ? [attachment] : [], today: new Date() }), updatedBy: currentUserName, updatedAt: now, version: certificate.version + 1 };
+        const event = maintenanceCertificateTimelineEvent(certificate, version, input.activate === false ? "CERTIFICATE_RENEWAL_STARTED" : "CERTIFICATE_RENEWED", input.activate === false ? "Renewal draft started" : "Certificate renewed", input.renewalReason, currentUserName, now);
+        setStore((s) => ({ ...s, maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === id ? nextCertificate : item), maintenanceCertificateVersions: [version, ...s.maintenanceCertificateVersions.map((item) => previousCurrent && input.activate !== false && item.id === previousCurrent.id ? { ...item, status: "SUPERSEDED", isCurrent: false, supersededByVersionId: version.id, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item)], maintenanceCertificateAttachments: attachment ? [attachment, ...s.maintenanceCertificateAttachments] : s.maintenanceCertificateAttachments, maintenanceCertificateTimelineEvents: [event, ...s.maintenanceCertificateTimelineEvents] }));
+        return version;
+      },
+      revokeMaintenanceCertificateVersion: (certificateId, versionId, reason) => {
+        if (!reason.trim()) throw new Error("Enter a revocation reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceCertificateVersions: s.maintenanceCertificateVersions.map((item) => item.id === versionId && item.certificateId === certificateId ? { ...item, status: "REVOKED", revocationReason: reason, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === certificateId && item.currentVersionId === versionId ? { ...item, complianceStatus: "REVOKED", updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item) }));
+      },
+      addMaintenanceCertificateAttachment: (certificateId, versionId, input) => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId);
+        const version = store.maintenanceCertificateVersions.find((item) => item.id === versionId && item.certificateId === certificateId);
+        if (!certificate || !version) throw new Error("Certificate version not found.");
+        const now = new Date().toISOString();
+        const attachment = maintenanceCertificateAttachmentRecord(certificate, version, input.fileName, input.documentType || "CERTIFICATE_FILE", Boolean(input.primaryAttachment), currentUserName, now, input.description);
+        const event = maintenanceCertificateTimelineEvent(certificate, version, "ATTACHMENT_ADDED", "Attachment added", attachment.fileName, currentUserName, now);
+        setStore((s) => ({ ...s, maintenanceCertificateAttachments: [attachment, ...s.maintenanceCertificateAttachments.map((item) => input.primaryAttachment && item.certificateVersionId === versionId ? { ...item, primaryAttachment: false } : item)], maintenanceCertificateTimelineEvents: [event, ...s.maintenanceCertificateTimelineEvents] }));
+        return attachment;
+      },
+      removeMaintenanceCertificateAttachment: (attachmentId, reason) => {
+        if (!reason.trim()) throw new Error("Enter a removal reason.");
+        setStore((s) => ({ ...s, maintenanceCertificateAttachments: s.maintenanceCertificateAttachments.map((item) => item.id === attachmentId ? { ...item, active: false, removedBy: currentUserName, removedAt: new Date().toISOString(), removalReason: reason } : item) }));
+      },
+      setPrimaryMaintenanceCertificateAttachment: (attachmentId) => setStore((s) => {
+        const target = s.maintenanceCertificateAttachments.find((item) => item.id === attachmentId);
+        if (!target) return s;
+        return { ...s, maintenanceCertificateAttachments: s.maintenanceCertificateAttachments.map((item) => item.certificateVersionId === target.certificateVersionId ? { ...item, primaryAttachment: item.id === attachmentId } : item) };
+      }),
+      linkMaintenanceCertificateAsset: (certificateId, assetId, relationshipType = "APPLIES_TO") => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId);
+        const asset = store.maintenanceAssets.find((item) => item.id === assetId);
+        if (!certificate || !asset || asset.homeId !== certificate.homeId) throw new Error("Select an asset in the same Home.");
+        const link: MaintenanceCertificateAssetLink = { id: `maintenance-cert-asset-link-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId || asset.homeId, facilityId: certificate.facilityId, certificateId, certificateVersionId: certificate.currentVersionId, assetId, relationshipType, primary: false, linkedBy: currentUserName, linkedAt: new Date().toISOString() };
+        setStore((s) => ({ ...s, maintenanceCertificateAssetLinks: [link, ...s.maintenanceCertificateAssetLinks] }));
+        return link;
+      },
+      unlinkMaintenanceCertificateAsset: (linkId) => setStore((s) => ({ ...s, maintenanceCertificateAssetLinks: s.maintenanceCertificateAssetLinks.map((item) => item.id === linkId ? { ...item, unlinkedBy: currentUserName, unlinkedAt: new Date().toISOString() } : item) })),
+      linkMaintenanceCertificateWorkOrder: (certificateId, workOrderId, relationshipType = "RELATED_TO") => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId);
+        const workOrder = store.maintenanceWorkOrders.find((item) => item.id === workOrderId);
+        if (!certificate || !workOrder || workOrder.homeId !== certificate.homeId) throw new Error("Select a Work Order in the same Home.");
+        const link: MaintenanceCertificateWorkOrderLink = { id: `maintenance-cert-work-order-link-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId || workOrder.homeId, facilityId: certificate.facilityId, certificateId, certificateVersionId: certificate.currentVersionId, workOrderId, relationshipType, linkedBy: currentUserName, linkedAt: new Date().toISOString() };
+        setStore((s) => ({ ...s, maintenanceCertificateWorkOrderLinks: [link, ...s.maintenanceCertificateWorkOrderLinks] }));
+        return link;
+      },
+      unlinkMaintenanceCertificateWorkOrder: (linkId) => setStore((s) => ({ ...s, maintenanceCertificateWorkOrderLinks: s.maintenanceCertificateWorkOrderLinks.map((item) => item.id === linkId ? { ...item, unlinkedBy: currentUserName, unlinkedAt: new Date().toISOString() } : item) })),
+      linkMaintenanceCertificateSafetyInspection: (certificateId, safetyInspectionId, relationshipType = "SUPPORTS_COMPLIANCE") => {
+        const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId);
+        const inspection = store.safetyInspections.find((item) => item.id === safetyInspectionId);
+        if (!certificate || !inspection || inspection.homeId !== certificate.homeId) throw new Error("Select a Safety inspection in the same Home.");
+        const link: MaintenanceCertificateSafetyInspectionLink = { id: `maintenance-cert-safety-link-${uid()}`, tenantId: certificate.tenantId, homeId: certificate.homeId || inspection.homeId, facilityId: certificate.facilityId, certificateId, certificateVersionId: certificate.currentVersionId, safetyInspectionId, relationshipType, linkedBy: currentUserName, linkedAt: new Date().toISOString() };
+        setStore((s) => ({ ...s, maintenanceCertificateSafetyInspectionLinks: [link, ...s.maintenanceCertificateSafetyInspectionLinks] }));
+        return link;
+      },
+      unlinkMaintenanceCertificateSafetyInspection: (linkId) => setStore((s) => ({ ...s, maintenanceCertificateSafetyInspectionLinks: s.maintenanceCertificateSafetyInspectionLinks.map((item) => item.id === linkId ? { ...item, unlinkedBy: currentUserName, unlinkedAt: new Date().toISOString() } : item) })),
+      createMaintenanceCertificateRequirement: (input) => {
+        const now = new Date().toISOString();
+        const requirement: MaintenanceCertificateRequirement = { id: `maintenance-cert-req-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, certificateTypeId: input.certificateTypeId, requirementName: input.requirementName.trim(), subjectType: input.subjectType, subjectId: input.subjectId, assetCategoryId: input.assetCategoryId, safetyCategoryId: input.safetyCategoryId, workOrderTypeId: input.workOrderTypeId, contractorTradeId: input.contractorTradeId, mandatory: input.mandatory ?? true, recurrenceType: input.recurrenceType || "annual", defaultValidityMonths: input.defaultValidityMonths, warningDays: Number(input.warningDays ?? 90), graceDays: Number(input.graceDays ?? 0), active: input.active ?? true, effectiveFrom: input.effectiveFrom || now.slice(0, 10), effectiveTo: input.effectiveTo, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        const validation = validateRequirement(requirement, store.maintenanceCertificateTypes);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        setStore((s) => ({ ...s, maintenanceCertificateRequirements: [requirement, ...s.maintenanceCertificateRequirements] }));
+        return requirement;
+      },
+      updateMaintenanceCertificateRequirement: (id, input) => {
+        const current = store.maintenanceCertificateRequirements.find((item) => item.id === id);
+        if (!current) throw new Error("Certificate requirement not found.");
+        const next = { ...current, ...input, updatedBy: currentUserName, updatedAt: new Date().toISOString() };
+        const validation = validateRequirement(next, store.maintenanceCertificateTypes);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0]);
+        setStore((s) => ({ ...s, maintenanceCertificateRequirements: s.maintenanceCertificateRequirements.map((item) => item.id === id ? next : item) }));
+      },
+      archiveMaintenanceCertificateRequirement: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        setStore((s) => ({ ...s, maintenanceCertificateRequirements: s.maintenanceCertificateRequirements.map((item) => item.id === id ? { ...item, active: false, archivedBy: currentUserName, archivedAt: new Date().toISOString(), updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) }));
+      },
       createHousekeepingTemplate: (input) => {
         const validation = validateHousekeepingTemplate(input);
         if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the housekeeping template.");

@@ -87,8 +87,19 @@ import { Route as ResidentsIdCarePlanRouteImport } from './routes/residents.$id.
 import { Route as ResidentsIdAssessmentsRouteImport } from './routes/residents.$id.assessments'
 import { Route as MaintenanceWorkOrdersNewRouteImport } from './routes/maintenance.work-orders.new'
 import { Route as MaintenanceWorkOrdersWorkOrderIdRouteImport } from './routes/maintenance.work-orders.$workOrderId'
+import { Route as MaintenanceCertificatesTypesRouteImport } from './routes/maintenance.certificates.types'
+import { Route as MaintenanceCertificatesRequirementsRouteImport } from './routes/maintenance.certificates.requirements'
+import { Route as MaintenanceCertificatesRegisterRouteImport } from './routes/maintenance.certificates.register'
+import { Route as MaintenanceCertificatesNewRouteImport } from './routes/maintenance.certificates.new'
+import { Route as MaintenanceCertificatesMissingRouteImport } from './routes/maintenance.certificates.missing'
+import { Route as MaintenanceCertificatesExpiredRouteImport } from './routes/maintenance.certificates.expired'
+import { Route as MaintenanceCertificatesDueSoonRouteImport } from './routes/maintenance.certificates.due-soon'
+import { Route as MaintenanceCertificatesArchivedRouteImport } from './routes/maintenance.certificates.archived'
+import { Route as MaintenanceCertificatesIdRouteImport } from './routes/maintenance.certificates.$id'
 import { Route as AssessmentsNewResidentIdRouteImport } from './routes/assessments.new.$residentId'
 import { Route as MaintenanceWorkOrdersWorkOrderIdEditRouteImport } from './routes/maintenance.work-orders.$workOrderId.edit'
+import { Route as MaintenanceCertificatesIdRenewRouteImport } from './routes/maintenance.certificates.$id.renew'
+import { Route as MaintenanceCertificatesIdEditRouteImport } from './routes/maintenance.certificates.$id.edit'
 
 const VitalsRoute = VitalsRouteImport.update({
   id: '/vitals',
@@ -500,6 +511,60 @@ const MaintenanceWorkOrdersWorkOrderIdRoute =
     path: '/$workOrderId',
     getParentRoute: () => MaintenanceWorkOrdersRoute,
   } as any)
+const MaintenanceCertificatesTypesRoute =
+  MaintenanceCertificatesTypesRouteImport.update({
+    id: '/types',
+    path: '/types',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesRequirementsRoute =
+  MaintenanceCertificatesRequirementsRouteImport.update({
+    id: '/requirements',
+    path: '/requirements',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesRegisterRoute =
+  MaintenanceCertificatesRegisterRouteImport.update({
+    id: '/register',
+    path: '/register',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesNewRoute =
+  MaintenanceCertificatesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesMissingRoute =
+  MaintenanceCertificatesMissingRouteImport.update({
+    id: '/missing',
+    path: '/missing',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesExpiredRoute =
+  MaintenanceCertificatesExpiredRouteImport.update({
+    id: '/expired',
+    path: '/expired',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesDueSoonRoute =
+  MaintenanceCertificatesDueSoonRouteImport.update({
+    id: '/due-soon',
+    path: '/due-soon',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesArchivedRoute =
+  MaintenanceCertificatesArchivedRouteImport.update({
+    id: '/archived',
+    path: '/archived',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
+const MaintenanceCertificatesIdRoute =
+  MaintenanceCertificatesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => MaintenanceCertificatesRoute,
+  } as any)
 const AssessmentsNewResidentIdRoute =
   AssessmentsNewResidentIdRouteImport.update({
     id: '/new/$residentId',
@@ -511,6 +576,18 @@ const MaintenanceWorkOrdersWorkOrderIdEditRoute =
     id: '/edit',
     path: '/edit',
     getParentRoute: () => MaintenanceWorkOrdersWorkOrderIdRoute,
+  } as any)
+const MaintenanceCertificatesIdRenewRoute =
+  MaintenanceCertificatesIdRenewRouteImport.update({
+    id: '/renew',
+    path: '/renew',
+    getParentRoute: () => MaintenanceCertificatesIdRoute,
+  } as any)
+const MaintenanceCertificatesIdEditRoute =
+  MaintenanceCertificatesIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => MaintenanceCertificatesIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -545,7 +622,7 @@ export interface FileRoutesByFullPath {
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
-  '/maintenance/certificates': typeof MaintenanceCertificatesRoute
+  '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
@@ -573,6 +650,15 @@ export interface FileRoutesByFullPath {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
+  '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
+  '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
+  '/maintenance/certificates/expired': typeof MaintenanceCertificatesExpiredRoute
+  '/maintenance/certificates/missing': typeof MaintenanceCertificatesMissingRoute
+  '/maintenance/certificates/new': typeof MaintenanceCertificatesNewRoute
+  '/maintenance/certificates/register': typeof MaintenanceCertificatesRegisterRoute
+  '/maintenance/certificates/requirements': typeof MaintenanceCertificatesRequirementsRoute
+  '/maintenance/certificates/types': typeof MaintenanceCertificatesTypesRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -593,6 +679,8 @@ export interface FileRoutesByFullPath {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
+  '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -625,7 +713,7 @@ export interface FileRoutesByTo {
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
-  '/maintenance/certificates': typeof MaintenanceCertificatesRoute
+  '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
@@ -653,6 +741,15 @@ export interface FileRoutesByTo {
   '/assessments': typeof AssessmentsIndexRoute
   '/residents': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
+  '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
+  '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
+  '/maintenance/certificates/expired': typeof MaintenanceCertificatesExpiredRoute
+  '/maintenance/certificates/missing': typeof MaintenanceCertificatesMissingRoute
+  '/maintenance/certificates/new': typeof MaintenanceCertificatesNewRoute
+  '/maintenance/certificates/register': typeof MaintenanceCertificatesRegisterRoute
+  '/maintenance/certificates/requirements': typeof MaintenanceCertificatesRequirementsRoute
+  '/maintenance/certificates/types': typeof MaintenanceCertificatesTypesRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -673,6 +770,8 @@ export interface FileRoutesByTo {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
+  '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesById {
@@ -708,7 +807,7 @@ export interface FileRoutesById {
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
-  '/maintenance/certificates': typeof MaintenanceCertificatesRoute
+  '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
@@ -736,6 +835,15 @@ export interface FileRoutesById {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
+  '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
+  '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
+  '/maintenance/certificates/expired': typeof MaintenanceCertificatesExpiredRoute
+  '/maintenance/certificates/missing': typeof MaintenanceCertificatesMissingRoute
+  '/maintenance/certificates/new': typeof MaintenanceCertificatesNewRoute
+  '/maintenance/certificates/register': typeof MaintenanceCertificatesRegisterRoute
+  '/maintenance/certificates/requirements': typeof MaintenanceCertificatesRequirementsRoute
+  '/maintenance/certificates/types': typeof MaintenanceCertificatesTypesRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -756,6 +864,8 @@ export interface FileRoutesById {
   '/workforce/rostering/templates': typeof WorkforceRosteringTemplatesRoute
   '/workforce/rostering/vacant': typeof WorkforceRosteringVacantRoute
   '/workforce/staff/$staffMemberId': typeof WorkforceStaffStaffMemberIdRoute
+  '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
+  '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRouteTypes {
@@ -820,6 +930,15 @@ export interface FileRouteTypes {
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
+    | '/maintenance/certificates/$id'
+    | '/maintenance/certificates/archived'
+    | '/maintenance/certificates/due-soon'
+    | '/maintenance/certificates/expired'
+    | '/maintenance/certificates/missing'
+    | '/maintenance/certificates/new'
+    | '/maintenance/certificates/register'
+    | '/maintenance/certificates/requirements'
+    | '/maintenance/certificates/types'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -840,6 +959,8 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/certificates/$id/edit'
+    | '/maintenance/certificates/$id/renew'
     | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -900,6 +1021,15 @@ export interface FileRouteTypes {
     | '/assessments'
     | '/residents'
     | '/assessments/new/$residentId'
+    | '/maintenance/certificates/$id'
+    | '/maintenance/certificates/archived'
+    | '/maintenance/certificates/due-soon'
+    | '/maintenance/certificates/expired'
+    | '/maintenance/certificates/missing'
+    | '/maintenance/certificates/new'
+    | '/maintenance/certificates/register'
+    | '/maintenance/certificates/requirements'
+    | '/maintenance/certificates/types'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -920,6 +1050,8 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/certificates/$id/edit'
+    | '/maintenance/certificates/$id/renew'
     | '/maintenance/work-orders/$workOrderId/edit'
   id:
     | '__root__'
@@ -982,6 +1114,15 @@ export interface FileRouteTypes {
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
+    | '/maintenance/certificates/$id'
+    | '/maintenance/certificates/archived'
+    | '/maintenance/certificates/due-soon'
+    | '/maintenance/certificates/expired'
+    | '/maintenance/certificates/missing'
+    | '/maintenance/certificates/new'
+    | '/maintenance/certificates/register'
+    | '/maintenance/certificates/requirements'
+    | '/maintenance/certificates/types'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -1002,6 +1143,8 @@ export interface FileRouteTypes {
     | '/workforce/rostering/templates'
     | '/workforce/rostering/vacant'
     | '/workforce/staff/$staffMemberId'
+    | '/maintenance/certificates/$id/edit'
+    | '/maintenance/certificates/$id/renew'
     | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesById: FileRoutesById
 }
@@ -1595,6 +1738,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MaintenanceWorkOrdersWorkOrderIdRouteImport
       parentRoute: typeof MaintenanceWorkOrdersRoute
     }
+    '/maintenance/certificates/types': {
+      id: '/maintenance/certificates/types'
+      path: '/types'
+      fullPath: '/maintenance/certificates/types'
+      preLoaderRoute: typeof MaintenanceCertificatesTypesRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/requirements': {
+      id: '/maintenance/certificates/requirements'
+      path: '/requirements'
+      fullPath: '/maintenance/certificates/requirements'
+      preLoaderRoute: typeof MaintenanceCertificatesRequirementsRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/register': {
+      id: '/maintenance/certificates/register'
+      path: '/register'
+      fullPath: '/maintenance/certificates/register'
+      preLoaderRoute: typeof MaintenanceCertificatesRegisterRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/new': {
+      id: '/maintenance/certificates/new'
+      path: '/new'
+      fullPath: '/maintenance/certificates/new'
+      preLoaderRoute: typeof MaintenanceCertificatesNewRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/missing': {
+      id: '/maintenance/certificates/missing'
+      path: '/missing'
+      fullPath: '/maintenance/certificates/missing'
+      preLoaderRoute: typeof MaintenanceCertificatesMissingRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/expired': {
+      id: '/maintenance/certificates/expired'
+      path: '/expired'
+      fullPath: '/maintenance/certificates/expired'
+      preLoaderRoute: typeof MaintenanceCertificatesExpiredRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/due-soon': {
+      id: '/maintenance/certificates/due-soon'
+      path: '/due-soon'
+      fullPath: '/maintenance/certificates/due-soon'
+      preLoaderRoute: typeof MaintenanceCertificatesDueSoonRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/archived': {
+      id: '/maintenance/certificates/archived'
+      path: '/archived'
+      fullPath: '/maintenance/certificates/archived'
+      preLoaderRoute: typeof MaintenanceCertificatesArchivedRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/maintenance/certificates/$id': {
+      id: '/maintenance/certificates/$id'
+      path: '/$id'
+      fullPath: '/maintenance/certificates/$id'
+      preLoaderRoute: typeof MaintenanceCertificatesIdRouteImport
+      parentRoute: typeof MaintenanceCertificatesRoute
+    }
     '/assessments/new/$residentId': {
       id: '/assessments/new/$residentId'
       path: '/new/$residentId'
@@ -1608,6 +1814,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/maintenance/work-orders/$workOrderId/edit'
       preLoaderRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRouteImport
       parentRoute: typeof MaintenanceWorkOrdersWorkOrderIdRoute
+    }
+    '/maintenance/certificates/$id/renew': {
+      id: '/maintenance/certificates/$id/renew'
+      path: '/renew'
+      fullPath: '/maintenance/certificates/$id/renew'
+      preLoaderRoute: typeof MaintenanceCertificatesIdRenewRouteImport
+      parentRoute: typeof MaintenanceCertificatesIdRoute
+    }
+    '/maintenance/certificates/$id/edit': {
+      id: '/maintenance/certificates/$id/edit'
+      path: '/edit'
+      fullPath: '/maintenance/certificates/$id/edit'
+      preLoaderRoute: typeof MaintenanceCertificatesIdEditRouteImport
+      parentRoute: typeof MaintenanceCertificatesIdRoute
     }
   }
 }
@@ -1642,6 +1862,53 @@ const CarePlansRouteWithChildren = CarePlansRoute._addFileChildren(
   CarePlansRouteChildren,
 )
 
+interface MaintenanceCertificatesIdRouteChildren {
+  MaintenanceCertificatesIdEditRoute: typeof MaintenanceCertificatesIdEditRoute
+  MaintenanceCertificatesIdRenewRoute: typeof MaintenanceCertificatesIdRenewRoute
+}
+
+const MaintenanceCertificatesIdRouteChildren: MaintenanceCertificatesIdRouteChildren =
+  {
+    MaintenanceCertificatesIdEditRoute: MaintenanceCertificatesIdEditRoute,
+    MaintenanceCertificatesIdRenewRoute: MaintenanceCertificatesIdRenewRoute,
+  }
+
+const MaintenanceCertificatesIdRouteWithChildren =
+  MaintenanceCertificatesIdRoute._addFileChildren(
+    MaintenanceCertificatesIdRouteChildren,
+  )
+
+interface MaintenanceCertificatesRouteChildren {
+  MaintenanceCertificatesIdRoute: typeof MaintenanceCertificatesIdRouteWithChildren
+  MaintenanceCertificatesArchivedRoute: typeof MaintenanceCertificatesArchivedRoute
+  MaintenanceCertificatesDueSoonRoute: typeof MaintenanceCertificatesDueSoonRoute
+  MaintenanceCertificatesExpiredRoute: typeof MaintenanceCertificatesExpiredRoute
+  MaintenanceCertificatesMissingRoute: typeof MaintenanceCertificatesMissingRoute
+  MaintenanceCertificatesNewRoute: typeof MaintenanceCertificatesNewRoute
+  MaintenanceCertificatesRegisterRoute: typeof MaintenanceCertificatesRegisterRoute
+  MaintenanceCertificatesRequirementsRoute: typeof MaintenanceCertificatesRequirementsRoute
+  MaintenanceCertificatesTypesRoute: typeof MaintenanceCertificatesTypesRoute
+}
+
+const MaintenanceCertificatesRouteChildren: MaintenanceCertificatesRouteChildren =
+  {
+    MaintenanceCertificatesIdRoute: MaintenanceCertificatesIdRouteWithChildren,
+    MaintenanceCertificatesArchivedRoute: MaintenanceCertificatesArchivedRoute,
+    MaintenanceCertificatesDueSoonRoute: MaintenanceCertificatesDueSoonRoute,
+    MaintenanceCertificatesExpiredRoute: MaintenanceCertificatesExpiredRoute,
+    MaintenanceCertificatesMissingRoute: MaintenanceCertificatesMissingRoute,
+    MaintenanceCertificatesNewRoute: MaintenanceCertificatesNewRoute,
+    MaintenanceCertificatesRegisterRoute: MaintenanceCertificatesRegisterRoute,
+    MaintenanceCertificatesRequirementsRoute:
+      MaintenanceCertificatesRequirementsRoute,
+    MaintenanceCertificatesTypesRoute: MaintenanceCertificatesTypesRoute,
+  }
+
+const MaintenanceCertificatesRouteWithChildren =
+  MaintenanceCertificatesRoute._addFileChildren(
+    MaintenanceCertificatesRouteChildren,
+  )
+
 interface MaintenanceWorkOrdersWorkOrderIdRouteChildren {
   MaintenanceWorkOrdersWorkOrderIdEditRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
@@ -1675,7 +1942,7 @@ const MaintenanceWorkOrdersRouteWithChildren =
 
 interface MaintenanceRouteChildren {
   MaintenanceAssetsRoute: typeof MaintenanceAssetsRoute
-  MaintenanceCertificatesRoute: typeof MaintenanceCertificatesRoute
+  MaintenanceCertificatesRoute: typeof MaintenanceCertificatesRouteWithChildren
   MaintenanceContractorsRoute: typeof MaintenanceContractorsRoute
   MaintenanceCorrectiveActionsRoute: typeof MaintenanceCorrectiveActionsRoute
   MaintenanceHousekeepingRoute: typeof MaintenanceHousekeepingRoute
@@ -1689,7 +1956,7 @@ interface MaintenanceRouteChildren {
 
 const MaintenanceRouteChildren: MaintenanceRouteChildren = {
   MaintenanceAssetsRoute: MaintenanceAssetsRoute,
-  MaintenanceCertificatesRoute: MaintenanceCertificatesRoute,
+  MaintenanceCertificatesRoute: MaintenanceCertificatesRouteWithChildren,
   MaintenanceContractorsRoute: MaintenanceContractorsRoute,
   MaintenanceCorrectiveActionsRoute: MaintenanceCorrectiveActionsRoute,
   MaintenanceHousekeepingRoute: MaintenanceHousekeepingRoute,

@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MaintenancePlaceholderPage } from "@/components/maintenance/MaintenancePlaceholderPage";
+import { CertificateManagement } from "@/components/maintenance/CertificateManagement";
 
 export const Route = createFileRoute("/maintenance/certificates")({
-  head: () => ({ meta: [{ title: "Maintenance Certificates - NuCare" }] }),
-  component: () => (
-    <MaintenancePlaceholderPage
-      title="Certificates"
-      description="Maintenance certificates, statutory records and renewal tracking."
-    />
-  ),
+  head: () => ({ meta: [{ title: "Certificates - NuCare" }] }),
+  component: () => <CertificateManagement initialTab="overview" />,
 });
