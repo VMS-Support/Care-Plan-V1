@@ -66,6 +66,7 @@
     "test:maintenance-completion": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderCompletion.test.ts",
     "test:maintenance-verification": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderVerification.test.ts",
     "test:planned-maintenance": "node --experimental-specifier-resolution=node src/domain/maintenance/plannedMaintenance.test.ts",
+    "test:maintenance-assets": "node --experimental-specifier-resolution=node src/domain/maintenance/assets.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

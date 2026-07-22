@@ -1,4 +1,5 @@
 import type {
+  MaintenanceAsset,
   MaintenanceTemplate,
   MaintenanceTemplateChecklist,
   MaintenanceTemplateEvidence,
@@ -12,6 +13,7 @@ import type {
   Room,
   UserProfile,
 } from "@/lib/care/types";
+import { canReceivePlannedMaintenance } from "./assets.ts";
 import { WORK_ORDER_CATEGORIES, type CreateWorkOrderInput } from "./workOrders.ts";
 
 export const PLANNED_MAINTENANCE_FREQUENCIES: Array<{ value: PlannedMaintenanceFrequencyType; label: string }> = [
@@ -102,7 +104,18 @@ export interface PlannedMaintenanceAssetOption {
   active: boolean;
 }
 
-export function buildPlannedMaintenanceAssets(source: { activeFacilityId?: string; facilities: Array<{ id: string; name: string }>; rooms: Room[]; wards?: Array<{ id: string; name: string }> }) {
+export function buildPlannedMaintenanceAssets(source: { activeFacilityId?: string; facilities: Array<{ id: string; name: string }>; rooms: Room[]; wards?: Array<{ id: string; name: string }>; maintenanceAssets?: MaintenanceAsset[] }) {
+  const registered = (source.maintenanceAssets || [])
+    .filter((asset) => (!source.activeFacilityId || asset.homeId === source.activeFacilityId) && canReceivePlannedMaintenance(asset))
+    .map((asset) => ({
+      id: asset.id,
+      name: asset.assetName,
+      homeId: asset.homeId,
+      locationLabel: asset.locationLabel || "Location not recorded",
+      category: "Facility" as const,
+      active: true,
+    }));
+  if (registered.length > 0) return registered;
   const homes = source.facilities
     .filter((home) => !source.activeFacilityId || home.id === source.activeFacilityId)
     .map((home) => ({

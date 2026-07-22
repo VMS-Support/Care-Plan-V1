@@ -156,6 +156,14 @@ import type {
   ShiftDefinition,
   OperationalContext,
   MaintenanceWorkOrder,
+  MaintenanceAsset,
+  MaintenanceAssetCategory,
+  MaintenanceAssetDocument,
+  MaintenanceAssetPhoto,
+  MaintenanceAssetLocationHistory,
+  MaintenanceAssetRelationship,
+  MaintenanceAssetDocumentType,
+  MaintenanceAssetRelationshipType,
   MaintenanceTemplate,
   MaintenanceTemplateChecklist,
   MaintenanceTemplateEvidence,
@@ -217,6 +225,15 @@ import {
   type WorkOrderRejectVerificationInput,
   type WorkOrderVerifyInput,
 } from "@/domain/maintenance/workOrderVerification";
+import {
+  DEFAULT_ASSET_CATEGORIES,
+  assetAuditLog,
+  assetIsReadOnly,
+  canReceiveWorkOrder,
+  nextAssetNumber,
+  validateAssetCategoryInput,
+  validateAssetInput,
+} from "@/domain/maintenance/assets";
 import {
   STARTER_MAINTENANCE_TEMPLATES,
   buildGeneratedWorkOrderInput,
@@ -979,6 +996,157 @@ function seedMaintenanceWorkOrders(): MaintenanceWorkOrder[] {
       updatedAt: "2026-07-20T12:45:00.000Z",
       updatedByUserId: "u-1",
       version: 1,
+    },
+  ];
+}
+
+function seedMaintenanceAssetCategories(): MaintenanceAssetCategory[] {
+  return DEFAULT_ASSET_CATEGORIES.map(([name, description, colour, icon], index) => ({
+    id: `maintenance-asset-category-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+    tenantId: "tenant-oritas-demo",
+    name,
+    description,
+    colour,
+    icon,
+    active: true,
+    displayOrder: index + 1,
+    createdBy: "System",
+    createdAt: "2026-07-21T08:30:00.000Z",
+  }));
+}
+
+function seedMaintenanceAssets(): MaintenanceAsset[] {
+  const now = "2026-07-21T08:30:00.000Z";
+  return [
+    {
+      id: `facility:${BALLYMORE_FACILITY_ID}`,
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetNumber: "AST-00001",
+      assetName: "Main Fire Alarm Panel",
+      description: "Addressable fire alarm panel covering Ballymore Haven common areas.",
+      categoryId: "maintenance-asset-category-fire-safety",
+      manufacturer: "Advanced",
+      model: "MxPro 5",
+      serialNumber: "FA-2021-001",
+      barcode: "BH-FA-001",
+      locationId: `facility:${BALLYMORE_FACILITY_ID}`,
+      locationLabel: "Ballymore Haven - Reception",
+      purchaseDate: "2021-04-12",
+      installationDate: "2021-05-03",
+      supplier: "SafeFire Ireland",
+      warrantyStartDate: "2021-05-03",
+      warrantyEndDate: "2026-09-30",
+      condition: "Good",
+      operationalStatus: "Operational",
+      assetStatus: "Active",
+      criticality: "Critical",
+      replacementDate: "2031-05-03",
+      replacementCost: 12500,
+      notes: "Linked to weekly alarm testing schedule.",
+      active: true,
+      createdBy: "System",
+      createdAt: now,
+      updatedBy: "System",
+      updatedAt: now,
+    },
+    {
+      id: "room:r-w-oak-3",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetNumber: "AST-00002",
+      assetName: "Room 3 Nurse Call Point",
+      description: "Wall mounted resident nurse call point.",
+      categoryId: "maintenance-asset-category-emergency-equipment",
+      manufacturer: "Courtney Thorne",
+      model: "CT Touch",
+      serialNumber: "NC-03-2024",
+      barcode: "BH-NC-003",
+      locationId: "r-w-oak-3",
+      locationLabel: "Oak Wing - Room 3",
+      purchaseDate: "2024-01-10",
+      installationDate: "2024-01-18",
+      supplier: "Clinical Comms Ltd",
+      warrantyStartDate: "2024-01-18",
+      warrantyEndDate: "2027-01-18",
+      condition: "Fair",
+      operationalStatus: "Under Maintenance",
+      assetStatus: "Active",
+      criticality: "Critical",
+      replacementDate: "2029-01-18",
+      replacementCost: 950,
+      notes: "Intermittent fault currently under Work Order review.",
+      active: true,
+      createdBy: "System",
+      createdAt: now,
+      updatedBy: "System",
+      updatedAt: now,
+    },
+    {
+      id: "asset-water-outlets-ballymore",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetNumber: "AST-00003",
+      assetName: "Ballymore Water Outlet Set",
+      description: "Grouped domestic hot and cold water outlets for planned temperature monitoring.",
+      categoryId: "maintenance-asset-category-water",
+      manufacturer: "Mixed",
+      model: "Domestic outlets",
+      locationId: `facility:${BALLYMORE_FACILITY_ID}`,
+      locationLabel: "Ballymore Haven",
+      purchaseDate: "2019-06-01",
+      installationDate: "2019-06-15",
+      warrantyEndDate: "2024-06-15",
+      condition: "Good",
+      operationalStatus: "Operational",
+      assetStatus: "Active",
+      criticality: "High",
+      replacementDate: "2029-06-15",
+      replacementCost: 8000,
+      active: true,
+      createdBy: "System",
+      createdAt: now,
+      updatedBy: "System",
+      updatedAt: now,
+    },
+    {
+      id: "asset-kitchen-dishwasher-1",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetNumber: "AST-00004",
+      assetName: "Main Kitchen Dishwasher",
+      description: "Commercial dishwasher in main kitchen.",
+      categoryId: "maintenance-asset-category-kitchen-equipment",
+      manufacturer: "Winterhalter",
+      model: "PT-M",
+      serialNumber: "DW-99201",
+      barcode: "BH-KIT-DW1",
+      locationId: "kitchen-main",
+      locationLabel: "Ground Floor - Main Kitchen",
+      purchaseDate: "2022-03-01",
+      installationDate: "2022-03-08",
+      supplier: "Catering Equipment Ireland",
+      warrantyStartDate: "2022-03-08",
+      warrantyEndDate: "2027-03-08",
+      condition: "Excellent",
+      operationalStatus: "Operational",
+      assetStatus: "Active",
+      criticality: "High",
+      replacementDate: "2030-03-08",
+      replacementCost: 6200,
+      active: true,
+      createdBy: "System",
+      createdAt: now,
+      updatedBy: "System",
+      updatedAt: now,
     },
   ];
 }
@@ -2650,6 +2818,12 @@ function seedData() {
     visitors,
     outings,
     handovers,
+    maintenanceAssetCategories: seedMaintenanceAssetCategories(),
+    maintenanceAssets: seedMaintenanceAssets(),
+    maintenanceAssetDocuments: [] as MaintenanceAssetDocument[],
+    maintenanceAssetPhotos: [] as MaintenanceAssetPhoto[],
+    maintenanceAssetLocationHistory: [] as MaintenanceAssetLocationHistory[],
+    maintenanceAssetRelationships: [] as MaintenanceAssetRelationship[],
     maintenanceWorkOrders: seedMaintenanceWorkOrders(),
     maintenanceTemplates: maintenanceTemplateSeed.templates,
     maintenanceTemplateChecklists: maintenanceTemplateSeed.checklist,
@@ -2735,6 +2909,12 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "visitors",
   "outings",
   "handovers",
+  "maintenanceAssetCategories",
+  "maintenanceAssets",
+  "maintenanceAssetDocuments",
+  "maintenanceAssetPhotos",
+  "maintenanceAssetLocationHistory",
+  "maintenanceAssetRelationships",
   "maintenanceWorkOrders",
   "maintenanceTemplates",
   "plannedMaintenanceSchedules",
@@ -3315,6 +3495,27 @@ interface CareCtx extends Store {
   completeHandover: (id: string) => void;
   closeHandover: (id: string) => void;
   duplicateHandover: (id: string) => HandoverNote | undefined;
+  createMaintenanceAssetCategory: (input: Partial<MaintenanceAssetCategory> & { name: string }) => MaintenanceAssetCategory;
+  updateMaintenanceAssetCategory: (id: string, input: Partial<MaintenanceAssetCategory>) => void;
+  archiveMaintenanceAssetCategory: (id: string, reason: string) => void;
+  restoreMaintenanceAssetCategory: (id: string) => void;
+  createMaintenanceAsset: (input: Partial<MaintenanceAsset> & { assetName: string; categoryId: string }) => MaintenanceAsset;
+  updateMaintenanceAsset: (id: string, input: Partial<MaintenanceAsset>, reason?: string) => void;
+  archiveMaintenanceAsset: (id: string, reason: string) => void;
+  restoreMaintenanceAsset: (id: string) => void;
+  activateMaintenanceAsset: (id: string) => void;
+  deactivateMaintenanceAsset: (id: string, reason?: string) => void;
+  duplicateMaintenanceAsset: (id: string) => MaintenanceAsset | undefined;
+  addMaintenanceAssetDocument: (assetId: string, input: { documentType: MaintenanceAssetDocumentType; fileName: string; storageReference?: string }) => MaintenanceAssetDocument;
+  replaceMaintenanceAssetDocument: (documentId: string, input: { fileName: string; storageReference?: string }) => MaintenanceAssetDocument;
+  deleteMaintenanceAssetDocument: (documentId: string, reason: string) => void;
+  addMaintenanceAssetPhoto: (assetId: string, input: { fileReference: string; caption?: string; primary?: boolean }) => MaintenanceAssetPhoto;
+  updateMaintenanceAssetPhoto: (photoId: string, input: Partial<MaintenanceAssetPhoto>) => void;
+  deleteMaintenanceAssetPhoto: (photoId: string, reason: string) => void;
+  reorderMaintenanceAssetPhotos: (assetId: string, photoIds: string[]) => void;
+  createMaintenanceAssetRelationship: (input: { parentAssetId: string; childAssetId: string; relationshipType: MaintenanceAssetRelationshipType; notes?: string }) => MaintenanceAssetRelationship;
+  updateMaintenanceAssetRelationship: (id: string, input: Partial<MaintenanceAssetRelationship>) => void;
+  deleteMaintenanceAssetRelationship: (id: string) => void;
   createMaintenanceTemplate: (input: Partial<MaintenanceTemplate> & { checklist?: Partial<MaintenanceTemplateChecklist>[]; evidence?: MaintenanceTemplateEvidenceType[] }) => MaintenanceTemplate;
   updateMaintenanceTemplate: (id: string, input: Partial<MaintenanceTemplate> & { checklist?: Partial<MaintenanceTemplateChecklist>[]; evidence?: MaintenanceTemplateEvidenceType[] }) => void;
   archiveMaintenanceTemplate: (id: string, reason: string) => void;
@@ -7380,6 +7581,230 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
         return copy;
       },
+      createMaintenanceAssetCategory: (input) => {
+        const validation = validateAssetCategoryInput(input, store.maintenanceAssetCategories || []);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the category details.");
+        const now = new Date().toISOString();
+        const category: MaintenanceAssetCategory = {
+          id: `maintenance-asset-category-${uid()}`,
+          tenantId: "tenant-oritas-demo",
+          name: input.name.trim(),
+          description: input.description?.trim() || "",
+          colour: input.colour || "#2563eb",
+          icon: input.icon || "package",
+          active: input.active ?? true,
+          displayOrder: input.displayOrder ?? (store.maintenanceAssetCategories.length + 1),
+          createdBy: currentUserName,
+          createdAt: now,
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        setStore((s) => ({
+          ...s,
+          maintenanceAssetCategories: [category, ...s.maintenanceAssetCategories],
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset category created", entity: category.id, entityType: "maintenance_asset_category", facilityId: activeFacilityId, after: { name: category.name }, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+        return category;
+      },
+      updateMaintenanceAssetCategory: (id, input) => {
+        const current = store.maintenanceAssetCategories.find((category) => category.id === id);
+        if (!current) throw new Error("Asset category not found.");
+        const validation = validateAssetCategoryInput({ ...current, ...input }, store.maintenanceAssetCategories || []);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the category details.");
+        const now = new Date().toISOString();
+        const next = { ...current, ...input, name: (input.name || current.name).trim(), updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({
+          ...s,
+          maintenanceAssetCategories: s.maintenanceAssetCategories.map((category) => category.id === id ? next : category),
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset category updated", entity: id, entityType: "maintenance_asset_category", facilityId: activeFacilityId, before: current, after: next, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      archiveMaintenanceAssetCategory: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        if (store.maintenanceAssets.some((asset) => asset.categoryId === id && !asset.archivedAt)) throw new Error("This category is used by active assets. Move or archive those assets first.");
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          maintenanceAssetCategories: s.maintenanceAssetCategories.map((category) => category.id === id ? { ...category, active: false, archivedAt: now, archivedBy: currentUserName, updatedBy: currentUserName, updatedAt: now } : category),
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset category archived", entity: id, entityType: "maintenance_asset_category", facilityId: activeFacilityId, reason, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      restoreMaintenanceAssetCategory: (id) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceAssetCategories: s.maintenanceAssetCategories.map((category) => category.id === id ? { ...category, active: true, archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: now } : category) }));
+      },
+      createMaintenanceAsset: (input) => {
+        const homeId = input.homeId || activeFacilityId;
+        const assetNumber = input.assetNumber?.trim() || nextAssetNumber(store.maintenanceAssets || [], homeId);
+        const candidate = { ...input, homeId, assetNumber, active: input.active ?? true };
+        const validation = validateAssetInput(candidate, { assets: store.maintenanceAssets || [], categories: store.maintenanceAssetCategories || [] });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the asset details.");
+        const now = new Date().toISOString();
+        const asset: MaintenanceAsset = {
+          id: `maintenance-asset-${uid()}`,
+          tenantId: "tenant-oritas-demo",
+          homeId,
+          facilityId: homeId,
+          nursingHomeId: homeId,
+          assetNumber,
+          assetName: input.assetName.trim(),
+          description: input.description?.trim() || "",
+          categoryId: input.categoryId,
+          manufacturer: input.manufacturer?.trim() || undefined,
+          model: input.model?.trim() || undefined,
+          serialNumber: input.serialNumber?.trim() || undefined,
+          barcode: input.barcode?.trim() || undefined,
+          locationId: input.locationId || undefined,
+          locationLabel: input.locationLabel?.trim() || undefined,
+          purchaseDate: input.purchaseDate || undefined,
+          installationDate: input.installationDate || undefined,
+          supplier: input.supplier?.trim() || undefined,
+          warrantyStartDate: input.warrantyStartDate || undefined,
+          warrantyEndDate: input.warrantyEndDate || undefined,
+          condition: input.condition || "Good",
+          operationalStatus: input.operationalStatus || "Operational",
+          assetStatus: input.assetStatus || "Active",
+          criticality: input.criticality || "Medium",
+          replacementDate: input.replacementDate || undefined,
+          replacementCost: input.replacementCost === undefined ? undefined : Number(input.replacementCost),
+          notes: input.notes?.trim() || undefined,
+          photo: input.photo?.trim() || undefined,
+          active: input.active ?? true,
+          createdBy: currentUserName,
+          createdAt: now,
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        setStore((s) => ({
+          ...s,
+          maintenanceAssets: [asset, ...s.maintenanceAssets],
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset created", entity: asset.id, entityType: "maintenance_asset", facilityId: asset.homeId, after: { assetNumber: asset.assetNumber, assetName: asset.assetName }, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+        return asset;
+      },
+      updateMaintenanceAsset: (id, input, reason) => {
+        const current = store.maintenanceAssets.find((asset) => asset.id === id);
+        if (!current) throw new Error("Asset not found.");
+        if (assetIsReadOnly(current)) throw new Error("Disposed assets are read-only.");
+        const nextCandidate = { ...current, ...input, id };
+        const validation = validateAssetInput(nextCandidate, { assets: store.maintenanceAssets || [], categories: store.maintenanceAssetCategories || [] });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the asset details.");
+        const now = new Date().toISOString();
+        const locationChanged = (input.locationId !== undefined && input.locationId !== current.locationId) || (input.locationLabel !== undefined && input.locationLabel !== current.locationLabel);
+        const next: MaintenanceAsset = {
+          ...current,
+          ...input,
+          assetNumber: (input.assetNumber || current.assetNumber).trim(),
+          assetName: (input.assetName || current.assetName).trim(),
+          replacementCost: input.replacementCost === undefined ? current.replacementCost : Number(input.replacementCost),
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        const locationEvent: MaintenanceAssetLocationHistory | undefined = locationChanged ? {
+          id: `maintenance-asset-location-${uid()}`,
+          assetId: id,
+          homeId: current.homeId,
+          facilityId: current.homeId,
+          previousLocationId: current.locationId,
+          previousLocationLabel: current.locationLabel,
+          newLocationId: next.locationId,
+          newLocationLabel: next.locationLabel,
+          movedBy: currentUserName,
+          movedDate: now,
+          reason: reason?.trim() || "Location updated",
+        } : undefined;
+        setStore((s) => ({
+          ...s,
+          maintenanceAssets: s.maintenanceAssets.map((asset) => asset.id === id ? next : asset),
+          maintenanceAssetLocationHistory: locationEvent ? [locationEvent, ...s.maintenanceAssetLocationHistory] : s.maintenanceAssetLocationHistory,
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset updated", entity: id, entityType: "maintenance_asset", facilityId: current.homeId, before: current, after: next, reason, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      archiveMaintenanceAsset: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const current = store.maintenanceAssets.find((asset) => asset.id === id);
+        if (!current) throw new Error("Asset not found.");
+        const hasHistory = store.maintenanceWorkOrders.some((workOrder) => workOrder.assetId === id) || store.plannedMaintenanceSchedules.some((schedule) => schedule.assetId === id);
+        const now = new Date().toISOString();
+        const next = { ...current, active: false, assetStatus: "Archived" as const, archivedAt: now, archivedBy: currentUserName, archiveReason: hasHistory ? reason : reason, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({
+          ...s,
+          maintenanceAssets: s.maintenanceAssets.map((asset) => asset.id === id ? next : asset),
+          auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: hasHistory ? "Asset archived with history retained" : "Asset archived", entity: id, entityType: "maintenance_asset", facilityId: current.homeId, reason, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500),
+        }));
+      },
+      restoreMaintenanceAsset: (id) => {
+        api.updateMaintenanceAsset(id, { active: true, assetStatus: "Active", archivedAt: undefined, archivedBy: undefined, archiveReason: undefined });
+      },
+      activateMaintenanceAsset: (id) => {
+        api.updateMaintenanceAsset(id, { active: true, assetStatus: "Active" });
+      },
+      deactivateMaintenanceAsset: (id, reason) => {
+        api.updateMaintenanceAsset(id, { active: false, assetStatus: "Inactive" }, reason || "Asset deactivated");
+      },
+      duplicateMaintenanceAsset: (id) => {
+        const source = store.maintenanceAssets.find((asset) => asset.id === id);
+        if (!source) return undefined;
+        return api.createMaintenanceAsset({ ...source, id: undefined, assetNumber: nextAssetNumber(store.maintenanceAssets || [], source.homeId), assetName: `${source.assetName} Copy`, active: false, assetStatus: "Inactive" });
+      },
+      addMaintenanceAssetDocument: (assetId, input) => {
+        const asset = store.maintenanceAssets.find((item) => item.id === assetId);
+        if (!asset) throw new Error("Asset not found.");
+        const now = new Date().toISOString();
+        const document: MaintenanceAssetDocument = { id: `maintenance-asset-document-${uid()}`, assetId, homeId: asset.homeId, facilityId: asset.homeId, documentType: input.documentType, fileName: input.fileName.trim(), storageReference: input.storageReference || `asset-documents/${assetId}/${input.fileName.trim()}`, version: 1, uploadedBy: currentUserName, uploadedAt: now };
+        setStore((s) => ({ ...s, maintenanceAssetDocuments: [document, ...s.maintenanceAssetDocuments], auditLogs: [assetAuditLog({ id: uid(), user: currentUser, action: "Asset document uploaded", entity: assetId, entityType: "maintenance_asset", facilityId: asset.homeId, after: { fileName: document.fileName, documentType: document.documentType }, timestamp: now }) as AuditLog, ...s.auditLogs].slice(0, 500) }));
+        return document;
+      },
+      replaceMaintenanceAssetDocument: (documentId, input) => {
+        const current = store.maintenanceAssetDocuments.find((document) => document.id === documentId);
+        if (!current) throw new Error("Asset document not found.");
+        const now = new Date().toISOString();
+        const replacement: MaintenanceAssetDocument = { ...current, id: `maintenance-asset-document-${uid()}`, fileName: input.fileName.trim(), storageReference: input.storageReference || `asset-documents/${current.assetId}/${input.fileName.trim()}`, version: current.version + 1, uploadedBy: currentUserName, uploadedAt: now };
+        setStore((s) => ({ ...s, maintenanceAssetDocuments: [replacement, ...s.maintenanceAssetDocuments.map((document) => document.id === documentId ? { ...document, replacedByDocumentId: replacement.id } : document)] }));
+        return replacement;
+      },
+      deleteMaintenanceAssetDocument: (documentId, reason) => {
+        if (!reason.trim()) throw new Error("Enter a delete reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceAssetDocuments: s.maintenanceAssetDocuments.map((document) => document.id === documentId ? { ...document, deletedAt: now, deletedBy: currentUserName } : document) }));
+      },
+      addMaintenanceAssetPhoto: (assetId, input) => {
+        const asset = store.maintenanceAssets.find((item) => item.id === assetId);
+        if (!asset) throw new Error("Asset not found.");
+        const now = new Date().toISOString();
+        const photo: MaintenanceAssetPhoto = { id: `maintenance-asset-photo-${uid()}`, assetId, homeId: asset.homeId, facilityId: asset.homeId, fileReference: input.fileReference.trim(), caption: input.caption?.trim() || undefined, displayOrder: store.maintenanceAssetPhotos.filter((item) => item.assetId === assetId).length + 1, primary: input.primary ?? !store.maintenanceAssetPhotos.some((item) => item.assetId === assetId && item.primary && !item.deletedAt), uploadedBy: currentUserName, uploadedAt: now };
+        setStore((s) => ({ ...s, maintenanceAssetPhotos: [photo, ...(photo.primary ? s.maintenanceAssetPhotos.map((item) => item.assetId === assetId ? { ...item, primary: false } : item) : s.maintenanceAssetPhotos)] }));
+        return photo;
+      },
+      updateMaintenanceAssetPhoto: (photoId, input) => {
+        const current = store.maintenanceAssetPhotos.find((photo) => photo.id === photoId);
+        setStore((s) => ({ ...s, maintenanceAssetPhotos: s.maintenanceAssetPhotos.map((photo) => photo.id === photoId ? { ...photo, ...input } : input.primary && current && photo.assetId === current.assetId ? { ...photo, primary: false } : photo) }));
+      },
+      deleteMaintenanceAssetPhoto: (photoId, reason) => {
+        if (!reason.trim()) throw new Error("Enter a delete reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceAssetPhotos: s.maintenanceAssetPhotos.map((photo) => photo.id === photoId ? { ...photo, deletedAt: now, deletedBy: currentUserName } : photo) }));
+      },
+      reorderMaintenanceAssetPhotos: (assetId, photoIds) => {
+        setStore((s) => ({ ...s, maintenanceAssetPhotos: s.maintenanceAssetPhotos.map((photo) => photo.assetId === assetId ? { ...photo, displayOrder: Math.max(1, photoIds.indexOf(photo.id) + 1) } : photo) }));
+      },
+      createMaintenanceAssetRelationship: (input) => {
+        if (input.parentAssetId === input.childAssetId) throw new Error("Select two different assets.");
+        const parent = store.maintenanceAssets.find((asset) => asset.id === input.parentAssetId);
+        const child = store.maintenanceAssets.find((asset) => asset.id === input.childAssetId);
+        if (!parent || !child) throw new Error("Select valid assets.");
+        const now = new Date().toISOString();
+        const relationship: MaintenanceAssetRelationship = { id: `maintenance-asset-relationship-${uid()}`, homeId: parent.homeId, facilityId: parent.homeId, parentAssetId: parent.id, childAssetId: child.id, relationshipType: input.relationshipType, notes: input.notes?.trim() || undefined, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({ ...s, maintenanceAssetRelationships: [relationship, ...s.maintenanceAssetRelationships] }));
+        return relationship;
+      },
+      updateMaintenanceAssetRelationship: (id, input) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, maintenanceAssetRelationships: s.maintenanceAssetRelationships.map((relationship) => relationship.id === id ? { ...relationship, ...input, updatedBy: currentUserName, updatedAt: now } : relationship) }));
+      },
+      deleteMaintenanceAssetRelationship: (id) => {
+        setStore((s) => ({ ...s, maintenanceAssetRelationships: s.maintenanceAssetRelationships.filter((relationship) => relationship.id !== id) }));
+      },
       createMaintenanceTemplate: (input) => {
         const validation = validateTemplateInput(input);
         if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the template details.");
@@ -7654,6 +8079,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }
         if ((input.assignedUserId || input.assignedTeamId) && !canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.assign", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to assign Work Orders during creation.");
+        }
+        if (input.assetId) {
+          const asset = store.maintenanceAssets.find((item) => item.id === input.assetId);
+          if (asset && !canReceiveWorkOrder(asset)) throw new Error("Retired, disposed, lost or archived assets cannot receive new Work Orders.");
         }
         const homeUsers = store.users.filter((user) => user.facilityIds?.includes(input.homeId) || user.facilityId === input.homeId);
         const validation = validateWorkOrderInput(input, { ...store, users: homeUsers });

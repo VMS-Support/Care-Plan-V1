@@ -18,6 +18,7 @@ import {
   type CreateWorkOrderInput,
   type UpdateWorkOrderInput,
 } from "@/domain/maintenance/workOrders";
+import { canReceiveWorkOrder } from "@/domain/maintenance/assets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,10 @@ export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrder
     () => care.users.filter((user) => user.facilityIds?.includes(form.homeId) || user.facilityId === form.homeId),
     [care.users, form.homeId],
   );
+  const homeAssets = useMemo(
+    () => care.maintenanceAssets.filter((asset) => asset.homeId === form.homeId && canReceiveWorkOrder(asset)),
+    [care.maintenanceAssets, form.homeId],
+  );
   const source = { ...care, users: homeUsers };
   const payload = toPayload(form, mode);
   const validation = validateWorkOrderInput(payload, source);
@@ -118,7 +123,7 @@ export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrder
       const next = {
         ...current,
         [key]: value,
-        ...(key === "homeId" && value !== current.homeId ? { roomId: "", wardId: "", assignedUserId: "", supervisorUserId: "" } : {}),
+        ...(key === "homeId" && value !== current.homeId ? { roomId: "", wardId: "", assignedUserId: "", supervisorUserId: "", assetId: "", affectedAssetDescription: "" } : {}),
         ...(key === "wardId" && value !== current.wardId ? { roomId: "" } : {}),
         ...(key === "category" && value !== current.category ? { subcategory: "" } : {}),
       };
@@ -238,7 +243,7 @@ export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrder
           )}
 
           {step === 0 && <LocationStep form={form} update={update} rooms={homeRooms} wards={homeWards} />}
-          {step === 1 && <IssueStep form={form} update={update} possibleMatches={possibleMatches} />}
+          {step === 1 && <IssueStep form={form} update={update} possibleMatches={possibleMatches} assets={homeAssets} />}
           {step === 2 && <RiskStep form={form} update={update} updateRisk={updateRisk} risk={risk} minimumPriority={minimumPriority} />}
           {step === 3 && <ReviewStep form={form} update={update} canAssign={canAssign} users={homeUsers} risk={risk} workOrder={workOrder} />}
         </CardContent>
@@ -299,7 +304,13 @@ function LocationStep({ form, update, rooms, wards }: { form: FormState; update:
   );
 }
 
-function IssueStep({ form, update, possibleMatches }: { form: FormState; update: Updater; possibleMatches: MaintenanceWorkOrder[] }) {
+function IssueStep({ form, update, possibleMatches, assets }: { form: FormState; update: Updater; possibleMatches: MaintenanceWorkOrder[]; assets: ReturnType<typeof useCare>["maintenanceAssets"] }) {
+  function selectAsset(assetId: string) {
+    const asset = assets.find((item) => item.id === assetId);
+    update("assetId", assetId);
+    if (asset) update("affectedAssetDescription", `${asset.assetName} (${asset.assetNumber})`);
+  }
+
   return (
     <section className="space-y-4">
       {possibleMatches.length > 0 && (
@@ -328,8 +339,11 @@ function IssueStep({ form, update, possibleMatches }: { form: FormState; update:
         <Field label="Subcategory">
           <Input value={form.subcategory || ""} onChange={(event) => update("subcategory", event.target.value)} placeholder="e.g., Sensor, door closer, lighting" />
         </Field>
-        <Field label="Asset ID / Register Reference">
-          <Input value={form.assetId || ""} onChange={(event) => update("assetId", event.target.value)} placeholder="Optional asset reference if known" />
+        <Field label="Asset Register Reference">
+          <select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={form.assetId || ""} onChange={(event) => selectAsset(event.target.value)}>
+            <option value="">No linked asset</option>
+            {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.assetNumber} - {asset.assetName}</option>)}
+          </select>
         </Field>
         <Field label="Affected Item Description">
           <Input value={form.affectedAssetDescription || ""} onChange={(event) => update("affectedAssetDescription", event.target.value)} placeholder="e.g., Wall-mounted call bell controller" />

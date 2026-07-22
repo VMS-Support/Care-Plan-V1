@@ -2372,6 +2372,150 @@ export interface PlannedMaintenanceOccurrence {
   generatedBy?: string;
 }
 
+export type MaintenanceAssetCondition = "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Out of Service";
+export type MaintenanceAssetStatus = "Active" | "Inactive" | "Retired" | "Disposed" | "Lost" | "Archived";
+export type MaintenanceAssetOperationalStatus =
+  | "Operational"
+  | "Under Maintenance"
+  | "Awaiting Repair"
+  | "Awaiting Parts"
+  | "Faulty"
+  | "Out of Service"
+  | "Decommissioned";
+export type MaintenanceAssetCriticality = "Low" | "Medium" | "High" | "Critical";
+export type MaintenanceAssetDocumentType =
+  | "Manual"
+  | "Warranty"
+  | "Certificate"
+  | "Installation"
+  | "Maintenance"
+  | "Inspection"
+  | "Photo"
+  | "Invoice"
+  | "Other";
+export type MaintenanceAssetRelationshipType =
+  | "Contains"
+  | "Powered By"
+  | "Feeds"
+  | "Connected To"
+  | "Backup For"
+  | "Replacement For";
+
+export interface MaintenanceAssetCategory {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string;
+  colour: string;
+  icon: string;
+  active: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  displayOrder: number;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface MaintenanceAsset {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  nursingHomeId?: string;
+  assetNumber: string;
+  assetName: string;
+  description?: string;
+  categoryId: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  barcode?: string;
+  locationId?: string;
+  locationLabel?: string;
+  purchaseDate?: string;
+  installationDate?: string;
+  supplier?: string;
+  warrantyStartDate?: string;
+  warrantyEndDate?: string;
+  condition: MaintenanceAssetCondition;
+  operationalStatus: MaintenanceAssetOperationalStatus;
+  assetStatus: MaintenanceAssetStatus;
+  criticality: MaintenanceAssetCriticality;
+  replacementDate?: string;
+  replacementCost?: number;
+  notes?: string;
+  photo?: string;
+  active: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface MaintenanceAssetDocument {
+  id: string;
+  assetId: string;
+  homeId?: string;
+  facilityId?: string;
+  documentType: MaintenanceAssetDocumentType;
+  fileName: string;
+  storageReference: string;
+  version: number;
+  replacedByDocumentId?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface MaintenanceAssetPhoto {
+  id: string;
+  assetId: string;
+  homeId?: string;
+  facilityId?: string;
+  fileReference: string;
+  caption?: string;
+  displayOrder: number;
+  primary?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface MaintenanceAssetLocationHistory {
+  id: string;
+  assetId: string;
+  homeId?: string;
+  facilityId?: string;
+  previousLocationId?: string;
+  previousLocationLabel?: string;
+  newLocationId?: string;
+  newLocationLabel?: string;
+  movedBy: string;
+  movedDate: string;
+  reason: string;
+}
+
+export interface MaintenanceAssetRelationship {
+  id: string;
+  homeId?: string;
+  facilityId?: string;
+  parentAssetId: string;
+  childAssetId: string;
+  relationshipType: MaintenanceAssetRelationshipType;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
 export type WorkOrderNoteType =
   | "GENERAL"
   | "PROGRESS_UPDATE"
