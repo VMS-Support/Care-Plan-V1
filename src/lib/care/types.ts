@@ -2429,13 +2429,79 @@ export interface WorkOrderCompletionRecord {
   materialsReviewed: boolean;
   declarationAccepted: boolean;
   verificationRequired: boolean;
-  verificationStatus: "NOT_REQUIRED" | "PENDING";
+  verificationStatus: "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "REJECTED";
   verificationReasons: string[];
+  verificationRequiredSnapshot?: boolean;
+  verificationReasonCodes?: string[];
+  verificationRuleVersion?: string;
+  verificationEvaluatedAt?: string;
+  verifierUserId?: string;
+  verificationAssignedAt?: string;
+  verificationAssignedByUserId?: string;
+  verificationAcceptedAt?: string;
+  verificationAssignmentStatus?: "UNASSIGNED" | "ASSIGNED" | "CLAIMED" | "COMPLETED" | "RELEASED";
+  verifiedAt?: string;
+  verifiedByUserId?: string;
+  rejectedAt?: string;
+  rejectedByUserId?: string;
+  latestVerificationId?: string;
   warningsAcknowledged: string[];
   previousStatus: MaintenanceWorkOrderStatus;
   resultingStatus: MaintenanceWorkOrderStatus;
   workOrderVersionBefore: number;
   workOrderVersionAfter: number;
+  version: number;
+  lastRequestId?: string;
+}
+
+export type WorkOrderVerificationResult = "VERIFIED" | "REJECTED";
+export type WorkOrderVerificationChecklistResponse = "YES" | "NO" | "NOT_APPLICABLE" | "CONFIRMED";
+export type WorkOrderVerificationRejectionReason =
+  | "WORK_INCOMPLETE"
+  | "EVIDENCE_INSUFFICIENT"
+  | "CHECKLIST_CONCERN"
+  | "SAFETY_CONCERN"
+  | "QUALITY_CONCERN"
+  | "FOLLOW_UP_REQUIRED"
+  | "OTHER";
+
+export interface WorkOrderVerificationChecklistSnapshot {
+  itemKey: string;
+  label: string;
+  required: boolean;
+  response: WorkOrderVerificationChecklistResponse;
+  comment?: string;
+  source: string;
+  order: number;
+}
+
+export interface WorkOrderVerificationRecord {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  completionId: string;
+  completionVersion: number;
+  organisationId?: string;
+  homeId: string;
+  result: WorkOrderVerificationResult;
+  reviewedByUserId: string;
+  reviewedAt: string;
+  verificationNotes?: string;
+  rejectionReasons?: WorkOrderVerificationRejectionReason[];
+  rejectionNotes?: string;
+  correctiveActionRequired?: string;
+  safetyInstructions?: string;
+  evidenceRequiredForResubmission?: boolean;
+  evidenceInstructions?: string;
+  checklist: WorkOrderVerificationChecklistSnapshot[];
+  verificationEvidenceIds: string[];
+  declarationAccepted: boolean;
+  previousWorkOrderStatus: MaintenanceWorkOrderStatus;
+  resultingWorkOrderStatus: MaintenanceWorkOrderStatus;
+  workOrderVersionBefore: number;
+  workOrderVersionAfter: number;
+  completionVersionBefore: number;
+  completionVersionAfter: number;
   version: number;
   lastRequestId?: string;
 }

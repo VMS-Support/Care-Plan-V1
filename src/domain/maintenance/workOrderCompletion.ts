@@ -101,6 +101,7 @@ export interface WorkOrderCompletionEligibility {
   checklist: WorkOrderCompletionChecklistItem[];
   verificationRequired: boolean;
   verificationReasons: string[];
+  verificationReasonCodes: string[];
   evidenceRequired: boolean;
   evidenceRequirementReason?: string;
   availableEvidence: WorkOrderAttachment[];
@@ -159,6 +160,7 @@ export function evaluateWorkOrderCompletionEligibility(params: {
   const activeMaterials = params.related.materials.filter((item) => !item.deletedAt);
   const risk = effectiveRisk(record);
   const verificationReasons = verificationReasonsFor(record, params.completionRequest);
+  const verificationReasonCodes = verificationReasonCodesFor(record, params.completionRequest);
   const evidenceReason = evidenceRequirementReason(record, params.completionRequest);
   const requiredWarningCodes = warningList(record, activeLabour, activeMaterials, activeAttachments, params.related.notes);
   warnings.push(...requiredWarningCodes);
@@ -170,6 +172,7 @@ export function evaluateWorkOrderCompletionEligibility(params: {
     checklist,
     verificationRequired: verificationReasons.length > 0 || record.verificationRequired || risk === "HIGH" || risk === "CRITICAL",
     verificationReasons,
+    verificationReasonCodes,
     evidenceRequired: Boolean(evidenceReason),
     evidenceRequirementReason: evidenceReason,
     availableEvidence: activeAttachments,
@@ -241,6 +244,11 @@ export function createWorkOrderCompletionRecord(params: {
     verificationRequired: eligibility.verificationRequired,
     verificationStatus: eligibility.verificationRequired ? "PENDING" : "NOT_REQUIRED",
     verificationReasons: eligibility.verificationReasons,
+    verificationRequiredSnapshot: eligibility.verificationRequired,
+    verificationReasonCodes: eligibility.verificationReasonCodes,
+    verificationRuleVersion: "maintenance-verification-v1",
+    verificationEvaluatedAt: now,
+    verificationAssignmentStatus: eligibility.verificationRequired ? "UNASSIGNED" : "COMPLETED",
     warningsAcknowledged: params.input.warningsAcknowledged,
     previousStatus: params.workOrder.status,
     resultingStatus,
@@ -360,6 +368,26 @@ function verificationReasonsFor(record: MaintenanceWorkOrder, input?: Partial<Wo
   return Array.from(new Set(reasons));
 }
 
+function verificationReasonCodesFor(record: MaintenanceWorkOrder, input?: Partial<WorkOrderCompletionInput>) {
+  const codes: string[] = [];
+  const risk = effectiveRisk(record);
+  if (record.verificationRequired) codes.push("MANUAL_VERIFICATION_REQUEST");
+  if (record.priority === "CRITICAL") codes.push("CRITICAL_PRIORITY");
+  if (record.priority === "HIGH") codes.push("HIGH_PRIORITY");
+  if (risk === "CRITICAL") codes.push("CRITICAL_RISK_WORK");
+  if (risk === "HIGH") codes.push("HIGH_RISK_WORK");
+  if (record.category === "FIRE_SAFETY") codes.push("FIRE_SAFETY_WORK");
+  if (record.category === "ELECTRICAL") codes.push("ELECTRICAL_WORK");
+  if (record.category === "WATER_SAFETY" || record.category === "PLUMBING") codes.push("WATER_SAFETY_WORK");
+  if (record.category === "NURSE_CALL") codes.push("NURSE_CALL_WORK");
+  if (record.residentSafetyImpact) codes.push("RESIDENT_SAFETY_IMPACT");
+  if (record.locationType === "RESIDENT_ROOM") codes.push("RESIDENT_ROOM_WORK");
+  if (record.complianceImpact) codes.push("COMPLIANCE_IMPACT");
+  if (input?.outcome === "TEMPORARY_REPAIR") codes.push("TEMPORARY_REPAIR");
+  if (input?.followUpRequired) codes.push("FOLLOW_UP_REQUIRED");
+  return Array.from(new Set(codes));
+}
+
 function warningList(record: MaintenanceWorkOrder, labour: WorkOrderLabourEntry[], materials: WorkOrderMaterialEntry[], attachments: WorkOrderAttachment[], notes: WorkOrderNote[]) {
   const warnings: WorkOrderCompletionEligibility["warnings"] = [];
   if (labour.length === 0) warnings.push({ code: "NO_LABOUR_RECORDED", message: "No labour has been recorded.", acknowledgementRequired: true });
@@ -375,7 +403,7 @@ function item(key: string, label: string, required: boolean, order: number, sour
 }
 
 function emptyEligibility(blockers: WorkOrderCompletionEligibility["blockers"]): WorkOrderCompletionEligibility {
-  return { allowed: false, blockers, warnings: [], checklist: [], verificationRequired: false, verificationReasons: [], evidenceRequired: false, availableEvidence: [], workOrderVersion: 0, totals: { labourMinutes: 0, materialsCount: 0, attachmentsCount: 0, evidenceCount: 0, progressNotesCount: 0 } };
+  return { allowed: false, blockers, warnings: [], checklist: [], verificationRequired: false, verificationReasons: [], verificationReasonCodes: [], evidenceRequired: false, availableEvidence: [], workOrderVersion: 0, totals: { labourMinutes: 0, materialsCount: 0, attachmentsCount: 0, evidenceCount: 0, progressNotesCount: 0 } };
 }
 
 function completionIssue(issue: WorkOrderCompletionEligibility["blockers"][number]) {

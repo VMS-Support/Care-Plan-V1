@@ -13,7 +13,9 @@ export type WorkOrderWorkflowAction =
   | "AWAIT_CONTRACTOR"
   | "AWAIT_ACCESS"
   | "RESUME"
-  | "COMPLETE";
+  | "COMPLETE"
+  | "VERIFY"
+  | "REJECT_VERIFICATION";
 
 export type WorkOrderHoldReason = "safety" | "access" | "resident_need" | "staffing" | "other";
 export type WorkOrderAccessIssue = "resident_unavailable" | "room_in_use" | "infection_control" | "restricted_area" | "other";
@@ -85,6 +87,8 @@ export interface WorkOrderWorkflowInput {
   completionId?: string;
   completionOutcome?: string;
   completionVerificationRequired?: boolean;
+  verificationId?: string;
+  verificationResult?: string;
 }
 
 export interface WorkOrderWorkflowContext {
@@ -160,7 +164,7 @@ export const WORK_ORDER_TRANSITIONS: Record<MaintenanceWorkOrderStatus, WorkOrde
   AWAITING_PARTS: ["REASSIGN", "RESUME"],
   AWAITING_CONTRACTOR: ["REASSIGN", "RESUME"],
   COMPLETED: [],
-  VERIFICATION_REQUIRED: [],
+  VERIFICATION_REQUIRED: ["VERIFY", "REJECT_VERIFICATION"],
   VERIFIED: [],
   CLOSED: [],
   CANCELLED: [],
@@ -180,6 +184,8 @@ const ACTIONS: WorkOrderWorkflowAction[] = [
   "AWAIT_ACCESS",
   "RESUME",
   "COMPLETE",
+  "VERIFY",
+  "REJECT_VERIFICATION",
 ];
 const HOLD_REASONS: WorkOrderHoldReason[] = ["safety", "access", "resident_need", "staffing", "other"];
 const ACCESS_ISSUES: WorkOrderAccessIssue[] = ["resident_unavailable", "room_in_use", "infection_control", "restricted_area", "other"];
@@ -357,6 +363,8 @@ function validateRequest(input: WorkOrderWorkflowInput) {
     "completionId",
     "completionOutcome",
     "completionVerificationRequired",
+    "verificationId",
+    "verificationResult",
   ]);
   Object.keys(input as Record<string, unknown>).forEach((key) => {
     if (!allowed.has(key)) issues.push(error("VALIDATION_ERROR", "workOrder", `Unexpected workflow field: ${key}.`));
@@ -389,7 +397,7 @@ function validateRecordRules(record: MaintenanceWorkOrder, input: WorkOrderWorkf
   }
   if (context.homeId) rules.push(rule("WO_CONTEXT_HOME_SCOPE", record.homeId === context.homeId, "OUT_OF_SCOPE", "workOrder", "This Work Order is outside the selected Care Home."));
   rules.push(rule("WO_NOT_ARCHIVED", !record.archivedAt, "WORK_ORDER_LOCKED", "workOrder", "Archived Work Orders cannot be changed."));
-  rules.push(rule("WO_NOT_TERMINAL", !HISTORICAL_WORK_ORDER_STATUSES.includes(record.status), "WORK_ORDER_LOCKED", "workOrder", "This Work Order is read-only in its current status."));
+  rules.push(rule("WO_NOT_TERMINAL", !HISTORICAL_WORK_ORDER_STATUSES.includes(record.status) || ["VERIFY", "REJECT_VERIFICATION"].includes(input.action), "WORK_ORDER_LOCKED", "workOrder", "This Work Order is read-only in its current status."));
   if (!skipVersion) rules.push(rule("WO_VERSION_MATCH", input.expectedVersion === record.version, "STALE_VERSION", "expectedVersion", "This Work Order changed while you were completing this action. Review the latest details and try again."));
   return rules;
 }
@@ -420,6 +428,12 @@ function validatePermissionRules(record: MaintenanceWorkOrder, input: WorkOrderW
   }
   if (input.action === "COMPLETE") {
     rules.push(rule("WO_COMPLETE_RELATIONSHIP", isWorkerOrSupervisor(record, context) || context.canAccess("maintenance.work_orders.complete_unassigned", { nursingHomeId: record.homeId }), "PERMISSION_DENIED", "assignment", "Only the assigned person or an authorised supervisor can complete this Work Order."));
+  }
+  if (input.action === "VERIFY") {
+    rules.push(rule("WO_VERIFY_PERMISSION", context.canAccess("maintenance.work_orders.verification.verify", { nursingHomeId: record.homeId }), "PERMISSION_DENIED", "permission", "You do not have permission to verify this Work Order."));
+  }
+  if (input.action === "REJECT_VERIFICATION") {
+    rules.push(rule("WO_REJECT_VERIFICATION_PERMISSION", context.canAccess("maintenance.work_orders.verification.reject", { nursingHomeId: record.homeId }), "PERMISSION_DENIED", "permission", "You do not have permission to reject this verification."));
   }
   return rules;
 }
@@ -624,6 +638,22 @@ export function calculateAutomaticChanges(record: MaintenanceWorkOrder, input: W
         activeWorkStartedAt: undefined,
         totalActiveWorkMs: elapsedTotal(record.totalActiveWorkMs, record.activeWorkStartedAt, now),
       };
+    case "VERIFY":
+      return {
+        status: "VERIFIED",
+        verifiedAt: now,
+        verifiedByUserId: context.currentUser.id,
+        activeWorkStartedAt: undefined,
+      };
+    case "REJECT_VERIFICATION":
+      return {
+        status: "IN_PROGRESS",
+        verifiedAt: undefined,
+        verifiedByUserId: undefined,
+        activeWorkStartedAt: now,
+        resumedAt: now,
+        completionSummary: clean(input.reason),
+      };
   }
 }
 
@@ -772,6 +802,8 @@ function auditAction(action: WorkOrderWorkflowAction) {
     AWAIT_ACCESS: "WORK_ORDER_AWAITING_ACCESS",
     RESUME: "WORK_ORDER_RESUMED",
     COMPLETE: "WORK_ORDER_COMPLETED",
+    VERIFY: "WORK_ORDER_VERIFIED",
+    REJECT_VERIFICATION: "WORK_ORDER_VERIFICATION_REJECTED",
   };
   return actions[action];
 }
@@ -790,6 +822,8 @@ function workflowCapability(action: WorkOrderWorkflowAction) {
     AWAIT_ACCESS: "maintenance.work_orders.await_access",
     RESUME: "maintenance.work_orders.resume",
     COMPLETE: "maintenance.work_orders.complete",
+    VERIFY: "maintenance.work_orders.verification.verify",
+    REJECT_VERIFICATION: "maintenance.work_orders.verification.reject",
   };
   return capabilities[action];
 }

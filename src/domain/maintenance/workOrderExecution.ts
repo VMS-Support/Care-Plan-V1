@@ -5,6 +5,7 @@ import type {
   UserProfile,
   WorkOrderAttachment,
   WorkOrderCompletionRecord,
+  WorkOrderVerificationRecord,
   WorkOrderAttachmentCategory,
   WorkOrderEvidenceType,
   WorkOrderLabourEntry,
@@ -323,6 +324,7 @@ export function buildWorkOrderTimeline(input: {
   labour: WorkOrderLabourEntry[];
   materials: WorkOrderMaterialEntry[];
   completions?: WorkOrderCompletionRecord[];
+  verifications?: WorkOrderVerificationRecord[];
   users: UserProfile[];
   limit?: number;
 }) {
@@ -402,6 +404,19 @@ export function buildWorkOrderTimeline(input: {
         : `Outcome: ${completion.outcome}.`,
       sourceType: "work_order" as const,
       sourceId: completion.id,
+    })),
+    ...(input.verifications || []).map((verification) => ({
+      id: `verification:${verification.id}`,
+      eventType: verification.result === "VERIFIED" ? "verified" : "verification_rejected",
+      occurredAt: verification.reviewedAt,
+      actor: { id: verification.reviewedByUserId, displayName: userName(verification.reviewedByUserId) },
+      title: verification.result === "VERIFIED" ? "Work Order verified" : "Verification rejected",
+      description:
+        verification.result === "VERIFIED"
+          ? `Verified by ${userName(verification.reviewedByUserId)} after reviewing the completion information and evidence.`
+          : `Rejected by ${userName(verification.reviewedByUserId)} and returned for corrective work. Reason: ${(verification.rejectionReasons || []).join(", ") || "Not recorded"}.`,
+      sourceType: "work_order" as const,
+      sourceId: verification.id,
     })),
   ];
   return items.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).slice(0, input.limit || 50);

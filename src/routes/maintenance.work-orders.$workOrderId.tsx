@@ -4,7 +4,7 @@ import type React from "react";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, Archive, ArrowRight, CheckCircle2, Edit, FileText, ImageIcon, Package, Timer, Wrench } from "lucide-react";
 import { useCare } from "@/lib/care/store";
-import type { MaintenanceWorkOrder, WorkOrderAttachment, WorkOrderCompletionOutcome, WorkOrderCompletionRecord, WorkOrderLabourEntry, WorkOrderMaterialEntry, WorkOrderNote } from "@/lib/care/types";
+import type { MaintenanceWorkOrder, WorkOrderAttachment, WorkOrderCompletionOutcome, WorkOrderCompletionRecord, WorkOrderLabourEntry, WorkOrderMaterialEntry, WorkOrderNote, WorkOrderVerificationRejectionReason, WorkOrderVerificationRecord } from "@/lib/care/types";
 import {
   isWorkOrderOverdue,
   workOrderAssigneeLabel,
@@ -24,6 +24,7 @@ import {
   type WorkOrderTimelineItem,
 } from "@/domain/maintenance/workOrderExecution";
 import { WORK_ORDER_COMPLETION_OUTCOMES, completionOutcomeLabel } from "@/domain/maintenance/workOrderCompletion";
+import { WORK_ORDER_VERIFICATION_REJECTION_REASONS, verificationReasonLabel } from "@/domain/maintenance/workOrderVerification";
 import { WorkOrderForm } from "@/components/maintenance/WorkOrderForm";
 import { WorkOrderWorkflowActions } from "@/components/maintenance/WorkOrderWorkflowActions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +52,8 @@ function WorkOrderDetailRoute() {
   const [archiveReason, setArchiveReason] = useState("");
   const [executionTab, setExecutionTab] = useState<"notes" | "timeline" | "files" | "labour" | "materials">("notes");
   const [completionOpen, setCompletionOpen] = useState(false);
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [rejectionOpen, setRejectionOpen] = useState(false);
   const record = useMemo(
     () => care.maintenanceWorkOrders.find((item) => item.id === workOrderId),
     [care.maintenanceWorkOrders, workOrderId],
@@ -60,7 +63,9 @@ function WorkOrderDetailRoute() {
   const labour = useMemo(() => care.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId && !item.deletedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [care.workOrderLabourEntries, workOrderId]);
   const materials = useMemo(() => care.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId && !item.deletedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [care.workOrderMaterialEntries, workOrderId]);
   const completions = useMemo(() => care.workOrderCompletions.filter((item) => item.workOrderId === workOrderId).sort((a, b) => b.completedAt.localeCompare(a.completedAt)), [care.workOrderCompletions, workOrderId]);
-  const timeline = useMemo(() => care.getWorkOrderTimeline(workOrderId, 40), [care, workOrderId, notes, attachments, labour, materials, record?.updatedAt]);
+  const verifications = useMemo(() => care.workOrderVerifications.filter((item) => item.workOrderId === workOrderId).sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt)), [care.workOrderVerifications, workOrderId]);
+  const pendingCompletion = completions.find((item) => item.verificationStatus === "PENDING");
+  const timeline = useMemo(() => care.getWorkOrderTimeline(workOrderId, 40), [care, workOrderId, notes, attachments, labour, materials, completions, verifications, record?.updatedAt]);
 
   if (!care.canAccess("maintenance.work_orders.view") || (record && !canViewWorkOrderRecord(care, record))) {
     return (
@@ -110,6 +115,7 @@ function WorkOrderDetailRoute() {
 
       <WorkOrderWorkflowActions record={record} />
       <WorkOrderCompletionSection record={record} completion={completions[0]} onComplete={() => setCompletionOpen(true)} />
+      <WorkOrderVerificationSection record={record} completion={pendingCompletion} verifications={verifications} onVerify={() => setVerificationOpen(true)} onReject={() => setRejectionOpen(true)} />
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
         <Card>
@@ -212,6 +218,8 @@ function WorkOrderDetailRoute() {
         onTabChange={setExecutionTab}
       />
       <CompletionDialog record={record} open={completionOpen} onOpenChange={setCompletionOpen} />
+      {pendingCompletion && <VerificationDialog record={record} completion={pendingCompletion} mode="verify" open={verificationOpen} onOpenChange={setVerificationOpen} />}
+      {pendingCompletion && <VerificationDialog record={record} completion={pendingCompletion} mode="reject" open={rejectionOpen} onOpenChange={setRejectionOpen} />}
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
@@ -518,6 +526,278 @@ function CompletionDialog({ record, open, onOpenChange }: { record: MaintenanceW
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function WorkOrderVerificationSection({
+  record,
+  completion,
+  verifications,
+  onVerify,
+  onReject,
+}: {
+  record: MaintenanceWorkOrder;
+  completion?: WorkOrderCompletionRecord;
+  verifications: WorkOrderVerificationRecord[];
+  onVerify: () => void;
+  onReject: () => void;
+}) {
+  const care = useCare();
+  if (!care.canAccess("maintenance.work_orders.verification.view", { nursingHomeId: record.homeId }) && !completion && verifications.length === 0) return null;
+  const eligibility = completion ? care.evaluateWorkOrderVerification(record.id, { expectedWorkOrderVersion: record.version, expectedCompletionVersion: completion.version }) : undefined;
+  const assignedName = completion?.verifierUserId ? userName(care.users, completion.verifierUserId) : "Unassigned";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Verification</CardTitle>
+        <p className="text-sm text-muted-foreground">Review completion evidence, verify completed work, or reject it back for corrective work.</p>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {completion ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-4">
+              <DetailRow label="Status" value={completion.verificationStatus} />
+              <DetailRow label="Assigned Verifier" value={assignedName} />
+              <DetailRow label="Assignment" value={completion.verificationAssignmentStatus || "UNASSIGNED"} />
+              <DetailRow label="Completion Version" value={String(completion.version)} />
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="font-medium">Why verification is required</div>
+              <ul className="mt-2 list-disc pl-5 text-muted-foreground">
+                {(completion.verificationReasonCodes?.length ? completion.verificationReasonCodes.map(verificationReasonLabel) : completion.verificationReasons).map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </div>
+            {eligibility?.blockers.length ? <div className="rounded-md bg-red-50 p-3 text-red-900">{eligibility.blockers[0].message}</div> : null}
+            <div className="flex flex-wrap gap-2">
+              {eligibility?.canClaim && (
+                <Button size="sm" onClick={() => {
+                  try {
+                    care.claimWorkOrderVerification(record.id, { expectedWorkOrderVersion: record.version, expectedCompletionVersion: completion.version, idempotencyKey: `claim-${record.id}-${completion.version}-${Date.now()}` });
+                    toast.success("Verification claimed.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Unable to claim verification.");
+                  }
+                }}>Claim Verification</Button>
+              )}
+              {eligibility?.canAssign && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const verifierUserId = window.prompt("Verifier user ID");
+                  if (!verifierUserId) return;
+                  try {
+                    care.assignWorkOrderVerification(record.id, { verifierUserId, expectedWorkOrderVersion: record.version, expectedCompletionVersion: completion.version, reason: "Verifier assigned", idempotencyKey: `assign-verification-${record.id}-${completion.version}-${Date.now()}` });
+                    toast.success("Verification assigned.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Unable to assign verification.");
+                  }
+                }}>Assign Verifier</Button>
+              )}
+              {eligibility?.canRelease && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const reason = window.prompt("Reason for releasing verification assignment");
+                  if (!reason) return;
+                  try {
+                    care.releaseWorkOrderVerification(record.id, { expectedWorkOrderVersion: record.version, expectedCompletionVersion: completion.version, reason, idempotencyKey: `release-verification-${record.id}-${completion.version}-${Date.now()}` });
+                    toast.success("Verification released.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Unable to release verification.");
+                  }
+                }}>Release Assignment</Button>
+              )}
+              {eligibility?.canVerify && <Button size="sm" onClick={onVerify}><CheckCircle2 className="mr-2 h-4 w-4" />Verify Work Order</Button>}
+              {eligibility?.canReject && <Button size="sm" variant="destructive" onClick={onReject}>Reject Verification</Button>}
+            </div>
+          </>
+        ) : (
+          <p className="text-muted-foreground">No pending verification.</p>
+        )}
+        {verifications.length > 0 && (
+          <div>
+            <div className="font-semibold">Verification History</div>
+            <div className="mt-2 space-y-2">
+              {verifications.map((item) => (
+                <div key={item.id} className="rounded-md border p-3">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <div className="font-medium">{item.result === "VERIFIED" ? "Verified" : "Rejected"} by {userName(care.users, item.reviewedByUserId)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(item.reviewedAt)} · completion v{item.completionVersion}</div>
+                  </div>
+                  {item.verificationNotes && <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{item.verificationNotes}</p>}
+                  {item.rejectionNotes && <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{item.rejectionNotes}</p>}
+                  {item.correctiveActionRequired && <p className="mt-1 text-muted-foreground">Corrective action: {item.correctiveActionRequired}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function VerificationDialog({ record, completion, mode, open, onOpenChange }: { record: MaintenanceWorkOrder; completion: WorkOrderCompletionRecord; mode: "verify" | "reject"; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const care = useCare();
+  const [notes, setNotes] = useState("");
+  const [correctiveAction, setCorrectiveAction] = useState("");
+  const [safetyInstructions, setSafetyInstructions] = useState("");
+  const [evidenceRequired, setEvidenceRequired] = useState(false);
+  const [evidenceInstructions, setEvidenceInstructions] = useState("");
+  const [reasons, setReasons] = useState<WorkOrderVerificationRejectionReason[]>([]);
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [evidenceIds, setEvidenceIds] = useState<string[]>([]);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+  const [warningsAcknowledged, setWarningsAcknowledged] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const eligibility = care.evaluateWorkOrderVerification(record.id, { expectedWorkOrderVersion: record.version, expectedCompletionVersion: completion.version });
+  const completionEvidence = care.workOrderAttachments.filter((item) => completion.selectedEvidenceIds.includes(item.id));
+  const labour = care.workOrderLabourEntries.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+  const materials = care.workOrderMaterialEntries.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+  const toggleReason = (reason: WorkOrderVerificationRejectionReason) => setReasons((current) => current.includes(reason) ? current.filter((item) => item !== reason) : [...current, reason]);
+  const toggleEvidence = (id: string) => setEvidenceIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const submit = () => {
+    const actionText = mode === "verify" ? "verify this Work Order" : "reject this verification and return it for corrective work";
+    if (!window.confirm(`You are about to ${actionText}. This will be retained in audit history.`)) return;
+    setSubmitting(true);
+    try {
+      if (mode === "verify") {
+        care.verifyMaintenanceWorkOrder(record.id, {
+          expectedWorkOrderVersion: record.version,
+          expectedCompletionVersion: completion.version,
+          verificationNotes: notes,
+          checklistResponses: eligibility.requiredChecklistItems.map((item) => ({ itemKey: item.key, response: (responses[item.key] || (item.responseType === "CONFIRMATION" ? "CONFIRMED" : "YES")) as any, comment: comments[item.key] })),
+          verificationEvidenceIds: evidenceIds,
+          declarationAccepted,
+          warningsAcknowledged,
+          idempotencyKey: `verify-${record.id}-${completion.version}-${Date.now()}`,
+        });
+        toast.success("Work Order verified.");
+      } else {
+        care.rejectMaintenanceWorkOrderVerification(record.id, {
+          expectedWorkOrderVersion: record.version,
+          expectedCompletionVersion: completion.version,
+          rejectionReasons: reasons,
+          rejectionNotes: notes,
+          correctiveActionRequired: correctiveAction,
+          safetyInstructions,
+          evidenceRequiredForResubmission: evidenceRequired,
+          evidenceInstructions,
+          verificationEvidenceIds: evidenceIds,
+          declarationAccepted,
+          idempotencyKey: `reject-verification-${record.id}-${completion.version}-${Date.now()}`,
+        });
+        toast.success("Verification rejected and returned for corrective work.");
+      }
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit verification.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+        <DialogHeader><DialogTitle>{mode === "verify" ? "Verify Work Order" : "Reject Verification"}</DialogTitle></DialogHeader>
+        <div className="space-y-5 text-sm">
+          <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-3">
+            <DetailRow label="Completed By" value={userName(care.users, completion.completedByUserId)} />
+            <DetailRow label="Completed" value={formatDate(completion.completedAt)} />
+            <DetailRow label="Outcome" value={completionOutcomeLabel(completion.outcome)} />
+            <DetailRow label="Labour" value={`${labour.length} entries · ${formatMinutes(labour.reduce((sum, item) => sum + item.durationMinutes, 0))}`} />
+            <DetailRow label="Materials" value={`${materials.length} entries`} />
+            <DetailRow label="Completion Evidence" value={`${completionEvidence.length} selected`} />
+          </div>
+          <div className="rounded-lg border p-4">
+            <div className="font-semibold">Completion Notes</div>
+            <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{completion.workCompleted}</p>
+            {completion.outstandingIssues && <p className="mt-2 text-muted-foreground">Outstanding: {completion.outstandingIssues}</p>}
+            {completion.followUpRequired && <p className="mt-2 text-muted-foreground">Follow-up: {completion.followUpDetails || "Required"}</p>}
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ReviewList title="Completion Checklist" items={completion.checklist.map((item) => `${item.label}: ${item.response}${item.comment ? ` - ${item.comment}` : ""}`)} />
+            <ReviewList title="Completion Evidence" items={completionEvidence.map((item) => `${item.originalFileName} · ${item.category} · ${formatDate(item.uploadedAt)} · ${item.scanStatus}`)} empty="No completion evidence selected." />
+          </div>
+          {mode === "verify" ? (
+            <div>
+              <div className="font-semibold">Verification Checklist</div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {eligibility.requiredChecklistItems.map((item) => (
+                  <div key={item.key} className="rounded-lg border p-3">
+                    <div className="font-medium">{item.label} {item.required && <span className="text-destructive">*</span>}</div>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {(item.responseType === "CONFIRMATION" ? ["CONFIRMED"] : item.responseType === "YES_NO" ? ["YES", "NO"] : ["YES", "NO", "NOT_APPLICABLE"]).map((option) => (
+                        <label key={option} className="flex items-center gap-1">
+                          <input type="radio" name={`verify-${item.key}`} checked={(responses[item.key] || (item.responseType === "CONFIRMATION" ? "CONFIRMED" : "YES")) === option} onChange={() => setResponses((current) => ({ ...current, [item.key]: option }))} />
+                          {option.replaceAll("_", " ")}
+                        </label>
+                      ))}
+                    </div>
+                    {(responses[item.key] === "NO" || item.responseType === "YES_NO_NOT_APPLICABLE") && <Input className="mt-2" placeholder="Comment" value={comments[item.key] || ""} onChange={(event) => setComments((current) => ({ ...current, [item.key]: event.target.value }))} />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border p-4">
+              <div className="font-semibold">Rejection Reasons</div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {WORK_ORDER_VERIFICATION_REJECTION_REASONS.map((item) => (
+                  <label key={item.value} className="flex items-center gap-2">
+                    <input type="checkbox" checked={reasons.includes(item.value)} onChange={() => toggleReason(item.value)} />
+                    {item.label}
+                  </label>
+                ))}
+              </div>
+              <Field label="Corrective Action Required"><Textarea rows={3} value={correctiveAction} onChange={(event) => setCorrectiveAction(event.target.value)} /></Field>
+              <Field label="Safety Instructions"><Input value={safetyInstructions} onChange={(event) => setSafetyInstructions(event.target.value)} /></Field>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={evidenceRequired} onChange={(event) => setEvidenceRequired(event.target.checked)} />Evidence required for resubmission</label>
+              {evidenceRequired && <Field label="Evidence Instructions"><Input value={evidenceInstructions} onChange={(event) => setEvidenceInstructions(event.target.value)} /></Field>}
+            </div>
+          )}
+          <div className="rounded-lg border p-4">
+            <div className="font-semibold">Verification Evidence</div>
+            {eligibility.requiredEvidenceRules.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{eligibility.requiredEvidenceRules.map((rule) => <li key={rule}>{rule}</li>)}</ul>}
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {eligibility.availableEvidence.length === 0 && <p className="text-muted-foreground">No eligible evidence available. Upload evidence in Files & Photos first.</p>}
+              {eligibility.availableEvidence.map((item) => (
+                <label key={item.id} className="flex items-start gap-2 rounded-md border p-2">
+                  <input type="checkbox" checked={evidenceIds.includes(item.id)} onChange={() => toggleEvidence(item.id)} />
+                  <span><span className="font-medium">{item.originalFileName}</span><br /><span className="text-muted-foreground">{item.category} · {formatBytes(item.size)} · {item.scanStatus}</span></span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {eligibility.warnings.filter((item) => item.acknowledgementRequired).length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div className="font-semibold text-amber-950">Acknowledgements</div>
+              {eligibility.warnings.filter((item) => item.acknowledgementRequired).map((warning) => (
+                <label key={warning.code} className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" checked={warningsAcknowledged.includes(warning.code)} onChange={() => setWarningsAcknowledged((current) => current.includes(warning.code) ? current.filter((item) => item !== warning.code) : [...current, warning.code])} />
+                  {warning.message}
+                </label>
+              ))}
+            </div>
+          )}
+          <Field label={mode === "verify" ? "Verification Notes" : "Rejection Notes"}><Textarea rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} /></Field>
+          <label className="flex items-start gap-2 rounded-lg border p-3">
+            <input type="checkbox" checked={declarationAccepted} onChange={(event) => setDeclarationAccepted(event.target.checked)} />
+            <span>I confirm this verification decision is accurate and will form part of the permanent audit history.</span>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant={mode === "reject" ? "destructive" : "default"} disabled={submitting} onClick={submit}>{submitting ? "Submitting..." : mode === "verify" ? "Verify Work Order" : "Reject Verification"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReviewList({ title, items, empty = "Nothing recorded." }: { title: string; items: string[]; empty?: string }) {
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="font-semibold">{title}</div>
+      {items.length === 0 ? <p className="mt-2 text-muted-foreground">{empty}</p> : <ul className="mt-2 list-disc pl-5 text-muted-foreground">{items.map((item) => <li key={item}>{item}</li>)}</ul>}
+    </div>
   );
 }
 

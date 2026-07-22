@@ -161,6 +161,7 @@ import type {
   WorkOrderLabourEntry,
   WorkOrderMaterialEntry,
   WorkOrderCompletionRecord,
+  WorkOrderVerificationRecord,
 } from "./types";
 import {
   archiveWorkOrderRecord,
@@ -196,6 +197,19 @@ import {
   workOrderCompletionAuditLog,
   type WorkOrderCompletionInput,
 } from "@/domain/maintenance/workOrderCompletion";
+import {
+  applyVerificationResultToCompletion,
+  assignWorkOrderVerification,
+  claimWorkOrderVerification,
+  createWorkOrderVerificationRecord,
+  createWorkOrderVerificationRejectionRecord,
+  evaluateVerificationEligibility,
+  releaseWorkOrderVerification,
+  workOrderVerificationAuditLog,
+  type VerificationAssignmentInput,
+  type WorkOrderRejectVerificationInput,
+  type WorkOrderVerifyInput,
+} from "@/domain/maintenance/workOrderVerification";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -2473,6 +2487,7 @@ function seedData() {
     workOrderLabourEntries: [] as WorkOrderLabourEntry[],
     workOrderMaterialEntries: [] as WorkOrderMaterialEntry[],
     workOrderCompletions: [] as WorkOrderCompletionRecord[],
+    workOrderVerifications: [] as WorkOrderVerificationRecord[],
     interventionLogs: [] as InterventionLog[],
     readReceipts: [] as ReadReceipt[],
     carePlanTemplates: BUILT_IN_TEMPLATES.map((t) => ({
@@ -2552,6 +2567,7 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "workOrderLabourEntries",
   "workOrderMaterialEntries",
   "workOrderCompletions",
+  "workOrderVerifications",
   "interventionLogs",
   "readReceipts",
   "observations",
@@ -3139,6 +3155,13 @@ interface CareCtx extends Store {
   getWorkOrderTimeline: (workOrderId: string, limit?: number) => ReturnType<typeof buildWorkOrderTimeline>;
   evaluateWorkOrderCompletion: (workOrderId: string, input?: Partial<WorkOrderCompletionInput>) => ReturnType<typeof evaluateWorkOrderCompletionEligibility>;
   completeMaintenanceWorkOrder: (workOrderId: string, input: WorkOrderCompletionInput) => WorkOrderCompletionRecord;
+  getPendingWorkOrderCompletion: (workOrderId: string) => WorkOrderCompletionRecord | undefined;
+  evaluateWorkOrderVerification: (workOrderId: string, input?: Partial<WorkOrderVerifyInput | WorkOrderRejectVerificationInput | VerificationAssignmentInput>) => ReturnType<typeof evaluateVerificationEligibility>;
+  assignWorkOrderVerification: (workOrderId: string, input: VerificationAssignmentInput) => WorkOrderCompletionRecord;
+  claimWorkOrderVerification: (workOrderId: string, input: VerificationAssignmentInput) => WorkOrderCompletionRecord;
+  releaseWorkOrderVerification: (workOrderId: string, input: VerificationAssignmentInput) => WorkOrderCompletionRecord;
+  verifyMaintenanceWorkOrder: (workOrderId: string, input: WorkOrderVerifyInput) => WorkOrderVerificationRecord;
+  rejectMaintenanceWorkOrderVerification: (workOrderId: string, input: WorkOrderRejectVerificationInput) => WorkOrderVerificationRecord;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
   recordAuditEvent: typeof recordAuditEvent;
   getAuditForEntity: typeof getAuditForEntity;
@@ -7487,6 +7510,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           labour: store.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId),
           materials: store.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId),
           completions: store.workOrderCompletions.filter((item) => item.workOrderId === workOrderId),
+          verifications: store.workOrderVerifications.filter((item) => item.workOrderId === workOrderId),
           users: store.users,
           limit,
         });
@@ -7576,6 +7600,159 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ].slice(0, 500),
         }));
         return savedCompletion;
+      },
+      getPendingWorkOrderCompletion: (workOrderId) =>
+        store.workOrderCompletions
+          .filter((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING")
+          .sort((a, b) => b.completedAt.localeCompare(a.completedAt))[0],
+      evaluateWorkOrderVerification: (workOrderId, input) => {
+        const record = store.maintenanceWorkOrders.find((item) => item.id === workOrderId);
+        const completion = store.workOrderCompletions
+          .filter((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING")
+          .sort((a, b) => b.completedAt.localeCompare(a.completedAt))[0];
+        return evaluateVerificationEligibility({
+          workOrder: record,
+          completion,
+          context: workOrderExecutionContext(record),
+          relatedData: { attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId) },
+          verificationRequest: input,
+        });
+      },
+      assignWorkOrderVerification: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const completion = store.workOrderCompletions.find((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING");
+        if (!current || !completion) throw new Error("Pending verification not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderCompletions.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const next = assignWorkOrderVerification({ workOrder: current, completion, input, context: workOrderExecutionContext(current, now), id: `verification-assignment-${uid()}` });
+        setStore((s) => ({
+          ...s,
+          workOrderCompletions: s.workOrderCompletions.map((item) => (item.id === completion.id ? next : item)),
+          auditLogs: [
+            workOrderVerificationAuditLog({ id: uid(), action: "WORK_ORDER_VERIFICATION_ASSIGNED", record: current, completion: next, user: currentUser, previousVerifierUserId: completion.verifierUserId, nextVerifierUserId: next.verifierUserId, timestamp: now, reason: input.reason }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return next;
+      },
+      claimWorkOrderVerification: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const completion = store.workOrderCompletions.find((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING");
+        if (!current || !completion) throw new Error("Pending verification not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderCompletions.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const next = claimWorkOrderVerification({ workOrder: current, completion, input, context: workOrderExecutionContext(current, now) });
+        setStore((s) => ({
+          ...s,
+          workOrderCompletions: s.workOrderCompletions.map((item) => (item.id === completion.id ? next : item)),
+          auditLogs: [
+            workOrderVerificationAuditLog({ id: uid(), action: "WORK_ORDER_VERIFICATION_CLAIMED", record: current, completion: next, user: currentUser, previousVerifierUserId: completion.verifierUserId, nextVerifierUserId: next.verifierUserId, timestamp: now, reason: "Verification claimed" }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return next;
+      },
+      releaseWorkOrderVerification: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const completion = store.workOrderCompletions.find((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING");
+        if (!current || !completion) throw new Error("Pending verification not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderCompletions.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const next = releaseWorkOrderVerification({ workOrder: current, completion, input, context: workOrderExecutionContext(current, now) });
+        setStore((s) => ({
+          ...s,
+          workOrderCompletions: s.workOrderCompletions.map((item) => (item.id === completion.id ? next : item)),
+          auditLogs: [
+            workOrderVerificationAuditLog({ id: uid(), action: "WORK_ORDER_VERIFICATION_RELEASED", record: current, completion: next, user: currentUser, previousVerifierUserId: completion.verifierUserId, timestamp: now, reason: input.reason }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return next;
+      },
+      verifyMaintenanceWorkOrder: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const completion = store.workOrderCompletions.find((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING");
+        if (!current || !completion) throw new Error("Pending verification not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderVerifications.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const verification = createWorkOrderVerificationRecord({
+          workOrder: current,
+          completion,
+          input,
+          context: workOrderExecutionContext(current, now),
+          relatedData: { attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId) },
+          id: `work-order-verification-${uid()}`,
+        });
+        const workflow = applyWorkOrderWorkflow(current, { action: "VERIFY", expectedVersion: input.expectedWorkOrderVersion, idempotencyKey: input.idempotencyKey, reason: verification.verificationNotes, verificationId: verification.id, verificationResult: verification.result }, workOrderExecutionContext(current, now));
+        if (!workflow) {
+          const existing = store.workOrderVerifications.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+          throw new Error("Duplicate verification request could not be matched.");
+        }
+        const savedVerification = { ...verification, resultingWorkOrderStatus: workflow.record.status, workOrderVersionAfter: workflow.record.version };
+        const nextCompletion = applyVerificationResultToCompletion(completion, savedVerification);
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: s.maintenanceWorkOrders.map((record) => (record.id === workOrderId ? workflow.record : record)),
+          workOrderCompletions: s.workOrderCompletions.map((item) => (item.id === completion.id ? nextCompletion : item)),
+          workOrderVerifications: [savedVerification, ...s.workOrderVerifications],
+          auditLogs: [
+            workOrderVerificationAuditLog({ id: uid(), action: "WORK_ORDER_VERIFIED", record: workflow.record, completion: nextCompletion, verification: savedVerification, user: currentUser, timestamp: now, reason: verification.verificationNotes }),
+            workOrderAuditLog({ id: uid(), action: workflow.auditAction, record: workflow.record, user: currentUser, before: workflow.before, after: workflow.after, reason: workflow.reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return savedVerification;
+      },
+      rejectMaintenanceWorkOrderVerification: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const completion = store.workOrderCompletions.find((item) => item.workOrderId === workOrderId && item.verificationRequired && item.verificationStatus === "PENDING");
+        if (!current || !completion) throw new Error("Pending verification not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderVerifications.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const verification = createWorkOrderVerificationRejectionRecord({
+          workOrder: current,
+          completion,
+          input,
+          context: workOrderExecutionContext(current, now),
+          relatedData: { attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId) },
+          id: `work-order-verification-${uid()}`,
+        });
+        const workflow = applyWorkOrderWorkflow(current, { action: "REJECT_VERIFICATION", expectedVersion: input.expectedWorkOrderVersion, idempotencyKey: input.idempotencyKey, reason: verification.correctiveActionRequired, verificationId: verification.id, verificationResult: verification.result }, workOrderExecutionContext(current, now));
+        if (!workflow) {
+          const existing = store.workOrderVerifications.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+          throw new Error("Duplicate rejection request could not be matched.");
+        }
+        const savedVerification = { ...verification, resultingWorkOrderStatus: workflow.record.status, workOrderVersionAfter: workflow.record.version };
+        const nextCompletion = applyVerificationResultToCompletion(completion, savedVerification);
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: s.maintenanceWorkOrders.map((record) => (record.id === workOrderId ? workflow.record : record)),
+          workOrderCompletions: s.workOrderCompletions.map((item) => (item.id === completion.id ? nextCompletion : item)),
+          workOrderVerifications: [savedVerification, ...s.workOrderVerifications],
+          auditLogs: [
+            workOrderVerificationAuditLog({ id: uid(), action: "WORK_ORDER_VERIFICATION_REJECTED", record: workflow.record, completion: nextCompletion, verification: savedVerification, user: currentUser, timestamp: now, reason: verification.rejectionNotes }),
+            workOrderAuditLog({ id: uid(), action: workflow.auditAction, record: workflow.record, user: currentUser, before: workflow.before, after: workflow.after, reason: workflow.reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return savedVerification;
       },
       addObservation: (o) => {
         const item: Observation = { ...o, id: uid() };
