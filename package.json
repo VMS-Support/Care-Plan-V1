@@ -70,6 +70,7 @@
     "test:safety-compliance": "node --experimental-specifier-resolution=node src/domain/maintenance/safetyCompliance.test.ts",
     "test:housekeeping": "node --experimental-specifier-resolution=node src/domain/maintenance/housekeeping.test.ts",
     "test:maintenance-certificates": "node --experimental-specifier-resolution=node src/domain/maintenance/certificates.test.ts",
+    "test:maintenance-contractors": "node --experimental-specifier-resolution=node src/domain/maintenance/contractors.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

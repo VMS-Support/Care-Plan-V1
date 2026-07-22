@@ -3082,6 +3082,111 @@ export interface MaintenanceCertificateTimelineEvent {
   createdAt: string;
 }
 
+export type MaintenanceContractorBusinessType = "LIMITED_COMPANY" | "SOLE_TRADER" | "PARTNERSHIP" | "PUBLIC_BODY" | "CHARITY" | "INDEPENDENT_PROFESSIONAL" | "OTHER";
+export type MaintenanceContractorStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "SUSPENDED" | "ARCHIVED";
+export type MaintenanceContractorApprovalStatus = "NOT_REVIEWED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+export type MaintenanceContractorRestrictionStatus = "NONE" | "RESTRICTED" | "SUSPENDED" | "COMPLIANCE_BLOCKED";
+export type MaintenanceContractorHomeAssociationStatus = "PLANNED" | "ACTIVE" | "INACTIVE" | "RESTRICTED";
+export type MaintenanceContractorHomeRelationshipType = "TENANT_WIDE" | "HOME_PROVIDER" | "EMERGENCY_PROVIDER" | "HISTORICAL" | "OTHER";
+export type MaintenanceContractorNoteType = "GENERAL" | "ADMINISTRATIVE" | "OPERATIONAL" | "COMPLIANCE" | "ACCESS" | "OTHER";
+export type MaintenanceContractorNoteVisibility = "INTERNAL" | "RESTRICTED_INTERNAL";
+
+export interface MaintenanceContractor {
+  id: string;
+  tenantId: string;
+  contractorReference: string;
+  legalName: string;
+  tradingName?: string;
+  companyRegistrationNumber?: string;
+  taxRegistrationNumber?: string;
+  businessType: MaintenanceContractorBusinessType;
+  description?: string;
+  website?: string;
+  generalEmail?: string;
+  mainPhone?: string;
+  alternativePhone?: string;
+  emergencyPhone?: string;
+  primaryContactName?: string;
+  primaryContactJobTitle?: string;
+  primaryContactEmail?: string;
+  primaryContactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  addressLine3?: string;
+  townCity?: string;
+  countyRegion?: string;
+  postalCode?: string;
+  countryCode?: string;
+  status: MaintenanceContractorStatus;
+  approvalStatus: MaintenanceContractorApprovalStatus;
+  restrictionStatus: MaintenanceContractorRestrictionStatus;
+  active: boolean;
+  archived: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  version: number;
+}
+
+export interface MaintenanceContractorHomeAssociation {
+  id: string;
+  tenantId: string;
+  contractorId: string;
+  homeId: string;
+  facilityId?: string;
+  associationStatus: MaintenanceContractorHomeAssociationStatus;
+  relationshipType: MaintenanceContractorHomeRelationshipType;
+  notes?: string;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface MaintenanceContractorNote {
+  id: string;
+  tenantId: string;
+  contractorId: string;
+  homeId?: string;
+  facilityId?: string;
+  noteType: MaintenanceContractorNoteType;
+  title: string;
+  body: string;
+  visibility: MaintenanceContractorNoteVisibility;
+  pinned: boolean;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  removedBy?: string;
+  removedAt?: string;
+  removalReason?: string;
+}
+
+export interface MaintenanceContractorTimelineEvent {
+  id: string;
+  tenantId: string;
+  contractorId: string;
+  homeId?: string;
+  facilityId?: string;
+  eventType: string;
+  eventDate: string;
+  actorUserId: string;
+  summary: string;
+  details?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  createdAt: string;
+}
+
 export interface SafetyInspectionVerification {
   id: string;
   inspectionId: string;
