@@ -1,7 +1,9 @@
 import type {
   MaintenanceContractor,
   MaintenanceContractorBusinessType,
+  MaintenanceContractorContact,
   MaintenanceContractorHomeAssociation,
+  MaintenanceContractorServiceArea,
   MaintenanceContractorStatus,
 } from "@/lib/care/types";
 
@@ -78,8 +80,11 @@ export function canTransitionContractorStatus(from: MaintenanceContractorStatus,
   return STATUS_TRANSITIONS[from]?.includes(to) || from === to;
 }
 
-export function contractorDashboardMetrics(contractors: MaintenanceContractor[], associations: MaintenanceContractorHomeAssociation[]) {
+export function contractorDashboardMetrics(contractors: MaintenanceContractor[], associations: MaintenanceContractorHomeAssociation[] = [], contacts: MaintenanceContractorContact[] = [], serviceAreas: MaintenanceContractorServiceArea[] = []) {
   const activeRows = contractors.filter((item) => !item.archived);
+  const hasPrimary = (contractorId: string) => contacts.some((item) => item.contractorId === contractorId && item.active && !item.archivedAt && item.isPrimary);
+  const hasActiveAssociation = (contractorId: string) => associations.some((association) => association.contractorId === contractorId && association.active);
+  const hasActiveServiceArea = (contractorId: string) => serviceAreas.some((item) => item.contractorId === contractorId && item.active && !item.archivedAt);
   return {
     total: activeRows.length,
     draft: activeRows.filter((item) => item.status === "DRAFT").length,
@@ -87,8 +92,15 @@ export function contractorDashboardMetrics(contractors: MaintenanceContractor[],
     inactive: activeRows.filter((item) => item.status === "INACTIVE").length,
     suspended: activeRows.filter((item) => item.status === "SUSPENDED").length,
     archived: contractors.filter((item) => item.archived || item.status === "ARCHIVED").length,
-    withPrimaryContact: activeRows.filter((item) => item.primaryContactName).length,
-    withHomeAssociation: activeRows.filter((item) => associations.some((association) => association.contractorId === item.id && association.active)).length,
+    incompleteProfiles: activeRows.filter((item) => contractorProfileCompleteness(item) < 100).length,
+    withPrimaryContact: activeRows.filter((item) => item.primaryContactName || hasPrimary(item.id)).length,
+    withoutPrimaryContact: activeRows.filter((item) => !(item.primaryContactName || hasPrimary(item.id))).length,
+    withHomeAssociation: activeRows.filter((item) => hasActiveAssociation(item.id)).length,
+    withoutHomeAssociation: activeRows.filter((item) => !hasActiveAssociation(item.id)).length,
+    emergencyCallout: activeRows.filter((item) => serviceAreas.some((area) => area.contractorId === item.id && area.active && area.emergencyCalloutAvailable)).length,
+    outOfHours: activeRows.filter((item) => serviceAreas.some((area) => area.contractorId === item.id && area.active && area.outOfHoursAvailable)).length,
+    remoteSupport: activeRows.filter((item) => serviceAreas.some((area) => area.contractorId === item.id && area.active && area.remoteSupportAvailable)).length,
+    withoutServiceArea: activeRows.filter((item) => !hasActiveServiceArea(item.id)).length,
   };
 }
 

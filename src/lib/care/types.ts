@@ -3086,10 +3086,13 @@ export type MaintenanceContractorBusinessType = "LIMITED_COMPANY" | "SOLE_TRADER
 export type MaintenanceContractorStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "SUSPENDED" | "ARCHIVED";
 export type MaintenanceContractorApprovalStatus = "NOT_REVIEWED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 export type MaintenanceContractorRestrictionStatus = "NONE" | "RESTRICTED" | "SUSPENDED" | "COMPLIANCE_BLOCKED";
-export type MaintenanceContractorHomeAssociationStatus = "PLANNED" | "ACTIVE" | "INACTIVE" | "RESTRICTED";
-export type MaintenanceContractorHomeRelationshipType = "TENANT_WIDE" | "HOME_PROVIDER" | "EMERGENCY_PROVIDER" | "HISTORICAL" | "OTHER";
-export type MaintenanceContractorNoteType = "GENERAL" | "ADMINISTRATIVE" | "OPERATIONAL" | "COMPLIANCE" | "ACCESS" | "OTHER";
+export type MaintenanceContractorHomeAssociationStatus = "PLANNED" | "ACTIVE" | "INACTIVE" | "RESTRICTED" | "SUSPENDED" | "ARCHIVED";
+export type MaintenanceContractorHomeAccessLevel = "NO_ACCESS" | "BY_APPOINTMENT" | "ESCORTED" | "STANDARD" | "EMERGENCY_ONLY" | "RESTRICTED";
+export type MaintenanceContractorHomeRelationshipType = "TENANT_WIDE" | "HOME_PROVIDER" | "EMERGENCY_PROVIDER" | "PREFERRED" | "OCCASIONAL" | "HISTORICAL" | "OTHER";
+export type MaintenanceContractorNoteType = "GENERAL" | "ADMINISTRATIVE" | "OPERATIONAL" | "COMPLIANCE" | "COMPLIANCE_PREPARATION" | "ACCESS" | "OTHER";
 export type MaintenanceContractorNoteVisibility = "INTERNAL" | "RESTRICTED_INTERNAL";
+export type MaintenanceContractorContactRole = "GENERAL" | "MANAGER" | "OPERATIONS" | "SERVICE_COORDINATOR" | "ENGINEER" | "EMERGENCY" | "COMPLIANCE" | "ACCOUNTS" | "ADMINISTRATION" | "OTHER";
+export type MaintenanceContractorServiceAreaType = "REGION" | "COUNTY" | "CITY" | "POSTAL_AREA" | "HOME" | "NATIONWIDE" | "REMOTE" | "OTHER";
 
 export interface MaintenanceContractor {
   id: string;
@@ -3139,7 +3142,17 @@ export interface MaintenanceContractorHomeAssociation {
   homeId: string;
   facilityId?: string;
   associationStatus: MaintenanceContractorHomeAssociationStatus;
+  accessLevel?: MaintenanceContractorHomeAccessLevel;
   relationshipType: MaintenanceContractorHomeRelationshipType;
+  accessRestrictions?: string;
+  accessNotes?: string;
+  serviceNotes?: string;
+  internalOwnerUserId?: string;
+  internalOwnerTeamId?: string;
+  emergencyAccessAllowed?: boolean;
+  escortRequired?: boolean;
+  siteInductionRequired?: boolean;
+  siteInductionCompleted?: boolean;
   notes?: string;
   active: boolean;
   effectiveFrom: string;
@@ -3148,6 +3161,9 @@ export interface MaintenanceContractorHomeAssociation {
   createdAt: string;
   updatedBy?: string;
   updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+  version?: number;
 }
 
 export interface MaintenanceContractorNote {
@@ -3169,6 +3185,65 @@ export interface MaintenanceContractorNote {
   removedBy?: string;
   removedAt?: string;
   removalReason?: string;
+  version?: number;
+}
+
+export interface MaintenanceContractorContact {
+  id: string;
+  tenantId: string;
+  contractorId: string;
+  homeId?: string;
+  facilityId?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName: string;
+  jobTitle?: string;
+  contactRole: MaintenanceContractorContactRole;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  emergencyPhone?: string;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
+  active: boolean;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+  version: number;
+}
+
+export interface MaintenanceContractorServiceArea {
+  id: string;
+  tenantId: string;
+  contractorId: string;
+  name: string;
+  serviceAreaType: MaintenanceContractorServiceAreaType;
+  countryCode?: string;
+  countyRegion?: string;
+  townCity?: string;
+  postalCodePattern?: string;
+  homeId?: string;
+  facilityId?: string;
+  coverageDescription?: string;
+  standardHours?: string;
+  emergencyCalloutAvailable: boolean;
+  outOfHoursAvailable: boolean;
+  remoteSupportAvailable: boolean;
+  responseNotes?: string;
+  active: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+  version: number;
 }
 
 export interface MaintenanceContractorTimelineEvent {
