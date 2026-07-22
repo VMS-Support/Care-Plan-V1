@@ -2183,6 +2183,9 @@ export interface MaintenanceWorkOrder {
   exactLocation?: string;
   assetId?: string;
   affectedAssetDescription?: string;
+  plannedMaintenanceScheduleId?: string;
+  plannedMaintenanceTemplateId?: string;
+  plannedMaintenanceOccurrenceId?: string;
   reportedByUserId: string;
   reportedAt: string;
   reporterNameSnapshot?: string;
@@ -2252,6 +2255,121 @@ export interface MaintenanceWorkOrder {
   updatedAt: string;
   updatedByUserId?: string;
   version: number;
+}
+
+export type PlannedMaintenanceFrequencyType =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "six_monthly"
+  | "annual"
+  | "custom_days"
+  | "custom_weeks"
+  | "custom_months"
+  | "custom_years";
+
+export type MaintenanceTemplateEvidenceType =
+  | "Photo"
+  | "Document"
+  | "Reading"
+  | "Certificate"
+  | "Signature"
+  | "Video";
+
+export type PlannedMaintenanceOccurrenceStatus =
+  | "Scheduled"
+  | "Generated"
+  | "Completed"
+  | "Skipped"
+  | "Cancelled";
+
+export interface MaintenanceTemplate {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  nursingHomeId?: string;
+  name: string;
+  description: string;
+  category: MaintenanceWorkOrderCategory;
+  active: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  estimatedDurationMinutes: number;
+  verificationRequired: boolean;
+  safetyPrecautions: string;
+  skillsRequired: string;
+  frequencyType: PlannedMaintenanceFrequencyType;
+  frequencyValue: number;
+  colour: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface MaintenanceTemplateChecklist {
+  id: string;
+  templateId: string;
+  displayOrder: number;
+  item: string;
+  mandatory: boolean;
+}
+
+export interface MaintenanceTemplateEvidence {
+  id: string;
+  templateId: string;
+  evidenceType: MaintenanceTemplateEvidenceType;
+}
+
+export interface PlannedMaintenanceSchedule {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  nursingHomeId?: string;
+  assetId: string;
+  assetName?: string;
+  locationLabel?: string;
+  templateId: string;
+  responsibleTeamId: string;
+  startDate: string;
+  endDate?: string;
+  nextDueDate: string;
+  lastGeneratedDate?: string;
+  active: boolean;
+  pausedAt?: string;
+  pausedBy?: string;
+  pauseReason?: string;
+  frequencyType: PlannedMaintenanceFrequencyType;
+  frequencyValue: number;
+  generateDaysBeforeDue: number;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface PlannedMaintenanceOccurrence {
+  id: string;
+  scheduleId: string;
+  homeId?: string;
+  facilityId?: string;
+  nursingHomeId?: string;
+  dueDate: string;
+  workOrderId?: string;
+  status: PlannedMaintenanceOccurrenceStatus;
+  completedAt?: string;
+  completedBy?: string;
+  skippedAt?: string;
+  skippedBy?: string;
+  skippedReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelledReason?: string;
+  generatedAt?: string;
+  generatedBy?: string;
 }
 
 export type WorkOrderNoteType =

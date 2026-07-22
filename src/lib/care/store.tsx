@@ -156,6 +156,13 @@ import type {
   ShiftDefinition,
   OperationalContext,
   MaintenanceWorkOrder,
+  MaintenanceTemplate,
+  MaintenanceTemplateChecklist,
+  MaintenanceTemplateEvidence,
+  PlannedMaintenanceSchedule,
+  PlannedMaintenanceOccurrence,
+  PlannedMaintenanceFrequencyType,
+  MaintenanceTemplateEvidenceType,
   WorkOrderNote,
   WorkOrderAttachment,
   WorkOrderLabourEntry,
@@ -210,6 +217,15 @@ import {
   type WorkOrderRejectVerificationInput,
   type WorkOrderVerifyInput,
 } from "@/domain/maintenance/workOrderVerification";
+import {
+  STARTER_MAINTENANCE_TEMPLATES,
+  buildGeneratedWorkOrderInput,
+  buildPlannedMaintenanceAssets,
+  generateOccurrencesForSchedule,
+  plannedMaintenanceAuditLog,
+  validateScheduleInput,
+  validateTemplateInput,
+} from "@/domain/maintenance/plannedMaintenance";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -963,6 +979,158 @@ function seedMaintenanceWorkOrders(): MaintenanceWorkOrder[] {
       updatedAt: "2026-07-20T12:45:00.000Z",
       updatedByUserId: "u-1",
       version: 1,
+    },
+  ];
+}
+
+function seedMaintenanceTemplates() {
+  const now = "2026-07-21T08:30:00.000Z";
+  const templates: MaintenanceTemplate[] = [];
+  const checklist: MaintenanceTemplateChecklist[] = [];
+  const evidence: MaintenanceTemplateEvidence[] = [];
+  STARTER_MAINTENANCE_TEMPLATES.forEach((template, index) => {
+    const id = `maintenance-template-seed-${index + 1}`;
+    templates.push({
+      id,
+      tenantId: "tenant-oritas-demo",
+      homeId: index < 7 ? BALLYMORE_FACILITY_ID : undefined,
+      facilityId: index < 7 ? BALLYMORE_FACILITY_ID : undefined,
+      nursingHomeId: index < 7 ? BALLYMORE_FACILITY_ID : undefined,
+      name: template.name,
+      description: template.description,
+      category: template.category,
+      active: template.active,
+      estimatedDurationMinutes: template.estimatedDurationMinutes,
+      verificationRequired: template.verificationRequired,
+      safetyPrecautions: template.safetyPrecautions,
+      skillsRequired: template.skillsRequired,
+      frequencyType: template.frequencyType,
+      frequencyValue: template.frequencyValue,
+      colour: template.colour,
+      createdBy: "System",
+      createdAt: now,
+      updatedBy: "System",
+      updatedAt: now,
+    });
+    template.checklist.forEach((item, itemIndex) => {
+      checklist.push({
+        id: `maintenance-template-checklist-seed-${index + 1}-${itemIndex + 1}`,
+        templateId: id,
+        displayOrder: item.displayOrder,
+        item: item.item,
+        mandatory: item.mandatory,
+      });
+    });
+    template.evidence.forEach((evidenceType, evidenceIndex) => {
+      evidence.push({
+        id: `maintenance-template-evidence-seed-${index + 1}-${evidenceIndex + 1}`,
+        templateId: id,
+        evidenceType,
+      });
+    });
+  });
+  return { templates, checklist, evidence };
+}
+
+function seedPlannedMaintenanceSchedules(): PlannedMaintenanceSchedule[] {
+  return [
+    {
+      id: "planned-maintenance-schedule-seed-1",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetId: `facility:${BALLYMORE_FACILITY_ID}`,
+      assetName: "Ballymore Haven common areas",
+      locationLabel: "Ballymore Haven",
+      templateId: "maintenance-template-seed-1",
+      responsibleTeamId: "maintenance-team",
+      startDate: "2026-07-20",
+      nextDueDate: "2026-07-27",
+      active: true,
+      frequencyType: "weekly",
+      frequencyValue: 1,
+      generateDaysBeforeDue: 7,
+      createdBy: "System",
+      createdAt: "2026-07-21T08:30:00.000Z",
+      updatedBy: "System",
+      updatedAt: "2026-07-21T08:30:00.000Z",
+    },
+    {
+      id: "planned-maintenance-schedule-seed-2",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetId: "room:r-w-oak-3",
+      assetName: "Room 3",
+      locationLabel: "Oak Wing - Room 3",
+      templateId: "maintenance-template-seed-10",
+      responsibleTeamId: "engineer",
+      startDate: "2026-07-01",
+      nextDueDate: "2026-07-22",
+      active: true,
+      frequencyType: "monthly",
+      frequencyValue: 1,
+      generateDaysBeforeDue: 5,
+      createdBy: "System",
+      createdAt: "2026-07-21T08:30:00.000Z",
+      updatedBy: "System",
+      updatedAt: "2026-07-21T08:30:00.000Z",
+    },
+    {
+      id: "planned-maintenance-schedule-seed-3",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      assetId: `facility:${BALLYMORE_FACILITY_ID}`,
+      assetName: "Ballymore Haven water outlets",
+      locationLabel: "Ballymore Haven",
+      templateId: "maintenance-template-seed-2",
+      responsibleTeamId: "supervisor",
+      startDate: "2026-06-01",
+      nextDueDate: "2026-07-15",
+      active: true,
+      frequencyType: "monthly",
+      frequencyValue: 1,
+      generateDaysBeforeDue: 7,
+      createdBy: "System",
+      createdAt: "2026-07-21T08:30:00.000Z",
+      updatedBy: "System",
+      updatedAt: "2026-07-21T08:30:00.000Z",
+    },
+  ];
+}
+
+function seedPlannedMaintenanceOccurrences(): PlannedMaintenanceOccurrence[] {
+  return [
+    {
+      id: "planned-maintenance-occurrence-seed-1",
+      scheduleId: "planned-maintenance-schedule-seed-1",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      dueDate: "2026-07-27",
+      status: "Scheduled",
+    },
+    {
+      id: "planned-maintenance-occurrence-seed-2",
+      scheduleId: "planned-maintenance-schedule-seed-2",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      dueDate: "2026-07-22",
+      status: "Scheduled",
+    },
+    {
+      id: "planned-maintenance-occurrence-seed-3",
+      scheduleId: "planned-maintenance-schedule-seed-3",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      nursingHomeId: BALLYMORE_FACILITY_ID,
+      dueDate: "2026-07-15",
+      status: "Scheduled",
     },
   ];
 }
@@ -2319,6 +2487,7 @@ function seedData() {
       });
     }
   }
+  const maintenanceTemplateSeed = seedMaintenanceTemplates();
 
   return {
     enterprises: ENTERPRISES_SEED,
@@ -2482,6 +2651,11 @@ function seedData() {
     outings,
     handovers,
     maintenanceWorkOrders: seedMaintenanceWorkOrders(),
+    maintenanceTemplates: maintenanceTemplateSeed.templates,
+    maintenanceTemplateChecklists: maintenanceTemplateSeed.checklist,
+    maintenanceTemplateEvidence: maintenanceTemplateSeed.evidence,
+    plannedMaintenanceSchedules: seedPlannedMaintenanceSchedules(),
+    plannedMaintenanceOccurrences: seedPlannedMaintenanceOccurrences(),
     workOrderNotes: [] as WorkOrderNote[],
     workOrderAttachments: [] as WorkOrderAttachment[],
     workOrderLabourEntries: [] as WorkOrderLabourEntry[],
@@ -2562,6 +2736,9 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "outings",
   "handovers",
   "maintenanceWorkOrders",
+  "maintenanceTemplates",
+  "plannedMaintenanceSchedules",
+  "plannedMaintenanceOccurrences",
   "workOrderNotes",
   "workOrderAttachments",
   "workOrderLabourEntries",
@@ -3138,6 +3315,21 @@ interface CareCtx extends Store {
   completeHandover: (id: string) => void;
   closeHandover: (id: string) => void;
   duplicateHandover: (id: string) => HandoverNote | undefined;
+  createMaintenanceTemplate: (input: Partial<MaintenanceTemplate> & { checklist?: Partial<MaintenanceTemplateChecklist>[]; evidence?: MaintenanceTemplateEvidenceType[] }) => MaintenanceTemplate;
+  updateMaintenanceTemplate: (id: string, input: Partial<MaintenanceTemplate> & { checklist?: Partial<MaintenanceTemplateChecklist>[]; evidence?: MaintenanceTemplateEvidenceType[] }) => void;
+  archiveMaintenanceTemplate: (id: string, reason: string) => void;
+  deleteMaintenanceTemplate: (id: string) => void;
+  duplicateMaintenanceTemplate: (id: string) => MaintenanceTemplate | undefined;
+  createPlannedMaintenanceSchedule: (input: Partial<PlannedMaintenanceSchedule>) => PlannedMaintenanceSchedule;
+  updatePlannedMaintenanceSchedule: (id: string, input: Partial<PlannedMaintenanceSchedule>) => void;
+  pausePlannedMaintenanceSchedule: (id: string, reason: string) => void;
+  resumePlannedMaintenanceSchedule: (id: string) => void;
+  deletePlannedMaintenanceSchedule: (id: string) => void;
+  generatePlannedMaintenanceOccurrences: (scheduleId?: string, until?: string) => PlannedMaintenanceOccurrence[];
+  completePlannedMaintenanceOccurrence: (id: string) => void;
+  skipPlannedMaintenanceOccurrence: (id: string, reason: string) => void;
+  cancelPlannedMaintenanceOccurrence: (id: string, reason: string) => void;
+  generatePlannedMaintenanceWorkOrder: (occurrenceId: string) => MaintenanceWorkOrder;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
   workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
@@ -7187,6 +7379,271 @@ export function CareProvider({ children }: { children: ReactNode }) {
           reason: `Copied from ${id}`,
         });
         return copy;
+      },
+      createMaintenanceTemplate: (input) => {
+        const validation = validateTemplateInput(input);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the template details.");
+        const now = new Date().toISOString();
+        const template: MaintenanceTemplate = {
+          id: `maintenance-template-${uid()}`,
+          tenantId: "tenant-oritas-demo",
+          homeId: input.homeId || activeFacilityId,
+          facilityId: input.homeId || activeFacilityId,
+          nursingHomeId: input.homeId || activeFacilityId,
+          name: input.name!.trim(),
+          description: input.description!.trim(),
+          category: input.category!,
+          active: input.active ?? true,
+          estimatedDurationMinutes: Number(input.estimatedDurationMinutes),
+          verificationRequired: Boolean(input.verificationRequired),
+          safetyPrecautions: input.safetyPrecautions?.trim() || "",
+          skillsRequired: input.skillsRequired?.trim() || "",
+          frequencyType: input.frequencyType!,
+          frequencyValue: Number(input.frequencyValue || 1),
+          colour: input.colour || "#2563eb",
+          createdBy: currentUserName,
+          createdAt: now,
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        const checklist = (input.checklist || []).map((item, index) => ({
+          id: `maintenance-template-checklist-${uid()}`,
+          templateId: template.id,
+          displayOrder: index + 1,
+          item: item.item!.trim(),
+          mandatory: item.mandatory ?? true,
+        } satisfies MaintenanceTemplateChecklist));
+        const evidence = (input.evidence || []).map((evidenceType) => ({
+          id: `maintenance-template-evidence-${uid()}`,
+          templateId: template.id,
+          evidenceType,
+        } satisfies MaintenanceTemplateEvidence));
+        setStore((s) => ({
+          ...s,
+          maintenanceTemplates: [template, ...(s.maintenanceTemplates || [])],
+          maintenanceTemplateChecklists: [...checklist, ...(s.maintenanceTemplateChecklists || [])],
+          maintenanceTemplateEvidence: [...evidence, ...(s.maintenanceTemplateEvidence || [])],
+          auditLogs: [
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Maintenance template created", entity: template.id, entityType: "maintenance_template", facilityId: template.homeId, after: { name: template.name }, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return template;
+      },
+      updateMaintenanceTemplate: (id, input) => {
+        const current = store.maintenanceTemplates.find((template) => template.id === id);
+        if (!current) throw new Error("Maintenance template not found.");
+        const validation = validateTemplateInput({ ...current, ...input });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the template details.");
+        const now = new Date().toISOString();
+        const next: MaintenanceTemplate = {
+          ...current,
+          ...input,
+          name: (input.name ?? current.name).trim(),
+          description: (input.description ?? current.description).trim(),
+          estimatedDurationMinutes: Number(input.estimatedDurationMinutes ?? current.estimatedDurationMinutes),
+          frequencyValue: Number(input.frequencyValue ?? current.frequencyValue),
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        const hasChecklist = Array.isArray(input.checklist);
+        const hasEvidence = Array.isArray(input.evidence);
+        const checklist = hasChecklist ? input.checklist!.map((item, index) => ({
+          id: item.id || `maintenance-template-checklist-${uid()}`,
+          templateId: id,
+          displayOrder: index + 1,
+          item: item.item!.trim(),
+          mandatory: item.mandatory ?? true,
+        } satisfies MaintenanceTemplateChecklist)) : [];
+        const evidence = hasEvidence ? input.evidence!.map((evidenceType) => ({
+          id: `maintenance-template-evidence-${uid()}`,
+          templateId: id,
+          evidenceType,
+        } satisfies MaintenanceTemplateEvidence)) : [];
+        setStore((s) => ({
+          ...s,
+          maintenanceTemplates: (s.maintenanceTemplates || []).map((template) => (template.id === id ? next : template)),
+          maintenanceTemplateChecklists: hasChecklist ? [...(s.maintenanceTemplateChecklists || []).filter((item) => item.templateId !== id), ...checklist] : s.maintenanceTemplateChecklists,
+          maintenanceTemplateEvidence: hasEvidence ? [...(s.maintenanceTemplateEvidence || []).filter((item) => item.templateId !== id), ...evidence] : s.maintenanceTemplateEvidence,
+          auditLogs: [
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Maintenance template updated", entity: id, entityType: "maintenance_template", facilityId: next.homeId, before: { name: current.name }, after: { name: next.name }, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      archiveMaintenanceTemplate: (id, reason) => {
+        const current = store.maintenanceTemplates.find((template) => template.id === id);
+        if (!current) throw new Error("Maintenance template not found.");
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const now = new Date().toISOString();
+        const next = { ...current, active: false, archivedAt: now, archivedBy: currentUserName, updatedAt: now, updatedBy: currentUserName };
+        setStore((s) => ({
+          ...s,
+          maintenanceTemplates: s.maintenanceTemplates.map((template) => (template.id === id ? next : template)),
+          auditLogs: [
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Maintenance template archived", entity: id, entityType: "maintenance_template", facilityId: current.homeId, reason, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      deleteMaintenanceTemplate: (id) => {
+        if (store.plannedMaintenanceSchedules.some((schedule) => schedule.templateId === id)) {
+          throw new Error("This template is used by schedules. Archive it instead.");
+        }
+        setStore((s) => ({
+          ...s,
+          maintenanceTemplates: s.maintenanceTemplates.filter((template) => template.id !== id),
+          maintenanceTemplateChecklists: s.maintenanceTemplateChecklists.filter((item) => item.templateId !== id),
+          maintenanceTemplateEvidence: s.maintenanceTemplateEvidence.filter((item) => item.templateId !== id),
+        }));
+      },
+      duplicateMaintenanceTemplate: (id) => {
+        const source = store.maintenanceTemplates.find((template) => template.id === id);
+        if (!source) return undefined;
+        return api.createMaintenanceTemplate({
+          ...source,
+          name: `${source.name} Copy`,
+          active: false,
+          checklist: store.maintenanceTemplateChecklists.filter((item) => item.templateId === id),
+          evidence: store.maintenanceTemplateEvidence.filter((item) => item.templateId === id).map((item) => item.evidenceType),
+        });
+      },
+      createPlannedMaintenanceSchedule: (input) => {
+        const assets = buildPlannedMaintenanceAssets({ ...store, activeFacilityId });
+        const validation = validateScheduleInput(input, assets, store.maintenanceTemplates);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the schedule details.");
+        const asset = assets.find((item) => item.id === input.assetId)!;
+        const template = store.maintenanceTemplates.find((item) => item.id === input.templateId)!;
+        const now = new Date().toISOString();
+        const schedule: PlannedMaintenanceSchedule = {
+          id: `planned-maintenance-schedule-${uid()}`,
+          tenantId: "tenant-oritas-demo",
+          homeId: asset.homeId,
+          facilityId: asset.homeId,
+          nursingHomeId: asset.homeId,
+          assetId: asset.id,
+          assetName: asset.name,
+          locationLabel: asset.locationLabel,
+          templateId: template.id,
+          responsibleTeamId: input.responsibleTeamId!,
+          startDate: input.startDate!,
+          endDate: input.endDate || undefined,
+          nextDueDate: input.nextDueDate || input.startDate!,
+          active: input.active ?? true,
+          frequencyType: input.frequencyType || template.frequencyType,
+          frequencyValue: Number(input.frequencyValue || template.frequencyValue || 1),
+          generateDaysBeforeDue: Number(input.generateDaysBeforeDue ?? 7),
+          createdBy: currentUserName,
+          createdAt: now,
+          updatedBy: currentUserName,
+          updatedAt: now,
+        };
+        const generated = generateOccurrencesForSchedule({ schedule, existing: [], until: input.endDate || "2026-12-31" }).slice(0, 24).map((occurrence) => ({
+          ...occurrence,
+          id: `planned-maintenance-occurrence-${uid()}`,
+        }));
+        setStore((s) => ({
+          ...s,
+          plannedMaintenanceSchedules: [schedule, ...s.plannedMaintenanceSchedules],
+          plannedMaintenanceOccurrences: [...generated, ...s.plannedMaintenanceOccurrences],
+          auditLogs: [
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Planned maintenance schedule created", entity: schedule.id, entityType: "planned_maintenance_schedule", facilityId: schedule.homeId, after: { asset: schedule.assetName, template: template.name }, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return schedule;
+      },
+      updatePlannedMaintenanceSchedule: (id, input) => {
+        const current = store.plannedMaintenanceSchedules.find((schedule) => schedule.id === id);
+        if (!current) throw new Error("Planned maintenance schedule not found.");
+        const assets = buildPlannedMaintenanceAssets({ ...store, activeFacilityId });
+        const validation = validateScheduleInput({ ...current, ...input }, assets, store.maintenanceTemplates);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the schedule details.");
+        const asset = assets.find((item) => item.id === (input.assetId || current.assetId));
+        const now = new Date().toISOString();
+        const next: PlannedMaintenanceSchedule = { ...current, ...input, assetName: asset?.name || current.assetName, locationLabel: asset?.locationLabel || current.locationLabel, homeId: asset?.homeId || current.homeId, facilityId: asset?.homeId || current.homeId, nursingHomeId: asset?.homeId || current.homeId, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({
+          ...s,
+          plannedMaintenanceSchedules: s.plannedMaintenanceSchedules.map((schedule) => (schedule.id === id ? next : schedule)),
+          auditLogs: [
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Planned maintenance schedule updated", entity: id, entityType: "planned_maintenance_schedule", facilityId: next.homeId, before: current, after: next, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      pausePlannedMaintenanceSchedule: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a pause reason.");
+        api.updatePlannedMaintenanceSchedule(id, { active: false, pausedAt: new Date().toISOString(), pausedBy: currentUserName, pauseReason: reason });
+      },
+      resumePlannedMaintenanceSchedule: (id) => {
+        api.updatePlannedMaintenanceSchedule(id, { active: true, pausedAt: undefined, pausedBy: undefined, pauseReason: undefined });
+      },
+      deletePlannedMaintenanceSchedule: (id) => {
+        if (store.plannedMaintenanceOccurrences.some((item) => item.scheduleId === id && item.workOrderId)) throw new Error("This schedule has generated Work Orders. Pause it instead.");
+        setStore((s) => ({ ...s, plannedMaintenanceSchedules: s.plannedMaintenanceSchedules.filter((schedule) => schedule.id !== id), plannedMaintenanceOccurrences: s.plannedMaintenanceOccurrences.filter((item) => item.scheduleId !== id) }));
+      },
+      generatePlannedMaintenanceOccurrences: (scheduleId, until = "2026-12-31") => {
+        const schedules = scheduleId ? store.plannedMaintenanceSchedules.filter((schedule) => schedule.id === scheduleId) : store.plannedMaintenanceSchedules;
+        const generated = schedules.flatMap((schedule) => generateOccurrencesForSchedule({ schedule, existing: store.plannedMaintenanceOccurrences, until }).map((occurrence) => ({ ...occurrence, id: `planned-maintenance-occurrence-${uid()}` })));
+        if (generated.length) setStore((s) => ({ ...s, plannedMaintenanceOccurrences: [...generated, ...s.plannedMaintenanceOccurrences] }));
+        return generated;
+      },
+      completePlannedMaintenanceOccurrence: (id) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, plannedMaintenanceOccurrences: s.plannedMaintenanceOccurrences.map((item) => item.id === id ? { ...item, status: "Completed", completedAt: now, completedBy: currentUserName } : item) }));
+      },
+      skipPlannedMaintenanceOccurrence: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a skip reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, plannedMaintenanceOccurrences: s.plannedMaintenanceOccurrences.map((item) => item.id === id ? { ...item, status: "Skipped", skippedAt: now, skippedBy: currentUserName, skippedReason: reason } : item) }));
+      },
+      cancelPlannedMaintenanceOccurrence: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a cancellation reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, plannedMaintenanceOccurrences: s.plannedMaintenanceOccurrences.map((item) => item.id === id ? { ...item, status: "Cancelled", cancelledAt: now, cancelledBy: currentUserName, cancelledReason: reason } : item) }));
+      },
+      generatePlannedMaintenanceWorkOrder: (occurrenceId) => {
+        const occurrence = store.plannedMaintenanceOccurrences.find((item) => item.id === occurrenceId);
+        if (!occurrence) throw new Error("Planned maintenance occurrence not found.");
+        if (occurrence.workOrderId) {
+          const existing = store.maintenanceWorkOrders.find((item) => item.id === occurrence.workOrderId);
+          if (existing) return existing;
+        }
+        const schedule = store.plannedMaintenanceSchedules.find((item) => item.id === occurrence.scheduleId);
+        if (!schedule) throw new Error("Planned maintenance schedule not found.");
+        const template = store.maintenanceTemplates.find((item) => item.id === schedule.templateId);
+        if (!template) throw new Error("Maintenance template not found.");
+        const assets = buildPlannedMaintenanceAssets({ ...store, activeFacilityId: schedule.homeId });
+        const generatedInput = buildGeneratedWorkOrderInput({
+          schedule,
+          template,
+          occurrence,
+          asset: assets.find((item) => item.id === schedule.assetId),
+          checklist: store.maintenanceTemplateChecklists.filter((item) => item.templateId === template.id),
+          evidence: store.maintenanceTemplateEvidence.filter((item) => item.templateId === template.id),
+        });
+        const now = new Date().toISOString();
+        const homeUsers = store.users.filter((user) => user.facilityIds?.includes(generatedInput.homeId) || user.facilityId === generatedInput.homeId);
+        const validation = validateWorkOrderInput(generatedInput, { ...store, users: homeUsers });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Unable to generate Work Order.");
+        const workOrder = {
+          ...createWorkOrderRecord({ input: generatedInput, records: store.maintenanceWorkOrders || [], currentUser, now }),
+          plannedMaintenanceScheduleId: schedule.id,
+          plannedMaintenanceTemplateId: template.id,
+          plannedMaintenanceOccurrenceId: occurrence.id,
+        } satisfies MaintenanceWorkOrder;
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: [workOrder, ...s.maintenanceWorkOrders],
+          plannedMaintenanceOccurrences: s.plannedMaintenanceOccurrences.map((item) => item.id === occurrenceId ? { ...item, status: "Generated", workOrderId: workOrder.id, generatedAt: now, generatedBy: currentUserName } : item),
+          plannedMaintenanceSchedules: s.plannedMaintenanceSchedules.map((item) => item.id === schedule.id ? { ...item, lastGeneratedDate: now, updatedAt: now, updatedBy: currentUserName } : item),
+          auditLogs: [
+            workOrderAuditLog({ id: uid(), action: "Work Order created from planned maintenance", record: workOrder, user: currentUser, after: { occurrenceId, scheduleId: schedule.id, templateId: template.id }, timestamp: now }),
+            plannedMaintenanceAuditLog({ id: uid(), user: currentUser, action: "Planned maintenance Work Order generated", entity: occurrence.id, entityType: "planned_maintenance_occurrence", facilityId: schedule.homeId, after: { workOrderNumber: workOrder.workOrderNumber }, timestamp: now }) as AuditLog,
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return workOrder;
       },
       addMaintenanceWorkOrder: (input) => {
         if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
