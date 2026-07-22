@@ -2253,6 +2253,139 @@ export interface MaintenanceWorkOrder {
   updatedByUserId?: string;
   version: number;
 }
+
+export type WorkOrderNoteType =
+  | "GENERAL"
+  | "PROGRESS_UPDATE"
+  | "SAFETY_NOTE"
+  | "ACCESS_NOTE"
+  | "PARTS_NOTE"
+  | "CONTRACTOR_NOTE"
+  | "HANDOVER_NOTE"
+  | "INTERNAL_NOTE";
+
+export interface WorkOrderNote {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  organisationId?: string;
+  homeId: string;
+  noteType: WorkOrderNoteType;
+  content: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt?: string;
+  updatedByUserId?: string;
+  isEdited: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  deletedReason?: string;
+  version: number;
+  lastRequestId?: string;
+}
+
+export type WorkOrderAttachmentCategory =
+  | "GENERAL"
+  | "DOCUMENT"
+  | "MANUAL"
+  | "QUOTATION"
+  | "CONTRACTOR_DOCUMENT"
+  | "SAFETY_DOCUMENT"
+  | "EVIDENCE"
+  | "PHOTO";
+
+export type WorkOrderEvidenceType =
+  | "BEFORE_WORK"
+  | "DURING_WORK"
+  | "AFTER_WORK"
+  | "REPAIR_EVIDENCE"
+  | "SAFETY_CONTROL"
+  | "TEST_RESULT"
+  | "CONTRACTOR_EVIDENCE"
+  | "OTHER";
+
+export type WorkOrderPhotoCategory = "BEFORE" | "DURING" | "AFTER" | "DAMAGE" | "REPAIR" | "SAFETY_CONTROL" | "OTHER";
+export type WorkOrderFileScanStatus = "PENDING" | "CLEAN" | "REJECTED" | "FAILED" | "NOT_AVAILABLE";
+
+export interface WorkOrderAttachment {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  organisationId?: string;
+  homeId: string;
+  originalFileName: string;
+  storedFileName: string;
+  storageKey: string;
+  mimeType: string;
+  fileExtension: string;
+  size: number;
+  category: WorkOrderAttachmentCategory;
+  photoCategory?: WorkOrderPhotoCategory;
+  description?: string;
+  isPhoto: boolean;
+  isEvidence: boolean;
+  evidenceType?: WorkOrderEvidenceType;
+  evidenceDescription?: string;
+  uploadedByUserId: string;
+  uploadedAt: string;
+  checksum?: string;
+  scanStatus: WorkOrderFileScanStatus;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  deletedReason?: string;
+  version: number;
+  lastRequestId?: string;
+}
+
+export type WorkOrderLabourType = "INTERNAL" | "CONTRACTOR";
+
+export interface WorkOrderLabourEntry {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  organisationId?: string;
+  homeId: string;
+  userId?: string;
+  workerDisplayName: string;
+  labourType: WorkOrderLabourType;
+  workDate: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationMinutes: number;
+  description: string;
+  recordedByUserId: string;
+  createdAt: string;
+  updatedAt?: string;
+  updatedByUserId?: string;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  deletedReason?: string;
+  version: number;
+  lastRequestId?: string;
+}
+
+export interface WorkOrderMaterialEntry {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  organisationId?: string;
+  homeId: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
+  reference?: string;
+  usedDate: string;
+  description?: string;
+  recordedByUserId: string;
+  createdAt: string;
+  updatedAt?: string;
+  updatedByUserId?: string;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  deletedReason?: string;
+  version: number;
+  lastRequestId?: string;
+}
 export type BedType =
   | "standard"
   | "low"

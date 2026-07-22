@@ -163,7 +163,14 @@ export type Permission =
   | "maintenance.work_orders.accept_on_behalf" | "maintenance.work_orders.start"
   | "maintenance.work_orders.pause" | "maintenance.work_orders.await_parts"
   | "maintenance.work_orders.await_contractor" | "maintenance.work_orders.await_access"
-  | "maintenance.work_orders.resume";
+  | "maintenance.work_orders.resume"
+  | "maintenance.work_orders.execution.view" | "maintenance.work_orders.execution.add_note"
+  | "maintenance.work_orders.execution.edit_note" | "maintenance.work_orders.execution.remove_note"
+  | "maintenance.work_orders.execution.upload_file" | "maintenance.work_orders.execution.remove_file"
+  | "maintenance.work_orders.execution.classify_evidence" | "maintenance.work_orders.execution.add_labour"
+  | "maintenance.work_orders.execution.edit_labour" | "maintenance.work_orders.execution.remove_labour"
+  | "maintenance.work_orders.execution.add_material" | "maintenance.work_orders.execution.edit_material"
+  | "maintenance.work_orders.execution.remove_material";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -380,6 +387,10 @@ export function can(role: Role, perm: Permission): boolean {
     return role === "don";
   }
   if (perm.startsWith("maintenance.work_orders.")) {
+    if (perm === "maintenance.work_orders.execution.view") return role === "nurse" || role === "cnm" || role === "don" || role === "group_owner" || role === "carer";
+    if (["maintenance.work_orders.execution.add_note", "maintenance.work_orders.execution.upload_file"].includes(perm)) return role === "cnm" || role === "don" || role === "group_owner" || role === "carer";
+    if (["maintenance.work_orders.execution.add_labour", "maintenance.work_orders.execution.add_material"].includes(perm)) return role === "cnm" || role === "don" || role === "group_owner" || role === "carer";
+    if (["maintenance.work_orders.execution.edit_note", "maintenance.work_orders.execution.remove_note", "maintenance.work_orders.execution.edit_labour", "maintenance.work_orders.execution.remove_labour", "maintenance.work_orders.execution.edit_material", "maintenance.work_orders.execution.remove_material", "maintenance.work_orders.execution.remove_file", "maintenance.work_orders.execution.classify_evidence"].includes(perm)) return role === "cnm" || role === "don" || role === "group_owner";
     if (["maintenance.work_orders.view", "maintenance.work_orders.create", "maintenance.work_orders.view_reported_own"].includes(perm)) {
       return role === "nurse" || role === "cnm" || role === "don" || role === "carer";
     }

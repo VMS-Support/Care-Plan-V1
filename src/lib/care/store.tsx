@@ -156,6 +156,10 @@ import type {
   ShiftDefinition,
   OperationalContext,
   MaintenanceWorkOrder,
+  WorkOrderNote,
+  WorkOrderAttachment,
+  WorkOrderLabourEntry,
+  WorkOrderMaterialEntry,
 } from "./types";
 import {
   archiveWorkOrderRecord,
@@ -171,6 +175,20 @@ import {
   applyWorkOrderWorkflow,
   type WorkOrderWorkflowInput,
 } from "@/domain/maintenance/workOrderWorkflow";
+import {
+  buildWorkOrderTimeline,
+  classifyAttachmentEvidence,
+  createWorkOrderAttachmentRecord,
+  createWorkOrderLabourRecord,
+  createWorkOrderMaterialRecord,
+  createWorkOrderNoteRecord,
+  editWorkOrderNoteRecord,
+  softDeleteExecutionRecord,
+  workOrderExecutionAuditLog,
+  type WorkOrderAttachmentUploadInput,
+  type WorkOrderLabourInput,
+  type WorkOrderMaterialInput,
+} from "@/domain/maintenance/workOrderExecution";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -2443,6 +2461,10 @@ function seedData() {
     outings,
     handovers,
     maintenanceWorkOrders: seedMaintenanceWorkOrders(),
+    workOrderNotes: [] as WorkOrderNote[],
+    workOrderAttachments: [] as WorkOrderAttachment[],
+    workOrderLabourEntries: [] as WorkOrderLabourEntry[],
+    workOrderMaterialEntries: [] as WorkOrderMaterialEntry[],
     interventionLogs: [] as InterventionLog[],
     readReceipts: [] as ReadReceipt[],
     carePlanTemplates: BUILT_IN_TEMPLATES.map((t) => ({
@@ -2517,6 +2539,10 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "outings",
   "handovers",
   "maintenanceWorkOrders",
+  "workOrderNotes",
+  "workOrderAttachments",
+  "workOrderLabourEntries",
+  "workOrderMaterialEntries",
   "interventionLogs",
   "readReceipts",
   "observations",
@@ -3091,6 +3117,17 @@ interface CareCtx extends Store {
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
   workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
   archiveMaintenanceWorkOrder: (id: string, reason: string) => void;
+  addWorkOrderNote: (workOrderId: string, input: { noteType: WorkOrderNote["noteType"]; content: string; clientRequestId?: string }) => WorkOrderNote;
+  editWorkOrderNote: (noteId: string, input: { content: string; expectedVersion: number; reason?: string }) => void;
+  removeWorkOrderNote: (noteId: string, reason: string) => void;
+  addWorkOrderAttachment: (workOrderId: string, input: WorkOrderAttachmentUploadInput) => WorkOrderAttachment;
+  classifyWorkOrderAttachmentEvidence: (attachmentId: string, input: { isEvidence: boolean; evidenceType?: WorkOrderAttachment["evidenceType"]; evidenceDescription?: string; expectedVersion: number }) => void;
+  removeWorkOrderAttachment: (attachmentId: string, reason: string) => void;
+  addWorkOrderLabour: (workOrderId: string, input: WorkOrderLabourInput) => WorkOrderLabourEntry;
+  removeWorkOrderLabour: (entryId: string, reason: string) => void;
+  addWorkOrderMaterial: (workOrderId: string, input: WorkOrderMaterialInput) => WorkOrderMaterialEntry;
+  removeWorkOrderMaterial: (entryId: string, reason: string) => void;
+  getWorkOrderTimeline: (workOrderId: string, limit?: number) => ReturnType<typeof buildWorkOrderTimeline>;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
   recordAuditEvent: typeof recordAuditEvent;
   getAuditForEntity: typeof getAuditForEntity;
@@ -3519,6 +3556,19 @@ export function CareProvider({ children }: { children: ReactNode }) {
       })
       .map((r) => r.id);
   }, [scopedStore.residents, filter]);
+
+  const workOrderExecutionContext = useCallback((record: MaintenanceWorkOrder | undefined, now?: string) => ({
+    currentUser,
+    users: store.users,
+    now,
+    canAccess: (capability: string, resource?: { nursingHomeId?: string; wardId?: string }) =>
+      canAccess(
+        scopedStore,
+        createStaffAccessContext(currentUser, activeFacilityId, resource?.wardId || (record?.wardId ? String(record.wardId) : undefined)),
+        capability,
+        resource || (record ? { nursingHomeId: record.homeId, wardId: record.wardId ? String(record.wardId) : undefined } : { nursingHomeId: activeFacilityId }),
+      ),
+  }), [activeFacilityId, currentUser, scopedStore, store.users]);
 
   const api = useMemo<CareCtx>(
     () => ({
@@ -7242,6 +7292,193 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ].slice(0, 500),
         }));
       },
+      addWorkOrderNote: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const now = new Date().toISOString();
+        if (input.clientRequestId && store.workOrderNotes.some((note) => note.lastRequestId === input.clientRequestId)) {
+          return store.workOrderNotes.find((note) => note.lastRequestId === input.clientRequestId)!;
+        }
+        const note = createWorkOrderNoteRecord({
+          record: current!,
+          input,
+          context: workOrderExecutionContext(current, now),
+          id: `work-order-note-${uid()}`,
+        });
+        setStore((s) => ({
+          ...s,
+          workOrderNotes: [note, ...s.workOrderNotes],
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work note added", record: current!, user: currentUser, entityId: note.id, entityType: "work_order_note", after: { noteType: note.noteType }, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return note;
+      },
+      editWorkOrderNote: (noteId, input) => {
+        const note = store.workOrderNotes.find((item) => item.id === noteId);
+        if (!note) throw new Error("Work note not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === note.workOrderId);
+        const now = new Date().toISOString();
+        const next = editWorkOrderNoteRecord(note, input, current!, workOrderExecutionContext(current, now));
+        setStore((s) => ({
+          ...s,
+          workOrderNotes: s.workOrderNotes.map((item) => (item.id === noteId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work note edited", record: current!, user: currentUser, entityId: note.id, entityType: "work_order_note", before: { version: note.version }, after: { version: next.version }, reason: input.reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      removeWorkOrderNote: (noteId, reason) => {
+        const note = store.workOrderNotes.find((item) => item.id === noteId);
+        if (!note) throw new Error("Work note not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === note.workOrderId);
+        const now = new Date().toISOString();
+        const context = workOrderExecutionContext(current, now);
+        const capability = note.createdByUserId === currentUser.id ? "maintenance.work_orders.execution.add_note" : "maintenance.work_orders.execution.remove_note";
+        if (!context.canAccess(capability, { nursingHomeId: current!.homeId })) throw new Error("You do not have permission to remove this note.");
+        const next = softDeleteExecutionRecord(note, reason, context);
+        setStore((s) => ({
+          ...s,
+          workOrderNotes: s.workOrderNotes.map((item) => (item.id === noteId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work note removed", record: current!, user: currentUser, entityId: note.id, entityType: "work_order_note", before: { version: note.version }, after: { deletedAt: next.deletedAt }, reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      addWorkOrderAttachment: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const now = new Date().toISOString();
+        if (input.clientRequestId && store.workOrderAttachments.some((item) => item.lastRequestId === input.clientRequestId)) {
+          return store.workOrderAttachments.find((item) => item.lastRequestId === input.clientRequestId)!;
+        }
+        const attachment = createWorkOrderAttachmentRecord({ record: current!, input, context: workOrderExecutionContext(current, now), id: `work-order-file-${uid()}` });
+        setStore((s) => ({
+          ...s,
+          workOrderAttachments: [attachment, ...s.workOrderAttachments],
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: attachment.isPhoto ? "Work photo uploaded" : "Work attachment uploaded", record: current!, user: currentUser, entityId: attachment.id, entityType: "work_order_attachment", after: { fileName: attachment.originalFileName, category: attachment.category, isEvidence: attachment.isEvidence, scanStatus: attachment.scanStatus }, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return attachment;
+      },
+      classifyWorkOrderAttachmentEvidence: (attachmentId, input) => {
+        const attachment = store.workOrderAttachments.find((item) => item.id === attachmentId);
+        if (!attachment) throw new Error("Attachment not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === attachment.workOrderId);
+        const now = new Date().toISOString();
+        const next = classifyAttachmentEvidence(attachment, input, current!, workOrderExecutionContext(current, now));
+        setStore((s) => ({
+          ...s,
+          workOrderAttachments: s.workOrderAttachments.map((item) => (item.id === attachmentId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: input.isEvidence ? "Attachment marked as evidence" : "Evidence classification removed", record: current!, user: currentUser, entityId: attachment.id, entityType: "work_order_attachment", before: { isEvidence: attachment.isEvidence, evidenceType: attachment.evidenceType }, after: { isEvidence: next.isEvidence, evidenceType: next.evidenceType }, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      removeWorkOrderAttachment: (attachmentId, reason) => {
+        const attachment = store.workOrderAttachments.find((item) => item.id === attachmentId);
+        if (!attachment) throw new Error("Attachment not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === attachment.workOrderId);
+        const now = new Date().toISOString();
+        const context = workOrderExecutionContext(current, now);
+        const capability = attachment.isEvidence ? "maintenance.work_orders.execution.classify_evidence" : "maintenance.work_orders.execution.remove_file";
+        if (!context.canAccess(capability, { nursingHomeId: current!.homeId })) throw new Error("You do not have permission to remove this attachment.");
+        const next = softDeleteExecutionRecord(attachment, reason, context);
+        setStore((s) => ({
+          ...s,
+          workOrderAttachments: s.workOrderAttachments.map((item) => (item.id === attachmentId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work attachment removed", record: current!, user: currentUser, entityId: attachment.id, entityType: "work_order_attachment", before: { fileName: attachment.originalFileName, isEvidence: attachment.isEvidence }, after: { deletedAt: next.deletedAt }, reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      addWorkOrderLabour: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const now = new Date().toISOString();
+        if (input.clientRequestId && store.workOrderLabourEntries.some((item) => item.lastRequestId === input.clientRequestId)) {
+          return store.workOrderLabourEntries.find((item) => item.lastRequestId === input.clientRequestId)!;
+        }
+        const labour = createWorkOrderLabourRecord({ record: current!, input, context: workOrderExecutionContext(current, now), id: `work-order-labour-${uid()}` });
+        setStore((s) => ({
+          ...s,
+          workOrderLabourEntries: [labour, ...s.workOrderLabourEntries],
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work Order labour added", record: current!, user: currentUser, entityId: labour.id, entityType: "work_order_labour", after: { worker: labour.workerDisplayName, durationMinutes: labour.durationMinutes }, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return labour;
+      },
+      removeWorkOrderLabour: (entryId, reason) => {
+        const entry = store.workOrderLabourEntries.find((item) => item.id === entryId);
+        if (!entry) throw new Error("Labour entry not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === entry.workOrderId);
+        const now = new Date().toISOString();
+        const context = workOrderExecutionContext(current, now);
+        if (!context.canAccess("maintenance.work_orders.execution.remove_labour", { nursingHomeId: current!.homeId })) throw new Error("You do not have permission to remove this labour entry.");
+        const next = softDeleteExecutionRecord(entry, reason, context);
+        setStore((s) => ({
+          ...s,
+          workOrderLabourEntries: s.workOrderLabourEntries.map((item) => (item.id === entryId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work Order labour removed", record: current!, user: currentUser, entityId: entry.id, entityType: "work_order_labour", before: { durationMinutes: entry.durationMinutes }, after: { deletedAt: next.deletedAt }, reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      addWorkOrderMaterial: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        const now = new Date().toISOString();
+        if (input.clientRequestId && store.workOrderMaterialEntries.some((item) => item.lastRequestId === input.clientRequestId)) {
+          return store.workOrderMaterialEntries.find((item) => item.lastRequestId === input.clientRequestId)!;
+        }
+        const material = createWorkOrderMaterialRecord({ record: current!, input, context: workOrderExecutionContext(current, now), id: `work-order-material-${uid()}` });
+        setStore((s) => ({
+          ...s,
+          workOrderMaterialEntries: [material, ...s.workOrderMaterialEntries],
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work Order material recorded", record: current!, user: currentUser, entityId: material.id, entityType: "work_order_material", after: { materialName: material.materialName, quantity: material.quantity, unit: material.unit }, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return material;
+      },
+      removeWorkOrderMaterial: (entryId, reason) => {
+        const entry = store.workOrderMaterialEntries.find((item) => item.id === entryId);
+        if (!entry) throw new Error("Material entry not found.");
+        const current = store.maintenanceWorkOrders.find((record) => record.id === entry.workOrderId);
+        const now = new Date().toISOString();
+        const context = workOrderExecutionContext(current, now);
+        if (!context.canAccess("maintenance.work_orders.execution.remove_material", { nursingHomeId: current!.homeId })) throw new Error("You do not have permission to remove this material entry.");
+        const next = softDeleteExecutionRecord(entry, reason, context);
+        setStore((s) => ({
+          ...s,
+          workOrderMaterialEntries: s.workOrderMaterialEntries.map((item) => (item.id === entryId ? next : item)),
+          auditLogs: [
+            workOrderExecutionAuditLog({ id: uid(), action: "Work Order material removed", record: current!, user: currentUser, entityId: entry.id, entityType: "work_order_material", before: { materialName: entry.materialName, quantity: entry.quantity }, after: { deletedAt: next.deletedAt }, reason, timestamp: now }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      getWorkOrderTimeline: (workOrderId, limit = 50) => {
+        const record = store.maintenanceWorkOrders.find((item) => item.id === workOrderId);
+        if (!record) return [];
+        return buildWorkOrderTimeline({
+          record,
+          auditLogs: store.auditLogs,
+          notes: store.workOrderNotes.filter((item) => item.workOrderId === workOrderId),
+          attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId),
+          labour: store.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId),
+          materials: store.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId),
+          users: store.users,
+          limit,
+        });
+      },
       addObservation: (o) => {
         const item: Observation = { ...o, id: uid() };
         const ev: TimelineEvent = {
@@ -9176,6 +9413,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
       currentUser,
       filter,
       filteredResidentIds,
+      workOrderExecutionContext,
       setStore,
       setCurrentRole,
       resetToDemoData,
