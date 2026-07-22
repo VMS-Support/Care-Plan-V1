@@ -1510,17 +1510,39 @@ function contractorContactDisplayName(input: Partial<MaintenanceContractorContac
 
 function validateMaintenanceContractorContactInput(input: Partial<MaintenanceContractorContact>) {
   if (!contractorContactDisplayName(input)) throw new Error("Enter a contact name.");
+  if (!["GENERAL", "MANAGER", "OPERATIONS", "SERVICE_COORDINATOR", "ENGINEER", "EMERGENCY", "COMPLIANCE", "ACCOUNTS", "ADMINISTRATION", "OTHER"].includes(String(input.contactRole || "GENERAL"))) throw new Error("Select a valid contact role.");
   if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) throw new Error("Enter a valid contact email.");
   for (const value of [input.phone, input.mobile, input.emergencyPhone]) {
     if (value && !/^[+()0-9\s-]{6,30}$/.test(value.trim())) throw new Error("Enter a valid contact phone number.");
   }
   if (input.active !== false && !(input.email || input.phone || input.mobile || input.emergencyPhone)) throw new Error("Active contacts require at least one contact method.");
+  if (input.isPrimary && input.active === false) throw new Error("Only active contacts can be marked as Primary.");
+  if (input.notes && input.notes.trim().length > 2000) throw new Error("Contact notes are too long.");
 }
 
 function validateMaintenanceContractorServiceAreaInput(input: Partial<MaintenanceContractorServiceArea>) {
   if (!input.name?.trim()) throw new Error("Enter a service area name.");
-  if (!input.serviceAreaType) throw new Error("Select a service area type.");
+  if (!["REGION", "COUNTY", "CITY", "POSTAL_AREA", "HOME", "NATIONWIDE", "REMOTE", "OTHER"].includes(String(input.serviceAreaType || ""))) throw new Error("Select a valid service area type.");
   if (input.effectiveFrom && input.effectiveTo && input.effectiveFrom > input.effectiveTo) throw new Error("Effective from must not be after effective to.");
+  if (input.name.trim().length > 160) throw new Error("Service area name is too long.");
+  for (const value of [input.countyRegion, input.townCity, input.postalCodePattern]) {
+    if (value && value.trim().length > 120) throw new Error("Service area location text is too long.");
+  }
+  if (input.standardHours && !/^([A-Za-z]{3,9}(-[A-Za-z]{3,9})?\s+)?\d{2}:\d{2}-\d{2}:\d{2}$/.test(input.standardHours.trim())) {
+    throw new Error("Use valid standard hours, for example Mon-Fri 09:00-17:00.");
+  }
+  const timeRange = input.standardHours?.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+  if (timeRange && timeRange[1] >= timeRange[2]) throw new Error("Service area end time must be after start time.");
+}
+
+function validateMaintenanceContractorHomeAssociationInput(input: Partial<MaintenanceContractorHomeAssociation>) {
+  if (!["PLANNED", "ACTIVE", "INACTIVE", "RESTRICTED", "SUSPENDED", "ARCHIVED"].includes(String(input.associationStatus || "ACTIVE"))) throw new Error("Select a valid Home association status.");
+  if (!["NO_ACCESS", "BY_APPOINTMENT", "ESCORTED", "STANDARD", "EMERGENCY_ONLY", "RESTRICTED"].includes(String(input.accessLevel || "BY_APPOINTMENT"))) throw new Error("Select a valid Home access level.");
+  if (!["TENANT_WIDE", "HOME_PROVIDER", "EMERGENCY_PROVIDER", "PREFERRED", "OCCASIONAL", "HISTORICAL", "OTHER"].includes(String(input.relationshipType || "HOME_PROVIDER"))) throw new Error("Select a valid Home relationship type.");
+  if (input.effectiveFrom && input.effectiveTo && input.effectiveFrom > input.effectiveTo) throw new Error("Effective from must not be after effective to.");
+  if ((input.associationStatus === "RESTRICTED" || input.accessLevel === "RESTRICTED") && !(input.accessRestrictions || input.accessNotes)) throw new Error("Restricted Home access requires restriction notes.");
+  if (input.associationStatus === "SUSPENDED" && !(input.accessRestrictions || input.accessNotes || input.notes || input.serviceNotes)) throw new Error("Suspended Home access requires a reason.");
+  if (input.siteInductionCompleted && !input.siteInductionRequired) throw new Error("Site induction cannot be completed unless induction is required.");
 }
 
 function addMonths(date: string, months: number) {
@@ -4195,7 +4217,7 @@ interface CareCtx extends Store {
   archiveMaintenanceContractor: (id: string, reason: string) => void;
   restoreMaintenanceContractor: (id: string, reason: string) => void;
   associateMaintenanceContractorHome: (contractorId: string, input: Partial<MaintenanceContractorHomeAssociation> & { homeId?: string; relationshipType?: MaintenanceContractorHomeRelationshipType; notes?: string }) => MaintenanceContractorHomeAssociation;
-  updateMaintenanceContractorHomeAssociation: (associationId: string, input: Partial<MaintenanceContractorHomeAssociation>) => void;
+  updateMaintenanceContractorHomeAssociation: (associationId: string, input: Partial<MaintenanceContractorHomeAssociation>, expectedVersion?: number) => void;
   setMaintenanceContractorHomeAssociationStatus: (associationId: string, status: MaintenanceContractorHomeAssociationStatus, reason?: string) => void;
   removeMaintenanceContractorHomeAssociation: (associationId: string, reason?: string) => void;
   createMaintenanceContractorContact: (contractorId: string, input: Partial<MaintenanceContractorContact> & { displayName?: string }) => MaintenanceContractorContact;
@@ -4210,7 +4232,7 @@ interface CareCtx extends Store {
   archiveMaintenanceContractorServiceArea: (serviceAreaId: string, reason: string) => void;
   restoreMaintenanceContractorServiceArea: (serviceAreaId: string) => void;
   addMaintenanceContractorNote: (contractorId: string, input: { noteType?: MaintenanceContractorNoteType; title: string; body: string; homeId?: string; pinned?: boolean }) => MaintenanceContractorNote;
-  updateMaintenanceContractorNote: (noteId: string, input: Partial<MaintenanceContractorNote>) => void;
+  updateMaintenanceContractorNote: (noteId: string, input: Partial<MaintenanceContractorNote>, expectedVersion?: number) => void;
   pinMaintenanceContractorNote: (noteId: string, pinned: boolean) => void;
   removeMaintenanceContractorNote: (noteId: string, reason: string) => void;
   restoreMaintenanceContractorNote: (noteId: string) => void;
@@ -4717,6 +4739,29 @@ export function CareProvider({ children }: { children: ReactNode }) {
         resource || (record ? { nursingHomeId: record.homeId, wardId: record.wardId ? String(record.wardId) : undefined } : { nursingHomeId: activeFacilityId }),
       ),
   }), [activeFacilityId, currentUser, scopedStore, store.users]);
+
+  const requireContractorCapability = useCallback((capability: string, nursingHomeId = activeFacilityId) => {
+    if (!canAccess(store, createStaffAccessContext(currentUser, nursingHomeId), capability, { nursingHomeId })) {
+      throw new Error("You do not have permission to manage Contractor Register records.");
+    }
+  }, [activeFacilityId, currentUser, store]);
+
+  const ensureContractorHomeScope = useCallback((homeId?: string) => {
+    const targetHomeId = homeId || activeFacilityId;
+    if (!store.facilities.some((facility) => facility.id === targetHomeId)) throw new Error("Nursing Home not found.");
+    if (currentRole !== "group_owner" && !userFacilityIds(currentUser).includes(targetHomeId)) {
+      throw new Error("You do not have access to manage contractors for this Nursing Home.");
+    }
+    return targetHomeId;
+  }, [activeFacilityId, currentRole, currentUser, store.facilities]);
+
+  const ensureContractorEntityScope = useCallback((contractor: MaintenanceContractor) => {
+    const relatedHomeIds = store.maintenanceContractorHomeAssociations
+      .filter((association) => association.contractorId === contractor.id)
+      .map((association) => association.homeId);
+    if (currentRole === "group_owner" || relatedHomeIds.length === 0) return;
+    if (!relatedHomeIds.some((homeId) => userFacilityIds(currentUser).includes(homeId))) throw new Error("Contractor not found.");
+  }, [currentRole, currentUser, store.maintenanceContractorHomeAssociations]);
 
   const api = useMemo<CareCtx>(
     () => ({
@@ -9155,6 +9200,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({ ...s, maintenanceCertificateRequirements: s.maintenanceCertificateRequirements.map((item) => item.id === id ? { ...item, active: false, archivedBy: currentUserName, archivedAt: new Date().toISOString(), updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) }));
       },
       createMaintenanceContractor: (input) => {
+        requireContractorCapability("maintenance.contractors.create");
         const now = new Date().toISOString();
         const contractor: MaintenanceContractor = {
           id: `maintenance-contractor-${uid()}`,
@@ -9182,10 +9228,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
           countyRegion: input.countyRegion?.trim(),
           postalCode: input.postalCode?.trim(),
           countryCode: (input.countryCode || "IE").trim().toUpperCase(),
-          status: input.status || "DRAFT",
+          status: "DRAFT",
           approvalStatus: "NOT_REVIEWED",
           restrictionStatus: "NONE",
-          active: input.status === "ACTIVE",
+          active: false,
           archived: false,
           createdBy: currentUserName,
           createdAt: now,
@@ -9201,8 +9247,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return contractor;
       },
       updateMaintenanceContractor: (id, input, expectedVersion) => {
+        requireContractorCapability("maintenance.contractors.edit");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
         if (current.archived) throw new Error("Archived contractors are read-only. Restore before editing.");
         if (expectedVersion !== undefined && current.version !== expectedVersion) throw new Error("This Contractor record was updated by another user. Refresh the record and review the latest changes before saving.");
         const now = new Date().toISOString();
@@ -9213,79 +9261,108 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor updated", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ version: current.version }), after: JSON.stringify({ version: next.version, legalName: next.legalName }) }, ...s.auditLogs].slice(0, 500) }));
       },
       activateMaintenanceContractor: (id) => {
+        requireContractorCapability("maintenance.contractors.activate");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (current.status === "ACTIVE" && current.active && !current.archived) return;
         const now = new Date().toISOString();
         const next = maintenanceContractorStatusRecord(current, "ACTIVE", currentUserName, now);
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_ACTIVATED", "Contractor activated for internal use.", "Active is not compliance approval.", currentUserName, now);
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor activated", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }) }, ...s.auditLogs].slice(0, 500) }));
       },
       deactivateMaintenanceContractor: (id, reason) => {
+        requireContractorCapability("maintenance.contractors.deactivate");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (current.status === "INACTIVE" && !current.active) return;
         const now = new Date().toISOString();
         const next = maintenanceContractorStatusRecord(current, "INACTIVE", currentUserName, now, reason);
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_DEACTIVATED", "Contractor deactivated.", reason, currentUserName, now);
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor deactivated", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       suspendMaintenanceContractor: (id, reason) => {
+        requireContractorCapability("maintenance.contractors.suspend");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (current.status === "SUSPENDED") return;
         const now = new Date().toISOString();
         const next = maintenanceContractorStatusRecord(current, "SUSPENDED", currentUserName, now, reason);
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_SUSPENDED", "Contractor suspended.", reason, currentUserName, now);
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor suspended", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       reactivateMaintenanceContractor: (id, reason) => {
+        requireContractorCapability("maintenance.contractors.reactivate");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (current.status === "ACTIVE" && current.active && !current.archived) return;
         const now = new Date().toISOString();
         const next = maintenanceContractorStatusRecord(current, "ACTIVE", currentUserName, now, reason);
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_REACTIVATED", "Contractor reactivated for internal use.", reason || "Active is not compliance approval.", currentUserName, now);
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor reactivated", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       archiveMaintenanceContractor: (id, reason) => {
+        requireContractorCapability("maintenance.contractors.archive");
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (current.archived || current.status === "ARCHIVED") return;
         const now = new Date().toISOString();
         const next = maintenanceContractorStatusRecord(current, "ARCHIVED", currentUserName, now, reason);
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_ARCHIVED", contractorTimelineSummary("CONTRACTOR_ARCHIVED", next), reason, currentUserName, now);
-        setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorHomeAssociations: s.maintenanceContractorHomeAssociations.map((item) => item.contractorId === id && item.active ? { ...item, active: false, associationStatus: "INACTIVE", effectiveTo: now.slice(0, 10), updatedBy: currentUserName, updatedAt: now } : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor archived", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }), reason }, ...s.auditLogs].slice(0, 500) }));
+        setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor archived", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status: next.status }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       restoreMaintenanceContractor: (id, reason) => {
+        requireContractorCapability("maintenance.contractors.restore");
         if (!reason.trim()) throw new Error("Enter a restore reason.");
         const current = store.maintenanceContractors.find((item) => item.id === id);
         if (!current) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(current);
+        if (!current.archived && current.status !== "ARCHIVED") return;
         const now = new Date().toISOString();
         const next: MaintenanceContractor = { ...current, status: "INACTIVE", active: false, archived: false, archivedAt: undefined, archivedBy: undefined, archiveReason: undefined, updatedBy: currentUserName, updatedAt: now, version: current.version + 1 };
         const event = maintenanceContractorTimelineEvent(next, "CONTRACTOR_RESTORED", contractorTimelineSummary("CONTRACTOR_RESTORED", next), reason, currentUserName, now);
         setStore((s) => ({ ...s, maintenanceContractors: s.maintenanceContractors.map((item) => item.id === id ? next : item), maintenanceContractorTimelineEvents: [event, ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor restored", entity: id, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.status, archived: current.archived }), after: JSON.stringify({ status: next.status, archived: next.archived }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       associateMaintenanceContractorHome: (contractorId, input) => {
+        requireContractorCapability("maintenance.contractors.homes.create", input.homeId || activeFacilityId);
         const contractor = store.maintenanceContractors.find((item) => item.id === contractorId && !item.archived);
         if (!contractor) throw new Error("Contractor not found.");
-        const homeId = input.homeId || activeFacilityId;
-        if (store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === contractorId && item.homeId === homeId && item.active)) throw new Error("This contractor is already associated with this Home.");
+        ensureContractorEntityScope(contractor);
+        const homeId = ensureContractorHomeScope(input.homeId);
+        if (contractor.status === "SUSPENDED" && input.accessLevel === "STANDARD" && input.associationStatus !== "RESTRICTED") throw new Error("Suspended contractors cannot receive unrestricted active access.");
+        const candidate = { ...input, homeId, associationStatus: input.associationStatus || "ACTIVE", accessLevel: input.accessLevel || "BY_APPOINTMENT", relationshipType: input.relationshipType || "HOME_PROVIDER" } satisfies Partial<MaintenanceContractorHomeAssociation>;
+        validateMaintenanceContractorHomeAssociationInput(candidate);
+        if (store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === contractorId && item.homeId === homeId && item.active && item.associationStatus !== "ARCHIVED")) throw new Error("This contractor is already associated with this Home.");
         const now = new Date().toISOString();
         const association: MaintenanceContractorHomeAssociation = { id: `maintenance-contractor-home-${uid()}`, tenantId: contractor.tenantId, contractorId, homeId, facilityId: homeId, associationStatus: input.associationStatus || "ACTIVE", accessLevel: input.accessLevel || "BY_APPOINTMENT", relationshipType: input.relationshipType || "HOME_PROVIDER", accessRestrictions: input.accessRestrictions, accessNotes: input.accessNotes, serviceNotes: input.serviceNotes || input.notes, internalOwnerUserId: input.internalOwnerUserId, internalOwnerTeamId: input.internalOwnerTeamId, emergencyAccessAllowed: Boolean(input.emergencyAccessAllowed), escortRequired: Boolean(input.escortRequired), siteInductionRequired: Boolean(input.siteInductionRequired), siteInductionCompleted: Boolean(input.siteInductionCompleted), notes: input.notes, active: input.associationStatus !== "INACTIVE" && input.associationStatus !== "ARCHIVED", effectiveFrom: input.effectiveFrom || now.slice(0, 10), effectiveTo: input.effectiveTo, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now, version: 1 };
-        if (association.effectiveTo && association.effectiveFrom > association.effectiveTo) throw new Error("Effective from must not be after effective to.");
-        if (association.associationStatus === "RESTRICTED" && !(association.accessRestrictions || association.accessNotes)) throw new Error("Restricted Home access requires restriction notes.");
         setStore((s) => ({ ...s, maintenanceContractorHomeAssociations: [association, ...s.maintenanceContractorHomeAssociations], maintenanceContractorTimelineEvents: [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_HOME_ASSOCIATED", "Contractor associated with Home.", input.notes, currentUserName, now, homeId), ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: homeId, user: currentUserName, role: currentRole, action: "Contractor associated with Home", entity: contractorId, entityType: "maintenance_contractor", timestamp: now, after: JSON.stringify({ homeId, relationshipType: association.relationshipType }) }, ...s.auditLogs].slice(0, 500) }));
         return association;
       },
-      updateMaintenanceContractorHomeAssociation: (associationId, input) => {
+      updateMaintenanceContractorHomeAssociation: (associationId, input, expectedVersion) => {
         const current = store.maintenanceContractorHomeAssociations.find((item) => item.id === associationId);
         if (!current) throw new Error("Contractor Home association not found.");
+        if (expectedVersion !== undefined && (current.version || 1) !== expectedVersion) throw new Error("This Contractor Home access record was updated by another user. Refresh before saving.");
+        requireContractorCapability("maintenance.contractors.homes.edit", current.homeId);
+        ensureContractorHomeScope(current.homeId);
         const contractor = store.maintenanceContractors.find((item) => item.id === current.contractorId);
         if (!contractor || contractor.archived) throw new Error("Archived contractor records cannot receive Home access updates.");
+        ensureContractorEntityScope(contractor);
         const next = { ...current, ...input, id: current.id, contractorId: current.contractorId, tenantId: current.tenantId, homeId: current.homeId, facilityId: current.homeId, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: (current.version || 1) + 1 };
-        if (next.effectiveTo && next.effectiveFrom > next.effectiveTo) throw new Error("Effective from must not be after effective to.");
-        if (next.associationStatus === "RESTRICTED" && !(next.accessRestrictions || next.accessNotes)) throw new Error("Restricted Home access requires restriction notes.");
+        validateMaintenanceContractorHomeAssociationInput(next);
         setStore((s) => ({ ...s, maintenanceContractorHomeAssociations: s.maintenanceContractorHomeAssociations.map((item) => item.id === associationId ? next : item), maintenanceContractorTimelineEvents: [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_HOME_ASSOCIATION_UPDATED", "Contractor Home access updated.", `${next.associationStatus} - ${next.accessLevel || "No access level"}`, currentUserName, next.updatedAt!, next.homeId), ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: current.homeId, user: currentUserName, role: currentRole, action: "Contractor Home association updated", entity: current.contractorId, entityType: "maintenance_contractor", timestamp: next.updatedAt!, before: JSON.stringify({ status: current.associationStatus, accessLevel: current.accessLevel }), after: JSON.stringify({ status: next.associationStatus, accessLevel: next.accessLevel }) }, ...s.auditLogs].slice(0, 500) }));
       },
       setMaintenanceContractorHomeAssociationStatus: (associationId, status, reason) => {
         const current = store.maintenanceContractorHomeAssociations.find((item) => item.id === associationId);
         if (!current) throw new Error("Contractor Home association not found.");
+        const capability = status === "RESTRICTED" ? "maintenance.contractors.homes.restrict" : status === "SUSPENDED" ? "maintenance.contractors.homes.suspend" : status === "ARCHIVED" ? "maintenance.contractors.homes.archive" : status === "ACTIVE" ? "maintenance.contractors.homes.activate" : "maintenance.contractors.homes.deactivate";
+        requireContractorCapability(capability, current.homeId);
+        ensureContractorHomeScope(current.homeId);
+        if (current.associationStatus === status) return;
         if (["RESTRICTED", "SUSPENDED", "ARCHIVED"].includes(status) && !reason?.trim()) throw new Error("Enter a reason for this Home access change.");
         const now = new Date().toISOString();
         const contractor = store.maintenanceContractors.find((item) => item.id === current.contractorId);
@@ -9293,6 +9370,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({ ...s, maintenanceContractorHomeAssociations: s.maintenanceContractorHomeAssociations.map((item) => item.id === associationId ? next : item), maintenanceContractorTimelineEvents: contractor ? [maintenanceContractorTimelineEvent(contractor, status === "RESTRICTED" ? "CONTRACTOR_HOME_ACCESS_RESTRICTED" : status === "SUSPENDED" ? "CONTRACTOR_HOME_ACCESS_SUSPENDED" : "CONTRACTOR_HOME_ASSOCIATION_UPDATED", `Home access changed to ${status.toLowerCase()}.`, reason, currentUserName, now, current.homeId), ...s.maintenanceContractorTimelineEvents] : s.maintenanceContractorTimelineEvents, auditLogs: [{ id: uid(), facilityId: current.homeId, user: currentUserName, role: currentRole, action: "Contractor Home access status changed", entity: current.contractorId, entityType: "maintenance_contractor", timestamp: now, before: JSON.stringify({ status: current.associationStatus }), after: JSON.stringify({ status }), reason }, ...s.auditLogs].slice(0, 500) }));
       },
       removeMaintenanceContractorHomeAssociation: (associationId, reason) => {
+        const existing = store.maintenanceContractorHomeAssociations.find((item) => item.id === associationId);
+        if (existing) {
+          requireContractorCapability("maintenance.contractors.homes.deactivate", existing.homeId);
+          ensureContractorHomeScope(existing.homeId);
+        }
         const now = new Date().toISOString();
         setStore((s) => {
           const association = s.maintenanceContractorHomeAssociations.find((item) => item.id === associationId);
@@ -9301,8 +9383,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
       },
       createMaintenanceContractorContact: (contractorId, input) => {
+        requireContractorCapability("maintenance.contractors.contacts.create", input.homeId || activeFacilityId);
         const contractor = store.maintenanceContractors.find((item) => item.id === contractorId && !item.archived);
         if (!contractor) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(contractor);
+        if (input.homeId) ensureContractorHomeScope(input.homeId);
         if (input.homeId && !store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === contractorId && item.homeId === input.homeId && item.active)) throw new Error("Home-specific contacts must reference an associated Home.");
         validateMaintenanceContractorContactInput(input);
         const now = new Date().toISOString();
@@ -9313,36 +9398,62 @@ export function CareProvider({ children }: { children: ReactNode }) {
       updateMaintenanceContractorContact: (contactId, input, expectedVersion) => {
         const current = store.maintenanceContractorContacts.find((item) => item.id === contactId);
         if (!current) throw new Error("Contractor contact not found.");
+        requireContractorCapability("maintenance.contractors.contacts.edit", current.homeId || activeFacilityId);
+        if (current.homeId) ensureContractorHomeScope(current.homeId);
         const contractor = store.maintenanceContractors.find((item) => item.id === current.contractorId && !item.archived);
         if (!contractor) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(contractor);
+        if (input.homeId && input.homeId !== current.homeId) ensureContractorHomeScope(input.homeId);
+        if (input.homeId && !store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === current.contractorId && item.homeId === input.homeId && item.active)) throw new Error("Home-specific contacts must reference an associated Home.");
+        if (current.archivedAt) throw new Error("Archived contacts must be restored before editing.");
         if (expectedVersion !== undefined && current.version !== expectedVersion) throw new Error("This Contractor contact was updated by another user. Refresh before saving.");
         const next = { ...current, ...input, id: current.id, tenantId: current.tenantId, contractorId: current.contractorId, displayName: contractorContactDisplayName({ ...current, ...input }), updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: current.version + 1 };
         validateMaintenanceContractorContactInput(next);
         setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.id === contactId ? next : item), maintenanceContractorTimelineEvents: [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_CONTACT_UPDATED", `Contact ${next.displayName} updated.`, next.contactRole, currentUserName, next.updatedAt!, next.homeId), ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: next.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor contact updated", entity: current.contractorId, entityType: "maintenance_contractor", timestamp: next.updatedAt!, before: JSON.stringify({ version: current.version }), after: JSON.stringify({ version: next.version }) }, ...s.auditLogs].slice(0, 500) }));
       },
       setMaintenanceContractorContactPrimary: (contactId) => {
+        requireContractorCapability("maintenance.contractors.contacts.set_primary");
         const contact = store.maintenanceContractorContacts.find((item) => item.id === contactId);
         if (!contact || !contact.active || contact.archivedAt) throw new Error("Select an active contact.");
         const contractor = store.maintenanceContractors.find((item) => item.id === contact.contractorId);
         if (!contractor) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(contractor);
+        if (contact.homeId) ensureContractorHomeScope(contact.homeId);
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.contractorId === contact.contractorId ? { ...item, isPrimary: item.id === contactId, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), maintenanceContractors: s.maintenanceContractors.map((item) => item.id === contact.contractorId ? { ...item, primaryContactName: contact.displayName, primaryContactJobTitle: contact.jobTitle, primaryContactEmail: contact.email, primaryContactPhone: contact.mobile || contact.phone || contact.emergencyPhone, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), maintenanceContractorTimelineEvents: [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_CONTACT_SET_PRIMARY", `Primary contact changed to ${contact.displayName}.`, undefined, currentUserName, now, contact.homeId), ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: contact.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor primary contact changed", entity: contact.contractorId, entityType: "maintenance_contractor", timestamp: now, after: JSON.stringify({ contactId }) }, ...s.auditLogs].slice(0, 500) }));
       },
       setMaintenanceContractorContactEmergency: (contactId, isEmergency = true) => {
+        requireContractorCapability("maintenance.contractors.contacts.set_emergency");
         const contact = store.maintenanceContractorContacts.find((item) => item.id === contactId);
         if (!contact || contact.archivedAt) throw new Error("Contractor contact not found.");
+        if (contact.homeId) ensureContractorHomeScope(contact.homeId);
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.id === contactId ? { ...item, isEmergencyContact: isEmergency, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: contact.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor emergency contact changed", entity: contact.contractorId, entityType: "maintenance_contractor", timestamp: now, after: JSON.stringify({ contactId, isEmergency }) }, ...s.auditLogs].slice(0, 500) }));
       },
       archiveMaintenanceContractorContact: (contactId, reason) => {
+        requireContractorCapability("maintenance.contractors.contacts.archive");
         if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const contact = store.maintenanceContractorContacts.find((item) => item.id === contactId);
+        if (!contact) throw new Error("Contractor contact not found.");
+        if (contact?.homeId) ensureContractorHomeScope(contact.homeId);
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.id === contactId ? { ...item, active: false, isPrimary: false, archivedBy: currentUserName, archivedAt: now, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor contact archived", entity: contactId, entityType: "maintenance_contractor_contact", timestamp: now, reason }, ...s.auditLogs].slice(0, 500) }));
       },
-      restoreMaintenanceContractorContact: (contactId) => setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.id === contactId ? { ...item, active: true, archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      restoreMaintenanceContractorContact: (contactId) => {
+        requireContractorCapability("maintenance.contractors.contacts.archive");
+        const contact = store.maintenanceContractorContacts.find((item) => item.id === contactId);
+        if (!contact) throw new Error("Contractor contact not found.");
+        if (contact?.homeId) ensureContractorHomeScope(contact.homeId);
+        setStore((s) => ({ ...s, maintenanceContractorContacts: s.maintenanceContractorContacts.map((item) => item.id === contactId ? { ...item, active: true, archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) }));
+      },
       createMaintenanceContractorServiceArea: (contractorId, input) => {
+        requireContractorCapability("maintenance.contractors.service_areas.create", input.homeId || activeFacilityId);
         const contractor = store.maintenanceContractors.find((item) => item.id === contractorId && !item.archived);
         if (!contractor) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(contractor);
+        if (contractor.status === "ARCHIVED") throw new Error("Archived contractors cannot receive new service areas.");
+        if (input.homeId) ensureContractorHomeScope(input.homeId);
+        if (input.serviceAreaType === "HOME" && !input.homeId) throw new Error("Home service areas must reference a Nursing Home.");
         if (input.serviceAreaType === "HOME" && input.homeId && !store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === contractorId && item.homeId === input.homeId && item.active)) throw new Error("Home service areas must reference an associated Home.");
         validateMaintenanceContractorServiceAreaInput(input);
         const now = new Date().toISOString();
@@ -9353,43 +9464,83 @@ export function CareProvider({ children }: { children: ReactNode }) {
       updateMaintenanceContractorServiceArea: (serviceAreaId, input, expectedVersion) => {
         const current = store.maintenanceContractorServiceAreas.find((item) => item.id === serviceAreaId);
         if (!current) throw new Error("Contractor service area not found.");
+        requireContractorCapability("maintenance.contractors.service_areas.edit", current.homeId || activeFacilityId);
+        if (current.homeId) ensureContractorHomeScope(current.homeId);
+        if (input.homeId && input.homeId !== current.homeId) ensureContractorHomeScope(input.homeId);
+        if (current.archivedAt) throw new Error("Archived service areas must be restored before editing.");
         if (expectedVersion !== undefined && current.version !== expectedVersion) throw new Error("This Contractor service area was updated by another user. Refresh before saving.");
         const next = { ...current, ...input, id: current.id, tenantId: current.tenantId, contractorId: current.contractorId, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: current.version + 1 };
         validateMaintenanceContractorServiceAreaInput(next);
         setStore((s) => ({ ...s, maintenanceContractorServiceAreas: s.maintenanceContractorServiceAreas.map((item) => item.id === serviceAreaId ? next : item), auditLogs: [{ id: uid(), facilityId: next.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor service area updated", entity: current.contractorId, entityType: "maintenance_contractor", timestamp: next.updatedAt!, before: JSON.stringify({ version: current.version }), after: JSON.stringify({ version: next.version }) }, ...s.auditLogs].slice(0, 500) }));
       },
       setMaintenanceContractorServiceAreaActive: (serviceAreaId, active, reason) => {
+        const current = store.maintenanceContractorServiceAreas.find((item) => item.id === serviceAreaId);
+        if (!current) throw new Error("Contractor service area not found.");
+        requireContractorCapability(active ? "maintenance.contractors.service_areas.activate" : "maintenance.contractors.service_areas.deactivate", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
+        if (!active && !reason?.trim()) throw new Error("Enter a deactivation reason.");
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorServiceAreas: s.maintenanceContractorServiceAreas.map((item) => item.id === serviceAreaId ? { ...item, active, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: active ? "Contractor service area activated" : "Contractor service area deactivated", entity: serviceAreaId, entityType: "maintenance_contractor_service_area", timestamp: now, reason }, ...s.auditLogs].slice(0, 500) }));
       },
       archiveMaintenanceContractorServiceArea: (serviceAreaId, reason) => {
+        const current = store.maintenanceContractorServiceAreas.find((item) => item.id === serviceAreaId);
+        if (!current) throw new Error("Contractor service area not found.");
+        requireContractorCapability("maintenance.contractors.service_areas.archive", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
         if (!reason.trim()) throw new Error("Enter an archive reason.");
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorServiceAreas: s.maintenanceContractorServiceAreas.map((item) => item.id === serviceAreaId ? { ...item, active: false, archivedBy: currentUserName, archivedAt: now, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor service area archived", entity: serviceAreaId, entityType: "maintenance_contractor_service_area", timestamp: now, reason }, ...s.auditLogs].slice(0, 500) }));
       },
-      restoreMaintenanceContractorServiceArea: (serviceAreaId) => setStore((s) => ({ ...s, maintenanceContractorServiceAreas: s.maintenanceContractorServiceAreas.map((item) => item.id === serviceAreaId ? { ...item, active: true, archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) })),
+      restoreMaintenanceContractorServiceArea: (serviceAreaId) => {
+        const current = store.maintenanceContractorServiceAreas.find((item) => item.id === serviceAreaId);
+        if (!current) throw new Error("Contractor service area not found.");
+        requireContractorCapability("maintenance.contractors.service_areas.archive", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
+        setStore((s) => ({ ...s, maintenanceContractorServiceAreas: s.maintenanceContractorServiceAreas.map((item) => item.id === serviceAreaId ? { ...item, active: true, archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: item.version + 1 } : item) }));
+      },
       addMaintenanceContractorNote: (contractorId, input) => {
+        requireContractorCapability("maintenance.contractors.notes.create", input.homeId || activeFacilityId);
         const contractor = store.maintenanceContractors.find((item) => item.id === contractorId);
         if (!contractor) throw new Error("Contractor not found.");
+        ensureContractorEntityScope(contractor);
+        if (contractor.archived) throw new Error("Archived contractor notes are read-only unless restored.");
+        if (input.homeId) ensureContractorHomeScope(input.homeId);
+        if (input.homeId && !store.maintenanceContractorHomeAssociations.some((item) => item.contractorId === contractorId && item.homeId === input.homeId && item.active)) throw new Error("Home-specific notes must reference an associated Home.");
         if (!input.title.trim() || !input.body.trim()) throw new Error("Enter a note title and body.");
+        if (input.body.toLowerCase().includes("resident:")) throw new Error("Contractor notes must not contain resident-specific care information.");
         const now = new Date().toISOString();
         const note: MaintenanceContractorNote = { id: `maintenance-contractor-note-${uid()}`, tenantId: contractor.tenantId, contractorId, homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, noteType: input.noteType || "GENERAL", title: input.title.trim(), body: input.body.trim(), visibility: "INTERNAL", pinned: Boolean(input.pinned), active: true, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now, version: 1 };
         setStore((s) => ({ ...s, maintenanceContractorNotes: [note, ...s.maintenanceContractorNotes], maintenanceContractorTimelineEvents: [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_NOTE_ADDED", "Contractor note added.", note.title, currentUserName, now, note.homeId), ...s.maintenanceContractorTimelineEvents], auditLogs: [{ id: uid(), facilityId: note.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor note added", entity: contractorId, entityType: "maintenance_contractor", timestamp: now, after: JSON.stringify({ noteType: note.noteType, title: note.title }) }, ...s.auditLogs].slice(0, 500) }));
         return note;
       },
-      updateMaintenanceContractorNote: (noteId, input) => {
+      updateMaintenanceContractorNote: (noteId, input, expectedVersion) => {
         const current = store.maintenanceContractorNotes.find((item) => item.id === noteId);
         if (!current) throw new Error("Contractor note not found.");
+        if (expectedVersion !== undefined && (current.version || 1) !== expectedVersion) throw new Error("This Contractor note was updated by another user. Refresh before saving.");
+        requireContractorCapability("maintenance.contractors.notes.edit", current.homeId || activeFacilityId);
+        if (current.homeId) ensureContractorHomeScope(current.homeId);
+        if (!current.active || current.removedAt) throw new Error("Removed notes cannot be edited.");
+        if (input.visibility === "RESTRICTED_INTERNAL") requireContractorCapability("maintenance.contractors.notes.restricted.view", current.homeId || activeFacilityId);
+        if (input.homeId && input.homeId !== current.homeId) ensureContractorHomeScope(input.homeId);
+        if (input.body?.toLowerCase().includes("resident:")) throw new Error("Contractor notes must not contain resident-specific care information.");
         if (input.title !== undefined && !input.title.trim()) throw new Error("Enter a note title.");
         if (input.body !== undefined && !input.body.trim()) throw new Error("Enter a note body.");
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorNotes: s.maintenanceContractorNotes.map((item) => item.id === noteId ? { ...item, ...input, title: input.title?.trim() ?? item.title, body: input.body?.trim() ?? item.body, updatedBy: currentUserName, updatedAt: now, version: (item.version || 1) + 1 } : item), auditLogs: [{ id: uid(), facilityId: current.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor note updated", entity: current.contractorId, entityType: "maintenance_contractor", timestamp: now, after: JSON.stringify({ noteId }) }, ...s.auditLogs].slice(0, 500) }));
       },
       pinMaintenanceContractorNote: (noteId, pinned) => {
+        const current = store.maintenanceContractorNotes.find((item) => item.id === noteId);
+        requireContractorCapability("maintenance.contractors.notes.pin", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
+        if (current && (!current.active || current.removedAt)) throw new Error("Removed notes cannot be pinned.");
         const now = new Date().toISOString();
         setStore((s) => ({ ...s, maintenanceContractorNotes: s.maintenanceContractorNotes.map((item) => item.id === noteId ? { ...item, pinned, updatedBy: currentUserName, updatedAt: now, version: (item.version || 1) + 1 } : item) }));
       },
       removeMaintenanceContractorNote: (noteId, reason) => {
+        const current = store.maintenanceContractorNotes.find((item) => item.id === noteId);
+        if (!current) throw new Error("Contractor note not found.");
+        requireContractorCapability("maintenance.contractors.notes.remove", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
         if (!reason.trim()) throw new Error("Enter a removal reason.");
         const now = new Date().toISOString();
         setStore((s) => {
@@ -9398,7 +9549,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
           return { ...s, maintenanceContractorNotes: s.maintenanceContractorNotes.map((item) => item.id === noteId ? { ...item, active: false, removedBy: currentUserName, removedAt: now, removalReason: reason, updatedBy: currentUserName, updatedAt: now } : item), maintenanceContractorTimelineEvents: contractor ? [maintenanceContractorTimelineEvent(contractor, "CONTRACTOR_NOTE_REMOVED", "Contractor note removed.", reason, currentUserName, now, note?.homeId), ...s.maintenanceContractorTimelineEvents] : s.maintenanceContractorTimelineEvents, auditLogs: note ? [{ id: uid(), facilityId: note.homeId || activeFacilityId, user: currentUserName, role: currentRole, action: "Contractor note removed", entity: note.contractorId, entityType: "maintenance_contractor", timestamp: now, reason }, ...s.auditLogs].slice(0, 500) : s.auditLogs };
         });
       },
-      restoreMaintenanceContractorNote: (noteId) => setStore((s) => ({ ...s, maintenanceContractorNotes: s.maintenanceContractorNotes.map((item) => item.id === noteId ? { ...item, active: true, removedAt: undefined, removedBy: undefined, removalReason: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: (item.version || 1) + 1 } : item) })),
+      restoreMaintenanceContractorNote: (noteId) => {
+        const current = store.maintenanceContractorNotes.find((item) => item.id === noteId);
+        if (!current) throw new Error("Contractor note not found.");
+        requireContractorCapability("maintenance.contractors.notes.remove", current?.homeId || activeFacilityId);
+        if (current?.homeId) ensureContractorHomeScope(current.homeId);
+        setStore((s) => ({ ...s, maintenanceContractorNotes: s.maintenanceContractorNotes.map((item) => item.id === noteId ? { ...item, active: true, removedAt: undefined, removedBy: undefined, removalReason: undefined, updatedBy: currentUserName, updatedAt: new Date().toISOString(), version: (item.version || 1) + 1 } : item) }));
+      },
       createHousekeepingTemplate: (input) => {
         const validation = validateHousekeepingTemplate(input);
         if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the housekeeping template.");
@@ -11998,6 +12155,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
       filter,
       filteredResidentIds,
       workOrderExecutionContext,
+      requireContractorCapability,
+      ensureContractorHomeScope,
+      ensureContractorEntityScope,
       setStore,
       setCurrentRole,
       resetToDemoData,

@@ -175,7 +175,24 @@ export type Permission =
   | "maintenance.work_orders.execution.classify_evidence" | "maintenance.work_orders.execution.add_labour"
   | "maintenance.work_orders.execution.edit_labour" | "maintenance.work_orders.execution.remove_labour"
   | "maintenance.work_orders.execution.add_material" | "maintenance.work_orders.execution.edit_material"
-  | "maintenance.work_orders.execution.remove_material";
+  | "maintenance.work_orders.execution.remove_material"
+  | "maintenance.contractors.overview.view" | "maintenance.contractors.register.view" | "maintenance.contractors.view"
+  | "maintenance.contractors.create" | "maintenance.contractors.edit"
+  | "maintenance.contractors.activate" | "maintenance.contractors.deactivate" | "maintenance.contractors.suspend"
+  | "maintenance.contractors.reactivate" | "maintenance.contractors.archive" | "maintenance.contractors.restore"
+  | "maintenance.contractors.contacts.view" | "maintenance.contractors.contacts.create" | "maintenance.contractors.contacts.edit"
+  | "maintenance.contractors.contacts.deactivate" | "maintenance.contractors.contacts.archive"
+  | "maintenance.contractors.contacts.set_primary" | "maintenance.contractors.contacts.set_emergency"
+  | "maintenance.contractors.service_areas.view" | "maintenance.contractors.service_areas.create"
+  | "maintenance.contractors.service_areas.edit" | "maintenance.contractors.service_areas.activate"
+  | "maintenance.contractors.service_areas.deactivate" | "maintenance.contractors.service_areas.archive"
+  | "maintenance.contractors.homes.view" | "maintenance.contractors.homes.create" | "maintenance.contractors.homes.edit"
+  | "maintenance.contractors.homes.activate" | "maintenance.contractors.homes.restrict"
+  | "maintenance.contractors.homes.suspend" | "maintenance.contractors.homes.deactivate"
+  | "maintenance.contractors.homes.archive"
+  | "maintenance.contractors.notes.view" | "maintenance.contractors.notes.create" | "maintenance.contractors.notes.edit"
+  | "maintenance.contractors.notes.pin" | "maintenance.contractors.notes.remove" | "maintenance.contractors.notes.restricted.view"
+  | "maintenance.contractors.timeline.view" | "maintenance.contractors.audit.view" | "maintenance.contractors.dashboard.view";
 
 const matrix: Record<Role, Permission[]> = {
   carer: [
@@ -413,6 +430,18 @@ export function can(role: Role, perm: Permission): boolean {
       return role === "cnm" || role === "don";
     }
     if (perm === "maintenance.work_orders.view_assigned") return role === "carer" || role === "nurse" || role === "cnm" || role === "don";
+  }
+  if (perm.startsWith("maintenance.contractors.")) {
+    if (["maintenance.contractors.view", "maintenance.contractors.contacts.view", "maintenance.contractors.homes.view"].includes(perm)) {
+      return role === "carer" || role === "nurse" || role === "cnm" || role === "don" || role === "group_owner";
+    }
+    if (["maintenance.contractors.overview.view", "maintenance.contractors.register.view", "maintenance.contractors.dashboard.view", "maintenance.contractors.service_areas.view", "maintenance.contractors.notes.view", "maintenance.contractors.timeline.view"].includes(perm)) {
+      return role === "cnm" || role === "don" || role === "group_owner";
+    }
+    if (["maintenance.contractors.create", "maintenance.contractors.edit", "maintenance.contractors.activate", "maintenance.contractors.deactivate", "maintenance.contractors.suspend", "maintenance.contractors.reactivate", "maintenance.contractors.archive", "maintenance.contractors.restore", "maintenance.contractors.contacts.create", "maintenance.contractors.contacts.edit", "maintenance.contractors.contacts.deactivate", "maintenance.contractors.contacts.archive", "maintenance.contractors.contacts.set_primary", "maintenance.contractors.contacts.set_emergency", "maintenance.contractors.service_areas.create", "maintenance.contractors.service_areas.edit", "maintenance.contractors.service_areas.activate", "maintenance.contractors.service_areas.deactivate", "maintenance.contractors.service_areas.archive", "maintenance.contractors.homes.create", "maintenance.contractors.homes.edit", "maintenance.contractors.homes.activate", "maintenance.contractors.homes.restrict", "maintenance.contractors.homes.suspend", "maintenance.contractors.homes.deactivate", "maintenance.contractors.homes.archive", "maintenance.contractors.notes.create", "maintenance.contractors.notes.edit", "maintenance.contractors.notes.pin", "maintenance.contractors.notes.remove"].includes(perm)) {
+      return role === "don" || role === "group_owner";
+    }
+    if (["maintenance.contractors.notes.restricted.view", "maintenance.contractors.audit.view"].includes(perm)) return role === "don" || role === "group_owner";
   }
   return Boolean(matrix[role]?.includes(perm));
 }

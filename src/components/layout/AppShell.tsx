@@ -313,7 +313,7 @@ const maintenanceNav: NavItem[] = [
   { to: "/maintenance/safety-compliance", label: "Safety & Compliance", icon: ShieldCheck, capability: "permission.manage" },
   { to: "/maintenance/housekeeping", label: "Housekeeping", icon: UsersRound, capability: "permission.manage" },
   { to: "/maintenance/certificates", label: "Certificates", icon: BadgeCheck, capability: "permission.manage" },
-  { to: "/maintenance/contractors", label: "Contractors", icon: HardHat, capability: "permission.manage" },
+  { to: "/maintenance/contractors", label: "Contractors", icon: HardHat, capability: "maintenance.contractors.register.view" },
   { to: "/maintenance/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck, capability: "permission.manage" },
   { to: "/maintenance/rooms-locations", label: "Rooms & Locations", icon: MapPin, capability: "permission.manage" },
   { to: "/maintenance/reports", label: "Reports", icon: BarChart3, capability: "permission.manage" },
@@ -364,7 +364,7 @@ function SidebarInner() {
   const visibleWorkforce = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
-  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view");
+  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view") || canAccess("maintenance.contractors.register.view");
   const visibleMaintenance = maintenanceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
@@ -578,7 +578,7 @@ function MobileNav() {
   const workforceVisible = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
-  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view");
+  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view") || canAccess("maintenance.contractors.register.view");
   const visibleMobile = [
     ...visible,
     ...(canViewMaintenance ? [{ to: "/maintenance", label: "Maintenance", icon: Wrench } as NavItem] : []),

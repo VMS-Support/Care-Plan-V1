@@ -11,11 +11,11 @@ export const CONTRACTOR_BUSINESS_TYPES: MaintenanceContractorBusinessType[] = ["
 export const CONTRACTOR_STATUSES: MaintenanceContractorStatus[] = ["DRAFT", "ACTIVE", "INACTIVE", "SUSPENDED", "ARCHIVED"];
 
 const STATUS_TRANSITIONS: Record<MaintenanceContractorStatus, MaintenanceContractorStatus[]> = {
-  DRAFT: ["ACTIVE", "INACTIVE", "ARCHIVED"],
+  DRAFT: ["ACTIVE", "ARCHIVED"],
   ACTIVE: ["INACTIVE", "SUSPENDED", "ARCHIVED"],
   INACTIVE: ["ACTIVE", "ARCHIVED"],
   SUSPENDED: ["ACTIVE", "INACTIVE", "ARCHIVED"],
-  ARCHIVED: ["DRAFT", "INACTIVE"],
+  ARCHIVED: ["INACTIVE"],
 };
 
 export function nextContractorReference(contractors: MaintenanceContractor[]) {

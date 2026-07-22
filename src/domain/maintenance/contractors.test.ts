@@ -44,7 +44,10 @@ assert.equal(potentialContractorDuplicates({ legalName: " safe   build limited "
 assert.equal(potentialContractorDuplicates({ companyRegistrationNumber: "12345" }, [{ ...base, companyRegistrationNumber: "12345" }]).length, 1);
 
 assert.equal(canTransitionContractorStatus("DRAFT", "ACTIVE"), true);
+assert.equal(canTransitionContractorStatus("DRAFT", "INACTIVE"), false);
 assert.equal(canTransitionContractorStatus("ARCHIVED", "ACTIVE"), false);
+assert.equal(canTransitionContractorStatus("ARCHIVED", "DRAFT"), false);
+assert.equal(canTransitionContractorStatus("ARCHIVED", "INACTIVE"), true);
 assert.equal(canTransitionContractorStatus("SUSPENDED", "INACTIVE"), true);
 
 assert.equal(contractorProfileCompleteness(base), 100);
