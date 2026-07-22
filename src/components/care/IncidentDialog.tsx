@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import type { Incident } from "@/lib/care/types";
 import { toast } from "sonner";
 
@@ -27,7 +28,7 @@ const empty = (uid: string, residentId: string): Incident => ({
 });
 
 export function IncidentDialog({ open, onOpenChange, mode, record, defaultResidentId }: Props) {
-  const { residents, carePlans, addIncident, updateIncident, submitIncident, currentUserName } = useCare();
+  const { residents, carePlanProblems, addIncident, updateIncident, submitIncident, currentUserName } = useCare();
   const [form, setForm] = useState<Incident>(empty(currentUserName, defaultResidentId || residents[0]?.id || ""));
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function IncidentDialog({ open, onOpenChange, mode, record, defaultReside
   }, [open, record, currentUserName, defaultResidentId, residents]);
 
   const readOnly = mode === "view";
-  const linkedPlans = carePlans.filter(c => c.residentId === form.residentId && c.status !== "archived" && c.status !== "superseded");
+  const linkedPlans = carePlanProblems.filter(c => c.residentId === form.residentId && c.status === "active");
 
   function save(submit: boolean) {
     if (!form.description.trim()) { toast.error("Description required"); return; }
@@ -113,7 +114,14 @@ export function IncidentDialog({ open, onOpenChange, mode, record, defaultReside
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {linkedPlans.map(p => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+                  {linkedPlans.map((p) => {
+                    const domain = getRltDomainForCarePlanProblem(p);
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        {domain?.title || p.category.replace(/_/g, " ")} - {p.problemStatement}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

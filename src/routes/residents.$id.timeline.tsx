@@ -1,6 +1,7 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +13,6 @@ import {
   ShieldAlert,
   UserCheck,
   FileCheck2,
-  GitBranch,
   Plane,
   UsersRound,
   Target,
@@ -60,9 +60,10 @@ function ResidentTimeline() {
   const {
     residents,
     assessments,
-    carePlans,
-    carePlanEvaluations,
-    carePlanReviews,
+    carePlanProblems,
+    problemGoals,
+    problemEvaluations,
+    problemReviews,
     interventions,
     interventionLogs,
     notes,
@@ -92,54 +93,60 @@ function ResidentTimeline() {
             a.riskLevel === "very_high" ? "critical" : a.riskLevel === "high" ? "warn" : "default",
         });
       });
-    carePlans
-      .filter((c) => c.residentId === r.id)
-      .forEach((c) => {
+    carePlanProblems
+      .filter((problem) => problem.residentId === r.id)
+      .forEach((problem) => {
+        const domain = getRltDomainForCarePlanProblem(problem);
+        const title = domain ? `${domain.title}: ${problem.problemStatement}` : problem.problemStatement;
         list.push({
-          ts: c.createdAt,
-          icon: c.supersedesId ? GitBranch : ClipboardList,
-          type: c.supersedesId ? `Care Plan Revised (v${c.version})` : "Care Plan Created",
-          summary: `${c.title}${c.revisionReason ? " â€” " + c.revisionReason : ""}`,
-          user: c.createdBy,
-          tone: c.priority === "critical" ? "critical" : "default",
+          ts: problem.createdAt,
+          icon: ClipboardList,
+          type: "RLT Nursing Care Plan Created",
+          summary: title,
+          user: problem.createdBy,
+          tone: problem.riskLevel === "very_high" ? "critical" : problem.riskLevel === "high" ? "warn" : "default",
         });
-        (c.goals || []).forEach((g) => {
+        problemGoals
+          .filter((goal) => goal.problemId === problem.id)
+          .forEach((goal) => {
           list.push({
-            ts: c.createdAt,
+            ts: goal.createdAt,
             icon: Target,
             type: "Plan Added",
-            summary: g.title,
+            summary: goal.statement,
             tone: "default",
           });
         });
       });
-    carePlanEvaluations.forEach((e) => {
-      const cp = carePlans.find((c) => c.id === e.carePlanId);
-      if (cp?.residentId !== r.id) return;
+    problemEvaluations.forEach((e) => {
+      const problem = carePlanProblems.find((item) => item.id === e.problemId);
+      if (problem?.residentId !== r.id) return;
+      const domain = getRltDomainForCarePlanProblem(problem);
       list.push({
         ts: e.date,
         icon: FileCheck2,
         type: "Evaluation Completed",
-        summary: `${cp.title}: goals ${e.goalsMet} Â· ${e.outcomeRating}`,
-        user: e.evaluatedBy,
+        summary: `${domain?.title || "RLT care plan"}: goals ${e.goalsMet} · ${e.progress}`,
+        user: e.evaluatorName,
         role: e.role,
         tone:
-          e.outcomeRating === "deterioration"
+          e.progress === "deteriorated" || e.progress === "requires_revision"
             ? "critical"
-            : e.outcomeRating === "excellent"
+            : e.progress === "improved"
               ? "success"
               : "default",
       });
     });
-    carePlanReviews.forEach((rv) => {
-      const cp = carePlans.find((c) => c.id === rv.carePlanId);
-      if (cp?.residentId !== r.id) return;
+    problemReviews.forEach((rv) => {
+      const problem = carePlanProblems.find((item) => item.id === rv.problemId);
+      if (problem?.residentId !== r.id) return;
+      const domain = getRltDomainForCarePlanProblem(problem);
       list.push({
-        ts: rv.date,
+        ts: rv.reviewDate,
         icon: ClipboardList,
         type: "Review Completed",
-        summary: `${cp.title}: ${rv.outcome.replace(/_/g, " ")}`,
-        user: rv.reviewer,
+        summary: `${domain?.title || "RLT care plan"}: ${rv.outcome.replace(/_/g, " ")}`,
+        user: rv.reviewedByName,
         role: rv.role,
       });
     });
@@ -277,9 +284,10 @@ function ResidentTimeline() {
   }, [
     r,
     assessments,
-    carePlans,
-    carePlanEvaluations,
-    carePlanReviews,
+    carePlanProblems,
+    problemGoals,
+    problemEvaluations,
+    problemReviews,
     interventions,
     interventionLogs,
     notes,

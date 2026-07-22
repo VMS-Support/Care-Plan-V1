@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import type { DailyNote } from "@/lib/care/types";
 import { toast } from "sonner";
 
@@ -45,6 +46,7 @@ const SHIFTS = ["Day", "Evening", "Night"];
 
 const empty = (staff: string, residentId: string): Omit<DailyNote, "id"> => ({
   residentId,
+  carePlanId: null,
   date: new Date().toISOString().slice(0, 10),
   staff,
   shift: "Day" as const,
@@ -57,7 +59,7 @@ const empty = (staff: string, residentId: string): Omit<DailyNote, "id"> => ({
 });
 
 export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
-  const { addNote, currentUserName, residents } = useCare();
+  const { addNote, currentUserName, residents, carePlanProblems } = useCare();
   const [form, setForm] = useState<Omit<DailyNote, "id">>(empty(currentUserName, residentId));
   const [category, setCategory] = useState("General");
 
@@ -69,6 +71,9 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
   }, [open, residentId, currentUserName]);
 
   const resident = residents.find((r) => r.id === residentId);
+  const currentCarePlans = carePlanProblems.filter(
+    (plan) => plan.residentId === residentId && plan.status === "active",
+  );
 
   function save() {
     if (!form.observation.trim()) {
@@ -130,6 +135,26 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
                 {NOTE_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="col-span-2 space-y-1.5">
+            <Label>Related Care Plan</Label>
+            <Select
+              value={form.carePlanId || "none"}
+              onValueChange={(value) => setForm({ ...form, carePlanId: value === "none" ? null : value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {currentCarePlans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} · {plan.problemStatement}
                   </SelectItem>
                 ))}
               </SelectContent>

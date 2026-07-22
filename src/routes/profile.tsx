@@ -45,7 +45,7 @@ function ProfilePage() {
     assessments,
     incidents,
     mdtNotes,
-    carePlans,
+    carePlanProblems,
   } = useCare();
   const [draft, setDraft] = useState({ email: currentUser.email, phone: currentUser.phone });
   const [preferenceDraft, setPreferenceDraft] = useState({
@@ -158,9 +158,9 @@ function ProfilePage() {
         mySet.has(i.residentId) && i.reportedBy.includes(currentUser.name.split(" ").pop() || ""),
     ).length,
     mdt: mdtNotes.filter((m) => m.authoredBy === currentUser.name).length,
-    carePlans: carePlans.filter((c) => mySet.has(c.residentId) && c.createdBy === currentUser.name)
+    carePlans: carePlanProblems.filter((c) => mySet.has(c.residentId) && c.createdBy === currentUser.name)
       .length,
-    reviews: carePlans.filter(
+    reviews: carePlanProblems.filter(
       (c) =>
         mySet.has(c.residentId) && new Date(c.reviewDate) <= new Date(Date.now() + 7 * 86400000),
     ).length,

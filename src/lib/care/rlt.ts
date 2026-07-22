@@ -265,8 +265,8 @@ export const RLT_DOMAIN_BY_KEY = RLT_DOMAINS.reduce(
 export type RltDomainResolutionSource =
   | "explicit_domain_id"
   | "explicit_domain_key"
-  | "legacy_mapping"
-  | "legacy_care_plan_type"
+  | "historical_mapping"
+  | "care_plan_type"
   | "manual_review_required"
   | "unmapped";
 
@@ -278,9 +278,8 @@ export interface RltDomainResolution {
   requiresManualReview: boolean;
 }
 
-export type LegacyCarePlanRltRecord = Partial<CarePlanProblem> & {
+export type CarePlanRltDomainRecord = Partial<CarePlanProblem> & {
   rltDomainKey?: string;
-  legacyDomainKey?: string;
   carePlanType?: string;
 };
 
@@ -375,7 +374,7 @@ function normaliseRiskType(riskType: string) {
     .replace(/^_|_$/g, "");
 }
 
-export function resolveCarePlanRltDomain(record: LegacyCarePlanRltRecord): RltDomainResolution {
+export function resolveCarePlanRltDomain(record: CarePlanRltDomainRecord): RltDomainResolution {
   if (record.rltDomainId && RLT_DOMAIN_BY_ID[record.rltDomainId]) {
     const domain = RLT_DOMAIN_BY_ID[record.rltDomainId];
     return {
@@ -397,23 +396,12 @@ export function resolveCarePlanRltDomain(record: LegacyCarePlanRltRecord): RltDo
       requiresManualReview: false,
     };
   }
-  const legacyKey = record.legacyDomainKey as RltDomainKey | undefined;
-  if (legacyKey && RLT_DOMAIN_BY_KEY[legacyKey]) {
-    const domain = RLT_DOMAIN_BY_KEY[legacyKey];
-    return {
-      domainId: domain.id,
-      domainKey: domain.key,
-      source: "legacy_mapping",
-      confidence: "high",
-      requiresManualReview: false,
-    };
-  }
   if (record.category && record.category !== "custom") {
     const domain = RLT_DOMAIN_BY_ID[CATEGORY_TO_RLT_DOMAIN[record.category]];
     return {
       domainId: domain.id,
       domainKey: domain.key,
-      source: "legacy_care_plan_type",
+      source: "care_plan_type",
       confidence: "high",
       requiresManualReview: false,
     };
@@ -425,7 +413,7 @@ export function resolveCarePlanRltDomain(record: LegacyCarePlanRltRecord): RltDo
     return {
       domainId: domain.id,
       domainKey: domain.key,
-      source: "legacy_mapping",
+      source: "historical_mapping",
       confidence: "medium",
       requiresManualReview: false,
     };

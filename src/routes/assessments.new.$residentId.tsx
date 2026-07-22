@@ -23,7 +23,7 @@ export const Route = createFileRoute("/assessments/new/$residentId")({
 function NewAssessment() {
   const { residentId } = Route.useParams();
   const { type } = Route.useSearch() as { type: AssessmentType };
-  const { residents, addAssessment, addCarePlan, currentRole, currentUserName, canAccess } = useCare();
+  const { residents, addAssessment, currentRole, currentUserName, canAccess } = useCare();
   const navigate = useNavigate();
   const resident = residents.find(r => r.id === residentId);
 
@@ -59,38 +59,6 @@ function NewAssessment() {
       status: draft ? "draft" : "completed",
       reviewDate, nextReassessmentDate, version: 1,
     });
-    if (!draft && (result.riskLevel === "high" || result.riskLevel === "very_high")) {
-      if (type === "waterlow" || type === "norton") {
-        addCarePlan({
-          residentId, title: "Pressure Area Care Plan",
-          problem: `Pressure ulcer risk: ${result.interpretation} (${assessmentMeta[type].name} ${result.totalScore})`,
-          goal: "Maintain skin integrity; no new pressure damage at next review.",
-          interventions: ["Reposition 2-hourly", "Daily skin inspection", "Pressure-relieving mattress", "Nutritional support"],
-          assignedStaff: "Care team", frequency: "Every 2 hours",
-          reviewDate, status: "active", linkedAssessmentId: a.id,
-        });
-      }
-      if (type === "abbey_pain") {
-        addCarePlan({
-          residentId, title: "Pain Management Care Plan",
-          problem: `Pain: ${result.interpretation} (Abbey ${result.totalScore})`,
-          goal: "Reduce pain to mild/none within 7 days.",
-          interventions: ["Administer analgesia as prescribed", "Reassess 4-hourly", "Non-pharmacological comfort", "GP review if no improvement in 48h"],
-          assignedStaff: "Nursing team", frequency: "4-hourly",
-          reviewDate, status: "active", linkedAssessmentId: a.id,
-        });
-      }
-      if (type === "mna" || type === "nutrition") {
-        addCarePlan({
-          residentId, title: "Nutrition Care Plan",
-          problem: `${result.interpretation} (${assessmentMeta[type].name} ${result.totalScore})`,
-          goal: "Improve nutritional intake; stabilise weight within 4 weeks.",
-          interventions: ["Food chart commenced", "Fortified diet", "Dietitian referral", "Weekly weight"],
-          assignedStaff: "Nursing team", frequency: "Daily",
-          reviewDate, status: "active", linkedAssessmentId: a.id,
-        });
-      }
-    }
     toast.success(draft ? "Draft saved" : "Assessment submitted");
     navigate({ to: "/residents/$id", params: { id: residentId } });
   }
@@ -187,12 +155,10 @@ function NewAssessment() {
               </div>
               {(result.riskLevel === "high" || result.riskLevel === "very_high") && allAnswered && (
                 <div className="mt-4 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs">
-                  <strong>Auto-actions on submit:</strong>
+                  <strong>On submit:</strong>
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     <li>Alert raised ({result.riskLevel === "very_high" ? "Critical" : "High"})</li>
-                    {(type === "waterlow" || type === "norton") && <li>Pressure Area Care Plan</li>}
-                    {type === "abbey_pain" && <li>Pain Management Care Plan</li>}
-                    {(type === "mna" || type === "nutrition") && <li>Nutrition Care Plan</li>}
+                    <li>Assessment findings remain available for RLT care planning</li>
                     <li>Review scheduled</li>
                   </ul>
                 </div>

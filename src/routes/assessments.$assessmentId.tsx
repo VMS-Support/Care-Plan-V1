@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import {
   ArrowLeft, Printer, FileDown, ClipboardPlus, ListChecks, CalendarPlus, Archive,
   TrendingUp, TrendingDown, Minus, Lock, GitBranch, MessageSquare, History, RotateCcw, Trash2,
@@ -48,7 +49,7 @@ function AssessmentDetail() {
   const { assessmentId } = Route.useParams();
   const navigate = useNavigate();
   const {
-    assessments, residents, carePlans, interventions, tasks, incidents, mdtNotes,
+    assessments, residents, carePlanProblems, interventions, tasks, incidents, mdtNotes,
     currentRole, addTask,
     addAssessmentComment, archiveAssessment, restoreAssessment,
     softDeleteAssessment, createAssessmentRevision,
@@ -75,7 +76,7 @@ function AssessmentDetail() {
   const delta = a && prev ? a.totalScore - prev.totalScore : null;
   const trend: "Improved" | "Stable" | "Deteriorated" | null = delta === null ? null : delta === 0 ? "Stable" : delta > 0 ? "Deteriorated" : "Improved";
 
-  const linkedCP = a ? carePlans.filter(c => c.linkedAssessmentId === a.id) : [];
+  const linkedCP = a ? carePlanProblems.filter((c) => c.sourceAssessmentId === a.id || (a.linkedProblemIds || []).includes(c.id)) : [];
   const linkedI = a ? interventions.filter(i => i.linkedAssessmentId === a.id) : [];
   const linkedT = a ? tasks.filter(t => t.linkedAssessmentId === a.id && t.status !== "deleted") : [];
   const linkedIn = a ? incidents.filter(i => i.linkedAssessmentId === a.id) : [];
@@ -332,7 +333,17 @@ function AssessmentDetail() {
 
       {/* Linked records */}
       <div className="grid md:grid-cols-2 gap-4">
-        <LinkedList title={`Linked Care Plans (${linkedCP.length})`} items={linkedCP.map(c => ({ id: c.id, title: c.title, sub: `${c.status} Â· Review ${c.reviewDate}` }))} />
+        <LinkedList
+          title={`Linked Care Plans (${linkedCP.length})`}
+          items={linkedCP.map((c) => {
+            const domain = getRltDomainForCarePlanProblem(c);
+            return {
+              id: c.id,
+              title: `${domain?.title || c.category.replace(/_/g, " ")} care plan`,
+              sub: `${c.status} · Review ${c.reviewDate}`,
+            };
+          })}
+        />
         <LinkedList title={`Linked Interventions (${linkedI.length})`} items={linkedI.map(i => ({ id: i.id, title: i.intervention, sub: `${i.date.slice(0,10)} Â· ${i.staff}` }))} />
         <LinkedList title={`Linked Tasks (${linkedT.length})`} items={linkedT.map(t => ({ id: t.id, title: t.title, sub: `Due ${t.dueDate} Â· ${t.status}` }))} />
         <LinkedList title={`Linked Incidents (${linkedIn.length})`} items={linkedIn.map(i => ({ id: i.id, title: i.type, sub: `${i.date} Â· ${i.severity}` }))} />

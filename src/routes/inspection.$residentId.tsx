@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,16 +23,16 @@ function Section({ title, children }: { title: string; children: any }) {
 function InspectionMode() {
   const { residentId } = Route.useParams();
   const {
-    residents, assessments, carePlans, carePlanEvaluations, carePlanReviews,
+    residents, assessments, carePlanProblems, problemEvaluations, problemReviews,
     interventions, interventionLogs, tasks, notes, mdtNotes, incidents, auditLogs,
   } = useCare();
   const r = residents.find(x => x.id === residentId);
   if (!r) return <div className="p-8">Resident not found.</div>;
 
   const rAssessments = assessments.filter(a => a.residentId === r.id);
-  const rPlans = carePlans.filter(c => c.residentId === r.id).sort((a, b) => (b.version || 1) - (a.version || 1));
-  const rEvals = carePlanEvaluations.filter(e => rPlans.some(p => p.id === e.carePlanId));
-  const rReviews = carePlanReviews.filter(rv => rPlans.some(p => p.id === rv.carePlanId));
+  const rPlans = carePlanProblems.filter(c => c.residentId === r.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const rEvals = problemEvaluations.filter(e => rPlans.some(p => p.id === e.problemId));
+  const rReviews = problemReviews.filter(rv => rPlans.some(p => p.id === rv.problemId));
   const rInterv = interventions.filter(i => i.residentId === r.id);
   const rLogs = interventionLogs.filter(l => l.residentId === r.id);
   const rTasks = tasks.filter(t => t.residentId === r.id);
@@ -70,17 +71,17 @@ function InspectionMode() {
         ))}
       </Section>
 
-      <Section title="Care Plans (all versions)">
+      <Section title="Activity of Living Care Plans">
         {rPlans.length === 0 && <p className="text-muted-foreground">No care plans recorded.</p>}
         {rPlans.map(p => (
           <div key={p.id} className="border rounded-md p-2.5 mb-2">
             <div className="flex justify-between flex-wrap gap-2">
-              <div className="font-medium">{p.title} <Badge variant="secondary" className="ml-1 text-[10px]">v{p.version || 1}</Badge></div>
+              <div className="font-medium">{getRltDomainForCarePlanProblem(p)?.title || p.category.replace(/_/g, " ")} care plan</div>
               <Badge variant="outline" className="text-[10px] capitalize">{p.status.replace("_", " ")}</Badge>
             </div>
             <div className="text-xs text-muted-foreground">Created {p.createdAt.slice(0, 10)} by {p.createdBy} · Review {p.reviewDate}</div>
             {p.problemStatement && <p className="text-xs mt-1"><strong>Problem:</strong> {p.problemStatement}</p>}
-            {p.assessmentScoreSnapshot && <p className="text-xs text-muted-foreground">Linked assessment snapshot: {p.assessmentScoreSnapshot.type} = {p.assessmentScoreSnapshot.totalScore} ({p.assessmentScoreSnapshot.interpretation})</p>}
+            {p.sourceAssessmentId && <p className="text-xs text-muted-foreground">Linked assessment: {p.sourceAssessmentId}</p>}
             {p.goals && p.goals.length > 0 && (
               <div className="mt-1.5">
                 <div className="text-xs font-semibold">Goals:</div>

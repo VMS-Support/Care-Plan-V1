@@ -361,7 +361,6 @@ export interface EntityHierarchyValidationReport {
 export function validateEntityHierarchy(
   state: EntityHierarchyState & {
     assessments?: { id: string; residentId: string; facilityId?: string }[];
-    carePlans?: { id: string; residentId: string; facilityId?: string }[];
     carePlanProblems?: { id: string; residentId: string; facilityId?: string }[];
   },
 ): EntityHierarchyValidationReport {
@@ -396,7 +395,6 @@ export function validateEntityHierarchy(
   const mismatchedNursingHomeScope: string[] = [];
   for (const [name, records] of [
     ["assessment", state.assessments || []],
-    ["carePlan", state.carePlans || []],
     ["carePlanProblem", state.carePlanProblems || []],
   ] as const) {
     for (const record of records) {

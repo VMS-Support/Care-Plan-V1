@@ -2081,21 +2081,6 @@ export interface AssessmentReviewTriggerEvent {
   note?: string;
 }
 export type AlertPriority = "low" | "medium" | "high" | "critical";
-export type CarePlanStatus =
-  | "draft"
-  | "active"
-  | "review_due"
-  | "evaluation_due"
-  | "overdue_review"
-  | "overdue_evaluation"
-  | "under_review"
-  | "discontinued"
-  | "entered_in_error"
-  | "completed"
-  | "superseded"
-  | "archived"
-  | "inactive";
-export type CarePlanPriority = "low" | "medium" | "high" | "critical";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "overdue" | "deleted";
 export type MaintenanceWorkOrderType =
   | "REACTIVE"
@@ -4310,137 +4295,6 @@ export interface Assessment {
   payload?: Record<string, any>;
 }
 
-export interface CarePlanGoal {
-  id: string;
-  title: string;
-  description?: string;
-  category?: string;
-  priority: CarePlanPriority;
-  targetDate?: string;
-  expectedOutcome?: string;
-  progress?: string;
-  status:
-    | "not_started"
-    | "in_progress"
-    | "achieved"
-    | "partially_achieved"
-    | "not_achieved"
-    | "discontinued";
-}
-
-export interface CarePlanInterventionSpec {
-  id: string;
-  name: string;
-  description?: string;
-  frequency: string;
-  assignedRole?: Role;
-  assignedUser?: string;
-  startDate?: string;
-  reviewDate?: string;
-  priority: CarePlanPriority;
-  status:
-    | "pending"
-    | "completed"
-    | "partially_completed"
-    | "missed"
-    | "refused"
-    | "escalated"
-    | "cancelled";
-}
-
-export interface OutcomeMeasure {
-  id: string;
-  name: string;
-  baseline?: string;
-  current?: string;
-  target?: string;
-  dateMeasured?: string;
-  trend?: "improving" | "stable" | "declining" | "critical";
-}
-
-export interface CarePlanEvaluation {
-  id: string;
-  facilityId?: string;
-  carePlanId: string;
-  date: string;
-  evaluatedBy: string;
-  role?: Role;
-  summary: string;
-  goalsMet: "yes" | "partially" | "no";
-  outcomeRating: "excellent" | "good" | "some" | "no" | "deterioration";
-  residentFeedback?: string;
-  familyFeedback?: string;
-  recommendations?: string;
-  reviseRequired?: boolean;
-  nextEvaluationDate?: string;
-  signature?: string; // electronic sign-off (typed name)
-  locked?: boolean;
-}
-
-export interface CarePlanReview {
-  id: string;
-  facilityId?: string;
-  carePlanId: string;
-  date: string;
-  reviewer: string;
-  role?: Role;
-  notes: string;
-  outcome:
-    | "continue"
-    | "modify"
-    | "close"
-    | "discontinue"
-    | "entered_in_error"
-    | "supersede"
-    | "archive"
-    | "escalate_gp"
-    | "escalate_mdt"
-    | "escalate_specialist"
-    | "refer_dietitian"
-    | "refer_physio"
-    | "refer_ot"
-    | "refer_psychiatry";
-  riskLevelChange?: string;
-}
-
-export interface CarePlan {
-  id: string;
-  facilityId?: string;
-  residentId: string;
-  title: string;
-  category?: string;
-  problem: string;
-  goal: string;
-  problemStatement?: string;
-  identifiedNeeds?: string[];
-  interventions: string[]; // legacy summary list
-  goals?: CarePlanGoal[];
-  interventionsSpec?: CarePlanInterventionSpec[];
-  outcomeMeasures?: OutcomeMeasure[];
-  assignedStaff: string;
-  frequency: string;
-  reviewDate: string;
-  evaluationDate?: string;
-  status: CarePlanStatus;
-  priority?: CarePlanPriority;
-  createdAt: string;
-  createdBy?: string;
-  updatedAt?: string;
-  updatedBy?: string;
-  linkedAssessmentId?: string;
-  assessmentScoreSnapshot?: {
-    type: string;
-    totalScore: number;
-    riskLevel: string;
-    date: string;
-    interpretation?: string;
-  };
-  version?: number;
-  supersedesId?: string;
-  revisionReason?: string;
-  templateId?: string;
-}
-
 export interface InterventionLog {
   id: string;
   facilityId?: string;
@@ -4471,32 +4325,6 @@ export interface ReadReceipt {
   timestamp: string;
 }
 
-export interface CarePlanTemplate {
-  id: string;
-  category: string;
-  title: string;
-  problemStatement: string;
-  identifiedNeeds: string[];
-  smartGoals: {
-    title: string;
-    description: string;
-    targetDays: number;
-    priority: CarePlanPriority;
-  }[];
-  interventions: {
-    name: string;
-    description?: string;
-    frequency: string;
-    assignedRole: Role;
-    priority: CarePlanPriority;
-  }[];
-  outcomeMeasures: { name: string; target?: string }[];
-  reviewFrequencyDays: number;
-  evaluationFrequencyDays: number;
-  editable?: boolean;
-  builtIn?: boolean;
-}
-
 export interface Intervention {
   id: string;
   facilityId?: string;
@@ -4516,6 +4344,7 @@ export interface DailyNote {
   id: string;
   facilityId?: string;
   residentId: string;
+  carePlanId?: string | null;
   date: string;
   staff: string;
   shift: "morning" | "afternoon" | "night";
@@ -4526,7 +4355,6 @@ export interface DailyNote {
   sleep: "good" | "broken" | "poor";
   behaviour: string;
   additionalNotes?: string;
-  linkedCarePlanId?: string;
   linkedProblemId?: string;
   linkedInterventionId?: string;
   linkedInterventionLogId?: string;

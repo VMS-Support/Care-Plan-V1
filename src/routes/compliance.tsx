@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { can } from "@/lib/care/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,48 +20,48 @@ export const Route = createFileRoute("/compliance")({
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 function ComplianceDashboard() {
-  const { currentRole, residents, carePlans, carePlanEvaluations, assessments, interventionLogs } = useCare();
+  const { currentRole, residents, carePlanProblems, problemEvaluations, assessments, problemInterventionLogs } = useCare();
 
   const hasAccess = can(currentRole, "compliance.view");
   const today = new Date();
 
   const stats = useMemo(() => {
-    const active = carePlans.filter(c => c.status === "active");
+    const active = carePlanProblems.filter(c => c.status === "active");
     const overdueReviews = active.filter(c => new Date(c.reviewDate) < today);
     const overdueEvals = active.filter(c => c.evaluationDate && new Date(c.evaluationDate) < today);
-    const noPlan = residents.filter(r => !carePlans.some(c => c.residentId === r.id && c.status === "active"));
-    const highRisk = residents.filter(r => carePlans.some(c => c.residentId === r.id && c.status === "active" && (c.priority === "high" || c.priority === "critical")));
-    const critical = residents.filter(r => carePlans.some(c => c.residentId === r.id && c.status === "active" && c.priority === "critical"));
+    const noPlan = residents.filter(r => !carePlanProblems.some(c => c.residentId === r.id && c.status === "active"));
+    const highRisk = residents.filter(r => carePlanProblems.some(c => c.residentId === r.id && c.status === "active" && (c.riskLevel === "high" || c.riskLevel === "very_high")));
+    const critical = residents.filter(r => carePlanProblems.some(c => c.residentId === r.id && c.status === "active" && c.riskLevel === "very_high"));
     const compliantPct = active.length === 0 ? 100 : Math.round(((active.length - overdueReviews.length) / active.length) * 100);
 
     // Assessment → Care plan conversion
     const completedAssessments = assessments.filter(a => a.status === "completed" && (a.riskLevel === "high" || a.riskLevel === "very_high"));
-    const converted = completedAssessments.filter(a => carePlans.some(c => c.linkedAssessmentId === a.id || c.residentId === a.residentId));
+    const converted = completedAssessments.filter(a => carePlanProblems.some(c => c.sourceAssessmentId === a.id || c.residentId === a.residentId));
     const conversionRate = completedAssessments.length === 0 ? 100 : Math.round((converted.length / completedAssessments.length) * 100);
 
     // Goal achievement
-    const goalsMet = carePlanEvaluations.filter(e => e.goalsMet === "yes").length;
-    const goalsPartial = carePlanEvaluations.filter(e => e.goalsMet === "partially").length;
-    const goalsNo = carePlanEvaluations.filter(e => e.goalsMet === "no").length;
+    const goalsMet = problemEvaluations.filter(e => e.goalsMet === "yes").length;
+    const goalsPartial = problemEvaluations.filter(e => e.goalsMet === "partial").length;
+    const goalsNo = problemEvaluations.filter(e => e.goalsMet === "no").length;
     const totalEvals = goalsMet + goalsPartial + goalsNo;
     const goalAchievementRate = totalEvals === 0 ? 0 : Math.round((goalsMet / totalEvals) * 100);
 
     // Intervention compliance across all logs
-    const logsCompleted = interventionLogs.filter(l => l.outcome === "completed").length;
-    const logsPartial = interventionLogs.filter(l => l.outcome === "partially_completed").length;
-    const logsMissed = interventionLogs.filter(l => l.outcome === "missed").length;
-    const logsRefused = interventionLogs.filter(l => l.outcome === "refused").length;
-    const interventionCompliancePct = interventionLogs.length === 0 ? 0
-      : Math.round(((logsCompleted + logsPartial * 0.5) / interventionLogs.length) * 100);
+    const logsCompleted = problemInterventionLogs.filter(l => l.outcome === "completed").length;
+    const logsPartial = problemInterventionLogs.filter(l => l.outcome === "partial").length;
+    const logsMissed = problemInterventionLogs.filter(l => l.outcome === "missed").length;
+    const logsRefused = problemInterventionLogs.filter(l => l.outcome === "refused").length;
+    const interventionCompliancePct = problemInterventionLogs.length === 0 ? 0
+      : Math.round(((logsCompleted + logsPartial * 0.5) / problemInterventionLogs.length) * 100);
 
     return {
       active, overdueReviews, overdueEvals, noPlan, highRisk, critical,
       compliantPct, conversionRate, goalAchievementRate,
       goalsMet, goalsPartial, goalsNo,
-      interventionCompliancePct, logsTotal: interventionLogs.length,
+      interventionCompliancePct, logsTotal: problemInterventionLogs.length,
       logsCompleted, logsPartial, logsMissed, logsRefused,
     };
-  }, [carePlans, residents, carePlanEvaluations, assessments, interventionLogs]);
+  }, [carePlanProblems, residents, problemEvaluations, assessments, problemInterventionLogs]);
 
   if (!hasAccess) {
     return <div className="p-8"><Card><CardContent className="p-8 text-center text-muted-foreground">You don't have access to the compliance dashboard.</CardContent></Card></div>;
@@ -182,9 +183,15 @@ function ComplianceDashboard() {
               {stats.overdueReviews.map(p => {
                 const r = residents.find(x => x.id === p.residentId);
                 return (
-                  <Link key={p.id} to="/care-plans/$id" params={{ id: p.id }} className="block border rounded-md p-2 text-sm hover:bg-muted/50">
+                  <Link
+                    key={p.id}
+                    to="/residents/$id"
+                    params={{ id: p.residentId }}
+                    search={{ carePlanProblemId: p.id }}
+                    className="block border rounded-md p-2 text-sm hover:bg-muted/50"
+                  >
                     <div className="flex justify-between">
-                      <span className="font-medium">{p.title}</span>
+                      <span className="font-medium">{getRltDomainForCarePlanProblem(p)?.title || p.category.replace(/_/g, " ")} care plan</span>
                       <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">Due {p.reviewDate}</Badge>
                     </div>
                     <span className="text-xs text-muted-foreground">{r?.firstName} {r?.lastName}</span>

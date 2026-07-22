@@ -32,7 +32,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -229,96 +228,6 @@ function statusLabel(status: string) {
   if (status === "inactive") return "Inactive";
   if (status === "entered_in_error") return "Entered in Error";
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
-}
-
-function EvaluateDialog({ carePlanId }: { carePlanId: string }) {
-  const { addEvaluation, updateCarePlan } = useCare();
-  const [open, setOpen] = useState(false);
-  const [achieve, setAchieve] = useState<"achieved" | "partial" | "not_achieved">("partial");
-  const [outcome, setOutcome] = useState<
-    "continue" | "modify" | "discontinue" | "entered_in_error" | "supersede" | "archive"
-  >("continue");
-  const [notes, setNotes] = useState("");
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          Review
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Review Care Plan</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Plan outcome</Label>
-            <Select value={achieve} onValueChange={(value) => setAchieve(value as typeof achieve)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="achieved">Achieved</SelectItem>
-                <SelectItem value="partial">Partially achieved</SelectItem>
-                <SelectItem value="not_achieved">Not achieved</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Outcome</Label>
-            <Select value={outcome} onValueChange={(value) => setOutcome(value as typeof outcome)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="continue">Continue care plan</SelectItem>
-                <SelectItem value="modify">Modify care plan</SelectItem>
-                <SelectItem value="discontinue">Discontinue care plan</SelectItem>
-                <SelectItem value="entered_in_error">Entered in Error</SelectItem>
-                <SelectItem value="supersede">Superseded</SelectItem>
-                <SelectItem value="archive">Archive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Review notes</Label>
-            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              addEvaluation({
-                carePlanId,
-                date: new Date().toISOString(),
-                reviewer: "J. Roberts (RN)",
-                goalAchievement: achieve,
-                notes,
-                outcome,
-                nextReviewDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-              });
-              const statusByOutcome = {
-                discontinue: "discontinued",
-                entered_in_error: "entered_in_error",
-                supersede: "superseded",
-                archive: "archived",
-              } as const;
-              const nextStatus = statusByOutcome[outcome as keyof typeof statusByOutcome];
-              if (nextStatus) updateCarePlan(carePlanId, { status: nextStatus });
-              toast.success("Review recorded");
-              setOpen(false);
-            }}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
@@ -574,15 +483,13 @@ function ProblemEvaluationDialog({
 
 function CarePlansPage() {
   const {
-    carePlans,
     residentCarePlans,
     carePlanProblems,
     problemInterventions,
     problemGoals,
     problemEvaluations,
+    problemReviews,
     residents,
-    carePlanEvaluations,
-    carePlanReviews,
     currentRole,
     currentUser,
     currentUserName,
@@ -612,54 +519,6 @@ function CarePlansPage() {
     : (["register"] as const);
 
   const rows = useMemo(() => {
-    const legacyRows = carePlans
-      .map((plan) => {
-        const resident = residents.find((item) => item.id === plan.residentId);
-        if (!resident) return null;
-
-        const lastReview = carePlanReviews
-          .filter((review) => review.carePlanId === plan.id)
-          .sort((left, right) => right.date.localeCompare(left.date))[0];
-        const lastEvaluation = carePlanEvaluations
-          .filter((evaluation) => evaluation.carePlanId === plan.id)
-          .sort((left, right) => right.date.localeCompare(left.date))[0];
-        const lastUpdated = [plan.updatedAt, lastEvaluation?.date, lastReview?.date, plan.createdAt]
-          .filter(Boolean)
-          .sort()
-          .at(-1) as string;
-        const reviewDays = daysUntil(plan.reviewDate);
-        const evaluationDays = daysUntil(plan.evaluationDate);
-        const residentIsMine =
-          resident.keyWorkers?.namedNurse === currentUserName ||
-          resident.keyWorkers?.keyWorker === currentUserName ||
-          plan.assignedStaff.includes(currentUserName) ||
-          (currentUser.assignedWings.length > 0 &&
-            !!resident.wingId &&
-            currentUser.assignedWings.includes(resident.wingId));
-        const isHighRisk = plan.priority === "high" || plan.priority === "critical";
-        const hasOverdue =
-          (reviewDays !== null && reviewDays < 0) ||
-          (evaluationDays !== null && evaluationDays < 0);
-        const isReviewDue = reviewDays !== null && reviewDays <= DUE_SOON_DAYS;
-        const isEvaluationDue = evaluationDays !== null && evaluationDays <= DUE_SOON_DAYS;
-
-        return {
-          plan,
-          resident,
-          isUnified: false,
-          lastUpdated,
-          residentIsMine,
-          isHighRisk,
-          hasOverdue,
-          isReviewDue,
-          isEvaluationDue,
-          reviewDays,
-          evaluationDays,
-          status: statusMeta(plan),
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => !!item);
-
     const unifiedRows = carePlanProblems
       .map((problem) => {
         const resident = residents.find((item) => item.id === problem.residentId);
@@ -716,14 +575,11 @@ function CarePlansPage() {
       })
       .filter((item): item is NonNullable<typeof item> => !!item);
 
-    return [...legacyRows, ...unifiedRows].sort((left, right) =>
+    return unifiedRows.sort((left, right) =>
       right.lastUpdated.localeCompare(left.lastUpdated),
     );
   }, [
-    carePlanEvaluations,
-    carePlanReviews,
     carePlanProblems,
-    carePlans,
     currentUser.assignedWings,
     currentUserName,
     problemInterventions,
@@ -732,18 +588,10 @@ function CarePlansPage() {
 
   const residentsWithoutActivePlan = useMemo(() => {
     const activeResidentIds = new Set(
-      [
-        ...carePlans
-          .filter(
-            (plan) =>
-              !INACTIVE_STATUSES.includes(plan.status),
-          )
-          .map((plan) => plan.residentId),
-        ...residentCarePlans.filter((plan) => plan.status === "active").map((plan) => plan.residentId),
-      ],
+      residentCarePlans.filter((plan) => plan.status === "active").map((plan) => plan.residentId),
     );
     return residents.filter((resident) => !activeResidentIds.has(resident.id));
-  }, [carePlans, residentCarePlans, residents]);
+  }, [residentCarePlans, residents]);
 
   const filteredRows = useMemo(() => {
     const tabFiltered = rows.filter((row) => {
@@ -1102,14 +950,14 @@ function CarePlansPage() {
           .length,
         revised: carePlanAudit.filter((entry) => entry.action.toLowerCase().includes("revis"))
           .length,
-        evaluations: carePlanEvaluations.length,
-        reviews: carePlanReviews.length,
+        evaluations: problemEvaluations.length,
+        reviews: problemReviews.length,
       },
     };
   }, [
     auditLogs,
-    carePlanEvaluations.length,
-    carePlanReviews.length,
+    problemEvaluations.length,
+    problemReviews.length,
     residentsWithoutActivePlan,
     rows,
   ]);
@@ -1471,7 +1319,7 @@ function CarePlansPage() {
                                 </Badge>
                               )}
                               {displayedDomains.length === 0 && (
-                                <span className="text-xs text-muted-foreground">Mapped from legacy care plan</span>
+                                <span className="text-xs text-muted-foreground">No Activity of Living mapped</span>
                               )}
                             </div>
                           </TableCell>
@@ -1808,6 +1656,7 @@ function CarePlansPage() {
                       title="Overdue Reviews"
                       items={governance.overdueReviews.map((row) => ({
                         id: row.plan.id,
+                        residentId: row.resident.id,
                         primary: row.plan.title,
                         secondary: `${row.resident.firstName} ${row.resident.lastName} · due ${formatDate(row.plan.reviewDate)}`,
                       }))}
@@ -1816,6 +1665,7 @@ function CarePlansPage() {
                       title="Overdue Reviews of Outcome"
                       items={governance.overdueEvaluations.map((row) => ({
                         id: row.plan.id,
+                        residentId: row.resident.id,
                         primary: row.plan.title,
                         secondary: `${row.resident.firstName} ${row.resident.lastName} · due ${formatDate(row.plan.evaluationDate)}`,
                       }))}
@@ -1951,7 +1801,7 @@ function GovernanceList({
   items,
 }: {
   title: string;
-  items: Array<{ id: string; primary: string; secondary: string }>;
+  items: Array<{ id: string; residentId: string; primary: string; secondary: string }>;
 }) {
   return (
     <div>
@@ -1962,8 +1812,9 @@ function GovernanceList({
         {items.slice(0, 6).map((item) => (
           <Link
             key={item.id}
-            to="/care-plans/$id"
-            params={{ id: item.id }}
+            to="/residents/$id"
+            params={{ id: item.residentId }}
+            search={{ carePlanProblemId: item.id }}
             className="block rounded-md border p-3 hover:bg-muted/50"
           >
             <div className="font-medium text-sm">{item.primary}</div>

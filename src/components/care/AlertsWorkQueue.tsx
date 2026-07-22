@@ -94,7 +94,6 @@ export function AlertsWorkQueue() {
     alerts,
     clinicalAlerts,
     assessments,
-    carePlans,
     incidents,
     residents,
     currentRole,
@@ -225,41 +224,6 @@ export function AlertsWorkQueue() {
       });
     }
 
-    for (const plan of carePlans) {
-      if (
-        ![
-          "active",
-          "review_due",
-          "evaluation_due",
-          "overdue_review",
-          "overdue_evaluation",
-        ].includes(plan.status)
-      ) {
-        continue;
-      }
-      const reviewOverdue = plan.reviewDate < today;
-      const evaluationOverdue = !!plan.evaluationDate && plan.evaluationDate < today;
-      if (!reviewOverdue && !evaluationOverdue) continue;
-      items.push({
-        id: `care-plan-${plan.id}`,
-        source: "care_plan",
-        residentId: plan.residentId,
-        ...residentInfo(plan.residentId),
-        category: "care_plans",
-        title: reviewOverdue ? "Care Plan Review Overdue" : "Care Plan Evaluation Overdue",
-        what: `${plan.title} ${reviewOverdue ? "review" : "evaluation"} is overdue.`,
-        why: "Care plan actions may need updating to remain clinically appropriate.",
-        action: reviewOverdue ? "Complete care plan review." : "Complete care plan evaluation.",
-        priority: "high",
-        createdAt: reviewOverdue ? plan.reviewDate : plan.evaluationDate || plan.reviewDate,
-        acknowledged: !!alertWorkflow[`care-plan-${plan.id}`],
-        acknowledgedBy: alertWorkflow[`care-plan-${plan.id}`]?.acknowledgedBy,
-        acknowledgedAt: alertWorkflow[`care-plan-${plan.id}`]?.acknowledgedAt,
-        resolved: false,
-        primary: { label: "Open Care Plan", to: "/care-plans/$id", params: { id: plan.id } },
-      });
-    }
-
     for (const incident of incidents) {
       if ((incident.recordStatus || "active") !== "active" || incident.status === "closed") {
         continue;
@@ -327,7 +291,6 @@ export function AlertsWorkQueue() {
     alerts,
     alertWorkflow,
     assessments,
-    carePlans,
     clinicalAlerts,
     incidents,
     residentMap,

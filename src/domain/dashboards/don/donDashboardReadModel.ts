@@ -250,34 +250,13 @@ function getCarePlanCompletionScope(care: StoreLike, residentIds: Set<string>, r
       residentIds.has(problem.residentId) &&
       !INACTIVE_CARE_PLAN_STATUSES.has(String(problem.status || "").toLowerCase()),
   );
-  const currentProblemIds = new Set(currentProblems.map((problem) => problem.id));
-  const currentResidentCarePlanIds = new Set(
-    currentProblems.map((problem) => problem.residentCarePlanId).filter(Boolean),
-  );
-
-  const legacyPlans = activeRows(care.carePlans).filter((plan) => {
-    if (!residentIds.has(plan.residentId)) return false;
-    if (INACTIVE_CARE_PLAN_STATUSES.has(String(plan.status || "").toLowerCase())) return false;
-    if (currentProblemIds.has(plan.id) || currentResidentCarePlanIds.has(plan.id)) return false;
-    return true;
-  });
-
   const dueProblems = currentProblems.filter((problem) => isCarePlanItemDue(problem, reportingDate));
-  const dueLegacyPlans = legacyPlans.filter((plan) => isCarePlanItemDue(plan, reportingDate));
-
-  const dueCarePlans = [
-    ...dueProblems,
-    ...dueLegacyPlans.map((plan) => ({
-      ...plan,
-      problemStatement: plan.problemStatement || plan.problem || plan.title || "Care plan review",
-    })),
-  ];
-  const totalCount = currentProblems.length + legacyPlans.length;
-  const dueCount = dueProblems.length + dueLegacyPlans.length;
+  const totalCount = currentProblems.length;
+  const dueCount = dueProblems.length;
 
   return {
     activeProblems: currentProblems,
-    dueCarePlans,
+    dueCarePlans: dueProblems,
     totalCount,
     dueCount,
     upToDateCount: Math.max(0, totalCount - dueCount),

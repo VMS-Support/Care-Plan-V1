@@ -2866,7 +2866,7 @@ function Dashboard() {
   const { currentUser: dashboardUser } = useCare();
   return <RoleSpecificDashboard role={dashboardUser.role} />;
 
-  const { residents, assessments, carePlans, alerts, notes, tasks, currentUser } = useCare();
+  const { residents, assessments, carePlanProblems, alerts, notes, tasks, currentUser } = useCare();
   const active = residents.filter((r) => r.status === "active");
   const highRisk = residents.filter((r) =>
     assessments.some(
@@ -2877,7 +2877,7 @@ function Dashboard() {
     (a) => isActionRequiredAlert(a) && !a.acknowledged && !a.resolvedAt,
   );
   const today = new Date();
-  const dueReviews = carePlans.filter(
+  const dueReviews = carePlanProblems.filter(
     (c) =>
       c.status === "active" && new Date(c.reviewDate) <= new Date(today.getTime() + 7 * 86400000),
   );

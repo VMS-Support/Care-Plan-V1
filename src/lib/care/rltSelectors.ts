@@ -167,51 +167,6 @@ export function getActiveCarePlanCoverageForDomain(
   };
 }
 
-export interface LegacyChildRecord {
-  problemId?: string;
-  carePlanItemId?: string;
-  carePlanId?: string;
-  residentId?: string;
-  facilityId?: string;
-}
-
-export interface LegacyRelationResolution {
-  carePlanItemId?: string;
-  source: "explicit_item_id" | "legacy_parent_id" | "ambiguous" | "orphan";
-  requiresManualReview: boolean;
-}
-
-export function resolveLegacyCarePlanItemRelation(
-  record: LegacyChildRecord,
-  data: CarePlanSelectorData,
-): LegacyRelationResolution {
-  const explicitId = record.carePlanItemId || record.problemId;
-  if (explicitId && getCarePlanItemById(data, explicitId)) {
-    return {
-      carePlanItemId: explicitId,
-      source: "explicit_item_id",
-      requiresManualReview: false,
-    };
-  }
-  if (!record.carePlanId) return { source: "orphan", requiresManualReview: true };
-  const candidates = data.carePlanItems.filter(
-    (item) =>
-      item.residentCarePlanId === record.carePlanId &&
-      (!record.residentId || item.residentId === record.residentId) &&
-      (!record.facilityId || item.facilityId === record.facilityId),
-  );
-  if (candidates.length !== 1)
-    return {
-      source: candidates.length ? "ambiguous" : "orphan",
-      requiresManualReview: true,
-    };
-  return {
-    carePlanItemId: candidates[0].id,
-    source: "legacy_parent_id",
-    requiresManualReview: false,
-  };
-}
-
 export interface RltIntegrityReport {
   issues: { code: string; entityId?: string }[];
   activeCounts: Record<RltDomainId, number>;

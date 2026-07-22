@@ -10,7 +10,6 @@ import {
 import type {
   Resident,
   Assessment,
-  CarePlan,
   Intervention,
   DailyNote,
   Evaluation,
@@ -29,11 +28,8 @@ import type {
   Unit,
   Room,
   UserProfile,
-  CarePlanEvaluation,
-  CarePlanReview,
   InterventionLog,
   ReadReceipt,
-  CarePlanTemplate,
   Observation,
   WeightRecord,
   FluidRecord,
@@ -534,8 +530,7 @@ import {
 import { calcNEWS2, derivedAlertsForResident, type AlertSeed } from "./vitals";
 import { canonicalObservationFromVital } from "@/domain/observations/observationService";
 import { scoreAssessment } from "./scoring";
-import { BUILT_IN_TEMPLATES } from "./templates";
-import { migrateLegacy, suggestionsForAssessment, newId } from "./problems";
+import { suggestionsForAssessment, newId } from "./problems";
 import { CATEGORY_TO_RLT_DOMAIN } from "./rlt";
 import {
   changeRltDependency,
@@ -2197,12 +2192,9 @@ function seedData() {
   const users = seedUsers();
   const residents = seedResidents(rooms);
   const assessments: Assessment[] = [];
-  const carePlans: CarePlan[] = [];
   const interventions: Intervention[] = [];
   const notes: DailyNote[] = [];
   const evaluations: Evaluation[] = [];
-  const carePlanEvaluations: CarePlanEvaluation[] = [];
-  const carePlanReviews: CarePlanReview[] = [];
   const alerts: Alert[] = [];
   const tasks: Task[] = [];
   const incidents: Incident[] = [];
@@ -2554,178 +2546,6 @@ function seedData() {
         ...fR,
         ...baseAssessment({ type: "falls" }),
       } as Assessment);
-    }
-
-    // === MARGARET THOMPSON (i === 0): SINGLE UNIFIED CARE PLAN ===
-    if (i === 0) {
-      // ONE comprehensive care plan with MULTIPLE PROBLEMS and 2 INTERVENTIONS
-      const margaretCarePlan: CarePlan = {
-        id: uid(),
-        residentId: r.id,
-        title: "Comprehensive Multidomain Care Plan",
-        category: "Complex Care",
-        problem:
-          "Multiple concurrent care needs: Waterlow 32 (very high pressure risk), Falls risk (17), MNA nutrition risk, MMSE cognitive impairment (11/30), moderate pain",
-        goal: "Holistic management across all domains: maintain skin integrity, prevent falls, optimize nutrition, support cognition, manage pain",
-        identifiedNeeds: [
-          "Pressure Area Care",
-          "Falls Prevention",
-          "Nutrition Support",
-          "Cognition Support",
-          "Pain Management",
-          "ADL Assistance",
-          "Safety",
-          "Holistic Care Coordination",
-        ],
-        interventions: [
-          "2-hourly repositioning & pressure area care bundle",
-          "Multidomain safety & support plan (falls + cognition + nutrition support + ADL assistance)",
-        ],
-        assignedStaff: "Nursing team (primary: J. Roberts RN)",
-        frequency:
-          "Continuous monitoring; repositioning 2-hourly; meals & hydration 3x daily; cognition support each interaction",
-        reviewDate: daysAhead(5).slice(0, 10),
-        evaluationDate: daysAhead(14).slice(0, 10),
-        status: "active",
-        priority: "critical",
-        createdAt: daysAgo(20),
-        createdBy: "J. Roberts (RN)",
-        version: 1,
-      };
-      carePlans.push(margaretCarePlan);
-
-      // Single review for the unified care plan
-      carePlanReviews.push({
-        id: uid(),
-        carePlanId: margaretCarePlan.id,
-        date: daysAgo(3).slice(0, 10),
-        reviewer: "J. Roberts (RN)",
-        role: "nurse",
-        notes:
-          "Comprehensive plan reviewed across all domains. Repositioning compliance good. Skin integrity maintained. Fall prevention protocol adhered to. Nutrition supplementation accepted. Cognition support strategies effective. Continue current unified approach.",
-        outcome: "continue",
-      });
-
-      // Single evaluation for the unified care plan
-      carePlanEvaluations.push({
-        id: uid(),
-        carePlanId: margaretCarePlan.id,
-        date: daysAgo(1).slice(0, 10),
-        evaluatedBy: "L. Mensah (RN)",
-        role: "nurse",
-        summary:
-          "All care plan goals progressing. Skin intact, no pressure damage. Falls prevented with 2-person assist protocol. Nutrition stable with supplement acceptance. Cognition support reducing distress episodes. Pain levels acceptable. Overall good progress across all domains.",
-        goalsMet: "yes",
-        outcomeRating: "good",
-        recommendations:
-          "Maintain current unified approach. Re-assess all domains at 4-week review. Continue 2-person assists and 2-hourly repositioning.",
-        reviseRequired: false,
-        nextEvaluationDate: daysAhead(28).slice(0, 10),
-      });
-    } else {
-      // === GENERIC SCENARIO-BASED APPROACH FOR OTHER RESIDENTS (i > 0) ===
-      const scenario = scenarioBlueprints[i % scenarioBlueprints.length];
-      const primaryCarePlan: CarePlan = {
-        id: uid(),
-        residentId: r.id,
-        title: scenario.title,
-        category: scenario.category,
-        problem: scenario.problem,
-        goal: scenario.goal,
-        identifiedNeeds: [scenario.category, "Safety", "Person-centred care"],
-        interventions: scenario.interventions,
-        assignedStaff: i % 2 === 0 ? "Nursing team" : "Care team",
-        frequency: scenario.frequency,
-        reviewDate: daysAhead(6 + (i % 5)).slice(0, 10),
-        evaluationDate: daysAhead(12 + (i % 6)).slice(0, 10),
-        status: i % 5 === 0 ? "review_due" : "active",
-        priority: scenario.priority,
-        createdAt: daysAgo(20 + (i % 8)),
-        createdBy: i % 2 === 0 ? "J. Roberts (RN)" : "L. Mensah (RN)",
-        version: 1,
-      };
-      carePlans.push(primaryCarePlan);
-
-      if (i % 3 !== 2) {
-        carePlanReviews.push({
-          id: uid(),
-          carePlanId: primaryCarePlan.id,
-          date: daysAgo(4 + (i % 4)).slice(0, 10),
-          reviewer: i % 2 === 0 ? "J. Roberts (RN)" : "M. O'Brien (CNM)",
-          role: i % 2 === 0 ? "nurse" : "cnm",
-          notes: "Plan reviewed with frontline staff; interventions remain clinically appropriate.",
-          outcome: i % 4 === 0 ? "modify" : "continue",
-        });
-      }
-      if (i % 4 === 0) {
-        carePlanEvaluations.push({
-          id: uid(),
-          carePlanId: primaryCarePlan.id,
-          date: daysAgo(2).slice(0, 10),
-          evaluatedBy: "J. Roberts (RN)",
-          role: "nurse",
-          summary:
-            "Resident response improving; continue current interventions with close monitoring.",
-          goalsMet: "partially",
-          outcomeRating: "good",
-          recommendations: "Re-evaluate at next MDT and maintain daily monitoring.",
-          reviseRequired: false,
-          nextEvaluationDate: daysAhead(14).slice(0, 10),
-        });
-      }
-    } // END Margaret vs other residents
-
-    if (i > 0 && (w.riskLevel === "high" || w.riskLevel === "very_high")) {
-      const pressurePlan: CarePlan = {
-        id: uid(),
-        residentId: r.id,
-        title: "Pressure Area Care",
-        category: "Pressure Care",
-        problem: `Waterlow ${w.totalScore} indicates ${w.interpretation.toLowerCase()}.`,
-        goal: "Maintain intact skin with no avoidable pressure damage.",
-        identifiedNeeds: ["Skin Integrity", "Repositioning", "Nutrition"],
-        interventions: [
-          "Reposition at prescribed interval",
-          "Document skin inspection every shift",
-          "Use pressure-relieving surface",
-          "Escalate category >=1 skin damage immediately",
-        ],
-        assignedStaff: "Care and nursing team",
-        frequency: w.riskLevel === "very_high" ? "2-hourly" : "3-hourly",
-        reviewDate: daysAhead(5).slice(0, 10),
-        evaluationDate: daysAhead(10).slice(0, 10),
-        status: "active",
-        priority: w.riskLevel === "very_high" ? "critical" : "high",
-        createdAt: daysAgo(12),
-        createdBy: "J. Roberts (RN)",
-        version: 1,
-      };
-      carePlans.push(pressurePlan);
-    }
-    if (i > 0 && a.totalScore >= 8) {
-      carePlans.push({
-        id: uid(),
-        residentId: r.id,
-        title: "Acute Pain Control",
-        category: "Pain Management",
-        problem: `Abbey Pain score ${a.totalScore}: ${a.interpretation}.`,
-        goal: "Pain reduced to acceptable level within 72 hours.",
-        identifiedNeeds: ["Pain Monitoring", "Comfort Measures"],
-        interventions: [
-          "Administer prescribed analgesia",
-          "Re-assess pain within 60 minutes",
-          "Document non-pharmacological strategies",
-        ],
-        assignedStaff: "Nurse in charge",
-        frequency: "4-hourly",
-        reviewDate: daysAhead(3).slice(0, 10),
-        evaluationDate: daysAhead(7).slice(0, 10),
-        status: "active",
-        priority: a.totalScore >= 14 ? "critical" : "high",
-        createdAt: daysAgo(6),
-        createdBy: "L. Mensah (RN)",
-        version: 1,
-      });
     }
 
     // === INTERVENTION GENERATION ===
@@ -3166,13 +2986,16 @@ function seedData() {
     });
   });
 
-  // ---- Migrate legacy care plans into unified resident-care-plan / problems model ----
-  const migrated = migrateLegacy(
-    carePlans,
-    carePlanEvaluations,
-    carePlanReviews,
-    [] as InterventionLog[],
-  );
+  const migrated = {
+    residentCarePlans: [] as ResidentCarePlan[],
+    carePlanProblems: [] as CarePlanProblem[],
+    problemGoals: [] as ProblemGoal[],
+    problemInterventions: [] as ProblemIntervention[],
+    problemEvaluations: [] as ProblemEvaluation[],
+    problemReviews: [] as ProblemReview[],
+    problemInterventionLogs: [] as ProblemInterventionLog[],
+    problemHistory: [] as ProblemHistoryEntry[],
+  };
 
   // Seed AssessmentSuggestions for completed assessments that have not already triggered a problem
   const assessmentSuggestions: AssessmentSuggestion[] = [];
@@ -3349,12 +3172,9 @@ function seedData() {
     users,
     residents,
     assessments,
-    carePlans,
     interventions,
     notes,
     evaluations,
-    carePlanEvaluations,
-    carePlanReviews,
     alerts,
     alertWorkflow: {} as Record<string, ActionAlertWorkflow>,
     tasks,
@@ -3427,10 +3247,6 @@ function seedData() {
     workOrderVerifications: [] as WorkOrderVerificationRecord[],
     interventionLogs: [] as InterventionLog[],
     readReceipts: [] as ReadReceipt[],
-    carePlanTemplates: BUILT_IN_TEMPLATES.map((t) => ({
-      ...t,
-      editable: true,
-    })) as CarePlanTemplate[],
     observations,
     weights,
     fluids,
@@ -3452,7 +3268,6 @@ function seedData() {
     problemReviews: migrated.problemReviews,
     problemHistory: migrated.problemHistory,
     assessmentSuggestions,
-    legacyCarePlanIdToProblemId: migrated.legacyCarePlanIdToProblemId,
     assessmentTriggerEvents: [] as AssessmentReviewTriggerEvent[],
     vitals,
     observationPlans,
@@ -3484,12 +3299,9 @@ type ScopedArrayKey = {
 const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "residents",
   "assessments",
-  "carePlans",
   "interventions",
   "notes",
   "evaluations",
-  "carePlanEvaluations",
-  "carePlanReviews",
   "alerts",
   "tasks",
   "auditLogs",
@@ -3724,11 +3536,6 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
       .filter((resident) => hasFacility(resident, activeFacilityId) && resident.status !== "deleted")
       .map((resident) => resident.id),
   );
-  const carePlanIds = new Set(
-    store.carePlans
-      .filter((plan) => hasFacility(plan, activeFacilityId) && residentIds.has(plan.residentId))
-      .map((plan) => plan.id),
-  );
   const problemIds = new Set(
     store.carePlanProblems
       .filter((problem) => hasFacility(problem, activeFacilityId) && residentIds.has(problem.residentId))
@@ -3848,7 +3655,6 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
     (scoped as any)[key] = records.filter((record) => {
       if (!hasFacility(record, activeFacilityId)) return false;
       if (record.residentId && !residentIds.has(record.residentId)) return false;
-      if (record.carePlanId && !carePlanIds.has(record.carePlanId)) return false;
       if (record.problemId && !problemIds.has(record.problemId)) return false;
       return true;
     });
@@ -3876,6 +3682,15 @@ function loadInitialStore(): Store {
     }
 
     const parsed = JSON.parse(raw) as Partial<Store>;
+    delete (parsed as any).carePlans;
+    delete (parsed as any).carePlanEvaluations;
+    delete (parsed as any).carePlanReviews;
+    delete (parsed as any).carePlanTemplates;
+    delete (parsed as any).legacyCarePlanIdToProblemId;
+    parsed.notes = parsed.notes?.map((note) => {
+      const { linkedCarePlanId: _removed, ...rest } = note as DailyNote & { linkedCarePlanId?: string };
+      return rest;
+    });
     clearPersistedTrainingCoursesOnce(parsed);
     sanitizePersistedResidentProfilePhotos(parsed);
     const hasLegacyGeneratedVitals = parsed.vitals?.some((vital) => /^v-R-\d{4}-\d+$/.test(vital.id));
@@ -4043,19 +3858,6 @@ interface CareCtx extends Store {
     sourceRecordId?: string;
     note?: string;
   }) => void;
-  // care plans
-  addCarePlan: (c: Omit<CarePlan, "id" | "createdAt">) => CarePlan;
-  updateCarePlan: (id: string, patch: Partial<CarePlan>) => void;
-  reviseCarePlan: (id: string, reason: string) => CarePlan | undefined;
-  addCarePlanEvaluation: (e: Omit<CarePlanEvaluation, "id">) => CarePlanEvaluation;
-  addCarePlanReview: (r: Omit<CarePlanReview, "id">) => CarePlanReview;
-  addCarePlanFromTemplate: (
-    templateId: string,
-    residentId: string,
-    assessment?: Assessment,
-  ) => CarePlan | undefined;
-  saveCarePlanTemplate: (t: CarePlanTemplate) => void;
-  deleteCarePlanTemplate: (id: string) => void;
   // intervention logs
   addInterventionLog: (l: Omit<InterventionLog, "id">) => InterventionLog;
   // read receipts
@@ -4063,6 +3865,7 @@ interface CareCtx extends Store {
   // misc
   addIntervention: (i: Omit<Intervention, "id">) => Intervention;
   addNote: (n: Omit<DailyNote, "id">) => DailyNote;
+  updateNote: (id: string, patch: Partial<Omit<DailyNote, "id">>) => void;
   addEvaluation: (e: Omit<Evaluation, "id">) => Evaluation;
   acknowledgeAlert: (id: string) => void;
   resolveAlert: (id: string) => void;
@@ -6057,9 +5860,6 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const residentName = `${resident.firstName} ${resident.lastName}`;
         const now = new Date().toISOString();
         const deleteReason = reason?.trim() || `Resident deleted: ${residentName}`;
-        const carePlanIdsForCount = new Set(
-          store.carePlans.filter((carePlan) => carePlan.residentId === id).map((carePlan) => carePlan.id),
-        );
         const problemIdsForCount = new Set(
           store.carePlanProblems.filter((problem) => problem.residentId === id).map((problem) => problem.id),
         );
@@ -6073,13 +5873,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
         );
         const archivedCount = [
           store.assessments.filter((item) => item.residentId === id).length,
-          store.carePlans.filter((item) => item.residentId === id).length,
-          store.carePlanEvaluations.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
-          store.carePlanReviews.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
           store.interventions.filter((item) => item.residentId === id).length,
-          store.interventionLogs.filter((item) => item.residentId === id || carePlanIdsForCount.has(item.carePlanId)).length,
+          store.interventionLogs.filter((item) => item.residentId === id).length,
           store.notes.filter((item) => item.residentId === id).length,
-          store.evaluations.filter((item) => carePlanIdsForCount.has(item.carePlanId)).length,
           store.alerts.filter((item) => item.residentId === id).length,
           store.tasks.filter((item) => item.residentId === id).length,
           store.incidents.filter((item) => item.residentId === id).length,
@@ -6122,19 +5918,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             deletedReason: (item as any).deletedReason || deleteReason,
           };
         };
-        const markArchived = <T extends { id?: string }>(item: T) => {
-          return {
-            ...item,
-            archivedAt: (item as any).archivedAt || now,
-            archivedBy: (item as any).archivedBy || currentUserName,
-            archivedReason: (item as any).archivedReason || deleteReason,
-          };
-        };
-
         setStore((s) => {
-          const carePlanIds = new Set(
-            s.carePlans.filter((carePlan) => carePlan.residentId === id).map((carePlan) => carePlan.id),
-          );
           const problemIds = new Set(
             s.carePlanProblems
               .filter((problem) => problem.residentId === id)
@@ -6171,32 +5955,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
                   }
                 : item,
             ),
-            carePlans: s.carePlans.map((item) =>
-              item.residentId === id
-                ? {
-                    ...markArchived(item),
-                    status: "archived" as const,
-                    updatedAt: now,
-                    updatedBy: currentUserName,
-                  }
-                : item,
-            ),
-            carePlanEvaluations: s.carePlanEvaluations.map((item) =>
-              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
-            ),
-            carePlanReviews: s.carePlanReviews.map((item) =>
-              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
-            ),
             interventions: s.interventions.map((item) =>
               item.residentId === id ? markDeleted(item) : item,
             ),
             interventionLogs: s.interventionLogs.map((item) =>
-              item.residentId === id || carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
+              item.residentId === id ? markDeleted(item) : item,
             ),
             notes: s.notes.map((item) => (item.residentId === id ? markDeleted(item) : item)),
-            evaluations: s.evaluations.map((item) =>
-              carePlanIds.has(item.carePlanId) ? markDeleted(item) : item,
-            ),
             alerts: s.alerts.map((item) =>
               item.residentId === id
                 ? {
@@ -6878,198 +6643,6 @@ export function CareProvider({ children }: { children: ReactNode }) {
           reason: input.note,
         });
       },
-      addCarePlan: (c) => {
-        const item: CarePlan = {
-          ...c,
-          id: uid(),
-          createdAt: new Date().toISOString(),
-          createdBy: currentUserName,
-          version: c.version || 1,
-          status: c.status || "active",
-        };
-        setStore((s) => ({ ...s, carePlans: [item, ...s.carePlans] }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Created care plan",
-          entity: item.id,
-        });
-        return item;
-      },
-      updateCarePlan: (id, patch) => {
-        setStore((s) => ({
-          ...s,
-          carePlans: s.carePlans.map((c) =>
-            c.id === id
-              ? { ...c, ...patch, updatedAt: new Date().toISOString(), updatedBy: currentUserName }
-              : c,
-          ),
-        }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Updated care plan",
-          entity: id,
-        });
-      },
-      reviseCarePlan: (id, reason) => {
-        const prior = store.carePlans.find((c) => c.id === id);
-        if (!prior) return undefined;
-        const newPlan: CarePlan = {
-          ...prior,
-          id: uid(),
-          version: (prior.version || 1) + 1,
-          supersedesId: prior.id,
-          revisionReason: reason,
-          createdAt: new Date().toISOString(),
-          createdBy: currentUserName,
-          status: "active",
-        };
-        setStore((s) => ({
-          ...s,
-          carePlans: [
-            newPlan,
-            ...s.carePlans.map((c) => (c.id === id ? { ...c, status: "superseded" as const } : c)),
-          ],
-        }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Revised care plan",
-          entity: id,
-          reason,
-        });
-        return newPlan;
-      },
-      addCarePlanEvaluation: (e) => {
-        const item: CarePlanEvaluation = { ...e, id: uid() };
-        setStore((s) => ({ ...s, carePlanEvaluations: [item, ...s.carePlanEvaluations] }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Care plan evaluation",
-          entity: e.carePlanId,
-        });
-        return item;
-      },
-      addCarePlanReview: (r) => {
-        const item: CarePlanReview = { ...r, id: uid() };
-        setStore((s) => ({ ...s, carePlanReviews: [item, ...s.carePlanReviews] }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Care plan review",
-          entity: r.carePlanId,
-        });
-        return item;
-      },
-      addCarePlanFromTemplate: (templateId, residentId, assessment) => {
-        const t = store.carePlanTemplates.find((x) => x.id === templateId);
-        if (!t) return undefined;
-        const now = new Date();
-        const dayStr = (d: number) =>
-          new Date(now.getTime() + d * 86400000).toISOString().slice(0, 10);
-        const goals = t.smartGoals.map((g, i) => ({
-          id: `g-${uid()}-${i}`,
-          title: g.title,
-          description: g.description,
-          priority: g.priority,
-          status: "not_started" as const,
-          targetDate: dayStr(g.targetDays),
-          expectedOutcome: g.description,
-        }));
-        const interventionsSpec = t.interventions.map((it, i) => ({
-          id: `i-${uid()}-${i}`,
-          name: it.name,
-          description: it.description,
-          frequency: it.frequency,
-          assignedRole: it.assignedRole,
-          startDate: dayStr(0),
-          reviewDate: dayStr(t.reviewFrequencyDays),
-          priority: it.priority,
-          status: "pending" as const,
-        }));
-        const outcomeMeasures = t.outcomeMeasures.map((o, i) => ({
-          id: `o-${uid()}-${i}`,
-          name: o.name,
-          target: o.target,
-          dateMeasured: dayStr(0),
-          trend: "stable" as const,
-        }));
-        const newPlan: CarePlan = {
-          id: uid(),
-          residentId,
-          title: t.title,
-          category: t.category,
-          problem: t.problemStatement,
-          problemStatement: t.problemStatement,
-          goal: t.smartGoals[0]?.description || "Address identified needs.",
-          identifiedNeeds: t.identifiedNeeds,
-          interventions: t.interventions.map((i) => `${i.name} (${i.frequency})`),
-          goals,
-          interventionsSpec,
-          outcomeMeasures,
-          assignedStaff: "Care team",
-          frequency: t.interventions[0]?.frequency || "Per care plan",
-          reviewDate: dayStr(t.reviewFrequencyDays),
-          evaluationDate: dayStr(t.evaluationFrequencyDays),
-          status: "active",
-          priority:
-            assessment?.riskLevel === "very_high"
-              ? "critical"
-              : assessment?.riskLevel === "high"
-                ? "high"
-                : "medium",
-          createdAt: now.toISOString(),
-          createdBy: currentUserName,
-          version: 1,
-          templateId,
-          linkedAssessmentId: assessment?.id,
-          assessmentScoreSnapshot: assessment
-            ? {
-                type: assessment.type,
-                totalScore: assessment.totalScore,
-                riskLevel: assessment.riskLevel,
-                date: assessment.date,
-                interpretation: assessment.interpretation,
-              }
-            : undefined,
-        };
-        setStore((s) => ({ ...s, carePlans: [newPlan, ...s.carePlans] }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: `Created care plan from template '${t.title}'`,
-          entity: newPlan.id,
-        });
-        return newPlan;
-      },
-      saveCarePlanTemplate: (t) => {
-        setStore((s) => ({
-          ...s,
-          carePlanTemplates: s.carePlanTemplates.some((x) => x.id === t.id)
-            ? s.carePlanTemplates.map((x) => (x.id === t.id ? t : x))
-            : [...s.carePlanTemplates, t],
-        }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: `Saved template '${t.title}'`,
-          entity: t.id,
-        });
-      },
-      deleteCarePlanTemplate: (id) => {
-        setStore((s) => ({
-          ...s,
-          carePlanTemplates: s.carePlanTemplates.filter((t) => t.id !== id || t.builtIn),
-        }));
-        logAudit({
-          user: currentUserName,
-          role: currentRole,
-          action: "Deleted template",
-          entity: id,
-        });
-      },
       addInterventionLog: (l) => {
         const item: InterventionLog = { ...l, id: uid() };
         setStore((s) => ({ ...s, interventionLogs: [item, ...s.interventionLogs] }));
@@ -7128,7 +6701,35 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return item;
       },
       addNote: (n) => {
-        const item = { ...n, id: uid() };
+        const resident = store.residents.find((item) => item.id === n.residentId);
+        if (!resident) throw new Error("Resident not found.");
+        const residentHomeId = resident.facilityId || activeFacilityId;
+        if (!canAccess(store, createStaffAccessContext(currentUser, residentHomeId), "resident.view", { nursingHomeId: residentHomeId, residentId: resident.id })) {
+          throw new Error("You do not have access to this resident.");
+        }
+        if (!can(currentRole, "note.create")) {
+          throw new Error("Missing permission: note.create");
+        }
+        const requestedCarePlanId = n.carePlanId ?? n.linkedProblemId ?? null;
+        let linkedCarePlanProblem: CarePlanProblem | undefined;
+        if (requestedCarePlanId) {
+          linkedCarePlanProblem = store.carePlanProblems.find((carePlan) => carePlan.id === requestedCarePlanId);
+          if (!linkedCarePlanProblem) throw new Error("Related Activity of Living care plan not found.");
+          const carePlanHomeId = linkedCarePlanProblem.facilityId || activeFacilityId;
+          if (carePlanHomeId !== residentHomeId) throw new Error("Daily Note and care plan must belong to the same nursing home.");
+          if (linkedCarePlanProblem.residentId !== n.residentId) throw new Error("Daily Note and care plan must belong to the same resident.");
+          if (linkedCarePlanProblem.status !== "active") throw new Error("Only active Activity of Living care plans can be linked.");
+          if (!canAccess(store, createStaffAccessContext(currentUser, carePlanHomeId), "careplan.view", { nursingHomeId: carePlanHomeId, residentId: linkedCarePlanProblem.residentId })) {
+            throw new Error("You do not have access to the selected care plan.");
+          }
+        }
+        const item = {
+          ...n,
+          facilityId: n.facilityId || residentHomeId,
+          carePlanId: linkedCarePlanProblem?.id ?? null,
+          linkedProblemId: linkedCarePlanProblem?.id,
+          id: uid(),
+        };
         const ev: TimelineEvent = {
           id: uid(),
           residentId: n.residentId,
@@ -7152,7 +6753,89 @@ export function CareProvider({ children }: { children: ReactNode }) {
           action: "Created daily note",
           entity: item.id,
         });
+        if (linkedCarePlanProblem) {
+          logAudit({
+            facilityId: residentHomeId,
+            user: currentUserName,
+            role: currentRole,
+            action: "Daily Note linked to Care Plan",
+            entity: item.id,
+            entityType: "daily_note",
+            before: JSON.stringify({ carePlanId: null, residentId: n.residentId }),
+            after: JSON.stringify({ carePlanId: linkedCarePlanProblem.id, residentId: n.residentId }),
+          });
+        }
         return item;
+      },
+      updateNote: (id, patch) => {
+        const existing = store.notes.find((note) => note.id === id);
+        if (!existing) throw new Error("Daily Note not found.");
+        const nextResidentId = patch.residentId || existing.residentId;
+        const resident = store.residents.find((item) => item.id === nextResidentId);
+        if (!resident) throw new Error("Resident not found.");
+        const residentHomeId = resident.facilityId || activeFacilityId;
+        if (!canAccess(store, createStaffAccessContext(currentUser, residentHomeId), "resident.view", { nursingHomeId: residentHomeId, residentId: resident.id })) {
+          throw new Error("You do not have access to this resident.");
+        }
+        if (!can(currentRole, "note.create")) {
+          throw new Error("Missing permission: note.create");
+        }
+
+        const previousCarePlanId = existing.carePlanId ?? existing.linkedProblemId ?? null;
+        const requestedCarePlanId =
+          Object.prototype.hasOwnProperty.call(patch, "carePlanId") || Object.prototype.hasOwnProperty.call(patch, "linkedProblemId")
+            ? patch.carePlanId ?? patch.linkedProblemId ?? null
+            : previousCarePlanId;
+        let linkedCarePlanProblem: CarePlanProblem | undefined;
+        if (requestedCarePlanId) {
+          linkedCarePlanProblem = store.carePlanProblems.find((carePlan) => carePlan.id === requestedCarePlanId);
+          if (!linkedCarePlanProblem) {
+            const changingCarePlan = Object.prototype.hasOwnProperty.call(patch, "carePlanId") || Object.prototype.hasOwnProperty.call(patch, "linkedProblemId");
+            if (changingCarePlan) throw new Error("Related Activity of Living care plan not found.");
+          }
+        }
+        if (linkedCarePlanProblem) {
+          const carePlanHomeId = linkedCarePlanProblem.facilityId || activeFacilityId;
+          if (carePlanHomeId !== residentHomeId) throw new Error("Daily Note and care plan must belong to the same nursing home.");
+          if (linkedCarePlanProblem.residentId !== nextResidentId) throw new Error("Daily Note and care plan must belong to the same resident.");
+          if (linkedCarePlanProblem.status !== "active") throw new Error("Only active Activity of Living care plans can be linked.");
+          if (!canAccess(store, createStaffAccessContext(currentUser, carePlanHomeId), "careplan.view", { nursingHomeId: carePlanHomeId, residentId: linkedCarePlanProblem.residentId })) {
+            throw new Error("You do not have access to the selected care plan.");
+          }
+        }
+        const nextCarePlanId = linkedCarePlanProblem?.id ?? null;
+        setStore((s) => ({
+          ...s,
+          notes: s.notes.map((note) =>
+            note.id === id
+              ? {
+                  ...note,
+                  ...patch,
+                  residentId: nextResidentId,
+                  facilityId: patch.facilityId || note.facilityId || residentHomeId,
+                  carePlanId: nextCarePlanId,
+                  linkedProblemId: linkedCarePlanProblem?.id || undefined,
+                }
+              : note,
+          ),
+        }));
+        if (previousCarePlanId !== nextCarePlanId) {
+          const action = previousCarePlanId && nextCarePlanId
+            ? "Daily Note care plan link changed"
+            : nextCarePlanId
+              ? "Daily Note linked to Care Plan"
+              : "Daily Note unlinked from Care Plan";
+          logAudit({
+            facilityId: residentHomeId,
+            user: currentUserName,
+            role: currentRole,
+            action,
+            entity: id,
+            entityType: "daily_note",
+            before: JSON.stringify({ carePlanId: previousCarePlanId, residentId: existing.residentId }),
+            after: JSON.stringify({ carePlanId: nextCarePlanId, residentId: nextResidentId }),
+          });
+        }
       },
       addEvaluation: (e) => {
         const item = { ...e, id: uid() };

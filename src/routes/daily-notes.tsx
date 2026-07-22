@@ -1,6 +1,7 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -44,12 +45,14 @@ function NoteViewDialog({
   note,
   residentName,
   room,
+  relatedCarePlan,
   open,
   onOpenChange,
 }: {
   note: DailyNote | null;
   residentName: string;
   room: string;
+  relatedCarePlan?: { id: string; title: string } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -66,6 +69,21 @@ function NoteViewDialog({
             <div><span className="text-muted-foreground">Recorded by:</span> {note.staff}</div>
             <div><span className="text-muted-foreground">Shift:</span> <span className="capitalize">{note.shift}</span></div>
             <div><span className="text-muted-foreground">Category:</span> <span className="capitalize">{noteCategory(note)}</span></div>
+            <div>
+              <span className="text-muted-foreground">Related Care Plan:</span>{" "}
+              {relatedCarePlan ? (
+                <Link
+                  to="/residents/$id"
+                  params={{ id: note.residentId }}
+                  search={{ carePlanProblemId: relatedCarePlan.id }}
+                  className="text-primary hover:underline"
+                >
+                  {relatedCarePlan.title}
+                </Link>
+              ) : (
+                "None"
+              )}
+            </div>
           </div>
           <div>
             <div className="font-medium mb-1">Observation</div>
@@ -90,9 +108,12 @@ function NoteViewDialog({
 }
 
 function NewNote() {
-  const { residents, addNote } = useCare();
+  const { residents, carePlanProblems, addNote } = useCare();
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ residentId: "", shift: "morning", observation: "", mood: "calm", foodIntake: "most", fluidIntake: "good", sleep: "good", behaviour: "", additionalNotes: "" });
+  const [f, setF] = useState({ residentId: "", carePlanId: null as string | null, shift: "morning", observation: "", mood: "calm", foodIntake: "most", fluidIntake: "good", sleep: "good", behaviour: "", additionalNotes: "" });
+  const residentCarePlans = carePlanProblems.filter(
+    (plan) => plan.residentId === f.residentId && plan.status === "active",
+  );
   const startVoice = () => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) { toast.error("Voice not supported in this browser"); return; }
@@ -110,9 +131,23 @@ function NewNote() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <Label>Resident</Label>
-            <Select value={f.residentId} onValueChange={v => setF({ ...f, residentId: v })}>
+            <Select value={f.residentId} onValueChange={v => setF({ ...f, residentId: v, carePlanId: null })}>
               <SelectTrigger><SelectValue placeholder="Choose resident" /></SelectTrigger>
               <SelectContent>{residents.map(r => <SelectItem key={r.id} value={r.id}>{r.firstName} {r.lastName}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label>Related Care Plan</Label>
+            <Select value={f.carePlanId || "none"} onValueChange={v => setF({ ...f, carePlanId: v === "none" ? null : v })} disabled={!f.residentId}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {residentCarePlans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} · {plan.problemStatement}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div>
@@ -173,7 +208,7 @@ function NewNote() {
 }
 
 function DailyNotesPage() {
-  const { notes, residents, currentUser, currentUserName } = useCare();
+  const { notes, residents, carePlanProblems, currentUser, currentUserName } = useCare();
   const [search, setSearch] = useState("");
   const [residentFilter, setResidentFilter] = useState("all");
   const [wingFilter, setWingFilter] = useState("all");
@@ -188,6 +223,7 @@ function DailyNotesPage() {
   const [selectedNote, setSelectedNote] = useState<DailyNote | null>(null);
 
   const residentById = useMemo(() => new Map(residents.map((resident) => [resident.id, resident])), [residents]);
+  const carePlanProblemById = useMemo(() => new Map(carePlanProblems.map((plan) => [plan.id, plan])), [carePlanProblems]);
   const wingOptions = useMemo(
     () => Array.from(new Set(residents.map((resident) => resident.wingId).filter(Boolean))).sort(),
     [residents],
@@ -443,6 +479,16 @@ function DailyNotesPage() {
         note={selectedNote}
         residentName={selectedResident ? `${selectedResident.firstName} ${selectedResident.lastName}` : "Unknown resident"}
         room={selectedResident?.roomNumber || "-"}
+        relatedCarePlan={(() => {
+          if (!selectedNote) return null;
+          const id = selectedNote.carePlanId || selectedNote.linkedProblemId || "";
+          const problem = carePlanProblemById.get(id);
+          if (problem) {
+            const domain = getRltDomainForCarePlanProblem(problem);
+            return { id: problem.id, title: `${domain?.title || problem.category.replace(/_/g, " ")} · ${problem.problemStatement}` };
+          }
+          return null;
+        })()}
         open={!!selectedNote}
         onOpenChange={(open) => { if (!open) setSelectedNote(null); }}
       />

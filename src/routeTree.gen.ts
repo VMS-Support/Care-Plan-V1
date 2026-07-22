@@ -64,7 +64,6 @@ import { Route as MaintenanceCertificatesRouteImport } from './routes/maintenanc
 import { Route as MaintenanceAssetsRouteImport } from './routes/maintenance.assets'
 import { Route as InspectionResidentIdRouteImport } from './routes/inspection.$residentId'
 import { Route as ChartsResidentIdRouteImport } from './routes/charts.$residentId'
-import { Route as CarePlansIdRouteImport } from './routes/care-plans.$id'
 import { Route as AssessmentsReassessmentRouteImport } from './routes/assessments.reassessment'
 import { Route as AssessmentsAssessmentIdRouteImport } from './routes/assessments.$assessmentId'
 import { Route as WorkforceStaffStaffMemberIdRouteImport } from './routes/workforce.staff.$staffMemberId'
@@ -384,11 +383,6 @@ const ChartsResidentIdRoute = ChartsResidentIdRouteImport.update({
   path: '/charts/$residentId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CarePlansIdRoute = CarePlansIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => CarePlansRoute,
-} as any)
 const AssessmentsReassessmentRoute = AssessmentsReassessmentRouteImport.update({
   id: '/reassessment',
   path: '/reassessment',
@@ -624,7 +618,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
-  '/care-plans': typeof CarePlansRouteWithChildren
+  '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
   '/handovers': typeof HandoversRoute
@@ -646,7 +640,6 @@ export interface FileRoutesByFullPath {
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
-  '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
@@ -720,7 +713,7 @@ export interface FileRoutesByTo {
   '/accounts-dashboard': typeof AccountsDashboardRoute
   '/alerts': typeof AlertsRoute
   '/audit-logs': typeof AuditLogsRoute
-  '/care-plans': typeof CarePlansRouteWithChildren
+  '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
   '/handovers': typeof HandoversRoute
@@ -741,7 +734,6 @@ export interface FileRoutesByTo {
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
-  '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
@@ -817,7 +809,7 @@ export interface FileRoutesById {
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
-  '/care-plans': typeof CarePlansRouteWithChildren
+  '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
   '/handovers': typeof HandoversRoute
@@ -839,7 +831,6 @@ export interface FileRoutesById {
   '/vitals': typeof VitalsRouteWithChildren
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
-  '/care-plans/$id': typeof CarePlansIdRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
@@ -938,7 +929,6 @@ export interface FileRouteTypes {
     | '/vitals'
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
-    | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
     | '/maintenance/assets'
@@ -1033,7 +1023,6 @@ export interface FileRouteTypes {
     | '/vitals'
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
-    | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
     | '/maintenance/assets'
@@ -1130,7 +1119,6 @@ export interface FileRouteTypes {
     | '/vitals'
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
-    | '/care-plans/$id'
     | '/charts/$residentId'
     | '/inspection/$residentId'
     | '/maintenance/assets'
@@ -1206,7 +1194,7 @@ export interface RootRouteChildren {
   AlertsRoute: typeof AlertsRoute
   AssessmentsRoute: typeof AssessmentsRouteWithChildren
   AuditLogsRoute: typeof AuditLogsRoute
-  CarePlansRoute: typeof CarePlansRouteWithChildren
+  CarePlansRoute: typeof CarePlansRoute
   ComplianceRoute: typeof ComplianceRoute
   DailyNotesRoute: typeof DailyNotesRoute
   HandoversRoute: typeof HandoversRoute
@@ -1629,13 +1617,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChartsResidentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/care-plans/$id': {
-      id: '/care-plans/$id'
-      path: '/$id'
-      fullPath: '/care-plans/$id'
-      preLoaderRoute: typeof CarePlansIdRouteImport
-      parentRoute: typeof CarePlansRoute
-    }
     '/assessments/reassessment': {
       id: '/assessments/reassessment'
       path: '/reassessment'
@@ -1930,18 +1911,6 @@ const AssessmentsRouteWithChildren = AssessmentsRoute._addFileChildren(
   AssessmentsRouteChildren,
 )
 
-interface CarePlansRouteChildren {
-  CarePlansIdRoute: typeof CarePlansIdRoute
-}
-
-const CarePlansRouteChildren: CarePlansRouteChildren = {
-  CarePlansIdRoute: CarePlansIdRoute,
-}
-
-const CarePlansRouteWithChildren = CarePlansRoute._addFileChildren(
-  CarePlansRouteChildren,
-)
-
 interface MaintenanceCertificatesIdRouteChildren {
   MaintenanceCertificatesIdEditRoute: typeof MaintenanceCertificatesIdEditRoute
   MaintenanceCertificatesIdRenewRoute: typeof MaintenanceCertificatesIdRenewRoute
@@ -2193,7 +2162,7 @@ const rootRouteChildren: RootRouteChildren = {
   AlertsRoute: AlertsRoute,
   AssessmentsRoute: AssessmentsRouteWithChildren,
   AuditLogsRoute: AuditLogsRoute,
-  CarePlansRoute: CarePlansRouteWithChildren,
+  CarePlansRoute: CarePlansRoute,
   ComplianceRoute: ComplianceRoute,
   DailyNotesRoute: DailyNotesRoute,
   HandoversRoute: HandoversRoute,

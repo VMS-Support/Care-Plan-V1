@@ -55,8 +55,8 @@ function ReportsPage() {
   const {
     residents,
     assessments,
-    carePlans,
-    interventions,
+    carePlanProblems,
+    problemInterventions,
     tasks,
     vitals,
     observationPlans,
@@ -96,11 +96,10 @@ function ReportsPage() {
       .map(([date, v]) => ({ date: date.slice(5), score: Math.round(v.sum / v.n) }));
   };
 
-  const compliance = carePlans.map((c) => ({
-    name: c.title.slice(0, 18),
+  const compliance = carePlanProblems.map((c) => ({
+    name: c.problemStatement.slice(0, 18),
     value:
-      interventions.filter((i) => i.carePlanId === c.id).length ||
-      Math.floor(Math.random() * 5) + 1,
+      problemInterventions.filter((i) => i.problemId === c.id).length,
   }));
   const today = new Date().toISOString().slice(0, 10);
   const dueTasks = tasks.filter(

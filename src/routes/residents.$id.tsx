@@ -299,7 +299,6 @@ function ResidentDetail() {
     beds,
     bedAssignments,
     assessments,
-    carePlans,
     carePlanProblems,
     problemInterventions,
     problemInterventionLogs,
@@ -587,7 +586,6 @@ function ResidentDetail() {
     .filter((a) => a.residentId === id && a.status !== "deleted")
     .sort((a, b) => b.date.localeCompare(a.date));
   const rADeleted = assessments.filter((a) => a.residentId === id && a.status === "deleted");
-  const rP = carePlans.filter((c) => c.residentId === id);
   const rN = notes.filter((n) => n.residentId === id);
   const rAlerts = alerts.filter(
     (a) => a.residentId === id && isActionRequiredAlert(a) && !a.resolvedAt,
@@ -680,7 +678,7 @@ function ResidentDetail() {
     : [];
 
   const linkedDailyNotes = selectedProblem
-    ? rN.filter((n) => n.linkedProblemId === selectedProblem.id)
+    ? rN.filter((n) => n.linkedProblemId === selectedProblem.id || n.carePlanId === selectedProblem.id)
     : [];
   const linkedMdtNotes = selectedProblem
     ? rMDT.filter((m) => m.linkedCarePlanId === selectedProblem.residentCarePlanId)
@@ -2235,52 +2233,7 @@ function ResidentDetail() {
               <ClipboardList className="h-3 w-3 mr-1" /> Open Unified Care Plan
             </Button>
           </Link>
-          {rP.map((c) => (
-            <Card key={c.id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <Link
-                    to="/care-plans/$id"
-                    params={{ id: c.id }}
-                    className="font-medium hover:text-primary hover:underline"
-                  >
-                    {c.title}
-                  </Link>
-                  <Badge variant="outline" className="capitalize">
-                    {c.status}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <strong>Problem:</strong> {c.problem}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <strong>Plan:</strong> {c.goal}
-                </p>
-                <ul className="text-sm mt-2 list-disc pl-5 space-y-0.5">
-                  {c.interventions.map((i, k) => (
-                    <li key={k}>{i}</li>
-                  ))}
-                </ul>
-                <Separator className="my-3" />
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground items-center">
-                  <span>
-                    <Calendar className="h-3 w-3 inline mr-1" /> Review {c.reviewDate}
-                  </span>
-                  <span>Frequency: {c.frequency}</span>
-                  <span>Assigned: {c.assignedStaff}</span>
-                  <div className="flex-1" />
-                  <Link
-                    to="/care-plans/$id"
-                    params={{ id: c.id }}
-                    className="text-primary hover:underline"
-                  >
-                    Open plan â†’
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {rP.length === 0 && (
+          {activeProblems.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
               <p className="text-sm text-muted-foreground">No active care plans.</p>
               <CreateCarePlanDialog
@@ -2300,6 +2253,24 @@ function ResidentDetail() {
           {rN.map((n) => (
             <Card key={n.id}>
               <CardContent className="p-4">
+                {(() => {
+                  const relatedProblem = carePlanProblems.find((plan) => plan.id === (n.carePlanId || n.linkedProblemId));
+                  const relatedLabel = relatedProblem
+                    ? `${getRltDomainForCarePlanProblem(relatedProblem)?.title || relatedProblem.category.replace(/_/g, " ")} · ${relatedProblem.problemStatement}`
+                    : undefined;
+                  return relatedLabel ? (
+                    <div className="mb-2 text-xs">
+                      <span className="text-muted-foreground">Related Care Plan: </span>
+                      <button
+                        type="button"
+                        className="font-medium text-primary hover:underline"
+                        onClick={() => relatedProblem && openProblemDetail(relatedProblem.id)}
+                      >
+                        {relatedLabel}
+                      </button>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-medium">{n.date.slice(0, 10)}</span>
                   <Badge variant="outline" className="text-[10px] capitalize">
@@ -3390,6 +3361,33 @@ function ResidentDetail() {
                       </div>
                     </div>
                   ))}
+                  <div className="pt-3">
+                    <div className="text-sm font-medium">Related Daily Notes</div>
+                    <div className="mt-2 space-y-2">
+                      {linkedDailyNotes.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          No Daily Notes have been linked to this care plan.
+                        </p>
+                      )}
+                      {linkedDailyNotes
+                        .slice()
+                        .sort((left, right) => right.date.localeCompare(left.date))
+                        .map((note) => (
+                          <div key={note.id} className="rounded-md border p-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{new Date(note.date).toLocaleString("en-GB")}</span>
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {note.shift}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{note.staff}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-sm">
+                              {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>
