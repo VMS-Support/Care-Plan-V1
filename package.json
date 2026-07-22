@@ -61,6 +61,7 @@
     "test:resident-strength-preferences": "node scripts/resident-strength-preference-tests.mjs",
     "validate:resident-strength-preferences": "node scripts/validate-resident-strength-preferences.mjs",
     "test:news2": "node src/lib/care/vitals.test.ts",
+    "test:maintenance-workflow": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderWorkflow.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

@@ -6,6 +6,7 @@ import type { MaintenanceWorkOrder } from "@/lib/care/types";
 import { useCare } from "@/lib/care/store";
 import {
   MAINTENANCE_TEAMS,
+  WorkOrderWorkflowError,
   availableWorkOrderActions,
   type WorkOrderAccessIssue,
   type WorkOrderHoldReason,
@@ -26,6 +27,7 @@ export function WorkOrderWorkflowActions({ record }: { record: MaintenanceWorkOr
   const care = useCare();
   const [dialogAction, setDialogAction] = useState<DialogAction | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [workflowError, setWorkflowError] = useState<WorkOrderWorkflowError | Error | null>(null);
   const actions = useMemo(
     () => availableWorkOrderActions(record, { currentUser: care.currentUser, users: care.users, canAccess: care.canAccess }),
     [record, care.currentUser, care.users, care.canAccess],
@@ -33,6 +35,7 @@ export function WorkOrderWorkflowActions({ record }: { record: MaintenanceWorkOr
 
   const run = (input: Omit<WorkOrderWorkflowInput, "expectedVersion" | "idempotencyKey">, close = true) => {
     setSubmitting(true);
+    setWorkflowError(null);
     try {
       care.workflowMaintenanceWorkOrder(record.id, {
         ...input,
@@ -42,7 +45,9 @@ export function WorkOrderWorkflowActions({ record }: { record: MaintenanceWorkOr
       toast.success(successMessage(input.action));
       if (close) setDialogAction(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to complete Work Order action");
+      const nextError = error instanceof Error ? error : new Error("Unable to complete Work Order action");
+      setWorkflowError(nextError);
+      if (!dialogAction) toast.error(nextError.message);
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +89,11 @@ export function WorkOrderWorkflowActions({ record }: { record: MaintenanceWorkOr
         record={record}
         users={care.users}
         submitting={submitting}
-        onClose={() => setDialogAction(null)}
+        error={workflowError}
+        onClose={() => {
+          setWorkflowError(null);
+          setDialogAction(null);
+        }}
         onSubmit={(input) => run(input)}
       />
     </>
@@ -105,6 +114,7 @@ function WorkflowDialog({
   record,
   users,
   submitting,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -112,6 +122,7 @@ function WorkflowDialog({
   record: MaintenanceWorkOrder;
   users: ReturnType<typeof useCare>["users"];
   submitting: boolean;
+  error: WorkOrderWorkflowError | Error | null;
   onClose: () => void;
   onSubmit: (input: Omit<WorkOrderWorkflowInput, "expectedVersion" | "idempotencyKey">) => void;
 }) {
@@ -150,6 +161,23 @@ function WorkflowDialog({
           <DialogTitle>{dialogTitle(action)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>{error instanceof WorkOrderWorkflowError ? error.code.replaceAll("_", " ") : "Unable to complete action"}</AlertTitle>
+              <AlertDescription>
+                <div>{error.message}</div>
+                {error instanceof WorkOrderWorkflowError && Object.keys(error.fieldErrors).length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-4">
+                    {Object.entries(error.fieldErrors).map(([field, message]) => (
+                      <li key={field}>
+                        <span className="font-medium">{field}:</span> {message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           {(action === "ASSIGN" || action === "REASSIGN") && (
             <>
               <Alert>
