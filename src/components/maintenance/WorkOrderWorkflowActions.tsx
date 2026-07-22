@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-type DialogAction = Exclude<WorkOrderWorkflowAction, "SELF_ASSIGN" | "ACCEPT">;
+type DialogAction = Exclude<WorkOrderWorkflowAction, "SELF_ASSIGN" | "ACCEPT" | "COMPLETE">;
 
 export function WorkOrderWorkflowActions({ record }: { record: MaintenanceWorkOrder }) {
   const care = useCare();
@@ -331,6 +331,7 @@ function successMessage(action: WorkOrderWorkflowAction) {
     AWAIT_CONTRACTOR: "Work Order moved to Awaiting Contractor.",
     AWAIT_ACCESS: "Work Order moved to Awaiting Access.",
     RESUME: "Work resumed.",
+    COMPLETE: "Work Order completed.",
   };
   return messages[action];
 }

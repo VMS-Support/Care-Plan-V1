@@ -63,6 +63,7 @@
     "test:news2": "node src/lib/care/vitals.test.ts",
     "test:maintenance-workflow": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderWorkflow.test.ts",
     "test:maintenance-execution": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderExecution.test.ts",
+    "test:maintenance-completion": "node --experimental-specifier-resolution=node src/domain/maintenance/workOrderCompletion.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

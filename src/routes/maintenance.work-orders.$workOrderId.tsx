@@ -2,9 +2,9 @@ import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tan
 import { useMemo, useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Archive, ArrowRight, Edit, FileText, ImageIcon, Package, Timer, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Archive, ArrowRight, CheckCircle2, Edit, FileText, ImageIcon, Package, Timer, Wrench } from "lucide-react";
 import { useCare } from "@/lib/care/store";
-import type { MaintenanceWorkOrder, WorkOrderAttachment, WorkOrderLabourEntry, WorkOrderMaterialEntry, WorkOrderNote } from "@/lib/care/types";
+import type { MaintenanceWorkOrder, WorkOrderAttachment, WorkOrderCompletionOutcome, WorkOrderCompletionRecord, WorkOrderLabourEntry, WorkOrderMaterialEntry, WorkOrderNote } from "@/lib/care/types";
 import {
   isWorkOrderOverdue,
   workOrderAssigneeLabel,
@@ -23,6 +23,7 @@ import {
   noteTypeLabel,
   type WorkOrderTimelineItem,
 } from "@/domain/maintenance/workOrderExecution";
+import { WORK_ORDER_COMPLETION_OUTCOMES, completionOutcomeLabel } from "@/domain/maintenance/workOrderCompletion";
 import { WorkOrderForm } from "@/components/maintenance/WorkOrderForm";
 import { WorkOrderWorkflowActions } from "@/components/maintenance/WorkOrderWorkflowActions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,7 @@ function WorkOrderDetailRoute() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveReason, setArchiveReason] = useState("");
   const [executionTab, setExecutionTab] = useState<"notes" | "timeline" | "files" | "labour" | "materials">("notes");
+  const [completionOpen, setCompletionOpen] = useState(false);
   const record = useMemo(
     () => care.maintenanceWorkOrders.find((item) => item.id === workOrderId),
     [care.maintenanceWorkOrders, workOrderId],
@@ -57,6 +59,7 @@ function WorkOrderDetailRoute() {
   const attachments = useMemo(() => care.workOrderAttachments.filter((item) => item.workOrderId === workOrderId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)), [care.workOrderAttachments, workOrderId]);
   const labour = useMemo(() => care.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId && !item.deletedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [care.workOrderLabourEntries, workOrderId]);
   const materials = useMemo(() => care.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId && !item.deletedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [care.workOrderMaterialEntries, workOrderId]);
+  const completions = useMemo(() => care.workOrderCompletions.filter((item) => item.workOrderId === workOrderId).sort((a, b) => b.completedAt.localeCompare(a.completedAt)), [care.workOrderCompletions, workOrderId]);
   const timeline = useMemo(() => care.getWorkOrderTimeline(workOrderId, 40), [care, workOrderId, notes, attachments, labour, materials, record?.updatedAt]);
 
   if (!care.canAccess("maintenance.work_orders.view") || (record && !canViewWorkOrderRecord(care, record))) {
@@ -106,6 +109,7 @@ function WorkOrderDetailRoute() {
       </div>
 
       <WorkOrderWorkflowActions record={record} />
+      <WorkOrderCompletionSection record={record} completion={completions[0]} onComplete={() => setCompletionOpen(true)} />
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
         <Card>
@@ -207,6 +211,7 @@ function WorkOrderDetailRoute() {
         activeTab={executionTab}
         onTabChange={setExecutionTab}
       />
+      <CompletionDialog record={record} open={completionOpen} onOpenChange={setCompletionOpen} />
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
@@ -271,7 +276,252 @@ function WorkOrderDetailRoute() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function WorkOrderCompletionSection({ record, completion, onComplete }: { record: MaintenanceWorkOrder; completion?: WorkOrderCompletionRecord; onComplete: () => void }) {
+  const care = useCare();
+  const eligibility = care.evaluateWorkOrderCompletion(record.id, { expectedVersion: record.version });
+  const canViewCompletion = care.canAccess("maintenance.work_orders.completion.view", { nursingHomeId: record.homeId });
+  if (completion && canViewCompletion) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Completion</CardTitle>
+          <p className="text-sm text-muted-foreground">Read-only completion details retained for audit and verification.</p>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid gap-3 md:grid-cols-3">
+            <DetailRow label="Completed" value={formatDate(completion.completedAt)} />
+            <DetailRow label="Completed By" value={userName(care.users, completion.completedByUserId)} />
+            <DetailRow label="Outcome" value={completionOutcomeLabel(completion.outcome)} />
+            <DetailRow label="Verification" value={completion.verificationRequired ? "Pending verification" : "Not required"} />
+            <DetailRow label="Evidence Selected" value={String(completion.selectedEvidenceIds.length)} />
+            <DetailRow label="Completion Version" value={String(completion.version)} />
+          </div>
+          <div>
+            <div className="text-xs font-medium uppercase text-muted-foreground">Work Completed</div>
+            <p className="mt-1 whitespace-pre-wrap">{completion.workCompleted}</p>
+          </div>
+          {completion.outstandingIssues && <DetailRow label="Outstanding Issues" value={completion.outstandingIssues} />}
+          {completion.followUpRequired && <DetailRow label="Follow-up" value={completion.followUpDetails || "Required"} />}
+          <div className="grid gap-2 md:grid-cols-2">
+            {completion.checklist.map((item) => (
+              <div key={item.itemKey} className="rounded-md border p-3">
+                <div className="font-medium">{item.label}</div>
+                <div className="text-xs text-muted-foreground">Response: {item.response}{item.comment ? ` - ${item.comment}` : ""}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (record.status !== "IN_PROGRESS") return null;
+  if (!care.canAccess("maintenance.work_orders.complete", { nursingHomeId: record.homeId })) return null;
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+        <div>
+          <div className="font-semibold">Completion</div>
+          <p className="text-sm text-muted-foreground">
+            {eligibility.verificationRequired ? "This Work Order will be submitted for verification after completion." : "Complete this Work Order once the checklist, evidence rules and declaration are satisfied."}
+          </p>
+          {eligibility.blockers.length > 0 && <div className="mt-2 text-sm text-destructive">{eligibility.blockers[0].message}</div>}
+        </div>
+        <Button onClick={onComplete}>
+          <CheckCircle2 className="mr-2 h-4 w-4" />
+          Complete Work Order
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompletionDialog({ record, open, onOpenChange }: { record: MaintenanceWorkOrder; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const care = useCare();
+  const [workCompleted, setWorkCompleted] = useState("");
+  const [outcome, setOutcome] = useState<WorkOrderCompletionOutcome>("REPAIRED");
+  const [outcomeDetails, setOutcomeDetails] = useState("");
+  const [outstandingIssues, setOutstandingIssues] = useState("");
+  const [followUpRequired, setFollowUpRequired] = useState(false);
+  const [followUpDetails, setFollowUpDetails] = useState("");
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
+  const [labourReviewed, setLabourReviewed] = useState(false);
+  const [materialsReviewed, setMaterialsReviewed] = useState(false);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+  const [warningsAcknowledged, setWarningsAcknowledged] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const eligibility = care.evaluateWorkOrderCompletion(record.id, { expectedVersion: record.version, outcome, followUpRequired });
+  const activeLabour = care.workOrderLabourEntries.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+  const activeMaterials = care.workOrderMaterialEntries.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+
+  const setResponse = (key: string, value: string) => setResponses((current) => ({ ...current, [key]: value }));
+  const toggleEvidence = (id: string) => setSelectedEvidenceIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const toggleWarning = (code: string) => setWarningsAcknowledged((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]);
+
+  const submit = () => {
+    const label = eligibility.verificationRequired ? "submit this Work Order for verification" : "complete this Work Order";
+    if (!window.confirm(`You are about to ${label}. Completion details will become part of the permanent audit history.`)) return;
+    setSubmitting(true);
+    try {
+      const completion = care.completeMaintenanceWorkOrder(record.id, {
+        expectedVersion: record.version,
+        workCompleted,
+        outcome,
+        outcomeDetails,
+        outstandingIssues,
+        followUpRequired,
+        followUpDetails,
+        checklistResponses: eligibility.checklist.map((item) => ({
+          itemKey: item.key,
+          response: (responses[item.key] || (item.responseType === "CONFIRMATION" ? "CONFIRMED" : "YES")) as any,
+          comment: comments[item.key],
+        })),
+        selectedEvidenceIds,
+        labourReviewed,
+        materialsReviewed,
+        declarationAccepted,
+        warningsAcknowledged,
+        idempotencyKey: `complete-${record.id}-${record.version}-${Date.now()}`,
+      });
+      toast.success(completion.verificationRequired ? "Work Order submitted for verification." : "Work Order completed successfully.");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to complete Work Order.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Complete Work Order</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5">
+          <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-4">
+            <DetailRow label="Work Order" value={record.workOrderNumber} />
+            <DetailRow label="Status" value={workOrderStatusLabel(record.status)} />
+            <DetailRow label="Priority" value={workOrderPriorityLabel(record.priority)} />
+            <DetailRow label="Risk" value={record.riskLevel || "Not assessed"} />
+            <DetailRow label="Assigned" value={workOrderAssigneeLabel(record, care.users)} />
+            <DetailRow label="Started" value={record.startedAt ? formatDate(record.startedAt) : "Not started"} />
+            <DetailRow label="Labour" value={formatMinutes(eligibility.totals.labourMinutes)} />
+            <DetailRow label="Evidence" value={`${eligibility.totals.evidenceCount} evidence / ${eligibility.totals.attachmentsCount} files`} />
+          </div>
+
+          {eligibility.blockers.length > 0 && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+              <div className="font-semibold">Work Order cannot be completed yet</div>
+              <ul className="mt-2 list-disc pl-5">
+                {eligibility.blockers.map((item) => <li key={`${item.code}-${item.field}`}>{item.message}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {eligibility.warnings.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+              <div className="flex items-center gap-2 font-semibold text-amber-950"><AlertTriangle className="h-4 w-4" />Please review before completing</div>
+              <div className="mt-2 space-y-2">
+                {eligibility.warnings.map((warning) => (
+                  <label key={warning.code} className="flex items-start gap-2">
+                    <input type="checkbox" checked={!warning.acknowledgementRequired || warningsAcknowledged.includes(warning.code)} disabled={!warning.acknowledgementRequired} onChange={() => toggleWarning(warning.code)} />
+                    <span>{warning.message}{warning.acknowledgementRequired ? " Acknowledgement required." : ""}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Field label="Work Completed">
+              <Textarea rows={5} value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} />
+            </Field>
+            <div className="space-y-3">
+              <Field label="Outcome">
+                <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={outcome} onChange={(event) => setOutcome(event.target.value as WorkOrderCompletionOutcome)}>
+                  {WORK_ORDER_COMPLETION_OUTCOMES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </Field>
+              {["TEMPORARY_REPAIR", "REFERRED_FOR_FURTHER_WORK", "OTHER"].includes(outcome) && (
+                <Field label="Outcome Details"><Input value={outcomeDetails} onChange={(event) => setOutcomeDetails(event.target.value)} /></Field>
+              )}
+              <Field label="Outstanding Issues"><Input value={outstandingIssues} onChange={(event) => setOutstandingIssues(event.target.value)} /></Field>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={followUpRequired} onChange={(event) => setFollowUpRequired(event.target.checked)} />Follow-up required</label>
+              {followUpRequired && <Field label="Follow-up Details"><Input value={followUpDetails} onChange={(event) => setFollowUpDetails(event.target.value)} /></Field>}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold">Completion Checklist</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {eligibility.checklist.map((item) => (
+                <div key={item.key} className="rounded-lg border p-3">
+                  <div className="font-medium">{item.label} {item.required && <span className="text-destructive">*</span>}</div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                    {(item.responseType === "CONFIRMATION" ? ["CONFIRMED"] : item.responseType === "YES_NO" ? ["YES", "NO"] : ["YES", "NO", "NOT_APPLICABLE"]).map((option) => (
+                      <label key={option} className="flex items-center gap-1">
+                        <input type="radio" name={item.key} checked={(responses[item.key] || (item.responseType === "CONFIRMATION" ? "CONFIRMED" : "YES")) === option} onChange={() => setResponse(item.key, option)} />
+                        {option.replaceAll("_", " ")}
+                      </label>
+                    ))}
+                  </div>
+                  {(responses[item.key] === "NO" || item.responseType === "YES_NO_NOT_APPLICABLE") && (
+                    <Input className="mt-2" placeholder="Comment" value={comments[item.key] || ""} onChange={(event) => setComments((current) => ({ ...current, [item.key]: event.target.value }))} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border p-4">
+              <h3 className="font-semibold">Completion Evidence</h3>
+              {eligibility.evidenceRequired && <p className="mt-1 text-sm text-muted-foreground">{eligibility.evidenceRequirementReason}</p>}
+              <div className="mt-3 space-y-2">
+                {eligibility.availableEvidence.length === 0 && <p className="text-sm text-muted-foreground">No eligible files or photos are available. Upload evidence in Files & Photos first.</p>}
+                {eligibility.availableEvidence.map((item) => (
+                  <label key={item.id} className="flex items-start gap-2 rounded-md border p-2 text-sm">
+                    <input type="checkbox" checked={selectedEvidenceIds.includes(item.id)} onChange={() => toggleEvidence(item.id)} />
+                    <span><span className="font-medium">{item.originalFileName}</span><br /><span className="text-muted-foreground">{item.category} - {item.isEvidence ? item.evidenceType || "Evidence" : "Attachment"} - {formatDate(item.uploadedAt)}</span></span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border p-4">
+              <h3 className="font-semibold">Labour and Materials Review</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                <div>Total labour entries: {activeLabour.length} ({formatMinutes(eligibility.totals.labourMinutes)})</div>
+                <div>Materials used entries: {activeMaterials.length}</div>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={labourReviewed} onChange={(event) => setLabourReviewed(event.target.checked)} />Labour used has been reviewed.</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={materialsReviewed} onChange={(event) => setMaterialsReviewed(event.target.checked)} />Materials used have been reviewed.</label>
+              </div>
+              <div className="mt-4 rounded-md bg-muted p-3 text-sm">
+                <div className="font-medium">Verification</div>
+                <p>{eligibility.verificationRequired ? "This completion will be submitted for verification." : "Verification is not required by current rules."}</p>
+                {eligibility.verificationReasons.length > 0 && <ul className="mt-2 list-disc pl-5">{eligibility.verificationReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+            <input type="checkbox" checked={declarationAccepted} onChange={(event) => setDeclarationAccepted(event.target.checked)} />
+            <span>I confirm the completion details are accurate and will form part of the permanent audit history.</span>
+          </label>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Back</Button>
+            <Button type="button" disabled={submitting} onClick={submit}>{submitting ? "Submitting..." : eligibility.verificationRequired ? "Submit for Verification" : "Complete Work Order"}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <div className="text-xs font-medium text-muted-foreground">{label}</div>

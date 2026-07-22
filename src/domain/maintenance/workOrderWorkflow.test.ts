@@ -33,6 +33,8 @@ const allCapabilities = [
   "maintenance.work_orders.await_contractor",
   "maintenance.work_orders.await_access",
   "maintenance.work_orders.resume",
+  "maintenance.work_orders.complete",
+  "maintenance.work_orders.complete_unassigned",
 ];
 
 test("workflow progresses through assign, accept, start, pause and resume with audit snapshots", () => {
@@ -141,6 +143,22 @@ test("duplicate idempotency key is ignored without a second mutation", () => {
   const record = assignedOrder(worker.id, { lastWorkflowIdempotencyKey: "same-key" });
   const result = applyWorkOrderWorkflow(record, { action: "ACCEPT", expectedVersion: record.version, idempotencyKey: "same-key" }, ctx(worker));
   assert.equal(result, undefined);
+});
+
+test("completion moves in-progress Work Orders to completed or verification required", () => {
+  const standard = mustApply(startedOrder(), { action: "COMPLETE", reason: "Repair completed and tested", completionId: "completion-1", completionOutcome: "REPAIRED" }, ctx(worker));
+  assert.equal(standard.record.status, "COMPLETED");
+  assert.equal(standard.record.completedByUserId, worker.id);
+  assert.equal(standard.record.activeWorkStartedAt, undefined);
+  assert.equal(standard.auditAction, "WORK_ORDER_COMPLETED");
+
+  const needsVerification = mustApply(
+    startedOrder({ priority: "HIGH", riskLevel: "HIGH" }),
+    { action: "COMPLETE", reason: "Fire door repaired and submitted for checks", completionId: "completion-2", completionOutcome: "REPAIRED", completionVerificationRequired: true },
+    ctx(worker),
+  );
+  assert.equal(needsVerification.record.status, "VERIFICATION_REQUIRED");
+  assert.equal(needsVerification.record.verificationRequired, true);
 });
 
 test("validation result exposes calculated changes and field errors without throwing", () => {

@@ -2386,6 +2386,59 @@ export interface WorkOrderMaterialEntry {
   version: number;
   lastRequestId?: string;
 }
+
+export type WorkOrderCompletionOutcome =
+  | "RESOLVED"
+  | "REPAIRED"
+  | "REPLACED"
+  | "TESTED_AND_WORKING"
+  | "TEMPORARY_REPAIR"
+  | "NO_FAULT_FOUND"
+  | "REFERRED_FOR_FURTHER_WORK"
+  | "OTHER";
+
+export type WorkOrderCompletionChecklistResponse = "YES" | "NO" | "NOT_APPLICABLE" | "CONFIRMED";
+
+export interface WorkOrderCompletionChecklistSnapshot {
+  itemKey: string;
+  label: string;
+  required: boolean;
+  response: WorkOrderCompletionChecklistResponse;
+  comment?: string;
+  source: string;
+  order: number;
+}
+
+export interface WorkOrderCompletionRecord {
+  id: string;
+  workOrderId: string;
+  workOrderNumber: string;
+  organisationId?: string;
+  homeId: string;
+  completedByUserId: string;
+  completedAt: string;
+  workCompleted: string;
+  outcome: WorkOrderCompletionOutcome;
+  outcomeDetails?: string;
+  outstandingIssues?: string;
+  followUpRequired: boolean;
+  followUpDetails?: string;
+  checklist: WorkOrderCompletionChecklistSnapshot[];
+  selectedEvidenceIds: string[];
+  labourReviewed: boolean;
+  materialsReviewed: boolean;
+  declarationAccepted: boolean;
+  verificationRequired: boolean;
+  verificationStatus: "NOT_REQUIRED" | "PENDING";
+  verificationReasons: string[];
+  warningsAcknowledged: string[];
+  previousStatus: MaintenanceWorkOrderStatus;
+  resultingStatus: MaintenanceWorkOrderStatus;
+  workOrderVersionBefore: number;
+  workOrderVersionAfter: number;
+  version: number;
+  lastRequestId?: string;
+}
 export type BedType =
   | "standard"
   | "low"

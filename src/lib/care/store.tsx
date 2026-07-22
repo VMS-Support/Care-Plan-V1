@@ -160,6 +160,7 @@ import type {
   WorkOrderAttachment,
   WorkOrderLabourEntry,
   WorkOrderMaterialEntry,
+  WorkOrderCompletionRecord,
 } from "./types";
 import {
   archiveWorkOrderRecord,
@@ -189,6 +190,12 @@ import {
   type WorkOrderLabourInput,
   type WorkOrderMaterialInput,
 } from "@/domain/maintenance/workOrderExecution";
+import {
+  createWorkOrderCompletionRecord,
+  evaluateWorkOrderCompletionEligibility,
+  workOrderCompletionAuditLog,
+  type WorkOrderCompletionInput,
+} from "@/domain/maintenance/workOrderCompletion";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -2465,6 +2472,7 @@ function seedData() {
     workOrderAttachments: [] as WorkOrderAttachment[],
     workOrderLabourEntries: [] as WorkOrderLabourEntry[],
     workOrderMaterialEntries: [] as WorkOrderMaterialEntry[],
+    workOrderCompletions: [] as WorkOrderCompletionRecord[],
     interventionLogs: [] as InterventionLog[],
     readReceipts: [] as ReadReceipt[],
     carePlanTemplates: BUILT_IN_TEMPLATES.map((t) => ({
@@ -2543,6 +2551,7 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "workOrderAttachments",
   "workOrderLabourEntries",
   "workOrderMaterialEntries",
+  "workOrderCompletions",
   "interventionLogs",
   "readReceipts",
   "observations",
@@ -3128,6 +3137,8 @@ interface CareCtx extends Store {
   addWorkOrderMaterial: (workOrderId: string, input: WorkOrderMaterialInput) => WorkOrderMaterialEntry;
   removeWorkOrderMaterial: (entryId: string, reason: string) => void;
   getWorkOrderTimeline: (workOrderId: string, limit?: number) => ReturnType<typeof buildWorkOrderTimeline>;
+  evaluateWorkOrderCompletion: (workOrderId: string, input?: Partial<WorkOrderCompletionInput>) => ReturnType<typeof evaluateWorkOrderCompletionEligibility>;
+  completeMaintenanceWorkOrder: (workOrderId: string, input: WorkOrderCompletionInput) => WorkOrderCompletionRecord;
   logAudit: (a: Omit<AuditLog, "id" | "timestamp">) => void;
   recordAuditEvent: typeof recordAuditEvent;
   getAuditForEntity: typeof getAuditForEntity;
@@ -7475,9 +7486,96 @@ export function CareProvider({ children }: { children: ReactNode }) {
           attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId),
           labour: store.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId),
           materials: store.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId),
+          completions: store.workOrderCompletions.filter((item) => item.workOrderId === workOrderId),
           users: store.users,
           limit,
         });
+      },
+      evaluateWorkOrderCompletion: (workOrderId, input) => {
+        const record = store.maintenanceWorkOrders.find((item) => item.id === workOrderId);
+        return evaluateWorkOrderCompletionEligibility({
+          workOrder: record,
+          context: workOrderExecutionContext(record),
+          related: {
+            notes: store.workOrderNotes.filter((item) => item.workOrderId === workOrderId),
+            attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId),
+            labour: store.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId),
+            materials: store.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId),
+          },
+          completionRequest: input,
+        });
+      },
+      completeMaintenanceWorkOrder: (workOrderId, input) => {
+        const current = store.maintenanceWorkOrders.find((record) => record.id === workOrderId);
+        if (!current) throw new Error("Work Order not found.");
+        if (input.idempotencyKey) {
+          const existing = store.workOrderCompletions.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+        }
+        const now = new Date().toISOString();
+        const related = {
+          notes: store.workOrderNotes.filter((item) => item.workOrderId === workOrderId),
+          attachments: store.workOrderAttachments.filter((item) => item.workOrderId === workOrderId),
+          labour: store.workOrderLabourEntries.filter((item) => item.workOrderId === workOrderId),
+          materials: store.workOrderMaterialEntries.filter((item) => item.workOrderId === workOrderId),
+        };
+        const completion = createWorkOrderCompletionRecord({
+          workOrder: current,
+          input,
+          context: workOrderExecutionContext(current, now),
+          related,
+          id: `work-order-completion-${uid()}`,
+        });
+        const workflow = applyWorkOrderWorkflow(current, {
+          action: "COMPLETE",
+          expectedVersion: input.expectedVersion,
+          idempotencyKey: input.idempotencyKey,
+          reason: completion.workCompleted,
+          completionId: completion.id,
+          completionOutcome: completion.outcome,
+          completionVerificationRequired: completion.verificationRequired,
+        }, {
+          currentUser,
+          users: store.users,
+          canAccess: (capability, resource) =>
+            canAccess(
+              scopedStore,
+              createStaffAccessContext(currentUser, activeFacilityId, resource?.wardId),
+              capability,
+              resource || { nursingHomeId: current.homeId },
+            ),
+          now,
+        });
+        if (!workflow) {
+          const existing = store.workOrderCompletions.find((item) => item.lastRequestId === input.idempotencyKey);
+          if (existing) return existing;
+          throw new Error("Duplicate completion request could not be matched.");
+        }
+        const savedCompletion: WorkOrderCompletionRecord = {
+          ...completion,
+          resultingStatus: workflow.record.status,
+          workOrderVersionAfter: workflow.record.version,
+        };
+        setStore((s) => ({
+          ...s,
+          maintenanceWorkOrders: (s.maintenanceWorkOrders || []).map((record) => (record.id === workOrderId ? workflow.record : record)),
+          workOrderCompletions: [savedCompletion, ...s.workOrderCompletions],
+          auditLogs: [
+            workOrderCompletionAuditLog({ id: uid(), record: workflow.record, completion: savedCompletion, user: currentUser, timestamp: now }),
+            workOrderAuditLog({
+              id: uid(),
+              action: savedCompletion.verificationRequired ? "WORK_ORDER_SUBMITTED_FOR_VERIFICATION" : workflow.auditAction,
+              record: workflow.record,
+              user: currentUser,
+              before: workflow.before,
+              after: workflow.after,
+              reason: workflow.reason,
+              timestamp: now,
+            }),
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return savedCompletion;
       },
       addObservation: (o) => {
         const item: Observation = { ...o, id: uid() };

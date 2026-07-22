@@ -107,6 +107,7 @@ export const WAITING_WORK_ORDER_STATUSES: MaintenanceWorkOrderStatus[] = [
 
 export const HISTORICAL_WORK_ORDER_STATUSES: MaintenanceWorkOrderStatus[] = [
   "COMPLETED",
+  "VERIFICATION_REQUIRED",
   "VERIFIED",
   "CLOSED",
   "CANCELLED",

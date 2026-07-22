@@ -12,7 +12,8 @@ export type WorkOrderWorkflowAction =
   | "AWAIT_PARTS"
   | "AWAIT_CONTRACTOR"
   | "AWAIT_ACCESS"
-  | "RESUME";
+  | "RESUME"
+  | "COMPLETE";
 
 export type WorkOrderHoldReason = "safety" | "access" | "resident_need" | "staffing" | "other";
 export type WorkOrderAccessIssue = "resident_unavailable" | "room_in_use" | "infection_control" | "restricted_area" | "other";
@@ -81,6 +82,9 @@ export interface WorkOrderWorkflowInput {
   expectedAttendanceAt?: string;
   accessIssue?: WorkOrderAccessIssue;
   nextAccessAttemptAt?: string;
+  completionId?: string;
+  completionOutcome?: string;
+  completionVerificationRequired?: boolean;
 }
 
 export interface WorkOrderWorkflowContext {
@@ -150,7 +154,7 @@ export const WORK_ORDER_TRANSITIONS: Record<MaintenanceWorkOrderStatus, WorkOrde
   OPEN: ["ASSIGN", "SELF_ASSIGN"],
   ASSIGNED: ["REASSIGN", "UNASSIGN", "ACCEPT"],
   ACCEPTED: ["REASSIGN", "START"],
-  IN_PROGRESS: ["PAUSE", "AWAIT_PARTS", "AWAIT_CONTRACTOR", "AWAIT_ACCESS"],
+  IN_PROGRESS: ["PAUSE", "AWAIT_PARTS", "AWAIT_CONTRACTOR", "AWAIT_ACCESS", "COMPLETE"],
   ON_HOLD: ["REASSIGN", "RESUME"],
   AWAITING_ACCESS: ["REASSIGN", "RESUME"],
   AWAITING_PARTS: ["REASSIGN", "RESUME"],
@@ -175,6 +179,7 @@ const ACTIONS: WorkOrderWorkflowAction[] = [
   "AWAIT_CONTRACTOR",
   "AWAIT_ACCESS",
   "RESUME",
+  "COMPLETE",
 ];
 const HOLD_REASONS: WorkOrderHoldReason[] = ["safety", "access", "resident_need", "staffing", "other"];
 const ACCESS_ISSUES: WorkOrderAccessIssue[] = ["resident_unavailable", "room_in_use", "infection_control", "restricted_area", "other"];
@@ -349,6 +354,9 @@ function validateRequest(input: WorkOrderWorkflowInput) {
     "expectedAttendanceAt",
     "accessIssue",
     "nextAccessAttemptAt",
+    "completionId",
+    "completionOutcome",
+    "completionVerificationRequired",
   ]);
   Object.keys(input as Record<string, unknown>).forEach((key) => {
     if (!allowed.has(key)) issues.push(error("VALIDATION_ERROR", "workOrder", `Unexpected workflow field: ${key}.`));
@@ -409,6 +417,9 @@ function validatePermissionRules(record: MaintenanceWorkOrder, input: WorkOrderW
   }
   if (input.action === "UNASSIGN" && record.priority === "CRITICAL") {
     rules.push(rule("WO_CRITICAL_UNASSIGN_MANAGER", context.canAccess("maintenance.work_orders.reassign", { nursingHomeId: record.homeId }), "PERMISSION_DENIED", "permission", "Critical Work Orders require manager permission before unassignment."));
+  }
+  if (input.action === "COMPLETE") {
+    rules.push(rule("WO_COMPLETE_RELATIONSHIP", isWorkerOrSupervisor(record, context) || context.canAccess("maintenance.work_orders.complete_unassigned", { nursingHomeId: record.homeId }), "PERMISSION_DENIED", "assignment", "Only the assigned person or an authorised supervisor can complete this Work Order."));
   }
   return rules;
 }
@@ -603,6 +614,16 @@ export function calculateAutomaticChanges(record: MaintenanceWorkOrder, input: W
         activeWorkStartedAt: now,
         waitingResolutionNote: reasonText(input),
       };
+    case "COMPLETE":
+      return {
+        status: input.completionVerificationRequired ? "VERIFICATION_REQUIRED" : "COMPLETED",
+        completedAt: now,
+        completedByUserId: context.currentUser.id,
+        completionSummary: clean(input.reason),
+        verificationRequired: Boolean(input.completionVerificationRequired || record.verificationRequired),
+        activeWorkStartedAt: undefined,
+        totalActiveWorkMs: elapsedTotal(record.totalActiveWorkMs, record.activeWorkStartedAt, now),
+      };
   }
 }
 
@@ -750,6 +771,7 @@ function auditAction(action: WorkOrderWorkflowAction) {
     AWAIT_CONTRACTOR: "WORK_ORDER_AWAITING_CONTRACTOR",
     AWAIT_ACCESS: "WORK_ORDER_AWAITING_ACCESS",
     RESUME: "WORK_ORDER_RESUMED",
+    COMPLETE: "WORK_ORDER_COMPLETED",
   };
   return actions[action];
 }
@@ -767,6 +789,7 @@ function workflowCapability(action: WorkOrderWorkflowAction) {
     AWAIT_CONTRACTOR: "maintenance.work_orders.await_contractor",
     AWAIT_ACCESS: "maintenance.work_orders.await_access",
     RESUME: "maintenance.work_orders.resume",
+    COMPLETE: "maintenance.work_orders.complete",
   };
   return capabilities[action];
 }

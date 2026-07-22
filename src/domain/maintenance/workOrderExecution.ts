@@ -4,6 +4,7 @@ import type {
   MaintenanceWorkOrderStatus,
   UserProfile,
   WorkOrderAttachment,
+  WorkOrderCompletionRecord,
   WorkOrderAttachmentCategory,
   WorkOrderEvidenceType,
   WorkOrderLabourEntry,
@@ -321,6 +322,7 @@ export function buildWorkOrderTimeline(input: {
   attachments: WorkOrderAttachment[];
   labour: WorkOrderLabourEntry[];
   materials: WorkOrderMaterialEntry[];
+  completions?: WorkOrderCompletionRecord[];
   users: UserProfile[];
   limit?: number;
 }) {
@@ -338,6 +340,7 @@ export function buildWorkOrderTimeline(input: {
     },
     ...input.auditLogs
       .filter((audit) => audit.entity === input.record.id || audit.entity === input.record.workOrderNumber)
+      .filter((audit) => !["WORK_ORDER_COMPLETED", "WORK_ORDER_SUBMITTED_FOR_VERIFICATION"].includes(audit.action))
       .map((audit) => ({
         id: `audit:${audit.id}`,
         eventType: "audit",
@@ -387,6 +390,18 @@ export function buildWorkOrderTimeline(input: {
       description: `${entry.materialName} - ${entry.quantity} ${entry.unit}`,
       sourceType: "material" as const,
       sourceId: entry.id,
+    })),
+    ...(input.completions || []).map((completion) => ({
+      id: `completion:${completion.id}`,
+      eventType: completion.verificationRequired ? "submitted_for_verification" : "completed",
+      occurredAt: completion.completedAt,
+      actor: { id: completion.completedByUserId, displayName: userName(completion.completedByUserId) },
+      title: completion.verificationRequired ? "Work Order submitted for verification" : "Work Order completed",
+      description: completion.verificationRequired
+        ? `Outcome: ${completion.outcome}. ${completion.verificationReasons.join(" ")}`
+        : `Outcome: ${completion.outcome}.`,
+      sourceType: "work_order" as const,
+      sourceId: completion.id,
     })),
   ];
   return items.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).slice(0, input.limit || 50);
