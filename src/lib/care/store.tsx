@@ -177,6 +177,23 @@ import type {
   WorkOrderMaterialEntry,
   WorkOrderCompletionRecord,
   WorkOrderVerificationRecord,
+  SafetyCategory,
+  SafetyInspectionTemplate,
+  SafetyInspectionTemplateItem,
+  SafetyInspectionTemplateEvidenceRequirement,
+  SafetyInspectionSchedule,
+  SafetyInspectionOccurrence,
+  SafetyInspection,
+  SafetyInspectionResponse,
+  SafetyInspectionObservation,
+  SafetyInspectionEvidence,
+  SafetyCertificate,
+  SafetyInspectionVerification,
+  SafetyCategoryCode,
+  SafetyEvidenceType,
+  SafetyChecklistResponseType,
+  SafetySeverity,
+  SafetyVerificationRejectionReason,
 } from "./types";
 import {
   archiveWorkOrderRecord,
@@ -243,6 +260,17 @@ import {
   validateScheduleInput,
   validateTemplateInput,
 } from "@/domain/maintenance/plannedMaintenance";
+import {
+  DEFAULT_SAFETY_CATEGORIES,
+  createSafetyResponsesFromTemplate,
+  evaluateSafetyInspection,
+  nextSafetyDueDate,
+  responseResultFromValue,
+  safetyPresentationStatus,
+  validateSafetyCategory,
+  validateSafetySchedule,
+  validateSafetyTemplate,
+} from "@/domain/maintenance/safetyCompliance";
 import {
   createStaffDirectoryEvent,
   createStaffMemberRecord,
@@ -1149,6 +1177,145 @@ function seedMaintenanceAssets(): MaintenanceAsset[] {
       updatedAt: now,
     },
   ];
+}
+
+function seedSafetyComplianceData() {
+  const now = "2026-07-21T08:30:00.000Z";
+  const categories: SafetyCategory[] = DEFAULT_SAFETY_CATEGORIES.map((category) => ({
+    ...category,
+    createdBy: "System",
+    createdAt: now,
+    updatedBy: "System",
+    updatedAt: now,
+  }));
+  const categoryId = (code: SafetyCategoryCode) => categories.find((category) => category.code === code)!.id;
+  const templates: SafetyInspectionTemplate[] = [
+    safetyTemplate("safety-template-fire-alarm-weekly", categoryId("FIRE_SAFETY"), "Weekly Fire Alarm Test", "Weekly fire alarm panel and call point test.", "FS-WEEKLY-ALARM", "weekly", 1, "HIGH", true, true, true, "Test one rotating manual call point, confirm panel response and record evidence."),
+    safetyTemplate("safety-template-water-temp-monthly", categoryId("WATER_SAFETY"), "Monthly Water Temperature Check", "Water outlet temperature and flushing record.", "WS-MONTHLY-TEMP", "monthly", 1, "HIGH", true, true, true, "Record configured hot and cold outlet readings and identify out-of-range results."),
+    safetyTemplate("safety-template-pat-annual", categoryId("ELECTRICAL"), "PAT Testing", "Portable appliance visual and test record.", "EL-PAT", "annual", 1, "MEDIUM", true, true, true, "Check label, casing, cable and certificate evidence."),
+    safetyTemplate("safety-template-nurse-call-weekly", categoryId("NURSE_CALL"), "Nurse Call Point Test", "Functional nurse call point safety check.", "NC-WEEKLY", "weekly", 1, "HIGH", false, false, true, "Test call activation, indicator and cancellation."),
+  ];
+  const items: SafetyInspectionTemplateItem[] = [
+    safetyItem(templates[0].id, "General Condition", "PANEL_ACCESSIBLE", "Alarm panel accessible", "PASS_FAIL", 1, true, true, true, "HIGH"),
+    safetyItem(templates[0].id, "Function Test", "CALL_POINT_TESTED", "Manual call point activated correctly", "PASS_FAIL", 2, true, true, true, "CRITICAL"),
+    safetyItem(templates[0].id, "Function Test", "SOUNDERS_AUDIBLE", "Sounders audible in required areas", "PASS_FAIL", 3, true, true, true, "CRITICAL"),
+    safetyItem(templates[0].id, "Evidence", "INSPECTOR_SIGNATURE", "Inspector declaration signed", "SIGNATURE_CONFIRMATION", 4, true, false, false, "LOW"),
+    safetyItem(templates[1].id, "Readings", "HOT_WATER_READING", "Hot water temperature recorded", "TEMPERATURE", 1, true, true, false, "HIGH", 45, 65, "C"),
+    safetyItem(templates[1].id, "Readings", "COLD_WATER_READING", "Cold water temperature recorded", "TEMPERATURE", 2, true, true, false, "HIGH", 0, 20, "C"),
+    safetyItem(templates[1].id, "Safety Controls", "OUTLET_FLUSHED", "Outlet flushed where required", "YES_NO_NA", 3, true, true, false, "MEDIUM"),
+    safetyItem(templates[2].id, "Electrical Condition", "CABLE_INTACT", "Cable and plug intact", "PASS_FAIL", 1, true, true, true, "HIGH"),
+    safetyItem(templates[2].id, "Evidence", "PAT_CERT_ATTACHED", "PAT certificate attached", "CERTIFICATE_CONFIRMATION", 2, true, false, false, "MEDIUM"),
+    safetyItem(templates[3].id, "Function Test", "CALL_ACTIVATES", "Call activates at nurses station", "PASS_FAIL", 1, true, true, true, "HIGH"),
+    safetyItem(templates[3].id, "Function Test", "CALL_CANCELS", "Call cancels correctly", "PASS_FAIL", 2, true, true, false, "MEDIUM"),
+  ];
+  const evidenceRequirements: SafetyInspectionTemplateEvidenceRequirement[] = [
+    safetyEvidenceRequirement(templates[0].id, "PHOTO", "Panel/test point photo", true, 1, true, true, 1),
+    safetyEvidenceRequirement(templates[0].id, "SIGNATURE", "Inspector signature", true, 1, true, true, 2),
+    safetyEvidenceRequirement(templates[1].id, "READING", "Temperature readings", true, 2, true, true, 1),
+    safetyEvidenceRequirement(templates[1].id, "CERTIFICATE", "Water safety certificate", false, 1, true, true, 2),
+    safetyEvidenceRequirement(templates[2].id, "CERTIFICATE", "PAT certificate", true, 1, true, true, 1),
+    safetyEvidenceRequirement(templates[3].id, "PHOTO", "Call point evidence", false, 1, true, true, 1),
+  ];
+  const schedules: SafetyInspectionSchedule[] = [
+    safetySchedule("safety-schedule-fire-panel", categoryId("FIRE_SAFETY"), templates[0].id, "Main Fire Alarm Panel - Weekly Test", "facility:ballymore", undefined, "Ballymore Haven - Reception", "2026-07-15", "2026-07-22", "HIGH", true),
+    safetySchedule("safety-schedule-water", categoryId("WATER_SAFETY"), templates[1].id, "Monthly Water Temperature Checks", "asset-water-outlets-ballymore", undefined, "Ballymore Haven", "2026-07-01", "2026-07-21", "HIGH", true),
+    safetySchedule("safety-schedule-nurse-call-room3", categoryId("NURSE_CALL"), templates[3].id, "Room 3 Nurse Call Weekly Test", "room:r-w-oak-3", "r-w-oak-3", "Oak Wing - Room 3", "2026-07-15", "2026-07-24", "HIGH", false),
+  ];
+  const occurrences: SafetyInspectionOccurrence[] = [
+    safetyOccurrence("safety-occurrence-fire-panel", schedules[0], templates[0], "2026-07-22", "DUE_TODAY"),
+    safetyOccurrence("safety-occurrence-water-overdue", schedules[1], templates[1], "2026-07-21", "OVERDUE"),
+    safetyOccurrence("safety-occurrence-nurse-call", schedules[2], templates[3], "2026-07-24", "DUE_SOON"),
+  ];
+  const inspections: SafetyInspection[] = [
+    safetyInspection("safety-inspection-fire-completed", categoryId("FIRE_SAFETY"), templates[0].id, undefined, "facility:ballymore", "SC-2026-0001", "COMPLETED", "PASS", "VERIFIED", "2026-07-15", "u-7", false, true),
+    safetyInspection("safety-inspection-water-failed", categoryId("WATER_SAFETY"), templates[1].id, occurrences[1].id, "asset-water-outlets-ballymore", "SC-2026-0002", "FAILED", "FAIL", "PENDING", "2026-07-21", "u-7", true, true),
+  ];
+  occurrences[1].inspectionId = inspections[1].id;
+  occurrences[1].completedAt = inspections[1].completedAt;
+  const responses: SafetyInspectionResponse[] = [
+    safetyResponse(inspections[0].id, items[0], "PASS", "Pass", "u-7", "2026-07-15T09:12:00.000Z"),
+    safetyResponse(inspections[0].id, items[1], "PASS", "Pass", "u-7", "2026-07-15T09:14:00.000Z"),
+    safetyResponse(inspections[0].id, items[2], "PASS", "Pass", "u-7", "2026-07-15T09:16:00.000Z"),
+    safetyResponse(inspections[0].id, items[3], "PASS", "Confirmed", "u-7", "2026-07-15T09:18:00.000Z"),
+    safetyResponse(inspections[1].id, items[4], "PASS", "52", "u-7", "2026-07-21T10:05:00.000Z"),
+    safetyResponse(inspections[1].id, items[5], "FAIL", "24", "u-7", "2026-07-21T10:08:00.000Z", "Cold water reading above configured range."),
+    safetyResponse(inspections[1].id, items[6], "PASS", "Yes", "u-7", "2026-07-21T10:10:00.000Z"),
+  ];
+  const observations: SafetyInspectionObservation[] = [
+    {
+      id: "safety-observation-water-1",
+      inspectionId: inspections[1].id,
+      responseId: responses[5].id,
+      observationType: "READING_OUT_OF_RANGE",
+      description: "Cold water sentinel outlet reading recorded at 24C. Outlet flushed and maintenance review required.",
+      severity: "HIGH",
+      assetId: "asset-water-outlets-ballymore",
+      immediateActionRequired: true,
+      immediateActionTaken: "Outlet flushed and marked for maintenance review.",
+      correctiveActionRequired: true,
+      correctiveWorkOrderId: "maintenance-work-order-seed-3",
+      createdBy: "L. Hartley",
+      createdAt: "2026-07-21T10:12:00.000Z",
+    },
+  ];
+  const inspectionEvidence: SafetyInspectionEvidence[] = [
+    { id: "safety-evidence-fire-photo", inspectionId: inspections[0].id, evidenceType: "PHOTO", fileReference: "safety/fire-panel-test.jpg", fileName: "fire-panel-test.jpg", caption: "Panel normal after weekly test", uploadedBy: "L. Hartley", uploadedAt: "2026-07-15T09:20:00.000Z", active: true },
+    { id: "safety-evidence-water-reading", inspectionId: inspections[1].id, responseId: responses[5].id, evidenceType: "READING", fileReference: "safety/water-reading-2026-07-21", fileName: "water-reading-2026-07-21.txt", caption: "Cold water reading 24C", uploadedBy: "L. Hartley", uploadedAt: "2026-07-21T10:12:00.000Z", active: true },
+  ];
+  const certificates: SafetyCertificate[] = [
+    {
+      id: "safety-certificate-fire-2026",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      facilityId: BALLYMORE_FACILITY_ID,
+      categoryId: categoryId("FIRE_SAFETY"),
+      inspectionId: inspections[0].id,
+      assetId: "facility:ballymore",
+      certificateType: "Fire Alarm Test Certificate",
+      certificateNumber: "FIRE-2026-0715",
+      issuedBy: "SafeFire Ireland",
+      issuedDate: "2026-07-15",
+      validFrom: "2026-07-15",
+      expiryDate: "2026-10-15",
+      status: "VALID",
+      fileReference: "safety/certificates/fire-2026-0715.pdf",
+      createdBy: "L. Hartley",
+      createdAt: "2026-07-15T09:25:00.000Z",
+    },
+  ];
+  const verifications: SafetyInspectionVerification[] = [
+    { id: "safety-verification-fire-1", inspectionId: inspections[0].id, verificationStatus: "VERIFIED", verificationOutcome: "VERIFIED", verifiedBy: "A. Murphy", verifiedAt: "2026-07-15T11:00:00.000Z", verificationNotes: "Evidence and checklist reviewed.", createdAt: "2026-07-15T10:45:00.000Z", updatedAt: "2026-07-15T11:00:00.000Z", version: 1 },
+    { id: "safety-verification-water-1", inspectionId: inspections[1].id, verificationStatus: "PENDING", assignedVerificationTeamId: "maintenance", verificationNotes: "Review corrective work order and reinspection plan.", createdAt: "2026-07-21T10:20:00.000Z", updatedAt: "2026-07-21T10:20:00.000Z", version: 1 },
+  ];
+  return { categories, templates, items, evidenceRequirements, schedules, occurrences, inspections, responses, observations, inspectionEvidence, certificates, verifications };
+}
+
+function safetyTemplate(id: string, categoryId: string, name: string, description: string, code: string, frequencyType: PlannedMaintenanceFrequencyType, frequencyInterval: number, priority: MaintenanceWorkOrder["priority"], verificationRequired: boolean, certificateRequired: boolean, evidenceRequired: boolean, instructions: string): SafetyInspectionTemplate {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, categoryId, name, description, templateCode: code, version: 1, status: "ACTIVE", active: true, defaultFrequencyType: frequencyType, defaultFrequencyInterval: frequencyInterval, estimatedDurationMinutes: 30, defaultPriority: priority, verificationRequired, certificateRequired, evidenceRequired, instructions, safetyPrecautions: "Use local safety procedures and isolate equipment where required.", effectiveFrom: "2026-07-01", createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z", updatedBy: "System", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function safetyItem(templateId: string, sectionName: string, itemCode: string, label: string, responseType: SafetyChecklistResponseType, displayOrder: number, mandatory: boolean, corrective: boolean, evidence: boolean, severity: SafetySeverity, minValue?: number, maxValue?: number, unit?: string): SafetyInspectionTemplateItem {
+  return { id: `safety-item-${templateId}-${itemCode.toLowerCase()}`, templateId, sectionName, itemCode, label, responseType, mandatory, allowNotApplicable: responseType.includes("_NA"), failureTriggersCorrectiveAction: corrective, failureRequiresObservation: corrective, failureRequiresPhoto: evidence && responseType !== "CERTIFICATE_CONFIRMATION", failureRequiresEvidence: evidence, failureSeverity: severity, minValue, maxValue, unit, displayOrder, active: true, createdAt: "2026-07-21T08:30:00.000Z", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function safetyEvidenceRequirement(templateId: string, evidenceType: SafetyEvidenceType, label: string, mandatory: boolean, minimumCount: number, appliesOnPass: boolean, appliesOnFail: boolean, displayOrder: number): SafetyInspectionTemplateEvidenceRequirement {
+  return { id: `safety-evidence-req-${templateId}-${displayOrder}`, templateId, evidenceType, label, mandatory, minimumCount, appliesOnPass, appliesOnFail, displayOrder };
+}
+
+function safetySchedule(id: string, categoryId: string, templateId: string, scheduleName: string, assetId: string | undefined, locationId: string | undefined, locationLabel: string, startDate: string, nextDueDate: string, priority: MaintenanceWorkOrder["priority"], verification: boolean): SafetyInspectionSchedule {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, categoryId, templateId, assetId, locationId, locationLabel, scheduleName, frequencyType: "weekly", frequencyInterval: 1, startDate, nextDueDate, generateDaysBeforeDue: 7, dueSoonDays: 7, responsibleTeamId: "maintenance", verificationTeamId: verification ? "maintenance-leads" : undefined, active: true, paused: false, priority, autoCreateInspection: true, autoCreateCorrectiveWorkOrder: true, createdBy: "System", createdAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function safetyOccurrence(id: string, schedule: SafetyInspectionSchedule, template: SafetyInspectionTemplate, dueDate: string, status: SafetyInspectionOccurrence["status"]): SafetyInspectionOccurrence {
+  return { id, tenantId: "tenant-oritas-demo", homeId: schedule.homeId, facilityId: schedule.homeId, scheduleId: schedule.id, categoryId: schedule.categoryId, templateId: template.id, templateVersion: template.version, assetId: schedule.assetId, locationId: schedule.locationId, plannedDate: dueDate, dueDate, status, priority: schedule.priority, assignedTeamId: schedule.responsibleTeamId, assignedUserId: schedule.responsibleUserId, generatedAt: "2026-07-21T08:30:00.000Z", createdAt: "2026-07-21T08:30:00.000Z", updatedAt: "2026-07-21T08:30:00.000Z" };
+}
+
+function safetyInspection(id: string, categoryId: string, templateId: string, occurrenceId: string | undefined, assetId: string | undefined, number: string, status: SafetyInspection["status"], result: SafetyInspection["overallResult"], verificationStatus: SafetyInspection["verificationStatus"], date: string, user: string, corrective: boolean, certificateRequired: boolean): SafetyInspection {
+  return { id, tenantId: "tenant-oritas-demo", homeId: BALLYMORE_FACILITY_ID, facilityId: BALLYMORE_FACILITY_ID, occurrenceId, scheduleId: occurrenceId ? "safety-schedule-water" : undefined, templateId, templateVersion: 1, categoryId, assetId, inspectionNumber: number, inspectionType: occurrenceId ? "SCHEDULED" : "AD_HOC", status, overallResult: result, priority: "HIGH", startedBy: user, startedAt: `${date}T10:00:00.000Z`, completedBy: user, completedAt: `${date}T10:20:00.000Z`, inspectionDate: date, observations: corrective ? "Corrective action required." : "Inspection completed.", summary: result === "FAIL" ? "One or more safety items failed." : "No defects identified.", riskIdentified: result === "FAIL", riskLevel: result === "FAIL" ? "HIGH" : undefined, correctiveActionRequired: corrective, correctiveWorkOrderId: corrective ? "maintenance-work-order-seed-3" : undefined, certificateRequired, verificationRequired: verificationStatus !== "NOT_REQUIRED", verificationStatus, verifiedBy: verificationStatus === "VERIFIED" ? "A. Murphy" : undefined, verifiedAt: verificationStatus === "VERIFIED" ? `${date}T11:00:00.000Z` : undefined, declarationAccepted: true, declarationBy: user, declarationAt: `${date}T10:20:00.000Z`, createdAt: `${date}T10:00:00.000Z`, updatedAt: `${date}T10:20:00.000Z`, version: 1 };
+}
+
+function safetyResponse(inspectionId: string, item: SafetyInspectionTemplateItem, result: SafetyInspectionResponse["result"], value: string, user: string, at: string, observation?: string): SafetyInspectionResponse {
+  return { id: `safety-response-${inspectionId}-${item.itemCode}`, inspectionId, templateItemId: item.id, templateItemCode: item.itemCode, sectionName: item.sectionName, questionLabelSnapshot: item.label, responseType: item.responseType, responseValue: value, result, observation, mandatory: item.mandatory, failureSeverity: item.failureSeverity, correctiveActionRequired: item.failureTriggersCorrectiveAction, evidenceRequired: item.failureRequiresEvidence || item.failureRequiresPhoto, answeredBy: user, answeredAt: at, displayOrder: item.displayOrder };
 }
 
 function seedMaintenanceTemplates() {
@@ -2656,6 +2823,7 @@ function seedData() {
     }
   }
   const maintenanceTemplateSeed = seedMaintenanceTemplates();
+  const safetyComplianceSeed = seedSafetyComplianceData();
 
   return {
     enterprises: ENTERPRISES_SEED,
@@ -2830,6 +2998,18 @@ function seedData() {
     maintenanceTemplateEvidence: maintenanceTemplateSeed.evidence,
     plannedMaintenanceSchedules: seedPlannedMaintenanceSchedules(),
     plannedMaintenanceOccurrences: seedPlannedMaintenanceOccurrences(),
+    safetyCategories: safetyComplianceSeed.categories,
+    safetyInspectionTemplates: safetyComplianceSeed.templates,
+    safetyInspectionTemplateItems: safetyComplianceSeed.items,
+    safetyInspectionTemplateEvidenceRequirements: safetyComplianceSeed.evidenceRequirements,
+    safetyInspectionSchedules: safetyComplianceSeed.schedules,
+    safetyInspectionOccurrences: safetyComplianceSeed.occurrences,
+    safetyInspections: safetyComplianceSeed.inspections,
+    safetyInspectionResponses: safetyComplianceSeed.responses,
+    safetyInspectionObservations: safetyComplianceSeed.observations,
+    safetyInspectionEvidence: safetyComplianceSeed.inspectionEvidence,
+    safetyCertificates: safetyComplianceSeed.certificates,
+    safetyInspectionVerifications: safetyComplianceSeed.verifications,
     workOrderNotes: [] as WorkOrderNote[],
     workOrderAttachments: [] as WorkOrderAttachment[],
     workOrderLabourEntries: [] as WorkOrderLabourEntry[],
@@ -2919,6 +3099,12 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "maintenanceTemplates",
   "plannedMaintenanceSchedules",
   "plannedMaintenanceOccurrences",
+  "safetyInspectionTemplates",
+  "safetyInspectionSchedules",
+  "safetyInspectionOccurrences",
+  "safetyInspections",
+  "safetyInspectionEvidence",
+  "safetyCertificates",
   "workOrderNotes",
   "workOrderAttachments",
   "workOrderLabourEntries",
@@ -3531,6 +3717,39 @@ interface CareCtx extends Store {
   skipPlannedMaintenanceOccurrence: (id: string, reason: string) => void;
   cancelPlannedMaintenanceOccurrence: (id: string, reason: string) => void;
   generatePlannedMaintenanceWorkOrder: (occurrenceId: string) => MaintenanceWorkOrder;
+  createSafetyCategory: (input: Partial<SafetyCategory> & { code: SafetyCategoryCode; name: string }) => SafetyCategory;
+  updateSafetyCategory: (id: string, input: Partial<SafetyCategory>) => void;
+  activateSafetyCategory: (id: string) => void;
+  deactivateSafetyCategory: (id: string) => void;
+  createSafetyTemplate: (input: Partial<SafetyInspectionTemplate> & { name: string; categoryId: string; checklist?: Partial<SafetyInspectionTemplateItem>[]; evidence?: Partial<SafetyInspectionTemplateEvidenceRequirement>[] }) => SafetyInspectionTemplate;
+  updateSafetyTemplate: (id: string, input: Partial<SafetyInspectionTemplate> & { checklist?: Partial<SafetyInspectionTemplateItem>[]; evidence?: Partial<SafetyInspectionTemplateEvidenceRequirement>[] }) => void;
+  duplicateSafetyTemplate: (id: string) => SafetyInspectionTemplate | undefined;
+  activateSafetyTemplate: (id: string) => void;
+  deactivateSafetyTemplate: (id: string) => void;
+  archiveSafetyTemplate: (id: string, reason: string) => void;
+  createSafetySchedule: (input: Partial<SafetyInspectionSchedule>) => SafetyInspectionSchedule;
+  updateSafetySchedule: (id: string, input: Partial<SafetyInspectionSchedule>) => void;
+  pauseSafetySchedule: (id: string, reason: string) => void;
+  resumeSafetySchedule: (id: string) => void;
+  activateSafetySchedule: (id: string) => void;
+  deactivateSafetySchedule: (id: string) => void;
+  generateSafetyOccurrence: (scheduleId: string) => SafetyInspectionOccurrence;
+  startSafetyInspection: (occurrenceId: string) => SafetyInspection;
+  createAdHocSafetyInspection: (input: { templateId: string; assetId?: string; locationId?: string; locationLabel?: string }) => SafetyInspection;
+  updateSafetyInspectionResponse: (responseId: string, input: { responseValue?: string; result?: SafetyInspectionResponse["result"]; observation?: string; notApplicableReason?: string }) => void;
+  addSafetyObservation: (inspectionId: string, input: Partial<SafetyInspectionObservation> & { description: string; severity: SafetySeverity }) => SafetyInspectionObservation;
+  updateSafetyObservation: (id: string, input: Partial<SafetyInspectionObservation>) => void;
+  deleteSafetyObservation: (id: string) => void;
+  addSafetyEvidence: (inspectionId: string, input: { evidenceType: SafetyEvidenceType; fileName: string; fileReference?: string; responseId?: string; observationId?: string; caption?: string; description?: string }) => SafetyInspectionEvidence;
+  deleteSafetyEvidence: (id: string, reason: string) => void;
+  completeSafetyInspection: (id: string, input: { summary?: string; immediateActionsTaken?: string; declarationAccepted: boolean }) => SafetyInspection;
+  verifySafetyInspection: (id: string, notes?: string) => SafetyInspectionVerification;
+  rejectSafetyInspection: (id: string, input: { reasonCode: SafetyVerificationRejectionReason; details: string }) => SafetyInspectionVerification;
+  createSafetyCorrectiveWorkOrder: (inspectionId: string, observationId?: string) => MaintenanceWorkOrder;
+  createSafetyCertificate: (input: Partial<SafetyCertificate> & { categoryId: string; certificateType: string; certificateNumber: string; issuedBy: string; issuedDate: string; validFrom: string; expiryDate: string }) => SafetyCertificate;
+  updateSafetyCertificate: (id: string, input: Partial<SafetyCertificate>) => void;
+  revokeSafetyCertificate: (id: string, reason: string) => void;
+  supersedeSafetyCertificate: (id: string, replacementId?: string) => void;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
   workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
@@ -8070,6 +8289,211 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }));
         return workOrder;
       },
+      createSafetyCategory: (input) => {
+        const validation = validateSafetyCategory(input, store.safetyCategories);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the category details.");
+        const now = new Date().toISOString();
+        const category: SafetyCategory = { ...input, id: `safety-category-${uid()}`, tenantId: "tenant-oritas-demo", description: input.description || "", colour: input.colour || "#2563eb", icon: input.icon || "shield", active: input.active ?? true, displayOrder: input.displayOrder ?? store.safetyCategories.length + 1, defaultFrequencyType: input.defaultFrequencyType || "monthly", defaultFrequencyInterval: Number(input.defaultFrequencyInterval || 1), defaultPriority: input.defaultPriority || "MEDIUM", defaultVerificationRequired: Boolean(input.defaultVerificationRequired), defaultCertificateRequired: Boolean(input.defaultCertificateRequired), createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now } as SafetyCategory;
+        setStore((s) => ({ ...s, safetyCategories: [...s.safetyCategories, category] }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_CATEGORY_CREATED", entity: category.id, facilityId: activeFacilityId });
+        return category;
+      },
+      updateSafetyCategory: (id, input) => {
+        const current = store.safetyCategories.find((item) => item.id === id);
+        if (!current) throw new Error("Safety category not found.");
+        const validation = validateSafetyCategory({ ...current, ...input }, store.safetyCategories);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the category details.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyCategories: s.safetyCategories.map((item) => item.id === id ? { ...item, ...input, updatedBy: currentUserName, updatedAt: now } : item) }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_CATEGORY_UPDATED", entity: id, facilityId: activeFacilityId });
+      },
+      activateSafetyCategory: (id) => api.updateSafetyCategory(id, { active: true }),
+      deactivateSafetyCategory: (id) => {
+        if (store.safetyInspections.some((inspection) => inspection.categoryId === id)) api.updateSafetyCategory(id, { active: false });
+        else api.updateSafetyCategory(id, { active: false });
+      },
+      createSafetyTemplate: (input) => {
+        const validation = validateSafetyTemplate(input, store.safetyCategories);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the template details.");
+        const now = new Date().toISOString();
+        const template: SafetyInspectionTemplate = { id: `safety-template-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, categoryId: input.categoryId, name: input.name.trim(), description: input.description?.trim() || "", templateCode: input.templateCode?.trim() || `SC-${Date.now()}`, version: 1, status: input.status || "DRAFT", active: input.active ?? input.status === "ACTIVE", defaultFrequencyType: input.defaultFrequencyType || "monthly", defaultFrequencyInterval: Number(input.defaultFrequencyInterval || 1), estimatedDurationMinutes: Number(input.estimatedDurationMinutes || 30), defaultPriority: input.defaultPriority || "MEDIUM", verificationRequired: Boolean(input.verificationRequired), certificateRequired: Boolean(input.certificateRequired), evidenceRequired: Boolean(input.evidenceRequired), instructions: input.instructions?.trim() || "", safetyPrecautions: input.safetyPrecautions?.trim() || "", applicableAssetCategoryIds: input.applicableAssetCategoryIds || [], applicableLocationTypes: input.applicableLocationTypes || [], effectiveFrom: input.effectiveFrom || new Date().toISOString().slice(0, 10), effectiveTo: input.effectiveTo, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        const checklist = (input.checklist?.length ? input.checklist : [{ sectionName: "General Condition", label: "Inspection item checked", responseType: "PASS_FAIL", mandatory: true }]).map((item, index) => ({ id: `safety-item-${uid()}`, templateId: template.id, sectionName: item.sectionName || "General", itemCode: item.itemCode || `ITEM_${index + 1}`, label: item.label || "Inspection item", description: item.description, responseType: item.responseType || "PASS_FAIL", mandatory: item.mandatory ?? true, allowNotApplicable: item.allowNotApplicable ?? false, failureTriggersCorrectiveAction: item.failureTriggersCorrectiveAction ?? true, failureRequiresObservation: item.failureRequiresObservation ?? true, failureRequiresPhoto: item.failureRequiresPhoto ?? false, failureRequiresEvidence: item.failureRequiresEvidence ?? false, failureSeverity: item.failureSeverity || "MEDIUM", minValue: item.minValue, maxValue: item.maxValue, unit: item.unit, displayOrder: index + 1, helpText: item.helpText, active: item.active ?? true, createdAt: now, updatedAt: now } satisfies SafetyInspectionTemplateItem));
+        const evidence = (input.evidence || []).map((item, index) => ({ id: `safety-evidence-req-${uid()}`, templateId: template.id, evidenceType: item.evidenceType || "PHOTO", label: item.label || "Evidence", description: item.description, mandatory: item.mandatory ?? false, minimumCount: Number(item.minimumCount || 1), appliesOnPass: item.appliesOnPass ?? true, appliesOnFail: item.appliesOnFail ?? true, displayOrder: index + 1 } satisfies SafetyInspectionTemplateEvidenceRequirement));
+        setStore((s) => ({ ...s, safetyInspectionTemplates: [template, ...s.safetyInspectionTemplates], safetyInspectionTemplateItems: [...checklist, ...s.safetyInspectionTemplateItems], safetyInspectionTemplateEvidenceRequirements: [...evidence, ...s.safetyInspectionTemplateEvidenceRequirements] }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_TEMPLATE_CREATED", entity: template.id, facilityId: template.homeId });
+        return template;
+      },
+      updateSafetyTemplate: (id, input) => {
+        const current = store.safetyInspectionTemplates.find((item) => item.id === id);
+        if (!current) throw new Error("Safety template not found.");
+        if (current.status === "ARCHIVED") throw new Error("Archived templates cannot be edited.");
+        const validation = validateSafetyTemplate({ ...current, ...input }, store.safetyCategories);
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the template details.");
+        const now = new Date().toISOString();
+        const hasHistory = store.safetyInspections.some((inspection) => inspection.templateId === id);
+        const next = { ...current, ...input, version: hasHistory ? current.version + 1 : current.version, updatedBy: currentUserName, updatedAt: now } as SafetyInspectionTemplate;
+        const checklist = input.checklist?.map((item, index) => ({ id: item.id || `safety-item-${uid()}`, templateId: id, sectionName: item.sectionName || "General", itemCode: item.itemCode || `ITEM_${index + 1}`, label: item.label || "Inspection item", description: item.description, responseType: item.responseType || "PASS_FAIL", mandatory: item.mandatory ?? true, allowNotApplicable: item.allowNotApplicable ?? false, failureTriggersCorrectiveAction: item.failureTriggersCorrectiveAction ?? true, failureRequiresObservation: item.failureRequiresObservation ?? true, failureRequiresPhoto: item.failureRequiresPhoto ?? false, failureRequiresEvidence: item.failureRequiresEvidence ?? false, failureSeverity: item.failureSeverity || "MEDIUM", minValue: item.minValue, maxValue: item.maxValue, unit: item.unit, displayOrder: index + 1, helpText: item.helpText, active: item.active ?? true, createdAt: now, updatedAt: now } satisfies SafetyInspectionTemplateItem));
+        const evidence = input.evidence?.map((item, index) => ({ id: item.id || `safety-evidence-req-${uid()}`, templateId: id, evidenceType: item.evidenceType || "PHOTO", label: item.label || "Evidence", description: item.description, mandatory: item.mandatory ?? false, minimumCount: Number(item.minimumCount || 1), appliesOnPass: item.appliesOnPass ?? true, appliesOnFail: item.appliesOnFail ?? true, displayOrder: index + 1 } satisfies SafetyInspectionTemplateEvidenceRequirement));
+        setStore((s) => ({ ...s, safetyInspectionTemplates: s.safetyInspectionTemplates.map((item) => item.id === id ? next : item), safetyInspectionTemplateItems: checklist ? [...s.safetyInspectionTemplateItems.filter((item) => item.templateId !== id), ...checklist] : s.safetyInspectionTemplateItems, safetyInspectionTemplateEvidenceRequirements: evidence ? [...s.safetyInspectionTemplateEvidenceRequirements.filter((item) => item.templateId !== id), ...evidence] : s.safetyInspectionTemplateEvidenceRequirements }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_TEMPLATE_UPDATED", entity: id, facilityId: next.homeId });
+      },
+      duplicateSafetyTemplate: (id) => {
+        const source = store.safetyInspectionTemplates.find((item) => item.id === id);
+        if (!source) return undefined;
+        return api.createSafetyTemplate({ ...source, id: undefined, name: `${source.name} Copy`, templateCode: `${source.templateCode}-COPY`, status: "DRAFT", active: false, checklist: store.safetyInspectionTemplateItems.filter((item) => item.templateId === id), evidence: store.safetyInspectionTemplateEvidenceRequirements.filter((item) => item.templateId === id) });
+      },
+      activateSafetyTemplate: (id) => api.updateSafetyTemplate(id, { active: true, status: "ACTIVE" }),
+      deactivateSafetyTemplate: (id) => api.updateSafetyTemplate(id, { active: false, status: "INACTIVE" }),
+      archiveSafetyTemplate: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter an archive reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyInspectionTemplates: s.safetyInspectionTemplates.map((item) => item.id === id ? { ...item, active: false, status: "ARCHIVED", archivedAt: now, archivedBy: currentUserName, updatedBy: currentUserName, updatedAt: now } : item) }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_TEMPLATE_ARCHIVED", entity: id, reason, facilityId: activeFacilityId });
+      },
+      createSafetySchedule: (input) => {
+        const validation = validateSafetySchedule(input, { categories: store.safetyCategories, templates: store.safetyInspectionTemplates, assets: store.maintenanceAssets });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the schedule details.");
+        const template = store.safetyInspectionTemplates.find((item) => item.id === input.templateId)!;
+        const now = new Date().toISOString();
+        const schedule: SafetyInspectionSchedule = { id: `safety-schedule-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, categoryId: input.categoryId!, templateId: input.templateId!, assetId: input.assetId, locationId: input.locationId, locationLabel: input.locationLabel, scheduleName: input.scheduleName || template.name, frequencyType: input.frequencyType || template.defaultFrequencyType, frequencyInterval: Number(input.frequencyInterval || template.defaultFrequencyInterval || 1), startDate: input.startDate || new Date().toISOString().slice(0, 10), endDate: input.endDate, nextDueDate: input.nextDueDate || input.startDate || new Date().toISOString().slice(0, 10), generateDaysBeforeDue: Number(input.generateDaysBeforeDue ?? 7), dueSoonDays: Number(input.dueSoonDays ?? 7), responsibleTeamId: input.responsibleTeamId || "maintenance", responsibleUserId: input.responsibleUserId, verificationTeamId: input.verificationTeamId, active: input.active ?? true, paused: false, priority: input.priority || template.defaultPriority, autoCreateInspection: input.autoCreateInspection ?? true, autoCreateCorrectiveWorkOrder: input.autoCreateCorrectiveWorkOrder ?? true, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({ ...s, safetyInspectionSchedules: [schedule, ...s.safetyInspectionSchedules] }));
+        logAudit({ user: currentUserName, role: currentRole, action: "SAFETY_SCHEDULE_CREATED", entity: schedule.id, facilityId: schedule.homeId });
+        return schedule;
+      },
+      updateSafetySchedule: (id, input) => {
+        const current = store.safetyInspectionSchedules.find((item) => item.id === id);
+        if (!current) throw new Error("Safety schedule not found.");
+        const validation = validateSafetySchedule({ ...current, ...input }, { categories: store.safetyCategories, templates: store.safetyInspectionTemplates, assets: store.maintenanceAssets });
+        if (!validation.valid) throw new Error(Object.values(validation.fieldErrors)[0] || "Check the schedule details.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyInspectionSchedules: s.safetyInspectionSchedules.map((item) => item.id === id ? { ...item, ...input, updatedBy: currentUserName, updatedAt: now } : item) }));
+      },
+      pauseSafetySchedule: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a pause reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyInspectionSchedules: s.safetyInspectionSchedules.map((item) => item.id === id ? { ...item, paused: true, pausedAt: now, pausedBy: currentUserName, pauseReason: reason, updatedAt: now, updatedBy: currentUserName } : item) }));
+      },
+      resumeSafetySchedule: (id) => setStore((s) => ({ ...s, safetyInspectionSchedules: s.safetyInspectionSchedules.map((item) => item.id === id ? { ...item, paused: false, pausedAt: undefined, pausedBy: undefined, pauseReason: undefined, updatedAt: new Date().toISOString(), updatedBy: currentUserName } : item) })),
+      activateSafetySchedule: (id) => api.updateSafetySchedule(id, { active: true }),
+      deactivateSafetySchedule: (id) => api.updateSafetySchedule(id, { active: false }),
+      generateSafetyOccurrence: (scheduleId) => {
+        const schedule = store.safetyInspectionSchedules.find((item) => item.id === scheduleId);
+        if (!schedule) throw new Error("Safety schedule not found.");
+        if (!schedule.active || schedule.paused) throw new Error("Paused or inactive schedules cannot generate occurrences.");
+        if (store.safetyInspectionOccurrences.some((item) => item.scheduleId === schedule.id && item.dueDate === schedule.nextDueDate)) throw new Error("This occurrence has already been generated.");
+        const template = store.safetyInspectionTemplates.find((item) => item.id === schedule.templateId);
+        if (!template) throw new Error("Safety template not found.");
+        const now = new Date().toISOString();
+        const occurrence: SafetyInspectionOccurrence = { id: `safety-occurrence-${uid()}`, tenantId: "tenant-oritas-demo", homeId: schedule.homeId, facilityId: schedule.homeId, scheduleId: schedule.id, categoryId: schedule.categoryId, templateId: template.id, templateVersion: template.version, assetId: schedule.assetId, locationId: schedule.locationId, plannedDate: schedule.nextDueDate, dueDate: schedule.nextDueDate, status: safetyPresentationStatus({ dueDate: schedule.nextDueDate, status: "SCHEDULED" } as SafetyInspectionOccurrence), priority: schedule.priority, assignedTeamId: schedule.responsibleTeamId, assignedUserId: schedule.responsibleUserId, generatedAt: now, createdAt: now, updatedAt: now };
+        const nextDueDate = nextSafetyDueDate(schedule.nextDueDate, schedule.frequencyType, schedule.frequencyInterval);
+        setStore((s) => ({ ...s, safetyInspectionOccurrences: [occurrence, ...s.safetyInspectionOccurrences], safetyInspectionSchedules: s.safetyInspectionSchedules.map((item) => item.id === schedule.id ? { ...item, lastDueDate: schedule.nextDueDate, nextDueDate, updatedAt: now, updatedBy: currentUserName } : item) }));
+        return occurrence;
+      },
+      startSafetyInspection: (occurrenceId) => {
+        const occurrence = store.safetyInspectionOccurrences.find((item) => item.id === occurrenceId);
+        if (!occurrence) throw new Error("Safety occurrence not found.");
+        if (occurrence.inspectionId) {
+          const existing = store.safetyInspections.find((item) => item.id === occurrence.inspectionId);
+          if (existing) return existing;
+        }
+        const template = store.safetyInspectionTemplates.find((item) => item.id === occurrence.templateId);
+        if (!template) throw new Error("Safety template not found.");
+        const now = new Date().toISOString();
+        const inspection: SafetyInspection = { id: `safety-inspection-${uid()}`, tenantId: "tenant-oritas-demo", homeId: occurrence.homeId, facilityId: occurrence.homeId, occurrenceId: occurrence.id, scheduleId: occurrence.scheduleId, templateId: template.id, templateVersion: occurrence.templateVersion, categoryId: occurrence.categoryId, assetId: occurrence.assetId, locationId: occurrence.locationId, inspectionNumber: `SC-${new Date().getFullYear()}-${String(store.safetyInspections.length + 1).padStart(4, "0")}`, inspectionType: "SCHEDULED", status: "IN_PROGRESS", overallResult: "NOT_COMPLETED", priority: occurrence.priority, startedBy: currentUserName, startedAt: now, inspectionDate: now.slice(0, 10), riskIdentified: false, correctiveActionRequired: false, certificateRequired: template.certificateRequired, verificationRequired: template.verificationRequired, verificationStatus: template.verificationRequired ? "PENDING" : "NOT_REQUIRED", declarationAccepted: false, createdAt: now, updatedAt: now, version: 1 };
+        const responses = createSafetyResponsesFromTemplate(inspection.id, store.safetyInspectionTemplateItems.filter((item) => item.templateId === template.id), currentUserName, now);
+        setStore((s) => ({ ...s, safetyInspections: [inspection, ...s.safetyInspections], safetyInspectionResponses: [...responses, ...s.safetyInspectionResponses], safetyInspectionOccurrences: s.safetyInspectionOccurrences.map((item) => item.id === occurrence.id ? { ...item, status: "IN_PROGRESS", inspectionId: inspection.id, updatedAt: now } : item) }));
+        return inspection;
+      },
+      createAdHocSafetyInspection: (input) => {
+        const template = store.safetyInspectionTemplates.find((item) => item.id === input.templateId && item.active);
+        if (!template) throw new Error("Select an active safety template.");
+        const now = new Date().toISOString();
+        const occurrence: SafetyInspectionOccurrence = { id: `safety-occurrence-ad-hoc-${uid()}`, tenantId: "tenant-oritas-demo", homeId: template.homeId || activeFacilityId, facilityId: template.homeId || activeFacilityId, scheduleId: "", categoryId: template.categoryId, templateId: template.id, templateVersion: template.version, assetId: input.assetId, locationId: input.locationId, plannedDate: now.slice(0, 10), dueDate: now.slice(0, 10), status: "IN_PROGRESS", priority: template.defaultPriority, generatedAt: now, createdAt: now, updatedAt: now };
+        const inspection: SafetyInspection = { id: `safety-inspection-${uid()}`, tenantId: "tenant-oritas-demo", homeId: occurrence.homeId, facilityId: occurrence.homeId, occurrenceId: occurrence.id, templateId: template.id, templateVersion: template.version, categoryId: template.categoryId, assetId: input.assetId, locationId: input.locationId, inspectionNumber: `SC-${new Date().getFullYear()}-${String(store.safetyInspections.length + 1).padStart(4, "0")}`, inspectionType: "AD_HOC", status: "IN_PROGRESS", overallResult: "NOT_COMPLETED", priority: template.defaultPriority, startedBy: currentUserName, startedAt: now, inspectionDate: now.slice(0, 10), riskIdentified: false, correctiveActionRequired: false, certificateRequired: template.certificateRequired, verificationRequired: template.verificationRequired, verificationStatus: template.verificationRequired ? "PENDING" : "NOT_REQUIRED", declarationAccepted: false, createdAt: now, updatedAt: now, version: 1 };
+        const responses = createSafetyResponsesFromTemplate(inspection.id, store.safetyInspectionTemplateItems.filter((item) => item.templateId === template.id), currentUserName, now);
+        occurrence.inspectionId = inspection.id;
+        setStore((s) => ({ ...s, safetyInspectionOccurrences: [occurrence, ...s.safetyInspectionOccurrences], safetyInspections: [inspection, ...s.safetyInspections], safetyInspectionResponses: [...responses, ...s.safetyInspectionResponses] }));
+        return inspection;
+      },
+      updateSafetyInspectionResponse: (responseId, input) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyInspectionResponses: s.safetyInspectionResponses.map((item) => item.id === responseId ? { ...item, ...input, result: input.result || (input.responseValue === undefined ? item.result : responseResultFromValue(input.responseValue)), answeredBy: currentUserName, answeredAt: now } : item) }));
+      },
+      addSafetyObservation: (inspectionId, input) => {
+        const inspection = store.safetyInspections.find((item) => item.id === inspectionId);
+        if (!inspection || ["COMPLETED", "FAILED"].includes(inspection.status)) throw new Error("Inspection is not editable.");
+        const now = new Date().toISOString();
+        const observation: SafetyInspectionObservation = { id: `safety-observation-${uid()}`, inspectionId, responseId: input.responseId, observationType: input.observationType || "GENERAL", description: input.description.trim(), severity: input.severity, locationId: input.locationId || inspection.locationId, assetId: input.assetId || inspection.assetId, immediateActionRequired: Boolean(input.immediateActionRequired), immediateActionTaken: input.immediateActionTaken, correctiveActionRequired: Boolean(input.correctiveActionRequired), correctiveWorkOrderId: input.correctiveWorkOrderId, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({ ...s, safetyInspectionObservations: [observation, ...s.safetyInspectionObservations] }));
+        return observation;
+      },
+      updateSafetyObservation: (id, input) => setStore((s) => ({ ...s, safetyInspectionObservations: s.safetyInspectionObservations.map((item) => item.id === id ? { ...item, ...input, updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) })),
+      deleteSafetyObservation: (id) => setStore((s) => ({ ...s, safetyInspectionObservations: s.safetyInspectionObservations.filter((item) => item.id !== id) })),
+      addSafetyEvidence: (inspectionId, input) => {
+        const inspection = store.safetyInspections.find((item) => item.id === inspectionId);
+        if (!inspection) throw new Error("Inspection not found.");
+        const now = new Date().toISOString();
+        const evidence: SafetyInspectionEvidence = { id: `safety-evidence-${uid()}`, inspectionId, responseId: input.responseId, observationId: input.observationId, evidenceType: input.evidenceType, fileReference: input.fileReference || `safety/${inspectionId}/${input.fileName}`, fileName: input.fileName.trim(), caption: input.caption, description: input.description, uploadedBy: currentUserName, uploadedAt: now, active: true };
+        setStore((s) => ({ ...s, safetyInspectionEvidence: [evidence, ...s.safetyInspectionEvidence] }));
+        return evidence;
+      },
+      deleteSafetyEvidence: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a delete reason.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, safetyInspectionEvidence: s.safetyInspectionEvidence.map((item) => item.id === id ? { ...item, active: false, deletedAt: now, deletedBy: currentUserName } : item) }));
+      },
+      completeSafetyInspection: (id, input) => {
+        const inspection = store.safetyInspections.find((item) => item.id === id);
+        if (!inspection) throw new Error("Inspection not found.");
+        if (["COMPLETED", "FAILED"].includes(inspection.status)) throw new Error("Inspection has already been completed.");
+        const evaluation = evaluateSafetyInspection({ inspection: { ...inspection, declarationAccepted: input.declarationAccepted }, responses: store.safetyInspectionResponses.filter((item) => item.inspectionId === id), observations: store.safetyInspectionObservations.filter((item) => item.inspectionId === id), evidence: store.safetyInspectionEvidence.filter((item) => item.inspectionId === id), requirements: store.safetyInspectionTemplateEvidenceRequirements.filter((item) => item.templateId === inspection.templateId), certificate: store.safetyCertificates.find((item) => item.inspectionId === id) });
+        if (!evaluation.canComplete) throw new Error(evaluation.blockers[0] || "Inspection cannot be completed.");
+        const now = new Date().toISOString();
+        const next: SafetyInspection = { ...inspection, status: evaluation.nextStatus, overallResult: evaluation.overallResult, summary: input.summary, immediateActionsTaken: input.immediateActionsTaken, riskIdentified: evaluation.overallResult === "FAIL", correctiveActionRequired: evaluation.failedResponses.some((item) => item.correctiveActionRequired), completedBy: currentUserName, completedAt: now, declarationAccepted: true, declarationBy: currentUserName, declarationAt: now, verificationStatus: evaluation.nextStatus === "AWAITING_VERIFICATION" || evaluation.nextStatus === "FAILED" && inspection.verificationRequired ? "PENDING" : inspection.verificationStatus, updatedAt: now, version: inspection.version + 1 };
+        setStore((s) => ({ ...s, safetyInspections: s.safetyInspections.map((item) => item.id === id ? next : item), safetyInspectionOccurrences: s.safetyInspectionOccurrences.map((item) => item.inspectionId === id || item.id === inspection.occurrenceId ? { ...item, status: next.status === "FAILED" ? "FAILED" : next.status === "AWAITING_VERIFICATION" ? "AWAITING_VERIFICATION" : "COMPLETED", completedAt: now, updatedAt: now } : item) }));
+        return next;
+      },
+      verifySafetyInspection: (id, notes) => {
+        const inspection = store.safetyInspections.find((item) => item.id === id);
+        if (!inspection) throw new Error("Inspection not found.");
+        if (inspection.startedBy === currentUserName) throw new Error("Inspectors cannot verify their own inspection.");
+        const now = new Date().toISOString();
+        const verification: SafetyInspectionVerification = { id: `safety-verification-${uid()}`, inspectionId: id, verificationStatus: "VERIFIED", verificationOutcome: "VERIFIED", verificationNotes: notes, verifiedBy: currentUserName, verifiedAt: now, createdAt: now, updatedAt: now, version: 1 };
+        setStore((s) => ({ ...s, safetyInspectionVerifications: [verification, ...s.safetyInspectionVerifications], safetyInspections: s.safetyInspections.map((item) => item.id === id ? { ...item, verificationStatus: "VERIFIED", verifiedBy: currentUserName, verifiedAt: now, updatedAt: now, version: item.version + 1 } : item) }));
+        return verification;
+      },
+      rejectSafetyInspection: (id, input) => {
+        if (!input.details.trim()) throw new Error("Rejection details are required.");
+        const now = new Date().toISOString();
+        const verification: SafetyInspectionVerification = { id: `safety-verification-${uid()}`, inspectionId: id, verificationStatus: "REJECTED", verificationOutcome: "REJECTED", rejectionReasonCode: input.reasonCode, rejectionDetails: input.details, rejectedBy: currentUserName, rejectedAt: now, createdAt: now, updatedAt: now, version: 1 };
+        setStore((s) => ({ ...s, safetyInspectionVerifications: [verification, ...s.safetyInspectionVerifications], safetyInspections: s.safetyInspections.map((item) => item.id === id ? { ...item, status: "REJECTED", verificationStatus: "REJECTED", rejectionReason: input.details, updatedAt: now, version: item.version + 1 } : item) }));
+        return verification;
+      },
+      createSafetyCorrectiveWorkOrder: (inspectionId, observationId) => {
+        const inspection = store.safetyInspections.find((item) => item.id === inspectionId);
+        if (!inspection) throw new Error("Inspection not found.");
+        const observation = observationId ? store.safetyInspectionObservations.find((item) => item.id === observationId) : store.safetyInspectionObservations.find((item) => item.inspectionId === inspectionId && item.correctiveActionRequired);
+        if (observation?.correctiveWorkOrderId) {
+          const existing = store.maintenanceWorkOrders.find((item) => item.id === observation.correctiveWorkOrderId);
+          if (existing) return existing;
+        }
+        const category = store.safetyCategories.find((item) => item.id === inspection.categoryId);
+        const workOrder = api.addMaintenanceWorkOrder({ homeId: inspection.homeId, title: `${category?.name || "Safety"} corrective action - ${inspection.inspectionNumber}`, description: observation?.description || inspection.summary || "Corrective action required from Safety & Compliance inspection.", type: "INSPECTION_FOLLOW_UP", source: "INSPECTION", category: category?.code === "FIRE_SAFETY" ? "FIRE_SAFETY" : category?.code === "ELECTRICAL" ? "ELECTRICAL" : "OTHER", priority: inspection.priority, assetId: inspection.assetId, exactLocation: observation?.locationId || inspection.locationId, residentSafetyImpact: category?.code === "NURSE_CALL" || category?.code === "RESIDENT_EQUIPMENT", serviceDisruption: false, complianceImpact: true, immediateRisk: observation?.severity === "CRITICAL", immediateControlSummary: observation?.immediateActionTaken, verificationRequired: true });
+        setStore((s) => ({ ...s, safetyInspectionObservations: s.safetyInspectionObservations.map((item) => item.id === observation?.id ? { ...item, correctiveWorkOrderId: workOrder.id } : item), safetyInspections: s.safetyInspections.map((item) => item.id === inspectionId ? { ...item, correctiveWorkOrderId: workOrder.id, correctiveActionRequired: true } : item) }));
+        return workOrder;
+      },
+      createSafetyCertificate: (input) => {
+        const now = new Date().toISOString();
+        const certificate: SafetyCertificate = { id: `safety-certificate-${uid()}`, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, facilityId: input.homeId || activeFacilityId, categoryId: input.categoryId, inspectionId: input.inspectionId, assetId: input.assetId, locationId: input.locationId, certificateType: input.certificateType.trim(), certificateNumber: input.certificateNumber.trim(), issuedBy: input.issuedBy.trim(), issuedDate: input.issuedDate, validFrom: input.validFrom, expiryDate: input.expiryDate, status: input.status || "VALID", fileReference: input.fileReference, notes: input.notes, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now };
+        setStore((s) => ({ ...s, safetyCertificates: [certificate, ...s.safetyCertificates] }));
+        return certificate;
+      },
+      updateSafetyCertificate: (id, input) => setStore((s) => ({ ...s, safetyCertificates: s.safetyCertificates.map((item) => item.id === id ? { ...item, ...input, updatedBy: currentUserName, updatedAt: new Date().toISOString() } : item) })),
+      revokeSafetyCertificate: (id, reason) => {
+        if (!reason.trim()) throw new Error("Enter a revoke reason.");
+        api.updateSafetyCertificate(id, { status: "REVOKED", notes: reason });
+      },
+      supersedeSafetyCertificate: (id, replacementId) => api.updateSafetyCertificate(id, { status: "SUPERSEDED", notes: replacementId ? `Superseded by ${replacementId}` : "Superseded" }),
       addMaintenanceWorkOrder: (input) => {
         if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to create Work Orders for this Care Home.");

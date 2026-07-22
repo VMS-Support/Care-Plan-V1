@@ -2516,6 +2516,363 @@ export interface MaintenanceAssetRelationship {
   updatedAt?: string;
 }
 
+export type SafetyCategoryCode =
+  | "FIRE_SAFETY"
+  | "WATER_SAFETY"
+  | "ELECTRICAL"
+  | "HEATING"
+  | "NURSE_CALL"
+  | "KITCHEN_EQUIPMENT"
+  | "LAUNDRY_EQUIPMENT"
+  | "SLUICE_EQUIPMENT"
+  | "RESIDENT_EQUIPMENT";
+export type SafetyTemplateStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type SafetyChecklistResponseType =
+  | "PASS_FAIL"
+  | "PASS_FAIL_NA"
+  | "YES_NO"
+  | "YES_NO_NA"
+  | "TEXT"
+  | "NUMBER"
+  | "TEMPERATURE"
+  | "READING"
+  | "DATE"
+  | "PHOTO_CONFIRMATION"
+  | "CERTIFICATE_CONFIRMATION"
+  | "SIGNATURE_CONFIRMATION";
+export type SafetyEvidenceType = "PHOTO" | "DOCUMENT" | "CERTIFICATE" | "READING" | "SIGNATURE" | "VIDEO" | "OTHER";
+export type SafetyOccurrenceStatus = "SCHEDULED" | "DUE_SOON" | "DUE_TODAY" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "COMPLETED" | "FAILED" | "OVERDUE" | "SKIPPED" | "CANCELLED";
+export type SafetyInspectionStatus = "DRAFT" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
+export type SafetyInspectionType = "SCHEDULED" | "AD_HOC" | "FOLLOW_UP" | "REINSPECTION";
+export type SafetyInspectionResult = "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL" | "NOT_COMPLETED";
+export type SafetyResponseResult = "PASS" | "FAIL" | "NOT_APPLICABLE" | "INFORMATION_ONLY" | "UNANSWERED";
+export type SafetyVerificationStatus = "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "REJECTED";
+export type SafetyObservationType = "GENERAL" | "DEFECT" | "HAZARD" | "NON_COMPLIANCE" | "DAMAGE" | "MISSING_EVIDENCE" | "READING_OUT_OF_RANGE" | "FOLLOW_UP_REQUIRED" | "OTHER";
+export type SafetySeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type SafetyCertificateStatus = "DRAFT" | "VALID" | "EXPIRING_SOON" | "EXPIRED" | "REVOKED" | "SUPERSEDED";
+export type SafetyVerificationRejectionReason =
+  | "INCOMPLETE_CHECKLIST"
+  | "INSUFFICIENT_EVIDENCE"
+  | "MISSING_PHOTOS"
+  | "MISSING_CERTIFICATE"
+  | "INVALID_READING"
+  | "FAILED_ITEM_NOT_ACTIONED"
+  | "CORRECTIVE_WORK_ORDER_MISSING"
+  | "OBSERVATIONS_INSUFFICIENT"
+  | "WRONG_ASSET"
+  | "WRONG_LOCATION"
+  | "SAFETY_CONCERN"
+  | "OTHER";
+
+export interface SafetyCategory {
+  id: string;
+  tenantId: string;
+  code: SafetyCategoryCode;
+  name: string;
+  description: string;
+  colour: string;
+  icon: string;
+  active: boolean;
+  displayOrder: number;
+  defaultFrequencyType: PlannedMaintenanceFrequencyType;
+  defaultFrequencyInterval: number;
+  defaultPriority: MaintenanceWorkOrderPriority;
+  defaultVerificationRequired: boolean;
+  defaultCertificateRequired: boolean;
+  applicableAssetCategoryIds?: string[];
+  applicableLocationTypes?: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface SafetyInspectionTemplate {
+  id: string;
+  tenantId: string;
+  homeId?: string;
+  facilityId?: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  templateCode: string;
+  version: number;
+  status: SafetyTemplateStatus;
+  active: boolean;
+  defaultFrequencyType: PlannedMaintenanceFrequencyType;
+  defaultFrequencyInterval: number;
+  estimatedDurationMinutes: number;
+  defaultPriority: MaintenanceWorkOrderPriority;
+  verificationRequired: boolean;
+  certificateRequired: boolean;
+  evidenceRequired: boolean;
+  instructions: string;
+  safetyPrecautions?: string;
+  applicableAssetCategoryIds?: string[];
+  applicableLocationTypes?: string[];
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  archivedBy?: string;
+  archivedAt?: string;
+}
+
+export interface SafetyInspectionTemplateItem {
+  id: string;
+  templateId: string;
+  sectionName: string;
+  itemCode: string;
+  label: string;
+  description?: string;
+  responseType: SafetyChecklistResponseType;
+  mandatory: boolean;
+  allowNotApplicable: boolean;
+  failureTriggersCorrectiveAction: boolean;
+  failureRequiresObservation: boolean;
+  failureRequiresPhoto: boolean;
+  failureRequiresEvidence: boolean;
+  failureSeverity: SafetySeverity;
+  minValue?: number;
+  maxValue?: number;
+  unit?: string;
+  displayOrder: number;
+  helpText?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SafetyInspectionTemplateEvidenceRequirement {
+  id: string;
+  templateId: string;
+  evidenceType: SafetyEvidenceType;
+  label: string;
+  description?: string;
+  mandatory: boolean;
+  minimumCount: number;
+  appliesOnPass: boolean;
+  appliesOnFail: boolean;
+  displayOrder: number;
+}
+
+export interface SafetyInspectionSchedule {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  categoryId: string;
+  templateId: string;
+  assetId?: string;
+  locationId?: string;
+  locationLabel?: string;
+  scheduleName: string;
+  frequencyType: PlannedMaintenanceFrequencyType;
+  frequencyInterval: number;
+  startDate: string;
+  endDate?: string;
+  nextDueDate: string;
+  lastDueDate?: string;
+  lastInspectionId?: string;
+  generateDaysBeforeDue: number;
+  dueSoonDays: number;
+  responsibleTeamId: string;
+  responsibleUserId?: string;
+  verificationTeamId?: string;
+  active: boolean;
+  paused: boolean;
+  pausedAt?: string;
+  pausedBy?: string;
+  pauseReason?: string;
+  priority: MaintenanceWorkOrderPriority;
+  autoCreateInspection: boolean;
+  autoCreateCorrectiveWorkOrder: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface SafetyInspectionOccurrence {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  scheduleId: string;
+  categoryId: string;
+  templateId: string;
+  templateVersion: number;
+  assetId?: string;
+  locationId?: string;
+  plannedDate: string;
+  dueDate: string;
+  dueTime?: string;
+  status: SafetyOccurrenceStatus;
+  priority: MaintenanceWorkOrderPriority;
+  assignedTeamId?: string;
+  assignedUserId?: string;
+  inspectionId?: string;
+  workOrderId?: string;
+  generatedAt: string;
+  completedAt?: string;
+  skippedAt?: string;
+  skippedBy?: string;
+  skipReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SafetyInspection {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  occurrenceId?: string;
+  scheduleId?: string;
+  templateId: string;
+  templateVersion: number;
+  categoryId: string;
+  assetId?: string;
+  locationId?: string;
+  inspectionNumber: string;
+  inspectionType: SafetyInspectionType;
+  status: SafetyInspectionStatus;
+  overallResult: SafetyInspectionResult;
+  priority: MaintenanceWorkOrderPriority;
+  startedBy?: string;
+  startedAt?: string;
+  completedBy?: string;
+  completedAt?: string;
+  inspectionDate: string;
+  observations?: string;
+  summary?: string;
+  immediateActionsTaken?: string;
+  riskIdentified: boolean;
+  riskLevel?: SafetySeverity;
+  correctiveActionRequired: boolean;
+  correctiveWorkOrderId?: string;
+  certificateRequired: boolean;
+  certificateId?: string;
+  verificationRequired: boolean;
+  verificationStatus: SafetyVerificationStatus;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  rejectionReason?: string;
+  declarationAccepted: boolean;
+  declarationBy?: string;
+  declarationAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface SafetyInspectionResponse {
+  id: string;
+  inspectionId: string;
+  templateItemId: string;
+  templateItemCode: string;
+  sectionName: string;
+  questionLabelSnapshot: string;
+  responseType: SafetyChecklistResponseType;
+  responseValue?: string;
+  result: SafetyResponseResult;
+  observation?: string;
+  notApplicableReason?: string;
+  mandatory: boolean;
+  failureSeverity: SafetySeverity;
+  correctiveActionRequired: boolean;
+  evidenceRequired: boolean;
+  answeredBy?: string;
+  answeredAt?: string;
+  displayOrder: number;
+}
+
+export interface SafetyInspectionObservation {
+  id: string;
+  inspectionId: string;
+  responseId?: string;
+  observationType: SafetyObservationType;
+  description: string;
+  severity: SafetySeverity;
+  locationId?: string;
+  assetId?: string;
+  immediateActionRequired: boolean;
+  immediateActionTaken?: string;
+  correctiveActionRequired: boolean;
+  correctiveWorkOrderId?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface SafetyInspectionEvidence {
+  id: string;
+  inspectionId: string;
+  responseId?: string;
+  observationId?: string;
+  evidenceType: SafetyEvidenceType;
+  fileReference: string;
+  fileName: string;
+  mimeType?: string;
+  fileSize?: number;
+  caption?: string;
+  description?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  active: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+export interface SafetyCertificate {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  facilityId?: string;
+  categoryId: string;
+  inspectionId?: string;
+  assetId?: string;
+  locationId?: string;
+  certificateType: string;
+  certificateNumber: string;
+  issuedBy: string;
+  issuedDate: string;
+  validFrom: string;
+  expiryDate: string;
+  status: SafetyCertificateStatus;
+  fileReference?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface SafetyInspectionVerification {
+  id: string;
+  inspectionId: string;
+  verificationStatus: SafetyVerificationStatus;
+  assignedVerifierId?: string;
+  assignedVerificationTeamId?: string;
+  verificationNotes?: string;
+  verificationOutcome?: "VERIFIED" | "REJECTED";
+  verifiedBy?: string;
+  verifiedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReasonCode?: SafetyVerificationRejectionReason;
+  rejectionDetails?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
 export type WorkOrderNoteType =
   | "GENERAL"
   | "PROGRESS_UPDATE"
