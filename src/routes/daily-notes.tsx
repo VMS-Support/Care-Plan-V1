@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Mic, Activity, AlertCircle, Check, ChevronsUpDown, Eye, Search, X } from "lucide-react";
 import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "@/lib/care/types";
-import type { DailyNote, Resident } from "@/lib/care/types";
+import type { CarePlanProblem, DailyNote, Resident } from "@/lib/care/types";
 
 export const Route = createFileRoute("/daily-notes")({
   head: () => ({ meta: [{ title: "Daily Notes â€” CarePath" }] }),
@@ -55,11 +55,30 @@ function categoryLabel(value?: DailyNote["category"] | string) {
 }
 
 function displayValue(value?: string) {
-  return !value || value === "not_recorded" ? "Not recorded" : value.replace("_", " ");
+  return value ? value.replace("_", " ") : "";
+}
+
+function isRecordedValue(value?: string) {
+  return Boolean(value && value.trim() && value !== "not_recorded");
 }
 
 function hasStructuredValues(note: DailyNote) {
-  return Boolean(note.mood || note.foodIntake || note.fluidIntake || note.sleep);
+  return Boolean(
+    isRecordedValue(note.mood) ||
+    isRecordedValue(note.foodIntake) ||
+    isRecordedValue(note.fluidIntake) ||
+    isRecordedValue(note.sleep) ||
+    isRecordedValue(note.behaviour),
+  );
+}
+
+function hasWellbeingValues(note: DailyNote) {
+  return Boolean(
+    isRecordedValue(note.mood) ||
+    isRecordedValue(note.foodIntake) ||
+    isRecordedValue(note.fluidIntake) ||
+    isRecordedValue(note.sleep),
+  );
 }
 
 function noteCategory(note: DailyNote) {
@@ -69,8 +88,13 @@ function noteCategory(note: DailyNote) {
 }
 
 function notePreview(note: DailyNote) {
-  const text = [note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ");
+  const text = note.observation || "";
   return text.length > 180 ? `${text.slice(0, 180)}...` : text;
+}
+
+function carePlanLabel(problem?: CarePlanProblem) {
+  if (!problem) return "";
+  return `${getRltDomainForCarePlanProblem(problem)?.title || problem.category.replace(/_/g, " ")} - ${problem.problemStatement}`;
 }
 
 function startOfWeekKey() {
@@ -171,9 +195,9 @@ function NoteViewDialog({
             <div><span className="text-muted-foreground">Recorded by:</span> {note.staff}</div>
             <div><span className="text-muted-foreground">Shift:</span> <span className="capitalize">{note.shift}</span></div>
             <div><span className="text-muted-foreground">Category:</span> {categoryLabel(noteCategory(note))}</div>
-            <div>
-              <span className="text-muted-foreground">Related Care Plan:</span>{" "}
-              {relatedCarePlan ? (
+            {relatedCarePlan && (
+              <div>
+                <span className="text-muted-foreground">Related Care Plan:</span>{" "}
                 <Link
                   to="/residents/$id"
                   params={{ id: note.residentId }}
@@ -182,27 +206,25 @@ function NoteViewDialog({
                 >
                   {relatedCarePlan.title}
                 </Link>
-              ) : (
-                "None"
-              )}
-            </div>
+              </div>
+            )}
           </div>
           <div>
             <div className="font-medium mb-1">Observation</div>
             <p className="rounded-md border p-3 whitespace-pre-wrap">{note.observation || "No observation recorded."}</p>
           </div>
-          {note.behaviour && (
+          {isRecordedValue(note.behaviour) && (
             <div>
               <div className="font-medium mb-1">Behaviour</div>
               <p className="rounded-md border p-3 whitespace-pre-wrap">{note.behaviour}</p>
             </div>
           )}
-          {hasStructuredValues(note) && (
+          {hasWellbeingValues(note) && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
-              {note.mood && <span>Mood: {displayValue(note.mood)}</span>}
-              {note.foodIntake && <span>Food: {displayValue(note.foodIntake)}</span>}
-              {note.fluidIntake && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
-              {note.sleep && <span>Sleep: {displayValue(note.sleep)}</span>}
+              {isRecordedValue(note.mood) && <span>Mood: {displayValue(note.mood)}</span>}
+              {isRecordedValue(note.foodIntake) && <span>Food: {displayValue(note.foodIntake)}</span>}
+              {isRecordedValue(note.fluidIntake) && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
+              {isRecordedValue(note.sleep) && <span>Sleep: {displayValue(note.sleep)}</span>}
             </div>
           )}
         </div>
@@ -583,6 +605,8 @@ function DailyNotesPage() {
         {pagedNotes.map((note) => {
           const resident = residentById.get(note.residentId);
           const residentName = resident ? `${resident.firstName} ${resident.lastName}` : "Unknown resident";
+          const relatedProblem = carePlanProblemById.get(note.carePlanId || note.linkedProblemId || "");
+          const relatedLabel = carePlanLabel(relatedProblem);
           return (
             <Card key={note.id}>
               <CardContent className="p-4">
@@ -604,13 +628,27 @@ function DailyNotesPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(note.date).toLocaleString("en-GB")} · {note.staff}
                     </p>
+                    {relatedProblem && relatedLabel && (
+                      <div className="mt-2 text-xs">
+                        <span className="text-muted-foreground">Related Care Plan: </span>
+                        <Link
+                          to="/residents/$id"
+                          params={{ id: note.residentId }}
+                          search={{ carePlanProblemId: relatedProblem.id }}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {relatedLabel}
+                        </Link>
+                      </div>
+                    )}
                     <p className="text-sm mt-2 line-clamp-2">{notePreview(note)}</p>
                     {hasStructuredValues(note) && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                        {note.mood && <span>Mood: {displayValue(note.mood)}</span>}
-                        {note.foodIntake && <span>Food: {displayValue(note.foodIntake)}</span>}
-                        {note.fluidIntake && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
-                        {note.sleep && <span>Sleep: {displayValue(note.sleep)}</span>}
+                        {isRecordedValue(note.mood) && <span>Mood: {displayValue(note.mood)}</span>}
+                        {isRecordedValue(note.foodIntake) && <span>Food: {displayValue(note.foodIntake)}</span>}
+                        {isRecordedValue(note.fluidIntake) && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
+                        {isRecordedValue(note.sleep) && <span>Sleep: {displayValue(note.sleep)}</span>}
+                        {isRecordedValue(note.behaviour) && <span>Behaviour: {displayValue(note.behaviour)}</span>}
                       </div>
                     )}
                   </div>
