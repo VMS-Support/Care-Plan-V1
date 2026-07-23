@@ -680,10 +680,10 @@ function ResidentDetail() {
   }, [carePlanProblemId]);
 
   const selectedProblemGoals = selectedProblem
-    ? problemGoals.filter((g) => g.problemId === selectedProblem.id)
+    ? problemGoals.filter((g) => g.problemId === selectedProblem.id && (!g.carePlanId || g.carePlanId === selectedProblem.id))
     : [];
   const selectedProblemInterventions = selectedProblem
-    ? rProblemInterventions.filter((i) => i.problemId === selectedProblem.id)
+    ? rProblemInterventions.filter((i) => i.problemId === selectedProblem.id && (!i.carePlanId || i.carePlanId === selectedProblem.id))
     : [];
   const selectedProblemLogs = selectedProblem
     ? rProblemLogs.filter((l) => l.problemId === selectedProblem.id)
@@ -699,13 +699,13 @@ function ResidentDetail() {
     ? rN.filter((n) => n.linkedProblemId === selectedProblem.id || n.carePlanId === selectedProblem.id)
     : [];
   const linkedMdtNotes = selectedProblem
-    ? rMDT.filter((m) => m.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    ? rMDT.filter((m) => m.linkedCarePlanId === selectedProblem.id)
     : [];
   const linkedIncidents = selectedProblem
-    ? rIncidents.filter((i) => i.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    ? rIncidents.filter((i) => i.linkedCarePlanId === selectedProblem.id)
     : [];
   const linkedTasks = selectedProblem
-    ? rTasks.filter((t) => t.linkedCarePlanId === selectedProblem.residentCarePlanId)
+    ? rTasks.filter((t) => t.linkedCarePlanId === selectedProblem.id)
     : [];
   const linkedAssessments = selectedProblem
     ? rA.filter(
@@ -727,8 +727,8 @@ function ResidentDetail() {
         problem.id,
         getCarePlanQualityStatus({
           problem,
-          goals: problemGoals.filter((goal) => goal.problemId === problem.id),
-          interventions: rProblemInterventions.filter((intervention) => intervention.problemId === problem.id),
+          goals: problemGoals.filter((goal) => goal.problemId === problem.id && (!goal.carePlanId || goal.carePlanId === problem.id)),
+          interventions: rProblemInterventions.filter((intervention) => intervention.problemId === problem.id && (!intervention.carePlanId || intervention.carePlanId === problem.id)),
           evaluations: rProblemEvaluations.filter((evaluation) => evaluation.problemId === problem.id),
         }),
       );

@@ -1303,7 +1303,7 @@ function NurseDashboard() {
   const [taskQuickActionOpen, setTaskQuickActionOpen] = useState(false);
   const [carePlansQuickActionOpen, setCarePlansQuickActionOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
-    () => care.operationalContext.operationalDate || new Date().toISOString().slice(0, 10),
+    () => scheduleDateKey(new Date()),
   );
   const authorisedWingIds = care.currentUser.assignedWings || [];
   const availableWings = care.wings.filter((wing) =>
@@ -1336,7 +1336,11 @@ function NurseDashboard() {
   const workQueue = buildShiftWorkQueue(d, residentIds, false, selectedReferenceTime, {
     exactDate: selectedDate,
   });
-  const careActions = d.scheduledDue.filter((item) => residentIds.has(item.intervention.residentId));
+  const careActions = d.scheduledDue.filter(
+    (item) =>
+      residentIds.has(item.intervention.residentId) &&
+      isScheduledForSelectedDate(item.dueAt, selectedDate, item.status),
+  );
   const observationsDue = workQueue.filter((item) => item.workType === "Observation");
   const assessmentsDue = d.dueAssessments.filter((assessment) => residentIds.has(assessment.residentId));
   const carePlansDue = d.dueCarePlans.filter((plan) => residentIds.has(plan.residentId) && plan.rltDomainId !== "dying");
@@ -1703,7 +1707,7 @@ function NurseDashboard() {
                           Room {resident?.roomNumber || "-"} · {item.intervention.name}
                         </div>
                       </div>
-                      <Badge variant="outline" className="capitalize">{scheduledInterventionDueLabel(item, new Date())}</Badge>
+                      <Badge variant="outline" className="capitalize">{scheduledInterventionDueLabel(item, selectedReferenceTime)}</Badge>
                       <ArrowRight className="h-4 w-4 text-blue-700" />
                     </Link>
                   );
@@ -2521,7 +2525,7 @@ function buildShiftWorkQueue(
   d.scheduledDue
     .filter((scheduled) => residentIds.has(scheduled.intervention.residentId))
     .filter((scheduled) => !hcaOnly || isHcaAppropriateIntervention(scheduled))
-    .filter((scheduled) => !exactDate || scheduleDateKey(scheduled.dueAt || undefined) === exactDate)
+    .filter((scheduled) => !exactDate || isScheduledForSelectedDate(scheduled.dueAt, exactDate, scheduled.status))
     .forEach((scheduled) => {
       addResidentItem(scheduled.intervention.residentId, {
         id: `intervention-${scheduled.intervention.id}`,

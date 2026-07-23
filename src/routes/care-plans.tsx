@@ -670,8 +670,8 @@ function CarePlansPage() {
           problemId: problem.id,
           quality: getCarePlanQualityStatus({
             problem,
-            goals: problemGoals.filter((goal) => goal.problemId === problem.id),
-            interventions: problemInterventions.filter((intervention) => intervention.problemId === problem.id),
+            goals: problemGoals.filter((goal) => goal.problemId === problem.id && (!goal.carePlanId || goal.carePlanId === problem.id)),
+            interventions: problemInterventions.filter((intervention) => intervention.problemId === problem.id && (!intervention.carePlanId || intervention.carePlanId === problem.id)),
             evaluations: problemEvaluations.filter((evaluation) => evaluation.problemId === problem.id),
           }),
         }));
@@ -756,6 +756,7 @@ function CarePlansPage() {
     currentUserName,
     problemEvaluations,
     problemGoals,
+    problemInterventions,
     residentCarePlans,
     residents,
   ]);

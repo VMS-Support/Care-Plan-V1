@@ -208,8 +208,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
   } = useCare();
   const [showHistory, setShowHistory] = useState(false);
 
-  const goals = problemPlans.filter(g => g.problemId === problem.id);
-  const interventions = problemInterventions.filter(i => i.problemId === problem.id && i.status === "active");
+  const goals = problemPlans.filter(g => g.problemId === problem.id && (!g.carePlanId || g.carePlanId === problem.id));
+  const interventions = problemInterventions.filter(i => i.problemId === problem.id && (!i.carePlanId || i.carePlanId === problem.id) && i.status === "active");
   const evals = problemEvaluations.filter(e => e.problemId === problem.id);
   const reviews = problemReviews.filter(r => r.problemId === problem.id);
   const logs = problemInterventionLogs.filter(l => l.problemId === problem.id).slice(0, 5);
@@ -364,7 +364,7 @@ function Section({ icon, label, children }: { icon: React.ReactNode; label: stri
 
 function PlansEditor({ problemId }: { problemId: string }) {
   const { problemPlans, addPlan, updatePlan, removePlan, carePlanProblems } = useCare();
-  const goals = problemPlans.filter(g => g.problemId === problemId);
+  const goals = problemPlans.filter(g => g.problemId === problemId && (!g.carePlanId || g.carePlanId === problemId));
   const problem = carePlanProblems.find(p => p.id === problemId);
   const [newStatement, setNewStatement] = useState("");
   const suggestions = problem ? PREDEFINED_GOALS[problem.category] : [];

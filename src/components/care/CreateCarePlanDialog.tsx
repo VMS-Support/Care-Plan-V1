@@ -52,8 +52,9 @@ export function CreateCarePlanDialog({
   buttonLabel = "New Nursing Care Plan",
   onCreated,
 }: Props) {
-  const { residents, assessments, addProblem, addGoal, strengthPreferenceState, currentUser, canAccess, activeFacilityId } = useCare();
+  const { residents, assessments, addProblem, strengthPreferenceState, currentUser, canAccess, activeFacilityId } = useCare();
   const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const defaultRltDomainId = initialRltDomainId || "";
   const [residentId, setResidentId] = useState(fixedResidentId || "");
   const [rltDomainId, setRltDomainId] = useState<RltDomainId | "">(defaultRltDomainId);
@@ -109,30 +110,37 @@ export function CreateCarePlanDialog({
   }, [defaultRltDomainId, fixedResidentId, open]);
 
   const handleCreate = () => {
+    if (creating) return;
     const targetResidentId = fixedResidentId || residentId;
     if (!targetResidentId || !rltDomainId || !statement.trim() || !goal.trim() || !evalDate || !reviewDate) {
       toast.error("Resident, Activity of Living, care need, plan, review of outcome and care plan review date required");
       return;
     }
 
-    const problem = addProblem({
-      residentId: targetResidentId,
-      category: RLT_DOMAIN_TO_DEFAULT_CATEGORY[rltDomainId] || ("custom" as ProblemCategory),
-      rltDomainId,
-      problemStatement: statement.trim(),
-      riskLevel: risk,
-      evaluationDate: evalDate,
-      reviewDate,
-      notes: notes.trim() || undefined,
-      contextReferences,
-    });
+    setCreating(true);
+    try {
+      const problem = addProblem({
+        residentId: targetResidentId,
+        category: RLT_DOMAIN_TO_DEFAULT_CATEGORY[rltDomainId] || ("custom" as ProblemCategory),
+        rltDomainId,
+        problemStatement: statement.trim(),
+        riskLevel: risk,
+        evaluationDate: evalDate,
+        reviewDate,
+        notes: notes.trim() || undefined,
+        contextReferences,
+        initialPlan: { statement: goal.trim(), targetDate: reviewDate },
+      });
 
-    addGoal(problem.id, goal.trim(), reviewDate);
-
-    toast.success("Nursing care plan created");
-    setOpen(false);
-    reset();
-    onCreated?.(problem);
+      toast.success("Nursing care plan created");
+      setOpen(false);
+      reset();
+      onCreated?.(problem);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create nursing care plan");
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -277,7 +285,9 @@ export function CreateCarePlanDialog({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate}>Create Nursing Care Plan</Button>
+          <Button onClick={handleCreate} disabled={creating}>
+            {creating ? "Creating..." : "Create Nursing Care Plan"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

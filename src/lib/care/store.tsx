@@ -3686,6 +3686,7 @@ function loadInitialStore(): Store {
   const base = seedData();
   if (typeof window === "undefined") {
     const normalizedBase = normalizeFacilities(base);
+    normalizeCarePlanRecordOwnership(normalizedBase);
     syncUidSequence(normalizedBase);
     return normalizedBase;
   }
@@ -3696,6 +3697,7 @@ function loadInitialStore(): Store {
       window.localStorage.getItem(LEGACY_STORE_STORAGE_KEY);
     if (!raw) {
       const normalizedBase = normalizeFacilities(base);
+      normalizeCarePlanRecordOwnership(normalizedBase);
       syncUidSequence(normalizedBase);
       return normalizedBase;
     }
@@ -3724,6 +3726,7 @@ function loadInitialStore(): Store {
       parsed.clinicalAlerts = [...base.clinicalAlerts, ...retainedAlerts];
     }
     const merged = normalizeFacilities({ ...base, ...parsed } as Store);
+    normalizeCarePlanRecordOwnership(merged);
     merged.tasks = removeRemovedDemoTasks(merged.tasks);
     merged.vitals = merged.vitals.map(vitalWithCalculatedNEWS2);
     merged.clinicalObservations = merged.clinicalObservations.map((observation) => ({
@@ -3735,9 +3738,89 @@ function loadInitialStore(): Store {
   } catch (error) {
     console.warn("Failed to load persisted care store, using seeded data.", error);
     const normalizedBase = normalizeFacilities(base);
+    normalizeCarePlanRecordOwnership(normalizedBase);
     syncUidSequence(normalizedBase);
     return normalizedBase;
   }
+}
+
+function normalizeCarePlanRecordOwnership(store: Partial<Store>) {
+  const idRedirects = new Map<string, string>();
+  const uniqueProblems: CarePlanProblem[] = [];
+  const seenProblems = new Map<string, CarePlanProblem>();
+  for (const problem of store.carePlanProblems || []) {
+    const duplicateKey = [
+      problem.residentId,
+      problem.rltDomainId || problem.category,
+      problem.problemStatement.trim().toLowerCase(),
+      problem.status,
+    ].join("|");
+    const existing = seenProblems.get(duplicateKey);
+    if (existing) {
+      idRedirects.set(problem.id, existing.id);
+      continue;
+    }
+    seenProblems.set(duplicateKey, problem);
+    uniqueProblems.push(problem);
+  }
+  store.carePlanProblems = uniqueProblems;
+
+  const ownerId = (problemId: string) => idRedirects.get(problemId) || problemId;
+  const problems = new Map((store.carePlanProblems || []).map((problem) => [problem.id, problem]));
+  store.problemGoals = (store.problemGoals || [])
+    .map((goal) => ({ ...goal, problemId: ownerId(goal.problemId), carePlanId: ownerId(goal.carePlanId || goal.problemId) }))
+    .filter((goal) => problems.has(goal.problemId))
+    .map((goal) => {
+      const problem = problems.get(goal.problemId)!;
+      return {
+        ...goal,
+        carePlanId: problem.id,
+        problemId: problem.id,
+        residentId: problem.residentId,
+        facilityId: goal.facilityId || problem.facilityId,
+      };
+    });
+  store.problemInterventions = (store.problemInterventions || [])
+    .map((intervention) => ({
+      ...intervention,
+      problemId: ownerId(intervention.problemId),
+      carePlanId: ownerId(intervention.carePlanId || intervention.problemId),
+    }))
+    .filter((intervention) => {
+      const problem = problems.get(intervention.problemId);
+      return Boolean(problem && intervention.residentId === problem.residentId);
+    })
+    .map((intervention) => {
+      const problem = problems.get(intervention.problemId)!;
+      return {
+        ...intervention,
+        carePlanId: problem.id,
+        problemId: problem.id,
+        residentId: problem.residentId,
+        facilityId: intervention.facilityId || problem.facilityId,
+      };
+    });
+  store.problemInterventionLogs = (store.problemInterventionLogs || []).map((log) => ({
+    ...log,
+    problemId: ownerId(log.problemId),
+  }));
+  store.problemEvaluations = (store.problemEvaluations || []).map((evaluation) => ({
+    ...evaluation,
+    problemId: ownerId(evaluation.problemId),
+  }));
+  store.problemReviews = (store.problemReviews || []).map((review) => ({
+    ...review,
+    problemId: ownerId(review.problemId),
+  }));
+  store.problemHistory = (store.problemHistory || []).map((history) => ({
+    ...history,
+    problemId: ownerId(history.problemId),
+  }));
+  store.notes = (store.notes || []).map((note) => ({
+    ...note,
+    carePlanId: note.carePlanId ? ownerId(note.carePlanId) : note.carePlanId,
+    linkedProblemId: note.linkedProblemId ? ownerId(note.linkedProblemId) : note.linkedProblemId,
+  }));
 }
 
 // ============ Global Filter ============
@@ -4215,6 +4298,7 @@ interface CareCtx extends Store {
     sourceAssessmentId?: string;
     sourceAssessmentType?: any;
     contextReferences?: CarePlanProblem["contextReferences"];
+    initialPlan?: { statement: string; targetDate?: string };
   }) => CarePlanProblem;
   updateProblem: (id: string, patch: Partial<CarePlanProblem>, reason?: string) => void;
   resolveProblem: (id: string, reason: string) => void;
@@ -4225,6 +4309,7 @@ interface CareCtx extends Store {
   removeGoal: (id: string) => void;
   addProblemIntervention: (input: {
     problemId: string;
+    carePlanId?: string;
     name: string;
     description?: string;
     frequencyType: FrequencyType;
@@ -10481,11 +10566,41 @@ export function CareProvider({ children }: { children: ReactNode }) {
           linkedRecordId: item.id,
           linkedRecordKind: "care_plan_problem",
         };
+        const initialGoal: ProblemGoal | null = input.initialPlan?.statement.trim()
+          ? {
+              id: newId("goal"),
+              carePlanId: item.id,
+              problemId: item.id,
+              residentId: item.residentId,
+              facilityId: item.facilityId,
+              statement: input.initialPlan.statement.trim(),
+              targetDate: input.initialPlan.targetDate,
+              status: "active",
+              createdAt: item.createdAt,
+              createdBy: currentUserName,
+            }
+          : null;
         setStore((s) => ({
           ...s,
           residentCarePlans: newRcp ? [newRcp, ...s.residentCarePlans] : s.residentCarePlans,
           carePlanProblems: [item, ...s.carePlanProblems],
-          problemHistory: [hist, ...s.problemHistory],
+          problemGoals: initialGoal ? [initialGoal, ...s.problemGoals] : s.problemGoals,
+          problemHistory: initialGoal
+            ? [
+                {
+                  id: newId("hist"),
+                  problemId: item.id,
+                  timestamp: item.createdAt,
+                  userId: currentUser.id,
+                  userName: currentUserName,
+                  role: currentRole,
+                  action: "goal_added",
+                  newValue: initialGoal.statement,
+                },
+                hist,
+                ...s.problemHistory,
+              ]
+            : [hist, ...s.problemHistory],
           timelineEvents: [ev, ...s.timelineEvents],
         }));
         logAudit({
@@ -10730,9 +10845,16 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       addGoal: (problemId, statement, targetDate) => {
+        const problem = store.carePlanProblems.find((p) => p.id === problemId);
+        if (!problem || problem.status !== "active") {
+          throw new Error("Active care plan not found for plan item");
+        }
         const item: ProblemGoal = {
           id: newId("goal"),
+          carePlanId: problem.id,
           problemId,
+          residentId: problem.residentId,
+          facilityId: problem.facilityId,
           statement,
           targetDate,
           status: "active",
@@ -10745,7 +10867,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           timelineEvents: [
             {
               id: newId("tle"),
-              residentId: store.carePlanProblems.find((p) => p.id === problemId)?.residentId || "",
+              residentId: problem.residentId,
               type: "careplan.updated",
               title: `Goal added: ${statement.slice(0, 60)}`,
               createdAt: item.createdAt,
@@ -10780,11 +10902,19 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       updateGoal: (id, patch) => {
+        const g = store.problemGoals.find((x) => x.id === id);
+        if (!g) throw new Error("Plan item not found");
+        if (
+          (patch as Partial<ProblemGoal>).problemId ||
+          (patch as Partial<ProblemGoal>).carePlanId ||
+          (patch as Partial<ProblemGoal>).residentId
+        ) {
+          throw new Error("Plan item ownership cannot be changed");
+        }
         setStore((s) => ({
           ...s,
           problemGoals: s.problemGoals.map((g) => (g.id === id ? { ...g, ...patch } : g)),
         }));
-        const g = store.problemGoals.find((x) => x.id === id);
         if (g) {
           setStore((s) => ({
             ...s,
@@ -10833,10 +10963,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (!prob || prob.status !== "active") {
           throw new Error("Active care plan problem not found for intervention");
         }
+        if (input.carePlanId && input.carePlanId !== prob.id) {
+          throw new Error("Care action must be attached to the currently opened care plan");
+        }
         const item: ProblemIntervention = {
           id: newId("int"),
+          carePlanId: prob.id,
           problemId: input.problemId,
           residentId: prob.residentId,
+          facilityId: prob.facilityId,
           name: input.name,
           description: input.description,
           frequencyType: input.frequencyType,
@@ -10927,6 +11062,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
 
       updateProblemIntervention: (id, patch, reason) => {
         const before = store.problemInterventions.find((i) => i.id === id);
+        if (!before) throw new Error("Care action not found");
+        if (patch.problemId || patch.carePlanId || patch.residentId) {
+          throw new Error("Care action ownership cannot be changed");
+        }
         const now = new Date().toISOString();
         setStore((s) => ({
           ...s,
@@ -11191,13 +11330,17 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       addProblemInterventionLog: (input) => {
+        const intv = store.problemInterventions.find((i) => i.id === input.interventionId);
+        if (!intv) throw new Error("Care action not found");
+        if (input.problemId !== intv.problemId || input.residentId !== intv.residentId) {
+          throw new Error("Care action log ownership does not match the owning care plan");
+        }
         const log: ProblemInterventionLog = {
           id: newId("plog"),
           ...input,
           createdAt: new Date().toISOString(),
         };
 
-        const intv = store.problemInterventions.find((i) => i.id === input.interventionId);
         const ev: TimelineEvent | null = intv
           ? {
               id: newId("tle"),

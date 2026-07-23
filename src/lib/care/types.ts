@@ -4964,7 +4964,9 @@ export interface CarePlanProblem {
 export interface ProblemGoal {
   id: string;
   facilityId?: string;
+  carePlanId: string;
   problemId: string;
+  residentId: string;
   statement: string;
   targetDate?: string;
   status: "active" | "achieved" | "partially_achieved" | "not_achieved" | "discontinued";
@@ -4975,6 +4977,7 @@ export interface ProblemGoal {
 export interface ProblemIntervention {
   id: string;
   facilityId?: string;
+  carePlanId: string;
   problemId: string;
   residentId: string;
   name: string;
