@@ -146,7 +146,7 @@ function useRoleDashboardData(
 ) {
   const care = useCare();
   const now = options.now || new Date();
-  const today = options.date || now.toISOString().slice(0, 10);
+  const today = options.date || scheduleDateKey(now);
   const selectedDay = new Date(`${today}T12:00:00`);
   const weekStartDate = new Date(selectedDay);
   weekStartDate.setDate(weekStartDate.getDate() - 6);
@@ -1099,6 +1099,17 @@ function scheduleDateKey(value?: Date | string) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function isScheduledForSelectedDate(
+  dueAt: Date | null | undefined,
+  selectedDate: string,
+  status?: string,
+) {
+  const dueDate = scheduleDateKey(dueAt || undefined);
+  if (!dueDate) return false;
+  if (dueDate === selectedDate) return true;
+  return status === "overdue" && dueDate <= selectedDate;
 }
 
 function workQueueScheduleKind(item: WorkQueueItem) {
