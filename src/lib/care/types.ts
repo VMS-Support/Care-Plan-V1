@@ -4340,6 +4340,26 @@ export interface Intervention {
   linkedCarePlanId?: string;
 }
 
+export const DAILY_NOTE_CATEGORY_OPTIONS = [
+  { value: "general", label: "General" },
+  { value: "clinical_observation", label: "Clinical Observation" },
+  { value: "personal_care", label: "Personal Care" },
+  { value: "medication", label: "Medication" },
+  { value: "nutrition_hydration", label: "Nutrition and Hydration" },
+  { value: "mood_behaviour", label: "Mood and Behaviour" },
+  { value: "mobility", label: "Mobility" },
+  { value: "falls", label: "Falls" },
+  { value: "pain", label: "Pain" },
+  { value: "skin_integrity", label: "Skin Integrity" },
+  { value: "continence", label: "Continence" },
+  { value: "communication", label: "Communication" },
+  { value: "family_communication", label: "Family Communication" },
+  { value: "care_plan_progress", label: "Care Plan Progress" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type DailyNoteCategory = (typeof DAILY_NOTE_CATEGORY_OPTIONS)[number]["value"];
+
 export interface DailyNote {
   id: string;
   facilityId?: string;
@@ -4348,12 +4368,13 @@ export interface DailyNote {
   date: string;
   staff: string;
   shift: "morning" | "afternoon" | "night";
+  category?: DailyNoteCategory;
   observation: string;
-  mood: "happy" | "calm" | "anxious" | "withdrawn" | "agitated";
-  foodIntake: "full" | "most" | "half" | "little" | "none";
-  fluidIntake: "good" | "moderate" | "poor";
-  sleep: "good" | "broken" | "poor";
-  behaviour: string;
+  mood?: "not_recorded" | "happy" | "calm" | "anxious" | "withdrawn" | "agitated";
+  foodIntake?: "not_recorded" | "full" | "most" | "half" | "little" | "none";
+  fluidIntake?: "not_recorded" | "good" | "moderate" | "poor";
+  sleep?: "not_recorded" | "good" | "broken" | "poor";
+  behaviour?: string;
   additionalNotes?: string;
   linkedProblemId?: string;
   linkedInterventionId?: string;

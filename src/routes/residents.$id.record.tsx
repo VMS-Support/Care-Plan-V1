@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
+import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
+import type { CarePlanProblem, DailyNote } from "@/lib/care/types";
 import type { Permission } from "@/lib/care/permissions";
 
 type Kind = "note" | "intervention" | "task" | "incident" | "mdt" | "visitor" | "outing";
@@ -35,6 +38,7 @@ function RecordPage() {
   const {
     residents, currentRole, currentUserName,
     addNote, addIntervention, addTask, addIncident, addMDTNote, addVisitor, addOuting,
+    carePlanProblems,
     canAccess,
   } = useCare();
   const navigate = useNavigate();
@@ -59,7 +63,13 @@ function RecordPage() {
             <p className="text-sm text-destructive">Access denied. You cannot create {meta.title.toLowerCase()} for this resident in the current scope.</p>
           ) : (
             <>
-              {kind === "note" && <NoteForm onSubmit={(data) => { addNote({ ...data, residentId: id, staff: currentUserName, date: new Date().toISOString() } as any); done(); }} />}
+              {kind === "note" && (
+                <NoteForm
+                  residentId={id}
+                  carePlanProblems={carePlanProblems}
+                  onSubmit={(data) => { addNote({ ...data, residentId: id, staff: currentUserName, date: new Date().toISOString() } as any); done(); }}
+                />
+              )}
               {kind === "intervention" && <InterventionForm onSubmit={(data) => { addIntervention({ ...data, residentId: id, staff: currentUserName, date: new Date().toISOString() } as any); done(); }} />}
               {kind === "task" && <TaskForm onSubmit={(data) => { addTask({ ...data, residentId: id } as any); done(); }} />}
               {kind === "incident" && <IncidentForm onSubmit={(data) => { addIncident({ ...data, residentId: id, reportedBy: currentUserName, date: new Date().toISOString().slice(0, 10) } as any); done(); }} />}
@@ -79,20 +89,61 @@ function RecordPage() {
   }
 }
 
-function NoteForm({ onSubmit }: { onSubmit: (d: any) => void }) {
-  const [d, set] = useState({ shift: "morning", observation: "", mood: "calm", foodIntake: "most", fluidIntake: "good", sleep: "good", behaviour: "" });
+function NoteForm({
+  residentId,
+  carePlanProblems,
+  onSubmit,
+}: {
+  residentId: string;
+  carePlanProblems: CarePlanProblem[];
+  onSubmit: (d: any) => void;
+}) {
+  const [d, set] = useState({
+    carePlanId: null as string | null,
+    shift: "morning" as DailyNote["shift"],
+    category: "general" as DailyNote["category"],
+    observation: "",
+    mood: "calm" as DailyNote["mood"],
+    foodIntake: "most" as DailyNote["foodIntake"],
+    fluidIntake: "good" as DailyNote["fluidIntake"],
+    sleep: "good" as DailyNote["sleep"],
+    behaviour: "",
+  });
+  const activeCarePlans = carePlanProblems.filter((plan) => plan.residentId === residentId && plan.status === "active");
+  const save = () => {
+    if (!d.shift || !d.category) { toast.error("Shift and note category are required"); return; }
+    if (!d.observation.trim()) { toast.error("Observation is required"); return; }
+    onSubmit(d);
+  };
   return (
     <div className="space-y-3">
-      <SelectField label="Shift" value={d.shift} onChange={v => set({ ...d, shift: v })} options={["morning", "afternoon", "night"]} />
-      <Field label="Observation"><Textarea value={d.observation} onChange={e => set({ ...d, observation: e.target.value })} /></Field>
+      <SelectField
+        label="Related Care Plan"
+        value={d.carePlanId || "none"}
+        onChange={v => set({ ...d, carePlanId: v === "none" ? null : v })}
+        options={["none", ...activeCarePlans.map((plan) => plan.id)]}
+        labels={new Map([
+          ["none", "None"],
+          ...activeCarePlans.map((plan) => [
+            plan.id,
+            `${getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - ${plan.problemStatement}`,
+          ] as const),
+        ])}
+      />
       <div className="grid grid-cols-2 gap-3">
-        <SelectField label="Mood" value={d.mood} onChange={v => set({ ...d, mood: v })} options={["happy", "calm", "anxious", "withdrawn", "agitated"]} />
-        <SelectField label="Food intake" value={d.foodIntake} onChange={v => set({ ...d, foodIntake: v })} options={["full", "most", "half", "little", "none"]} />
-        <SelectField label="Fluid intake" value={d.fluidIntake} onChange={v => set({ ...d, fluidIntake: v })} options={["good", "moderate", "poor"]} />
-        <SelectField label="Sleep" value={d.sleep} onChange={v => set({ ...d, sleep: v })} options={["good", "broken", "poor"]} />
+        <SelectField label="Shift *" value={d.shift} onChange={v => set({ ...d, shift: v as DailyNote["shift"] })} options={["morning", "afternoon", "night"]} labels={new Map([["morning", "Morning"], ["afternoon", "Afternoon"], ["night", "Night"]])} />
+        <SelectField label="Note Category *" value={d.category || "general"} onChange={v => set({ ...d, category: v as DailyNote["category"] })} options={DAILY_NOTE_CATEGORY_OPTIONS.map((category) => category.value)} labels={new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((category) => [category.value, category.label]))} />
       </div>
-      <Field label="Behaviour"><Input value={d.behaviour} onChange={e => set({ ...d, behaviour: e.target.value })} /></Field>
-      <Button onClick={() => onSubmit(d)}>Save Note</Button>
+      <Field label="Observation *"><Textarea rows={4} placeholder="Enter the main note, observation, care provided, concern or outcome..." value={d.observation} onChange={e => set({ ...d, observation: e.target.value })} /></Field>
+      <div className="border-t pt-3 text-sm font-medium">Additional Information</div>
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField label="Mood" value={d.mood || "not_recorded"} onChange={v => set({ ...d, mood: v as DailyNote["mood"] })} options={["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"]} />
+        <SelectField label="Food intake" value={d.foodIntake || "not_recorded"} onChange={v => set({ ...d, foodIntake: v as DailyNote["foodIntake"] })} options={["not_recorded", "full", "most", "half", "little", "none"]} />
+        <SelectField label="Fluid intake" value={d.fluidIntake || "not_recorded"} onChange={v => set({ ...d, fluidIntake: v as DailyNote["fluidIntake"] })} options={["not_recorded", "good", "moderate", "poor"]} />
+        <SelectField label="Sleep" value={d.sleep || "not_recorded"} onChange={v => set({ ...d, sleep: v as DailyNote["sleep"] })} options={["not_recorded", "good", "broken", "poor"]} />
+      </div>
+      <Field label="Behaviour"><Input placeholder="Enter any behaviour-related details..." value={d.behaviour} onChange={e => set({ ...d, behaviour: e.target.value })} /></Field>
+      <Button onClick={save}>Save Note</Button>
     </div>
   );
 }
@@ -192,12 +243,12 @@ function Field({ label, children }: { label: string; children: any }) {
   return <div><Label className="text-sm">{label}</Label><div className="mt-1.5">{children}</div></div>;
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function SelectField({ label, value, onChange, options, labels }: { label: string; value: string; onChange: (v: string) => void; options: readonly string[]; labels?: Map<string, string> }) {
   return (
     <Field label={label}>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger><SelectValue /></SelectTrigger>
-        <SelectContent>{options.map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>)}</SelectContent>
+        <SelectContent>{options.map(o => <SelectItem key={o} value={o} className="capitalize">{labels?.get(o) || o.replace("_", " ")}</SelectItem>)}</SelectContent>
       </Select>
     </Field>
   );

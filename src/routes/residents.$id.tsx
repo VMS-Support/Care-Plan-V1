@@ -98,7 +98,9 @@ import {
   type ScheduledInterventionStatus,
 } from "@/lib/care/intervention-schedule";
 import type { VitalSign } from "@/lib/care/types";
+import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
 import type {
+  DailyNote,
   ProblemCategory,
   ProblemRiskLevel,
   ProblemStatus,
@@ -126,6 +128,18 @@ function riskColor(level: string) {
   if (level === "high") return "bg-warning/15 text-warning-foreground border-warning/40";
   if (level === "moderate") return "bg-info/10 text-info border-info/20";
   return "bg-success/10 text-success border-success/20";
+}
+
+const DAILY_NOTE_CATEGORY_LABELS = new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => [option.value, option.label]));
+
+function dailyNoteCategoryLabel(note: DailyNote) {
+  if (note.category) return DAILY_NOTE_CATEGORY_LABELS.get(note.category) || "General";
+  if (note.linkedInterventionId || note.linkedInterventionLogId) return "From intervention";
+  return "General";
+}
+
+function dailyNoteValue(value?: string) {
+  return !value || value === "not_recorded" ? "Not recorded" : value.replace("_", " ");
 }
 
 type UpcomingTaskStatus = ScheduledInterventionStatus;
@@ -2276,14 +2290,17 @@ function ResidentDetail() {
                   <Badge variant="outline" className="text-[10px] capitalize">
                     {n.shift}
                   </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    {dailyNoteCategoryLabel(n)}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">{n.staff}</span>
                 </div>
                 <p className="text-sm mt-1">{n.observation}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                  <span>Mood: {n.mood}</span>
-                  <span>Food: {n.foodIntake}</span>
-                  <span>Fluids: {n.fluidIntake}</span>
-                  <span>Sleep: {n.sleep}</span>
+                  <span>Mood: {dailyNoteValue(n.mood)}</span>
+                  <span>Food: {dailyNoteValue(n.foodIntake)}</span>
+                  <span>Fluids: {dailyNoteValue(n.fluidIntake)}</span>
+                  <span>Sleep: {dailyNoteValue(n.sleep)}</span>
                 </div>
               </CardContent>
             </Card>

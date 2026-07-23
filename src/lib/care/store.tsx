@@ -238,6 +238,7 @@ import type {
   HousekeepingExceptionType,
   HousekeepingSeverity,
 } from "./types";
+import { DAILY_NOTE_CATEGORY_OPTIONS } from "./types";
 import {
   archiveWorkOrderRecord,
   createWorkOrderRecord,
@@ -625,6 +626,9 @@ import type { AssessmentRequirementRecord } from "@/domain/assessments/riskAsses
 
 let _uidSeq = 0;
 const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
+const DAILY_NOTE_CATEGORY_VALUES = new Set(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => option.value));
+const normalizeDailyNoteCategory = (value?: DailyNote["category"] | string | null): DailyNote["category"] =>
+  value && DAILY_NOTE_CATEGORY_VALUES.has(value as any) ? (value as DailyNote["category"]) : "general";
 const STORE_STORAGE_KEY = "carepath-pro-data";
 const LEGACY_STORE_STORAGE_KEY = "carepath-pro-store";
 const TRAINING_COURSE_CLEANUP_VERSION = "2026-07-17-clear-training-courses";
@@ -6725,6 +6729,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }
         const item = {
           ...n,
+          category: normalizeDailyNoteCategory(n.category),
           facilityId: n.facilityId || residentHomeId,
           carePlanId: linkedCarePlanProblem?.id ?? null,
           linkedProblemId: linkedCarePlanProblem?.id,
@@ -6811,6 +6816,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
               ? {
                   ...note,
                   ...patch,
+                  category: Object.prototype.hasOwnProperty.call(patch, "category")
+                    ? normalizeDailyNoteCategory(patch.category)
+                    : normalizeDailyNoteCategory(note.category),
                   residentId: nextResidentId,
                   facilityId: patch.facilityId || note.facilityId || residentHomeId,
                   carePlanId: nextCarePlanId,
@@ -11023,13 +11031,14 @@ export function CareProvider({ children }: { children: ReactNode }) {
           date,
           staff: currentUserName,
           shift,
+          category: "care_plan_progress",
           observation: `${intv.name}: ${input.outcome.replace("_", " ")}${input.comments ? " — " + input.comments : ""}`,
           mood: "calm",
           foodIntake: "most",
           fluidIntake: "good",
           sleep: "good",
           behaviour: input.residentResponse || "",
-          linkedCarePlanId: intv.problemId,
+          carePlanId: intv.problemId,
           linkedProblemId: intv.problemId,
           linkedInterventionId: intv.id,
           linkedInterventionLogId: logId,

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Mic, Activity, AlertCircle, Eye, Search, X } from "lucide-react";
+import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
 import type { DailyNote } from "@/lib/care/types";
 
 export const Route = createFileRoute("/daily-notes")({
@@ -20,12 +21,20 @@ export const Route = createFileRoute("/daily-notes")({
 });
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const DAILY_NOTE_CATEGORY_LABELS = new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => [option.value, option.label]));
+
+function categoryLabel(value?: DailyNote["category"] | string) {
+  if (value === "intervention") return "From intervention";
+  return DAILY_NOTE_CATEGORY_LABELS.get(value as DailyNote["category"]) || "General";
+}
+
+function displayValue(value?: string) {
+  return !value || value === "not_recorded" ? "Not recorded" : value.replace("_", " ");
+}
 
 function noteCategory(note: DailyNote) {
+  if (note.category) return note.category;
   if (note.linkedInterventionId || note.linkedInterventionLogId) return "intervention";
-  if (note.behaviour?.trim()) return "behaviour";
-  if (note.foodIntake === "little" || note.foodIntake === "none" || note.fluidIntake === "poor") return "nutrition";
-  if (note.sleep === "broken" || note.sleep === "poor") return "sleep";
   return "general";
 }
 
@@ -68,7 +77,7 @@ function NoteViewDialog({
             <div><span className="text-muted-foreground">Date/time:</span> {new Date(note.date).toLocaleString("en-GB")}</div>
             <div><span className="text-muted-foreground">Recorded by:</span> {note.staff}</div>
             <div><span className="text-muted-foreground">Shift:</span> <span className="capitalize">{note.shift}</span></div>
-            <div><span className="text-muted-foreground">Category:</span> <span className="capitalize">{noteCategory(note)}</span></div>
+            <div><span className="text-muted-foreground">Category:</span> {categoryLabel(noteCategory(note))}</div>
             <div>
               <span className="text-muted-foreground">Related Care Plan:</span>{" "}
               {relatedCarePlan ? (
@@ -96,10 +105,10 @@ function NoteViewDialog({
             </div>
           )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
-            <span>Mood: {note.mood}</span>
-            <span>Food: {note.foodIntake}</span>
-            <span>Fluids: {note.fluidIntake}</span>
-            <span>Sleep: {note.sleep}</span>
+            <span>Mood: {displayValue(note.mood)}</span>
+            <span>Food: {displayValue(note.foodIntake)}</span>
+            <span>Fluids: {displayValue(note.fluidIntake)}</span>
+            <span>Sleep: {displayValue(note.sleep)}</span>
           </div>
         </div>
       </DialogContent>
@@ -108,9 +117,21 @@ function NoteViewDialog({
 }
 
 function NewNote() {
-  const { residents, carePlanProblems, addNote } = useCare();
+  const { residents, carePlanProblems, addNote, currentUserName } = useCare();
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ residentId: "", carePlanId: null as string | null, shift: "morning", observation: "", mood: "calm", foodIntake: "most", fluidIntake: "good", sleep: "good", behaviour: "", additionalNotes: "" });
+  const [f, setF] = useState<Omit<DailyNote, "id" | "date" | "staff">>({
+    residentId: "",
+    carePlanId: null,
+    shift: "morning",
+    category: "general",
+    observation: "",
+    mood: "calm",
+    foodIntake: "most",
+    fluidIntake: "good",
+    sleep: "good",
+    behaviour: "",
+    additionalNotes: "",
+  });
   const residentCarePlans = carePlanProblems.filter(
     (plan) => plan.residentId === f.residentId && plan.status === "active",
   );
@@ -121,16 +142,24 @@ function NewNote() {
     rec.continuous = false; rec.interimResults = false;
     rec.onresult = (e: any) => setF(s => ({ ...s, observation: (s.observation + " " + e.results[0][0].transcript).trim() }));
     rec.start();
-    toast.info("Listeningâ€¦");
+    toast.info("Listening...");
+  };
+  const save = () => {
+    if (!f.residentId) { toast.error("Choose a resident"); return; }
+    if (!f.shift || !f.category) { toast.error("Shift and note category are required"); return; }
+    if (!f.observation.trim()) { toast.error("Observation is required"); return; }
+    addNote({ ...f, date: new Date().toISOString(), staff: currentUserName });
+    toast.success("Note saved");
+    setOpen(false);
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button>New Daily Note</Button></DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Daily Note</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <Label>Resident</Label>
+            <Label>Resident *</Label>
             <Select value={f.residentId} onValueChange={v => setF({ ...f, residentId: v, carePlanId: null })}>
               <SelectTrigger><SelectValue placeholder="Choose resident" /></SelectTrigger>
               <SelectContent>{residents.map(r => <SelectItem key={r.id} value={r.id}>{r.firstName} {r.lastName}</SelectItem>)}</SelectContent>
@@ -144,63 +173,79 @@ function NewNote() {
                 <SelectItem value="none">None</SelectItem>
                 {residentCarePlans.map((plan) => (
                   <SelectItem key={plan.id} value={plan.id}>
-                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} · {plan.problemStatement}
+                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Shift</Label>
-            <Select value={f.shift} onValueChange={v => setF({ ...f, shift: v })}>
+            <Label>Shift *</Label>
+            <Select value={f.shift} onValueChange={v => setF({ ...f, shift: v as DailyNote["shift"] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["morning", "afternoon", "night"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                <SelectItem value="morning">Morning</SelectItem>
+                <SelectItem value="afternoon">Afternoon</SelectItem>
+                <SelectItem value="night">Night</SelectItem>
+              </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Note Category *</Label>
+            <Select value={f.category || "general"} onValueChange={v => setF({ ...f, category: v as DailyNote["category"] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DAILY_NOTE_CATEGORY_OPTIONS.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <div className="flex items-center justify-between"><Label>Observation *</Label>
+              <Button type="button" size="sm" variant="ghost" onClick={startVoice}><Mic className="h-4 w-4 mr-1" /> Voice</Button>
+            </div>
+            <Textarea
+              rows={4}
+              placeholder="Enter the main note, observation, care provided, concern or outcome..."
+              value={f.observation}
+              onChange={e => setF({ ...f, observation: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 border-t pt-3 text-sm font-medium">Additional Information</div>
           <div>
             <Label>Mood</Label>
-            <Select value={f.mood} onValueChange={v => setF({ ...f, mood: v })}>
+            <Select value={f.mood || "not_recorded"} onValueChange={v => setF({ ...f, mood: v as DailyNote["mood"] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["happy", "calm", "anxious", "withdrawn", "agitated"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent>{["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Food intake</Label>
-            <Select value={f.foodIntake} onValueChange={v => setF({ ...f, foodIntake: v })}>
+            <Label>Food Intake</Label>
+            <Select value={f.foodIntake || "not_recorded"} onValueChange={v => setF({ ...f, foodIntake: v as DailyNote["foodIntake"] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["full", "most", "half", "little", "none"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent>{["not_recorded", "full", "most", "half", "little", "none"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Fluid intake</Label>
-            <Select value={f.fluidIntake} onValueChange={v => setF({ ...f, fluidIntake: v })}>
+            <Label>Fluid Intake</Label>
+            <Select value={f.fluidIntake || "not_recorded"} onValueChange={v => setF({ ...f, fluidIntake: v as DailyNote["fluidIntake"] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["good", "moderate", "poor"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent>{["not_recorded", "good", "moderate", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
             <Label>Sleep</Label>
-            <Select value={f.sleep} onValueChange={v => setF({ ...f, sleep: v })}>
+            <Select value={f.sleep || "not_recorded"} onValueChange={v => setF({ ...f, sleep: v as DailyNote["sleep"] })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["good", "broken", "poor"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              <SelectContent>{["not_recorded", "good", "broken", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="col-span-2">
-            <div className="flex items-center justify-between"><Label>Observation</Label>
-              <Button type="button" size="sm" variant="ghost" onClick={startVoice}><Mic className="h-4 w-4 mr-1" /> Voice</Button>
-            </div>
-            <Textarea rows={3} value={f.observation} onChange={e => setF({ ...f, observation: e.target.value })} />
-          </div>
-          <div className="col-span-2"><Label>Behaviour</Label><Textarea rows={2} value={f.behaviour} onChange={e => setF({ ...f, behaviour: e.target.value })} /></div>
+          <div className="col-span-2"><Label>Behaviour</Label><Textarea rows={2} placeholder="Enter any behaviour-related details..." value={f.behaviour || ""} onChange={e => setF({ ...f, behaviour: e.target.value })} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
-            if (!f.residentId) { toast.error("Choose a resident"); return; }
-            addNote({ ...f, date: new Date().toISOString(), staff: "J. Roberts" } as any);
-            toast.success("Note saved");
-            setOpen(false);
-          }}>Save</Button>
+          <Button onClick={save}>Save Daily Note</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -390,11 +435,10 @@ function DailyNotesPage() {
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="general">General</SelectItem>
                 <SelectItem value="intervention">From intervention</SelectItem>
-                <SelectItem value="behaviour">Behaviour</SelectItem>
-                <SelectItem value="nutrition">Nutrition / fluids</SelectItem>
-                <SelectItem value="sleep">Sleep</SelectItem>
+                {DAILY_NOTE_CATEGORY_OPTIONS.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); resetPage(); }} aria-label="Date from" />
@@ -426,7 +470,7 @@ function DailyNotesPage() {
                       </Link>
                       <Badge variant="outline" className="text-[10px]">Room {resident?.roomNumber || "-"}</Badge>
                       <Badge variant="outline" className="text-[10px] capitalize">{note.shift}</Badge>
-                      <Badge variant="outline" className="text-[10px] capitalize">{noteCategory(note)}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{categoryLabel(noteCategory(note))}</Badge>
                       {note.linkedInterventionId && (
                         <Badge variant="outline" className="text-[10px] bg-info/10 text-info border-info/30 gap-1">
                           <Activity className="h-2.5 w-2.5" /> From intervention
@@ -438,8 +482,8 @@ function DailyNotesPage() {
                     </p>
                     <p className="text-sm mt-2 line-clamp-2">{notePreview(note)}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                      <span>Mood: {note.mood}</span><span>Food: {note.foodIntake}</span>
-                      <span>Fluids: {note.fluidIntake}</span><span>Sleep: {note.sleep}</span>
+                      <span>Mood: {displayValue(note.mood)}</span><span>Food: {displayValue(note.foodIntake)}</span>
+                      <span>Fluids: {displayValue(note.fluidIntake)}</span><span>Sleep: {displayValue(note.sleep)}</span>
                     </div>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => setSelectedNote(note)}>

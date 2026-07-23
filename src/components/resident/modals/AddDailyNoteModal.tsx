@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useCare } from "@/lib/care/store";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
+import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
 import type { DailyNote } from "@/lib/care/types";
 import { toast } from "sonner";
 
@@ -29,27 +30,19 @@ interface Props {
   residentId: string;
 }
 
-const NOTE_CATEGORIES = [
-  "General",
-  "Clinical",
-  "Behaviour",
-  "Nutrition",
-  "Hydration",
-  "Skin",
-  "Mobility",
-  "Family Communication",
-  "Medication",
-  "Other",
+const SHIFTS: Array<{ value: DailyNote["shift"]; label: string }> = [
+  { value: "morning", label: "Morning" },
+  { value: "afternoon", label: "Afternoon" },
+  { value: "night", label: "Night" },
 ];
-
-const SHIFTS = ["Day", "Evening", "Night"];
 
 const empty = (staff: string, residentId: string): Omit<DailyNote, "id"> => ({
   residentId,
   carePlanId: null,
-  date: new Date().toISOString().slice(0, 10),
+  date: new Date().toISOString(),
   staff,
-  shift: "Day" as const,
+  shift: "morning",
+  category: "general",
   observation: "",
   mood: "calm",
   foodIntake: "full",
@@ -61,13 +54,9 @@ const empty = (staff: string, residentId: string): Omit<DailyNote, "id"> => ({
 export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
   const { addNote, currentUserName, residents, carePlanProblems } = useCare();
   const [form, setForm] = useState<Omit<DailyNote, "id">>(empty(currentUserName, residentId));
-  const [category, setCategory] = useState("General");
 
   useEffect(() => {
-    if (open) {
-      setForm(empty(currentUserName, residentId));
-      setCategory("General");
-    }
+    if (open) setForm(empty(currentUserName, residentId));
   }, [open, residentId, currentUserName]);
 
   const resident = residents.find((r) => r.id === residentId);
@@ -76,13 +65,24 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
   );
 
   function save() {
+    if (!residentId) {
+      toast.error("Resident is required");
+      return;
+    }
+    if (!form.shift || !form.category) {
+      toast.error("Shift and note category are required");
+      return;
+    }
     if (!form.observation.trim()) {
-      toast.error("Note details required");
+      toast.error("Observation is required");
       return;
     }
 
-    const item = addNote({
+    addNote({
       ...form,
+      residentId,
+      date: new Date().toISOString(),
+      carePlanId: form.carePlanId || null,
     });
 
     toast.success("Daily Note Added");
@@ -93,52 +93,16 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Daily Note</DialogTitle>
+          <DialogTitle>Daily Note</DialogTitle>
           <DialogDescription>
             {resident && `For ${resident.firstName} ${resident.lastName}`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Date *</Label>
-            <Input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Shift *</Label>
-            <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v as any })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SHIFTS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="col-span-2 space-y-1.5">
-            <Label>Note Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {NOTE_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Resident *</Label>
+            <Input value={resident ? `${resident.firstName} ${resident.lastName}` : residentId} disabled />
           </div>
 
           <div className="col-span-2 space-y-1.5">
@@ -154,7 +118,39 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
                 <SelectItem value="none">None</SelectItem>
                 {currentCarePlans.map((plan) => (
                   <SelectItem key={plan.id} value={plan.id}>
-                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} · {plan.problemStatement}
+                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Shift *</Label>
+            <Select value={form.shift} onValueChange={(value) => setForm({ ...form, shift: value as DailyNote["shift"] })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SHIFTS.map((shift) => (
+                  <SelectItem key={shift.value} value={shift.value}>
+                    {shift.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Note Category *</Label>
+            <Select value={form.category || "general"} onValueChange={(value) => setForm({ ...form, category: value as DailyNote["category"] })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DAILY_NOTE_CATEGORY_OPTIONS.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>
+                    {category.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -162,25 +158,29 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
           </div>
 
           <div className="col-span-2 space-y-1.5">
-            <Label>Note Details *</Label>
+            <Label>Observation *</Label>
             <Textarea
               rows={4}
-              placeholder="Enter your observation..."
+              placeholder="Enter the main note, observation, care provided, concern or outcome..."
               value={form.observation}
-              onChange={(e) => setForm({ ...form, observation: e.target.value })}
+              onChange={(event) => setForm({ ...form, observation: event.target.value })}
             />
+          </div>
+
+          <div className="col-span-2 border-t pt-3">
+            <h3 className="text-sm font-medium">Additional Information</h3>
           </div>
 
           <div className="space-y-1.5">
             <Label>Mood</Label>
-            <Select value={form.mood} onValueChange={(v) => setForm({ ...form, mood: v as any })}>
+            <Select value={form.mood || "not_recorded"} onValueChange={(value) => setForm({ ...form, mood: value as DailyNote["mood"] })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["happy", "calm", "anxious", "withdrawn"].map((m) => (
-                  <SelectItem key={m} value={m} className="capitalize">
-                    {m}
+                {["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map((mood) => (
+                  <SelectItem key={mood} value={mood} className="capitalize">
+                    {mood.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -189,17 +189,14 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
 
           <div className="space-y-1.5">
             <Label>Food Intake</Label>
-            <Select
-              value={form.foodIntake}
-              onValueChange={(v) => setForm({ ...form, foodIntake: v as any })}
-            >
+            <Select value={form.foodIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, foodIntake: value as DailyNote["foodIntake"] })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["full", "most", "half", "little"].map((f) => (
-                  <SelectItem key={f} value={f} className="capitalize">
-                    {f}
+                {["not_recorded", "full", "most", "half", "little", "none"].map((intake) => (
+                  <SelectItem key={intake} value={intake} className="capitalize">
+                    {intake.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -208,17 +205,14 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
 
           <div className="space-y-1.5">
             <Label>Fluid Intake</Label>
-            <Select
-              value={form.fluidIntake}
-              onValueChange={(v) => setForm({ ...form, fluidIntake: v as any })}
-            >
+            <Select value={form.fluidIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, fluidIntake: value as DailyNote["fluidIntake"] })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["good", "moderate", "poor"].map((f) => (
-                  <SelectItem key={f} value={f} className="capitalize">
-                    {f}
+                {["not_recorded", "good", "moderate", "poor"].map((intake) => (
+                  <SelectItem key={intake} value={intake} className="capitalize">
+                    {intake.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -227,27 +221,27 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
 
           <div className="space-y-1.5">
             <Label>Sleep</Label>
-            <Select value={form.sleep} onValueChange={(v) => setForm({ ...form, sleep: v as any })}>
+            <Select value={form.sleep || "not_recorded"} onValueChange={(value) => setForm({ ...form, sleep: value as DailyNote["sleep"] })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["good", "broken", "poor"].map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize">
-                    {s}
+                {["not_recorded", "good", "broken", "poor"].map((sleep) => (
+                  <SelectItem key={sleep} value={sleep} className="capitalize">
+                    {sleep.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="col-span-2 space-y-1.5">
             <Label>Behaviour</Label>
             <Textarea
               rows={2}
-              placeholder="Note any behaviour..."
-              value={form.behaviour}
-              onChange={(e) => setForm({ ...form, behaviour: e.target.value })}
+              placeholder="Enter any behaviour-related details..."
+              value={form.behaviour || ""}
+              onChange={(event) => setForm({ ...form, behaviour: event.target.value })}
             />
           </div>
         </div>
