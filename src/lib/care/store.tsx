@@ -238,7 +238,7 @@ import type {
   HousekeepingExceptionType,
   HousekeepingSeverity,
 } from "./types";
-import { DAILY_NOTE_CATEGORY_OPTIONS } from "./types";
+import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "./types";
 import {
   archiveWorkOrderRecord,
   createWorkOrderRecord,
@@ -629,6 +629,21 @@ const uid = () => `id-${(++_uidSeq).toString(36).padStart(6, "0")}`;
 const DAILY_NOTE_CATEGORY_VALUES = new Set(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => option.value));
 const normalizeDailyNoteCategory = (value?: DailyNote["category"] | string | null): DailyNote["category"] =>
   value && DAILY_NOTE_CATEGORY_VALUES.has(value as any) ? (value as DailyNote["category"]) : "general";
+const DAILY_NOTE_STRUCTURED_FIELDS = ["mood", "foodIntake", "fluidIntake", "sleep", "behaviour"] as const;
+const sanitizeDailyNoteStructuredFields = <T extends Partial<DailyNote>>(input: T, category: DailyNote["category"]): T => {
+  const allowed = new Set(DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS[category || "general"] || []);
+  const next = { ...input };
+  DAILY_NOTE_STRUCTURED_FIELDS.forEach((field) => {
+    const value = next[field];
+    const normalizedValue = typeof value === "string" ? value.trim() : value;
+    if (!allowed.has(field) || normalizedValue === "" || normalizedValue === "not_recorded" || normalizedValue == null) {
+      delete next[field];
+    } else if (typeof value === "string") {
+      (next as any)[field] = normalizedValue;
+    }
+  });
+  return next;
+};
 const STORE_STORAGE_KEY = "carepath-pro-data";
 const LEGACY_STORE_STORAGE_KEY = "carepath-pro-store";
 const TRAINING_COURSE_CLEANUP_VERSION = "2026-07-17-clear-training-courses";
@@ -6727,9 +6742,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
             throw new Error("You do not have access to the selected care plan.");
           }
         }
+        const normalizedCategory = normalizeDailyNoteCategory(n.category);
+        const sanitizedNoteInput = sanitizeDailyNoteStructuredFields(n, normalizedCategory);
         const item = {
-          ...n,
-          category: normalizeDailyNoteCategory(n.category),
+          ...sanitizedNoteInput,
+          category: normalizedCategory,
           facilityId: n.facilityId || residentHomeId,
           carePlanId: linkedCarePlanProblem?.id ?? null,
           linkedProblemId: linkedCarePlanProblem?.id,
@@ -6809,16 +6826,18 @@ export function CareProvider({ children }: { children: ReactNode }) {
           }
         }
         const nextCarePlanId = linkedCarePlanProblem?.id ?? null;
+        const nextCategory = Object.prototype.hasOwnProperty.call(patch, "category")
+          ? normalizeDailyNoteCategory(patch.category)
+          : normalizeDailyNoteCategory(existing.category);
+        const sanitizedPatch = sanitizeDailyNoteStructuredFields(patch, nextCategory);
         setStore((s) => ({
           ...s,
           notes: s.notes.map((note) =>
             note.id === id
               ? {
-                  ...note,
-                  ...patch,
-                  category: Object.prototype.hasOwnProperty.call(patch, "category")
-                    ? normalizeDailyNoteCategory(patch.category)
-                    : normalizeDailyNoteCategory(note.category),
+                  ...sanitizeDailyNoteStructuredFields(note, nextCategory),
+                  ...sanitizedPatch,
+                  category: nextCategory,
                   residentId: nextResidentId,
                   facilityId: patch.facilityId || note.facilityId || residentHomeId,
                   carePlanId: nextCarePlanId,

@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Mic, Activity, AlertCircle, Eye, Search, X } from "lucide-react";
-import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
-import type { DailyNote } from "@/lib/care/types";
+import { Mic, Activity, AlertCircle, Check, ChevronsUpDown, Eye, Search, X } from "lucide-react";
+import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "@/lib/care/types";
+import type { DailyNote, Resident } from "@/lib/care/types";
 
 export const Route = createFileRoute("/daily-notes")({
   head: () => ({ meta: [{ title: "Daily Notes â€” CarePath" }] }),
@@ -22,6 +24,30 @@ export const Route = createFileRoute("/daily-notes")({
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const DAILY_NOTE_CATEGORY_LABELS = new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => [option.value, option.label]));
+const dailyNoteStructuredFields = ["mood", "foodIntake", "fluidIntake", "sleep", "behaviour"] as const;
+
+function allowedFields(category: DailyNote["category"]) {
+  return new Set(DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS[category || "general"] || []);
+}
+
+function clearIrrelevantFields<T extends Partial<DailyNote>>(note: T, category: DailyNote["category"]): T {
+  const allowed = allowedFields(category);
+  const next = { ...note };
+  dailyNoteStructuredFields.forEach((field) => {
+    if (!allowed.has(field)) delete next[field];
+  });
+  return next;
+}
+
+function assignEnteredStructuredFields(target: Partial<DailyNote>, source: Partial<DailyNote>, category: DailyNote["category"]) {
+  const allowed = allowedFields(category);
+  dailyNoteStructuredFields.forEach((field) => {
+    const value = source[field];
+    if (!allowed.has(field) || !value || value === "not_recorded") return;
+    const nextValue = typeof value === "string" ? value.trim() : value;
+    if (nextValue) (target as any)[field] = nextValue;
+  });
+}
 
 function categoryLabel(value?: DailyNote["category"] | string) {
   if (value === "intervention") return "From intervention";
@@ -30,6 +56,10 @@ function categoryLabel(value?: DailyNote["category"] | string) {
 
 function displayValue(value?: string) {
   return !value || value === "not_recorded" ? "Not recorded" : value.replace("_", " ");
+}
+
+function hasStructuredValues(note: DailyNote) {
+  return Boolean(note.mood || note.foodIntake || note.fluidIntake || note.sleep);
 }
 
 function noteCategory(note: DailyNote) {
@@ -48,6 +78,69 @@ function startOfWeekKey() {
   const day = date.getDay() || 7;
   date.setDate(date.getDate() - day + 1);
   return date.toISOString().slice(0, 10);
+}
+
+function ResidentSearchSelect({
+  residents,
+  value,
+  onChange,
+}: {
+  residents: Resident[];
+  value: string;
+  onChange: (residentId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedResident = residents.find((resident) => resident.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className={selectedResident ? "" : "text-muted-foreground"}>
+            {selectedResident
+              ? `${selectedResident.firstName} ${selectedResident.lastName}`
+              : "Choose resident"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search resident, room or ID..." />
+          <CommandList>
+            <CommandEmpty>No residents found.</CommandEmpty>
+            <CommandGroup>
+              {residents.map((resident) => {
+                const residentName = `${resident.firstName} ${resident.lastName}`;
+                return (
+                  <CommandItem
+                    key={resident.id}
+                    value={`${residentName} ${resident.roomNumber || ""} ${resident.id}`}
+                    onSelect={() => {
+                      onChange(resident.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={`h-4 w-4 ${value === resident.id ? "opacity-100" : "opacity-0"}`} />
+                    <span>{residentName}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      Room {resident.roomNumber || "-"}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function NoteViewDialog({
@@ -104,12 +197,14 @@ function NoteViewDialog({
               <p className="rounded-md border p-3 whitespace-pre-wrap">{note.behaviour}</p>
             </div>
           )}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
-            <span>Mood: {displayValue(note.mood)}</span>
-            <span>Food: {displayValue(note.foodIntake)}</span>
-            <span>Fluids: {displayValue(note.fluidIntake)}</span>
-            <span>Sleep: {displayValue(note.sleep)}</span>
-          </div>
+          {hasStructuredValues(note) && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
+              {note.mood && <span>Mood: {displayValue(note.mood)}</span>}
+              {note.foodIntake && <span>Food: {displayValue(note.foodIntake)}</span>}
+              {note.fluidIntake && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
+              {note.sleep && <span>Sleep: {displayValue(note.sleep)}</span>}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -125,11 +220,6 @@ function NewNote() {
     shift: "morning",
     category: "general",
     observation: "",
-    mood: "calm",
-    foodIntake: "most",
-    fluidIntake: "good",
-    sleep: "good",
-    behaviour: "",
     additionalNotes: "",
   });
   const residentCarePlans = carePlanProblems.filter(
@@ -148,22 +238,38 @@ function NewNote() {
     if (!f.residentId) { toast.error("Choose a resident"); return; }
     if (!f.shift || !f.category) { toast.error("Shift and note category are required"); return; }
     if (!f.observation.trim()) { toast.error("Observation is required"); return; }
-    addNote({ ...f, date: new Date().toISOString(), staff: currentUserName });
+    const category = f.category || "general";
+    const payload: Omit<DailyNote, "id"> = {
+      residentId: f.residentId,
+      carePlanId: f.carePlanId || null,
+      shift: f.shift,
+      category,
+      observation: f.observation.trim(),
+      date: new Date().toISOString(),
+      staff: currentUserName,
+    };
+    assignEnteredStructuredFields(payload, f, category);
+    addNote(payload);
     toast.success("Note saved");
     setOpen(false);
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button>New Daily Note</Button></DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         <DialogHeader><DialogTitle>Daily Note</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <Label>Resident *</Label>
-            <Select value={f.residentId} onValueChange={v => setF({ ...f, residentId: v, carePlanId: null })}>
-              <SelectTrigger><SelectValue placeholder="Choose resident" /></SelectTrigger>
-              <SelectContent>{residents.map(r => <SelectItem key={r.id} value={r.id}>{r.firstName} {r.lastName}</SelectItem>)}</SelectContent>
-            </Select>
+            <ResidentSearchSelect
+              residents={residents}
+              value={f.residentId}
+              onChange={(residentId) => setF({ ...f, residentId, carePlanId: null })}
+            />
           </div>
           <div className="col-span-2">
             <Label>Related Care Plan</Label>
@@ -192,7 +298,13 @@ function NewNote() {
           </div>
           <div>
             <Label>Note Category *</Label>
-            <Select value={f.category || "general"} onValueChange={v => setF({ ...f, category: v as DailyNote["category"] })}>
+            <Select
+              value={f.category || "general"}
+              onValueChange={v => {
+                const category = v as DailyNote["category"];
+                setF(clearIrrelevantFields({ ...f, category }, category));
+              }}
+            >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {DAILY_NOTE_CATEGORY_OPTIONS.map((category) => (
@@ -212,36 +324,48 @@ function NewNote() {
               onChange={e => setF({ ...f, observation: e.target.value })}
             />
           </div>
-          <div className="col-span-2 border-t pt-3 text-sm font-medium">Additional Information</div>
-          <div>
-            <Label>Mood</Label>
-            <Select value={f.mood || "not_recorded"} onValueChange={v => setF({ ...f, mood: v as DailyNote["mood"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Food Intake</Label>
-            <Select value={f.foodIntake || "not_recorded"} onValueChange={v => setF({ ...f, foodIntake: v as DailyNote["foodIntake"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["not_recorded", "full", "most", "half", "little", "none"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Fluid Intake</Label>
-            <Select value={f.fluidIntake || "not_recorded"} onValueChange={v => setF({ ...f, fluidIntake: v as DailyNote["fluidIntake"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["not_recorded", "good", "moderate", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Sleep</Label>
-            <Select value={f.sleep || "not_recorded"} onValueChange={v => setF({ ...f, sleep: v as DailyNote["sleep"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["not_recorded", "good", "broken", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2"><Label>Behaviour</Label><Textarea rows={2} placeholder="Enter any behaviour-related details..." value={f.behaviour || ""} onChange={e => setF({ ...f, behaviour: e.target.value })} /></div>
+          {allowedFields(f.category).size > 0 && (
+            <div className="col-span-2 border-t pt-3 text-sm font-medium">Additional Information</div>
+          )}
+          {allowedFields(f.category).has("mood") && (
+            <div>
+              <Label>Mood</Label>
+              <Select value={f.mood || "not_recorded"} onValueChange={v => setF({ ...f, mood: v as DailyNote["mood"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          {allowedFields(f.category).has("foodIntake") && (
+            <div>
+              <Label>Food Intake</Label>
+              <Select value={f.foodIntake || "not_recorded"} onValueChange={v => setF({ ...f, foodIntake: v as DailyNote["foodIntake"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["not_recorded", "full", "most", "half", "little", "none"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          {allowedFields(f.category).has("fluidIntake") && (
+            <div>
+              <Label>Fluid Intake</Label>
+              <Select value={f.fluidIntake || "not_recorded"} onValueChange={v => setF({ ...f, fluidIntake: v as DailyNote["fluidIntake"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["not_recorded", "good", "moderate", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          {allowedFields(f.category).has("sleep") && (
+            <div>
+              <Label>Sleep</Label>
+              <Select value={f.sleep || "not_recorded"} onValueChange={v => setF({ ...f, sleep: v as DailyNote["sleep"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["not_recorded", "good", "broken", "poor"].map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          {allowedFields(f.category).has("behaviour") && (
+            <div className="col-span-2"><Label>Behaviour</Label><Textarea rows={2} placeholder="Enter any behaviour-related details..." value={f.behaviour || ""} onChange={e => setF({ ...f, behaviour: e.target.value })} /></div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -481,10 +605,14 @@ function DailyNotesPage() {
                       {new Date(note.date).toLocaleString("en-GB")} · {note.staff}
                     </p>
                     <p className="text-sm mt-2 line-clamp-2">{notePreview(note)}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                      <span>Mood: {displayValue(note.mood)}</span><span>Food: {displayValue(note.foodIntake)}</span>
-                      <span>Fluids: {displayValue(note.fluidIntake)}</span><span>Sleep: {displayValue(note.sleep)}</span>
-                    </div>
+                    {hasStructuredValues(note) && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
+                        {note.mood && <span>Mood: {displayValue(note.mood)}</span>}
+                        {note.foodIntake && <span>Food: {displayValue(note.foodIntake)}</span>}
+                        {note.fluidIntake && <span>Fluids: {displayValue(note.fluidIntake)}</span>}
+                        {note.sleep && <span>Sleep: {displayValue(note.sleep)}</span>}
+                      </div>
+                    )}
                   </div>
                   <Button size="sm" variant="outline" onClick={() => setSelectedNote(note)}>
                     <Eye className="h-3.5 w-3.5 mr-1" /> View Note

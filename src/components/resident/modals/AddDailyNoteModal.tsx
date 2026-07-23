@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useCare } from "@/lib/care/store";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
-import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
+import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "@/lib/care/types";
 import type { DailyNote } from "@/lib/care/types";
 import { toast } from "sonner";
 
@@ -44,12 +44,44 @@ const empty = (staff: string, residentId: string): Omit<DailyNote, "id"> => ({
   shift: "morning",
   category: "general",
   observation: "",
-  mood: "calm",
-  foodIntake: "full",
-  fluidIntake: "good",
-  sleep: "good",
-  behaviour: "",
 });
+
+const dailyNoteStructuredFields = ["mood", "foodIntake", "fluidIntake", "sleep", "behaviour"] as const;
+
+function allowedFields(category: DailyNote["category"]) {
+  return new Set(DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS[category || "general"] || []);
+}
+
+function clearIrrelevantFields<T extends Partial<DailyNote>>(note: T, category: DailyNote["category"]): T {
+  const allowed = allowedFields(category);
+  const next = { ...note };
+  dailyNoteStructuredFields.forEach((field) => {
+    if (!allowed.has(field)) delete next[field];
+  });
+  return next;
+}
+
+function buildDailyNotePayload(form: Omit<DailyNote, "id">, residentId: string): Omit<DailyNote, "id"> {
+  const category = form.category || "general";
+  const allowed = allowedFields(category);
+  const payload: Omit<DailyNote, "id"> = {
+    residentId,
+    carePlanId: form.carePlanId || null,
+    date: new Date().toISOString(),
+    staff: form.staff,
+    shift: form.shift,
+    category,
+    observation: form.observation.trim(),
+  };
+  dailyNoteStructuredFields.forEach((field) => {
+    const value = form[field];
+    if (allowed.has(field) && value && value !== "not_recorded") {
+      const nextValue = typeof value === "string" ? value.trim() : value;
+      if (nextValue) (payload as any)[field] = nextValue;
+    }
+  });
+  return payload;
+}
 
 export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
   const { addNote, currentUserName, residents, carePlanProblems } = useCare();
@@ -78,12 +110,7 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
       return;
     }
 
-    addNote({
-      ...form,
-      residentId,
-      date: new Date().toISOString(),
-      carePlanId: form.carePlanId || null,
-    });
+    addNote(buildDailyNotePayload(form, residentId));
 
     toast.success("Daily Note Added");
     onOpenChange(false);
@@ -91,7 +118,11 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Daily Note</DialogTitle>
           <DialogDescription>
@@ -143,7 +174,13 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
 
           <div className="space-y-1.5">
             <Label>Note Category *</Label>
-            <Select value={form.category || "general"} onValueChange={(value) => setForm({ ...form, category: value as DailyNote["category"] })}>
+            <Select
+              value={form.category || "general"}
+              onValueChange={(value) => {
+                const category = value as DailyNote["category"];
+                setForm(clearIrrelevantFields({ ...form, category }, category));
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -167,83 +204,95 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
             />
           </div>
 
-          <div className="col-span-2 border-t pt-3">
-            <h3 className="text-sm font-medium">Additional Information</h3>
-          </div>
+          {allowedFields(form.category).size > 0 && (
+            <div className="col-span-2 border-t pt-3">
+              <h3 className="text-sm font-medium">Additional Information</h3>
+            </div>
+          )}
 
-          <div className="space-y-1.5">
-            <Label>Mood</Label>
-            <Select value={form.mood || "not_recorded"} onValueChange={(value) => setForm({ ...form, mood: value as DailyNote["mood"] })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map((mood) => (
-                  <SelectItem key={mood} value={mood} className="capitalize">
-                    {mood.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {allowedFields(form.category).has("mood") && (
+            <div className="space-y-1.5">
+              <Label>Mood</Label>
+              <Select value={form.mood || "not_recorded"} onValueChange={(value) => setForm({ ...form, mood: value as DailyNote["mood"] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"].map((mood) => (
+                    <SelectItem key={mood} value={mood} className="capitalize">
+                      {mood.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div className="space-y-1.5">
-            <Label>Food Intake</Label>
-            <Select value={form.foodIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, foodIntake: value as DailyNote["foodIntake"] })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["not_recorded", "full", "most", "half", "little", "none"].map((intake) => (
-                  <SelectItem key={intake} value={intake} className="capitalize">
-                    {intake.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {allowedFields(form.category).has("foodIntake") && (
+            <div className="space-y-1.5">
+              <Label>Food Intake</Label>
+              <Select value={form.foodIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, foodIntake: value as DailyNote["foodIntake"] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["not_recorded", "full", "most", "half", "little", "none"].map((intake) => (
+                    <SelectItem key={intake} value={intake} className="capitalize">
+                      {intake.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div className="space-y-1.5">
-            <Label>Fluid Intake</Label>
-            <Select value={form.fluidIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, fluidIntake: value as DailyNote["fluidIntake"] })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["not_recorded", "good", "moderate", "poor"].map((intake) => (
-                  <SelectItem key={intake} value={intake} className="capitalize">
-                    {intake.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {allowedFields(form.category).has("fluidIntake") && (
+            <div className="space-y-1.5">
+              <Label>Fluid Intake</Label>
+              <Select value={form.fluidIntake || "not_recorded"} onValueChange={(value) => setForm({ ...form, fluidIntake: value as DailyNote["fluidIntake"] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["not_recorded", "good", "moderate", "poor"].map((intake) => (
+                    <SelectItem key={intake} value={intake} className="capitalize">
+                      {intake.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div className="space-y-1.5">
-            <Label>Sleep</Label>
-            <Select value={form.sleep || "not_recorded"} onValueChange={(value) => setForm({ ...form, sleep: value as DailyNote["sleep"] })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["not_recorded", "good", "broken", "poor"].map((sleep) => (
-                  <SelectItem key={sleep} value={sleep} className="capitalize">
-                    {sleep.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {allowedFields(form.category).has("sleep") && (
+            <div className="space-y-1.5">
+              <Label>Sleep</Label>
+              <Select value={form.sleep || "not_recorded"} onValueChange={(value) => setForm({ ...form, sleep: value as DailyNote["sleep"] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["not_recorded", "good", "broken", "poor"].map((sleep) => (
+                    <SelectItem key={sleep} value={sleep} className="capitalize">
+                      {sleep.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div className="col-span-2 space-y-1.5">
-            <Label>Behaviour</Label>
-            <Textarea
-              rows={2}
-              placeholder="Enter any behaviour-related details..."
-              value={form.behaviour || ""}
-              onChange={(event) => setForm({ ...form, behaviour: event.target.value })}
-            />
-          </div>
+          {allowedFields(form.category).has("behaviour") && (
+            <div className="col-span-2 space-y-1.5">
+              <Label>Behaviour</Label>
+              <Textarea
+                rows={2}
+                placeholder="Enter any behaviour-related details..."
+                value={form.behaviour || ""}
+                onChange={(event) => setForm({ ...form, behaviour: event.target.value })}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>

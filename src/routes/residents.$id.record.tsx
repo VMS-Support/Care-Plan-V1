@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
-import { DAILY_NOTE_CATEGORY_OPTIONS } from "@/lib/care/types";
+import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "@/lib/care/types";
 import type { CarePlanProblem, DailyNote } from "@/lib/care/types";
 import type { Permission } from "@/lib/care/permissions";
 
@@ -31,6 +31,39 @@ const kindMeta: Record<Kind, { title: string; perm: Permission }> = {
   visitor: { title: "Visitor Record", perm: "visitor.create" },
   outing: { title: "Resident Outing", perm: "outing.create" },
 };
+
+const dailyNoteStructuredFields = ["mood", "foodIntake", "fluidIntake", "sleep", "behaviour"] as const;
+
+function allowedDailyNoteFields(category: DailyNote["category"]) {
+  return new Set(DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS[category || "general"] || []);
+}
+
+function clearIrrelevantDailyNoteFields<T extends Partial<DailyNote>>(note: T, category: DailyNote["category"]): T {
+  const allowed = allowedDailyNoteFields(category);
+  const next = { ...note };
+  dailyNoteStructuredFields.forEach((field) => {
+    if (!allowed.has(field)) delete next[field];
+  });
+  return next;
+}
+
+function dailyNotePayload(input: Partial<DailyNote>) {
+  const category = input.category || "general";
+  const allowed = allowedDailyNoteFields(category);
+  const payload: Partial<DailyNote> = {
+    carePlanId: input.carePlanId || null,
+    shift: input.shift,
+    category,
+    observation: input.observation?.trim() || "",
+  };
+  dailyNoteStructuredFields.forEach((field) => {
+    const value = input[field];
+    if (!allowed.has(field) || !value || value === "not_recorded") return;
+    const nextValue = typeof value === "string" ? value.trim() : value;
+    if (nextValue) (payload as any)[field] = nextValue;
+  });
+  return payload;
+}
 
 function RecordPage() {
   const { id } = Route.useParams();
@@ -103,17 +136,12 @@ function NoteForm({
     shift: "morning" as DailyNote["shift"],
     category: "general" as DailyNote["category"],
     observation: "",
-    mood: "calm" as DailyNote["mood"],
-    foodIntake: "most" as DailyNote["foodIntake"],
-    fluidIntake: "good" as DailyNote["fluidIntake"],
-    sleep: "good" as DailyNote["sleep"],
-    behaviour: "",
   });
   const activeCarePlans = carePlanProblems.filter((plan) => plan.residentId === residentId && plan.status === "active");
   const save = () => {
     if (!d.shift || !d.category) { toast.error("Shift and note category are required"); return; }
     if (!d.observation.trim()) { toast.error("Observation is required"); return; }
-    onSubmit(d);
+    onSubmit(dailyNotePayload(d));
   };
   return (
     <div className="space-y-3">
@@ -132,17 +160,26 @@ function NoteForm({
       />
       <div className="grid grid-cols-2 gap-3">
         <SelectField label="Shift *" value={d.shift} onChange={v => set({ ...d, shift: v as DailyNote["shift"] })} options={["morning", "afternoon", "night"]} labels={new Map([["morning", "Morning"], ["afternoon", "Afternoon"], ["night", "Night"]])} />
-        <SelectField label="Note Category *" value={d.category || "general"} onChange={v => set({ ...d, category: v as DailyNote["category"] })} options={DAILY_NOTE_CATEGORY_OPTIONS.map((category) => category.value)} labels={new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((category) => [category.value, category.label]))} />
+        <SelectField
+          label="Note Category *"
+          value={d.category || "general"}
+          onChange={v => {
+            const category = v as DailyNote["category"];
+            set(clearIrrelevantDailyNoteFields({ ...d, category }, category));
+          }}
+          options={DAILY_NOTE_CATEGORY_OPTIONS.map((category) => category.value)}
+          labels={new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((category) => [category.value, category.label]))}
+        />
       </div>
       <Field label="Observation *"><Textarea rows={4} placeholder="Enter the main note, observation, care provided, concern or outcome..." value={d.observation} onChange={e => set({ ...d, observation: e.target.value })} /></Field>
-      <div className="border-t pt-3 text-sm font-medium">Additional Information</div>
+      {allowedDailyNoteFields(d.category).size > 0 && <div className="border-t pt-3 text-sm font-medium">Additional Information</div>}
       <div className="grid grid-cols-2 gap-3">
-        <SelectField label="Mood" value={d.mood || "not_recorded"} onChange={v => set({ ...d, mood: v as DailyNote["mood"] })} options={["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"]} />
-        <SelectField label="Food intake" value={d.foodIntake || "not_recorded"} onChange={v => set({ ...d, foodIntake: v as DailyNote["foodIntake"] })} options={["not_recorded", "full", "most", "half", "little", "none"]} />
-        <SelectField label="Fluid intake" value={d.fluidIntake || "not_recorded"} onChange={v => set({ ...d, fluidIntake: v as DailyNote["fluidIntake"] })} options={["not_recorded", "good", "moderate", "poor"]} />
-        <SelectField label="Sleep" value={d.sleep || "not_recorded"} onChange={v => set({ ...d, sleep: v as DailyNote["sleep"] })} options={["not_recorded", "good", "broken", "poor"]} />
+        {allowedDailyNoteFields(d.category).has("mood") && <SelectField label="Mood" value={d.mood || "not_recorded"} onChange={v => set({ ...d, mood: v as DailyNote["mood"] })} options={["not_recorded", "happy", "calm", "anxious", "withdrawn", "agitated"]} />}
+        {allowedDailyNoteFields(d.category).has("foodIntake") && <SelectField label="Food intake" value={d.foodIntake || "not_recorded"} onChange={v => set({ ...d, foodIntake: v as DailyNote["foodIntake"] })} options={["not_recorded", "full", "most", "half", "little", "none"]} />}
+        {allowedDailyNoteFields(d.category).has("fluidIntake") && <SelectField label="Fluid intake" value={d.fluidIntake || "not_recorded"} onChange={v => set({ ...d, fluidIntake: v as DailyNote["fluidIntake"] })} options={["not_recorded", "good", "moderate", "poor"]} />}
+        {allowedDailyNoteFields(d.category).has("sleep") && <SelectField label="Sleep" value={d.sleep || "not_recorded"} onChange={v => set({ ...d, sleep: v as DailyNote["sleep"] })} options={["not_recorded", "good", "broken", "poor"]} />}
       </div>
-      <Field label="Behaviour"><Input placeholder="Enter any behaviour-related details..." value={d.behaviour} onChange={e => set({ ...d, behaviour: e.target.value })} /></Field>
+      {allowedDailyNoteFields(d.category).has("behaviour") && <Field label="Behaviour"><Input placeholder="Enter any behaviour-related details..." value={d.behaviour || ""} onChange={e => set({ ...d, behaviour: e.target.value })} /></Field>}
       <Button onClick={save}>Save Note</Button>
     </div>
   );

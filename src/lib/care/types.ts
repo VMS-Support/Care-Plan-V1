@@ -4347,6 +4347,7 @@ export const DAILY_NOTE_CATEGORY_OPTIONS = [
   { value: "medication", label: "Medication" },
   { value: "nutrition_hydration", label: "Nutrition and Hydration" },
   { value: "mood_behaviour", label: "Mood and Behaviour" },
+  { value: "sleep", label: "Sleep" },
   { value: "mobility", label: "Mobility" },
   { value: "falls", label: "Falls" },
   { value: "pain", label: "Pain" },
@@ -4359,6 +4360,12 @@ export const DAILY_NOTE_CATEGORY_OPTIONS = [
 ] as const;
 
 export type DailyNoteCategory = (typeof DAILY_NOTE_CATEGORY_OPTIONS)[number]["value"];
+export type DailyNoteStructuredField = "mood" | "foodIntake" | "fluidIntake" | "sleep" | "behaviour";
+export const DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS: Partial<Record<DailyNoteCategory, readonly DailyNoteStructuredField[]>> = {
+  nutrition_hydration: ["foodIntake", "fluidIntake"],
+  mood_behaviour: ["mood", "behaviour"],
+  sleep: ["sleep"],
+};
 
 export interface DailyNote {
   id: string;

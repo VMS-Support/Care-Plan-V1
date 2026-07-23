@@ -142,6 +142,10 @@ function dailyNoteValue(value?: string) {
   return !value || value === "not_recorded" ? "Not recorded" : value.replace("_", " ");
 }
 
+function dailyNoteHasStructuredValues(note: DailyNote) {
+  return Boolean(note.mood || note.foodIntake || note.fluidIntake || note.sleep);
+}
+
 type UpcomingTaskStatus = ScheduledInterventionStatus;
 
 function statusBadgeClass(status: UpcomingTaskStatus) {
@@ -2296,12 +2300,14 @@ function ResidentDetail() {
                   <span className="text-xs text-muted-foreground">{n.staff}</span>
                 </div>
                 <p className="text-sm mt-1">{n.observation}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                  <span>Mood: {dailyNoteValue(n.mood)}</span>
-                  <span>Food: {dailyNoteValue(n.foodIntake)}</span>
-                  <span>Fluids: {dailyNoteValue(n.fluidIntake)}</span>
-                  <span>Sleep: {dailyNoteValue(n.sleep)}</span>
-                </div>
+                {dailyNoteHasStructuredValues(n) && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
+                    {n.mood && <span>Mood: {dailyNoteValue(n.mood)}</span>}
+                    {n.foodIntake && <span>Food: {dailyNoteValue(n.foodIntake)}</span>}
+                    {n.fluidIntake && <span>Fluids: {dailyNoteValue(n.fluidIntake)}</span>}
+                    {n.sleep && <span>Sleep: {dailyNoteValue(n.sleep)}</span>}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
