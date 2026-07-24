@@ -86,6 +86,8 @@ import { Route as ResidentsIdCarePlanRouteImport } from './routes/residents.$id.
 import { Route as ResidentsIdAssessmentsRouteImport } from './routes/residents.$id.assessments'
 import { Route as MaintenanceWorkOrdersNewRouteImport } from './routes/maintenance.work-orders.new'
 import { Route as MaintenanceWorkOrdersWorkOrderIdRouteImport } from './routes/maintenance.work-orders.$workOrderId'
+import { Route as MaintenanceCorrectiveActionsNewRouteImport } from './routes/maintenance.corrective-actions.new'
+import { Route as MaintenanceCorrectiveActionsIdRouteImport } from './routes/maintenance.corrective-actions.$id'
 import { Route as MaintenanceContractorsRegisterRouteImport } from './routes/maintenance.contractors.register'
 import { Route as MaintenanceContractorsNewRouteImport } from './routes/maintenance.contractors.new'
 import { Route as MaintenanceContractorsContractorIdRouteImport } from './routes/maintenance.contractors.$contractorId'
@@ -100,6 +102,7 @@ import { Route as MaintenanceCertificatesArchivedRouteImport } from './routes/ma
 import { Route as MaintenanceCertificatesIdRouteImport } from './routes/maintenance.certificates.$id'
 import { Route as AssessmentsNewResidentIdRouteImport } from './routes/assessments.new.$residentId'
 import { Route as MaintenanceWorkOrdersWorkOrderIdEditRouteImport } from './routes/maintenance.work-orders.$workOrderId.edit'
+import { Route as MaintenanceCorrectiveActionsIdEditRouteImport } from './routes/maintenance.corrective-actions.$id.edit'
 import { Route as MaintenanceContractorsContractorIdEditRouteImport } from './routes/maintenance.contractors.$contractorId.edit'
 import { Route as MaintenanceCertificatesIdRenewRouteImport } from './routes/maintenance.certificates.$id.renew'
 import { Route as MaintenanceCertificatesIdEditRouteImport } from './routes/maintenance.certificates.$id.edit'
@@ -509,6 +512,18 @@ const MaintenanceWorkOrdersWorkOrderIdRoute =
     path: '/$workOrderId',
     getParentRoute: () => MaintenanceWorkOrdersRoute,
   } as any)
+const MaintenanceCorrectiveActionsNewRoute =
+  MaintenanceCorrectiveActionsNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => MaintenanceCorrectiveActionsRoute,
+  } as any)
+const MaintenanceCorrectiveActionsIdRoute =
+  MaintenanceCorrectiveActionsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => MaintenanceCorrectiveActionsRoute,
+  } as any)
 const MaintenanceContractorsRegisterRoute =
   MaintenanceContractorsRegisterRouteImport.update({
     id: '/register',
@@ -593,6 +608,12 @@ const MaintenanceWorkOrdersWorkOrderIdEditRoute =
     path: '/edit',
     getParentRoute: () => MaintenanceWorkOrdersWorkOrderIdRoute,
   } as any)
+const MaintenanceCorrectiveActionsIdEditRoute =
+  MaintenanceCorrectiveActionsIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => MaintenanceCorrectiveActionsIdRoute,
+  } as any)
 const MaintenanceContractorsContractorIdEditRoute =
   MaintenanceContractorsContractorIdEditRouteImport.update({
     id: '/edit',
@@ -645,7 +666,7 @@ export interface FileRoutesByFullPath {
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
-  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
+  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
@@ -683,6 +704,8 @@ export interface FileRoutesByFullPath {
   '/maintenance/contractors/$contractorId': typeof MaintenanceContractorsContractorIdRouteWithChildren
   '/maintenance/contractors/new': typeof MaintenanceContractorsNewRoute
   '/maintenance/contractors/register': typeof MaintenanceContractorsRegisterRoute
+  '/maintenance/corrective-actions/$id': typeof MaintenanceCorrectiveActionsIdRouteWithChildren
+  '/maintenance/corrective-actions/new': typeof MaintenanceCorrectiveActionsNewRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -706,6 +729,7 @@ export interface FileRoutesByFullPath {
   '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
   '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/contractors/$contractorId/edit': typeof MaintenanceContractorsContractorIdEditRoute
+  '/maintenance/corrective-actions/$id/edit': typeof MaintenanceCorrectiveActionsIdEditRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -739,7 +763,7 @@ export interface FileRoutesByTo {
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
-  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
+  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
@@ -777,6 +801,8 @@ export interface FileRoutesByTo {
   '/maintenance/contractors/$contractorId': typeof MaintenanceContractorsContractorIdRouteWithChildren
   '/maintenance/contractors/new': typeof MaintenanceContractorsNewRoute
   '/maintenance/contractors/register': typeof MaintenanceContractorsRegisterRoute
+  '/maintenance/corrective-actions/$id': typeof MaintenanceCorrectiveActionsIdRouteWithChildren
+  '/maintenance/corrective-actions/new': typeof MaintenanceCorrectiveActionsNewRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -800,6 +826,7 @@ export interface FileRoutesByTo {
   '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
   '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/contractors/$contractorId/edit': typeof MaintenanceContractorsContractorIdEditRoute
+  '/maintenance/corrective-actions/$id/edit': typeof MaintenanceCorrectiveActionsIdEditRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRoutesById {
@@ -836,7 +863,7 @@ export interface FileRoutesById {
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
-  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRoute
+  '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
@@ -874,6 +901,8 @@ export interface FileRoutesById {
   '/maintenance/contractors/$contractorId': typeof MaintenanceContractorsContractorIdRouteWithChildren
   '/maintenance/contractors/new': typeof MaintenanceContractorsNewRoute
   '/maintenance/contractors/register': typeof MaintenanceContractorsRegisterRoute
+  '/maintenance/corrective-actions/$id': typeof MaintenanceCorrectiveActionsIdRouteWithChildren
+  '/maintenance/corrective-actions/new': typeof MaintenanceCorrectiveActionsNewRoute
   '/maintenance/work-orders/$workOrderId': typeof MaintenanceWorkOrdersWorkOrderIdRouteWithChildren
   '/maintenance/work-orders/new': typeof MaintenanceWorkOrdersNewRoute
   '/residents/$id/assessments': typeof ResidentsIdAssessmentsRoute
@@ -897,6 +926,7 @@ export interface FileRoutesById {
   '/maintenance/certificates/$id/edit': typeof MaintenanceCertificatesIdEditRoute
   '/maintenance/certificates/$id/renew': typeof MaintenanceCertificatesIdRenewRoute
   '/maintenance/contractors/$contractorId/edit': typeof MaintenanceContractorsContractorIdEditRoute
+  '/maintenance/corrective-actions/$id/edit': typeof MaintenanceCorrectiveActionsIdEditRoute
   '/maintenance/work-orders/$workOrderId/edit': typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
 export interface FileRouteTypes {
@@ -972,6 +1002,8 @@ export interface FileRouteTypes {
     | '/maintenance/contractors/$contractorId'
     | '/maintenance/contractors/new'
     | '/maintenance/contractors/register'
+    | '/maintenance/corrective-actions/$id'
+    | '/maintenance/corrective-actions/new'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -995,6 +1027,7 @@ export interface FileRouteTypes {
     | '/maintenance/certificates/$id/edit'
     | '/maintenance/certificates/$id/renew'
     | '/maintenance/contractors/$contractorId/edit'
+    | '/maintenance/corrective-actions/$id/edit'
     | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1066,6 +1099,8 @@ export interface FileRouteTypes {
     | '/maintenance/contractors/$contractorId'
     | '/maintenance/contractors/new'
     | '/maintenance/contractors/register'
+    | '/maintenance/corrective-actions/$id'
+    | '/maintenance/corrective-actions/new'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -1089,6 +1124,7 @@ export interface FileRouteTypes {
     | '/maintenance/certificates/$id/edit'
     | '/maintenance/certificates/$id/renew'
     | '/maintenance/contractors/$contractorId/edit'
+    | '/maintenance/corrective-actions/$id/edit'
     | '/maintenance/work-orders/$workOrderId/edit'
   id:
     | '__root__'
@@ -1162,6 +1198,8 @@ export interface FileRouteTypes {
     | '/maintenance/contractors/$contractorId'
     | '/maintenance/contractors/new'
     | '/maintenance/contractors/register'
+    | '/maintenance/corrective-actions/$id'
+    | '/maintenance/corrective-actions/new'
     | '/maintenance/work-orders/$workOrderId'
     | '/maintenance/work-orders/new'
     | '/residents/$id/assessments'
@@ -1185,6 +1223,7 @@ export interface FileRouteTypes {
     | '/maintenance/certificates/$id/edit'
     | '/maintenance/certificates/$id/renew'
     | '/maintenance/contractors/$contractorId/edit'
+    | '/maintenance/corrective-actions/$id/edit'
     | '/maintenance/work-orders/$workOrderId/edit'
   fileRoutesById: FileRoutesById
 }
@@ -1771,6 +1810,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MaintenanceWorkOrdersWorkOrderIdRouteImport
       parentRoute: typeof MaintenanceWorkOrdersRoute
     }
+    '/maintenance/corrective-actions/new': {
+      id: '/maintenance/corrective-actions/new'
+      path: '/new'
+      fullPath: '/maintenance/corrective-actions/new'
+      preLoaderRoute: typeof MaintenanceCorrectiveActionsNewRouteImport
+      parentRoute: typeof MaintenanceCorrectiveActionsRoute
+    }
+    '/maintenance/corrective-actions/$id': {
+      id: '/maintenance/corrective-actions/$id'
+      path: '/$id'
+      fullPath: '/maintenance/corrective-actions/$id'
+      preLoaderRoute: typeof MaintenanceCorrectiveActionsIdRouteImport
+      parentRoute: typeof MaintenanceCorrectiveActionsRoute
+    }
     '/maintenance/contractors/register': {
       id: '/maintenance/contractors/register'
       path: '/register'
@@ -1868,6 +1921,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/maintenance/work-orders/$workOrderId/edit'
       preLoaderRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRouteImport
       parentRoute: typeof MaintenanceWorkOrdersWorkOrderIdRoute
+    }
+    '/maintenance/corrective-actions/$id/edit': {
+      id: '/maintenance/corrective-actions/$id/edit'
+      path: '/edit'
+      fullPath: '/maintenance/corrective-actions/$id/edit'
+      preLoaderRoute: typeof MaintenanceCorrectiveActionsIdEditRouteImport
+      parentRoute: typeof MaintenanceCorrectiveActionsIdRoute
     }
     '/maintenance/contractors/$contractorId/edit': {
       id: '/maintenance/contractors/$contractorId/edit'
@@ -1992,6 +2052,38 @@ const MaintenanceContractorsRouteWithChildren =
     MaintenanceContractorsRouteChildren,
   )
 
+interface MaintenanceCorrectiveActionsIdRouteChildren {
+  MaintenanceCorrectiveActionsIdEditRoute: typeof MaintenanceCorrectiveActionsIdEditRoute
+}
+
+const MaintenanceCorrectiveActionsIdRouteChildren: MaintenanceCorrectiveActionsIdRouteChildren =
+  {
+    MaintenanceCorrectiveActionsIdEditRoute:
+      MaintenanceCorrectiveActionsIdEditRoute,
+  }
+
+const MaintenanceCorrectiveActionsIdRouteWithChildren =
+  MaintenanceCorrectiveActionsIdRoute._addFileChildren(
+    MaintenanceCorrectiveActionsIdRouteChildren,
+  )
+
+interface MaintenanceCorrectiveActionsRouteChildren {
+  MaintenanceCorrectiveActionsIdRoute: typeof MaintenanceCorrectiveActionsIdRouteWithChildren
+  MaintenanceCorrectiveActionsNewRoute: typeof MaintenanceCorrectiveActionsNewRoute
+}
+
+const MaintenanceCorrectiveActionsRouteChildren: MaintenanceCorrectiveActionsRouteChildren =
+  {
+    MaintenanceCorrectiveActionsIdRoute:
+      MaintenanceCorrectiveActionsIdRouteWithChildren,
+    MaintenanceCorrectiveActionsNewRoute: MaintenanceCorrectiveActionsNewRoute,
+  }
+
+const MaintenanceCorrectiveActionsRouteWithChildren =
+  MaintenanceCorrectiveActionsRoute._addFileChildren(
+    MaintenanceCorrectiveActionsRouteChildren,
+  )
+
 interface MaintenanceWorkOrdersWorkOrderIdRouteChildren {
   MaintenanceWorkOrdersWorkOrderIdEditRoute: typeof MaintenanceWorkOrdersWorkOrderIdEditRoute
 }
@@ -2027,7 +2119,7 @@ interface MaintenanceRouteChildren {
   MaintenanceAssetsRoute: typeof MaintenanceAssetsRoute
   MaintenanceCertificatesRoute: typeof MaintenanceCertificatesRouteWithChildren
   MaintenanceContractorsRoute: typeof MaintenanceContractorsRouteWithChildren
-  MaintenanceCorrectiveActionsRoute: typeof MaintenanceCorrectiveActionsRoute
+  MaintenanceCorrectiveActionsRoute: typeof MaintenanceCorrectiveActionsRouteWithChildren
   MaintenanceHousekeepingRoute: typeof MaintenanceHousekeepingRoute
   MaintenancePlannedMaintenanceRoute: typeof MaintenancePlannedMaintenanceRoute
   MaintenanceReportsRoute: typeof MaintenanceReportsRoute
@@ -2041,7 +2133,8 @@ const MaintenanceRouteChildren: MaintenanceRouteChildren = {
   MaintenanceAssetsRoute: MaintenanceAssetsRoute,
   MaintenanceCertificatesRoute: MaintenanceCertificatesRouteWithChildren,
   MaintenanceContractorsRoute: MaintenanceContractorsRouteWithChildren,
-  MaintenanceCorrectiveActionsRoute: MaintenanceCorrectiveActionsRoute,
+  MaintenanceCorrectiveActionsRoute:
+    MaintenanceCorrectiveActionsRouteWithChildren,
   MaintenanceHousekeepingRoute: MaintenanceHousekeepingRoute,
   MaintenancePlannedMaintenanceRoute: MaintenancePlannedMaintenanceRoute,
   MaintenanceReportsRoute: MaintenanceReportsRoute,

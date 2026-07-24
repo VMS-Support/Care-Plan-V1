@@ -1,0 +1,13 @@
+export type CorrectiveActionSeverity = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+export type CorrectiveActionRisk = "LOW" | "MEDIUM" | "HIGH" | "EXTREME";
+export type CorrectiveActionPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type CorrectiveActionStatus = "DRAFT" | "OPEN" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "CLOSED" | "CANCELLED";
+export type CorrectiveActionSource = "MANUAL" | "WORK_ORDER" | "COMPLIANCE" | "AUDIT" | "SAFETY" | "INCIDENT" | "OTHER";
+
+export interface CorrectiveActionCategory { id: string; tenantId: string; homeId: string; name: string; description?: string; colour: string; isActive: boolean; sortOrder: number; createdAt: string; updatedAt: string; }
+export interface CorrectiveAction { id: string; tenantId: string; homeId: string; referenceNumber: string; title: string; description: string; categoryId: string; severity: CorrectiveActionSeverity; riskLevel: CorrectiveActionRisk; priority: CorrectiveActionPriority; status: CorrectiveActionStatus; responsiblePersonId?: string; createdByUserId: string; updatedByUserId: string; dueDate?: string; completedDate?: string; closedDate?: string; sourceType: CorrectiveActionSource; sourceReferenceId?: string; cancellationReason?: string; version: number; createdAt: string; updatedAt: string; deletedAt?: string; }
+
+export const correctiveActionPriorityFor = (severity: CorrectiveActionSeverity): CorrectiveActionPriority => severity === "CRITICAL" ? "URGENT" : severity === "HIGH" ? "HIGH" : "NORMAL";
+export const correctiveActionIsOverdue = (item: CorrectiveAction, today = new Date().toISOString().slice(0, 10)) => Boolean(item.dueDate && item.dueDate < today && !["CLOSED", "CANCELLED"].includes(item.status));
+export const allowedCorrectiveActionTransitions: Record<CorrectiveActionStatus, CorrectiveActionStatus[]> = { DRAFT: ["OPEN", "CANCELLED"], OPEN: ["IN_PROGRESS", "CANCELLED"], IN_PROGRESS: ["AWAITING_VERIFICATION", "CANCELLED"], AWAITING_VERIFICATION: ["IN_PROGRESS", "CLOSED"], CLOSED: [], CANCELLED: [] };
+export const defaultCorrectiveActionCategories = (homeId: string): CorrectiveActionCategory[] => ["Health and Safety", "Medication", "Infection Prevention", "Fire Safety", "Environmental", "Maintenance", "Clinical Governance", "Staffing", "Documentation", "Training", "Audit Finding", "Incident Follow-up", "Regulatory Compliance", "Other"].map((name, index) => ({ id: `ca-category-${index + 1}`, tenantId: "tenant-oritas-demo", homeId, name, colour: ["#dc2626", "#ea580c", "#0284c7", "#7c3aed", "#059669"][index % 5], isActive: true, sortOrder: index + 1, createdAt: "2026-01-01T09:00:00.000Z", updatedAt: "2026-01-01T09:00:00.000Z" }));

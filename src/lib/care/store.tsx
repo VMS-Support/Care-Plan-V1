@@ -249,6 +249,7 @@ import {
   type CreateWorkOrderInput,
   type UpdateWorkOrderInput,
 } from "@/domain/maintenance/workOrders";
+import { allowedCorrectiveActionTransitions, correctiveActionPriorityFor, defaultCorrectiveActionCategories, type CorrectiveAction, type CorrectiveActionCategory, type CorrectiveActionStatus } from "@/domain/maintenance/correctiveActions";
 import {
   applyWorkOrderWorkflow,
   type WorkOrderWorkflowInput,
@@ -3210,6 +3211,8 @@ function seedData() {
     maintenanceAssetLocationHistory: [] as MaintenanceAssetLocationHistory[],
     maintenanceAssetRelationships: [] as MaintenanceAssetRelationship[],
     maintenanceWorkOrders: seedMaintenanceWorkOrders(),
+    correctiveActions: [] as CorrectiveAction[],
+    correctiveActionCategories: defaultCorrectiveActionCategories(BALLYMORE_FACILITY_ID),
     maintenanceTemplates: maintenanceTemplateSeed.templates,
     maintenanceTemplateChecklists: maintenanceTemplateSeed.checklist,
     maintenanceTemplateEvidence: maintenanceTemplateSeed.evidence,
@@ -4180,6 +4183,11 @@ interface CareCtx extends Store {
   markRoomReady: (roomId: string, reason: string) => void;
   markRoomUnavailable: (roomId: string, reason: string) => void;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
+  createCorrectiveAction: (input: Omit<CorrectiveAction, "id" | "tenantId" | "referenceNumber" | "createdByUserId" | "updatedByUserId" | "version" | "createdAt" | "updatedAt" | "status"> & { status?: "DRAFT" | "OPEN" }) => CorrectiveAction;
+  updateCorrectiveAction: (id: string, input: Partial<Pick<CorrectiveAction, "title" | "description" | "categoryId" | "severity" | "riskLevel" | "priority" | "responsiblePersonId" | "dueDate">>, expectedVersion?: number) => void;
+  transitionCorrectiveAction: (id: string, status: CorrectiveActionStatus, reason?: string) => CorrectiveAction;
+  createCorrectiveActionCategory: (input: Pick<CorrectiveActionCategory, "name"> & Partial<CorrectiveActionCategory>) => CorrectiveActionCategory;
+  updateCorrectiveActionCategory: (id: string, input: Partial<CorrectiveActionCategory>) => void;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
   workflowMaintenanceWorkOrder: (id: string, input: WorkOrderWorkflowInput) => MaintenanceWorkOrder | undefined;
   archiveMaintenanceWorkOrder: (id: string, reason: string) => void;
@@ -9445,6 +9453,39 @@ export function CareProvider({ children }: { children: ReactNode }) {
       completeHousekeepingReinspection: (id, result, notes) => setStore((s) => ({ ...s, housekeepingReinspections: s.housekeepingReinspections.map((item) => item.id === id ? { ...item, status: result === "PASS" ? "PASSED" : "FAILED", result, notes, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item) })),
       markRoomReady: (roomId, reason) => { if (!reason.trim()) throw new Error("Enter a reason."); if (store.housekeepingExceptions.some((item) => item.roomId === roomId && ["OPEN", "IN_REVIEW", "ACTION_REQUIRED"].includes(item.status))) throw new Error("Room has open blockers and cannot be marked ready."); const now = new Date().toISOString(); const current = store.housekeepingRoomReadiness.find((item) => item.roomId === roomId); setStore((s) => ({ ...s, housekeepingRoomReadiness: s.housekeepingRoomReadiness.map((item) => item.roomId === roomId ? { ...item, readinessStatus: "READY", cleaningRequired: false, cleaningCompleted: true, qualityInspectionPassed: true, linenReady: true, wasteCleared: true, suppliesReady: true, markedReadyBy: currentUserName, markedReadyAt: now, readinessNotes: reason, lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item), housekeepingRoomStatusHistory: [{ id: `hk-room-history-${uid()}`, tenantId: "tenant-oritas-demo", homeId: activeFacilityId, facilityId: activeFacilityId, roomId, previousStatus: current?.readinessStatus, newStatus: "READY", reason, sourceType: "MANUAL", changedBy: currentUserName, changedAt: now }, ...s.housekeepingRoomStatusHistory] })); },
       markRoomUnavailable: (roomId, reason) => { if (!reason.trim()) throw new Error("Enter a reason."); const now = new Date().toISOString(); const current = store.housekeepingRoomReadiness.find((item) => item.roomId === roomId); setStore((s) => ({ ...s, housekeepingRoomReadiness: s.housekeepingRoomReadiness.map((item) => item.roomId === roomId ? { ...item, readinessStatus: "UNAVAILABLE", readinessNotes: reason, lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item), housekeepingRoomStatusHistory: [{ id: `hk-room-history-${uid()}`, tenantId: "tenant-oritas-demo", homeId: activeFacilityId, facilityId: activeFacilityId, roomId, previousStatus: current?.readinessStatus, newStatus: "UNAVAILABLE", reason, sourceType: "MANUAL", changedBy: currentUserName, changedAt: now }, ...s.housekeepingRoomStatusHistory] })); },
+      createCorrectiveAction: (input) => {
+        const now = new Date().toISOString();
+        const title = input.title?.trim(); const description = input.description?.trim();
+        if (!title || title.length < 3 || !description || description.length < 5) throw new Error("Enter a title and description (at least 3 and 5 characters).");
+        const category = store.correctiveActionCategories.find((item) => item.id === input.categoryId && item.homeId === (input.homeId || activeFacilityId));
+        if (!category?.isActive) throw new Error("Select an active corrective action category.");
+        const status = input.status || "DRAFT";
+        if (status === "OPEN" && (!input.responsiblePersonId || !input.dueDate)) throw new Error("Responsible person and due date are required to open an action.");
+        if (input.dueDate && input.dueDate < now.slice(0, 10)) throw new Error("Due date cannot be earlier than today.");
+        const homeId = input.homeId || activeFacilityId;
+        const sequence = store.correctiveActions.length + 1;
+        const item: CorrectiveAction = { ...input, id: `corrective-action-${uid()}`, tenantId: "tenant-oritas-demo", homeId, referenceNumber: `CA-${new Date().getFullYear()}-${String(sequence).padStart(6, "0")}`, status, priority: input.priority || correctiveActionPriorityFor(input.severity), createdByUserId: currentUser.id, updatedByUserId: currentUser.id, version: 1, createdAt: now, updatedAt: now };
+        setStore((s) => ({ ...s, correctiveActions: [item, ...s.correctiveActions], auditLogs: [{ id: uid(), facilityId: homeId, user: currentUserName, role: currentRole, action: "Corrective action created", entity: item.id, entityType: "corrective_action", timestamp: now, after: JSON.stringify({ referenceNumber: item.referenceNumber, status: item.status }) }, ...s.auditLogs].slice(0, 500) }));
+        return item;
+      },
+      updateCorrectiveAction: (id, input, expectedVersion) => {
+        const current = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId); if (!current) throw new Error("Corrective action not found.");
+        if (["CLOSED", "CANCELLED"].includes(current.status)) throw new Error("Closed and cancelled actions cannot be edited.");
+        if (expectedVersion && current.version !== expectedVersion) throw new Error("This corrective action has been updated by another user.");
+        if (input.categoryId && !store.correctiveActionCategories.some((item) => item.id === input.categoryId && item.isActive && item.homeId === current.homeId)) throw new Error("Select an active category.");
+        const now = new Date().toISOString(); const next = { ...current, ...input, title: input.title?.trim() || current.title, description: input.description?.trim() || current.description, updatedByUserId: currentUser.id, updatedAt: now, version: current.version + 1 };
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? next : item), auditLogs: [{ id: uid(), facilityId: current.homeId, user: currentUserName, role: currentRole, action: "Corrective action updated", entity: id, entityType: "corrective_action", timestamp: now, before: JSON.stringify({ version: current.version }), after: JSON.stringify({ version: next.version }) }, ...s.auditLogs].slice(0, 500) }));
+      },
+      transitionCorrectiveAction: (id, status, reason) => {
+        const current = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId); if (!current) throw new Error("Corrective action not found.");
+        if (!allowedCorrectiveActionTransitions[current.status].includes(status)) throw new Error("This status transition is not allowed.");
+        if (status === "OPEN" && (!current.responsiblePersonId || !current.dueDate)) throw new Error("Assign a responsible person and due date before opening.");
+        if (status === "CANCELLED" && !reason?.trim()) throw new Error("Enter a cancellation reason.");
+        const now = new Date().toISOString(); const next: CorrectiveAction = { ...current, status, cancellationReason: status === "CANCELLED" ? reason.trim() : current.cancellationReason, completedDate: status === "AWAITING_VERIFICATION" ? now.slice(0, 10) : current.completedDate, closedDate: status === "CLOSED" ? now.slice(0, 10) : current.closedDate, updatedByUserId: currentUser.id, updatedAt: now, version: current.version + 1 };
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? next : item), auditLogs: [{ id: uid(), facilityId: current.homeId, user: currentUserName, role: currentRole, action: `Corrective action ${status.toLowerCase().replaceAll("_", " ")}`, entity: id, entityType: "corrective_action", timestamp: now, before: JSON.stringify({ status: current.status }), after: JSON.stringify({ status }), reason }, ...s.auditLogs].slice(0, 500) })); return next;
+      },
+      createCorrectiveActionCategory: (input) => { const now = new Date().toISOString(); const name = input.name.trim(); if (!name) throw new Error("Enter a category name."); if (store.correctiveActionCategories.some((item) => item.homeId === activeFacilityId && item.isActive && item.name.toLowerCase() === name.toLowerCase())) throw new Error("An active category with this name already exists."); const item: CorrectiveActionCategory = { id: `ca-category-${uid()}`, tenantId: "tenant-oritas-demo", homeId: activeFacilityId, name, description: input.description, colour: input.colour || "#0284c7", isActive: input.isActive ?? true, sortOrder: input.sortOrder || store.correctiveActionCategories.length + 1, createdAt: now, updatedAt: now }; setStore((s) => ({ ...s, correctiveActionCategories: [...s.correctiveActionCategories, item] })); return item; },
+      updateCorrectiveActionCategory: (id, input) => setStore((s) => ({ ...s, correctiveActionCategories: s.correctiveActionCategories.map((item) => item.id === id ? { ...item, ...input, updatedAt: new Date().toISOString() } : item) })),
       addMaintenanceWorkOrder: (input) => {
         if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.create", { nursingHomeId: input.homeId })) {
           throw new Error("You do not have permission to create Work Orders for this Care Home.");
