@@ -4360,6 +4360,7 @@ interface CareCtx extends Store {
     reason?: string,
   ) => void;
   discontinueProblemIntervention: (id: string, reason: string) => void;
+  deleteProblemIntervention: (id: string) => void;
   logProblemIntervention: (input: {
     interventionId: string;
     outcome: ProblemInterventionLog["outcome"];
@@ -11037,6 +11038,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           facilityId: prob.facilityId,
           name: input.name,
           description: input.description,
+          isScheduled: input.careActionType === "scheduled",
           frequencyType: input.frequencyType,
           frequencyValue: input.frequencyValue,
           frequencyInstructions: input.frequencyInstructions,
@@ -11231,6 +11233,18 @@ export function CareProvider({ children }: { children: ReactNode }) {
           entity: id,
           reason,
         });
+      },
+
+      deleteProblemIntervention: (id) => {
+        const before = store.problemInterventions.find((i) => i.id === id);
+        if (!before) throw new Error("Care action not found");
+        setStore((s) => ({
+          ...s,
+          problemInterventions: s.problemInterventions.filter((i) => i.id !== id),
+          problemInterventionLogs: s.problemInterventionLogs.filter((log) => log.interventionId !== id),
+          tasks: s.tasks.filter((task) => task.linkedInterventionId !== id),
+        }));
+        logAudit({ user: currentUserName, role: currentRole, action: `Deleted intervention: ${before.name}`, entity: id });
       },
 
       // CHANGE 7 — fan-out to timeline + daily notes + audit

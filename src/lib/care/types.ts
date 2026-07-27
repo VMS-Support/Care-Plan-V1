@@ -4658,6 +4658,7 @@ export interface Task {
   deleteReason?: string;
   linkedAssessmentId?: string;
   linkedCarePlanId?: string;
+  linkedInterventionId?: string;
   linkedMDTNoteId?: string;
 }
 

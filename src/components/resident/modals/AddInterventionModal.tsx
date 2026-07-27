@@ -29,6 +29,8 @@ interface Props {
   residentId: string;
   initialProblemId?: string;
   lockProblemSelection?: boolean;
+  intervention?: ProblemIntervention | null;
+  scheduleOnly?: boolean;
 }
 
 const FREQUENCY_OPTIONS: { label: string; value: FrequencyType }[] = [
@@ -81,8 +83,10 @@ export function AddInterventionModal({
   residentId,
   initialProblemId,
   lockProblemSelection,
+  intervention,
+  scheduleOnly = false,
 }: Props) {
-  const { carePlanProblems, residents, users, currentUserName, currentRole, addProblemIntervention } =
+  const { carePlanProblems, residents, users, currentUserName, currentRole, addProblemIntervention, updateProblemIntervention, deleteProblemIntervention } =
     useCare();
   const [form, setForm] = useState<Omit<ProblemIntervention, "id">>(empty(residentId));
   const [frequency, setFrequency] = useState<FrequencyType>("daily");
@@ -91,6 +95,13 @@ export function AddInterventionModal({
   useEffect(() => {
     if (open) {
       const newForm = empty(residentId);
+      if (intervention) {
+        const { id: _id, ...existing } = intervention;
+        setForm(existing);
+        setFrequency(intervention.frequencyType);
+        setActionType(intervention.careActionType || "scheduled");
+        return;
+      }
       if (initialProblemId) {
         newForm.problemId = initialProblemId;
       }
@@ -98,7 +109,7 @@ export function AddInterventionModal({
       setFrequency("daily");
       setActionType("scheduled");
     }
-  }, [open, residentId, initialProblemId]);
+  }, [open, residentId, initialProblemId, intervention]);
 
   const resident = residents.find((r) => r.id === residentId);
   const problems = carePlanProblems.filter(
@@ -145,16 +156,22 @@ export function AddInterventionModal({
     if (!validateForm()) return;
 
     try {
-      addProblemIntervention({
+      const payload = {
         ...form,
         careActionType: actionType,
+        isScheduled: actionType === "scheduled",
         frequencyType: actionType === "scheduled" ? frequency : actionType === "prn" ? "prn" : actionType === "one_off" ? "once" : "custom",
-        status: form.status === "review_due" ? "review_due" : "active",
+        status: scheduleOnly && form.status === "discontinued" ? "discontinued" : form.status === "review_due" ? "review_due" : "active",
         createdBy: currentUserName,
         createdByRole: currentRole,
-      });
+      };
+      if (intervention) {
+        updateProblemIntervention(intervention.id, payload);
+      } else {
+        addProblemIntervention(payload);
+      }
 
-      toast.success(`${CARE_ACTION_TYPE_LABELS[actionType]} care action created`);
+      toast.success(scheduleOnly ? "Schedule updated" : `${CARE_ACTION_TYPE_LABELS[actionType]} care action ${intervention ? "updated" : "created"}`);
       onOpenChange(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to schedule care action");
@@ -165,10 +182,10 @@ export function AddInterventionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Care Action</DialogTitle>
+          <DialogTitle>{scheduleOnly ? (intervention?.isScheduled ? "Edit Schedule" : "Add Schedule Task") : intervention ? "Edit Care Action" : "Add Care Action"}</DialogTitle>
           <DialogDescription>
             {resident &&
-              `For ${resident.firstName} ${resident.lastName} â€” Define and schedule the care action`}
+              `For ${resident.firstName} ${resident.lastName} â€” ${scheduleOnly ? "configure this Care Action schedule" : "define and schedule the care action"}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -179,7 +196,7 @@ export function AddInterventionModal({
             <Select
               value={form.problemId}
               onValueChange={(v) => setForm({ ...form, problemId: v })}
-              disabled={lockProblemSelection}
+              disabled={lockProblemSelection || scheduleOnly}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a nursing care plan..." />
@@ -187,7 +204,7 @@ export function AddInterventionModal({
               <SelectContent>
                 {problems.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {`${p.problemStatement} â€¢ ${p.category.replace(/_/g, " ")} â€¢ ${p.riskLevel.replace(/_/g, " ")} â€¢ ${p.status}`}
+                    {scheduleOnly && intervention ? `${p.carePlanName || p.problemStatement} â€¢ ${intervention.name}` : `${p.problemStatement} â€¢ ${p.category.replace(/_/g, " ")} â€¢ ${p.riskLevel.replace(/_/g, " ")} â€¢ ${p.status}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -199,10 +216,9 @@ export function AddInterventionModal({
             )}
           </div>
 
-          {/* Care Action Name */}
           <div className="col-span-2 space-y-1.5">
             <Label>Care Action Type *</Label>
-            <Select value={actionType} onValueChange={(value) => {
+            <Select value={actionType} disabled={scheduleOnly} onValueChange={(value) => {
               const next = value as CareActionType;
               setActionType(next);
               setForm({ ...form, careActionType: next, prnConfiguration: next === "prn" ? DEFAULT_PRN : undefined, triggerConfiguration: next === "triggered" ? DEFAULT_TRIGGERED : undefined, oneOffConfiguration: next === "one_off" ? DEFAULT_ONE_OFF : undefined });
@@ -218,14 +234,14 @@ export function AddInterventionModal({
           </div>
 
           {/* Care Action Name */}
-          <div className="col-span-2 space-y-1.5">
+          {!scheduleOnly && <div className="col-span-2 space-y-1.5">
             <Label>Care Action Name *</Label>
             <Input
               placeholder="e.g., Daily skin inspection, reposition every 2 hours"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-          </div>
+          </div>}
 
           {/* Description */}
           <div className="col-span-2 space-y-1.5">
@@ -272,8 +288,7 @@ export function AddInterventionModal({
             <div className="space-y-1.5"><Label>Completion evidence type</Label><Select value={form.oneOffConfiguration?.completionEvidenceType || "manual_confirmation"} onValueChange={(value) => setForm({ ...form, oneOffConfiguration: { ...(form.oneOffConfiguration || DEFAULT_ONE_OFF), completionEvidenceType: value as NonNullable<ProblemIntervention["oneOffConfiguration"]>["completionEvidenceType"] } })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="manual_confirmation">Manual confirmation</SelectItem><SelectItem value="clinical_note">Clinical note</SelectItem><SelectItem value="review">Review</SelectItem><SelectItem value="referral">Referral</SelectItem><SelectItem value="communication_record">Communication record</SelectItem><SelectItem value="document">Document</SelectItem></SelectContent></Select></div>
           </>}
 
-          {/* Role */}
-          <div className="space-y-1.5">
+          {!scheduleOnly && <><div className="space-y-1.5">
             <Label>Role</Label>
             <Select
               value={form.assignedRole || "nurse"}
@@ -334,7 +349,7 @@ export function AddInterventionModal({
                 No active users found for this role.
               </p>
             )}
-          </div>
+          </div></>}
 
           {actionType === "scheduled" && <>
           {/* Start Date */}
@@ -391,6 +406,7 @@ export function AddInterventionModal({
               <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="review_due">Review Due</SelectItem>
+                {scheduleOnly && <SelectItem value="discontinued">Discontinued</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -411,7 +427,8 @@ export function AddInterventionModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={save}>Create Care Action</Button>
+          {scheduleOnly && intervention && <Button variant="destructive" onClick={() => { deleteProblemIntervention(intervention.id); toast.success("Care Action deleted"); onOpenChange(false); }}>Delete Completely</Button>}
+          <Button onClick={save}>{scheduleOnly ? "Save Schedule" : intervention ? "Save Care Action" : "Create Care Action"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

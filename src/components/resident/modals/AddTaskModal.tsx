@@ -26,9 +26,17 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   residentId: string;
+  task?: Task | null;
+  linkedCarePlanId?: string;
+  linkedInterventionId?: string;
 }
 
-const PRIORITIES = ["Low", "Medium", "High"];
+const PRIORITIES = [
+  { value: "low", label: "Low" },
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+] as const;
 
 const empty = (residentId: string): Omit<Task, "id"> => ({
   residentId,
@@ -38,19 +46,20 @@ const empty = (residentId: string): Omit<Task, "id"> => ({
   status: "pending" as const,
 });
 
-export function AddTaskModal({ open, onOpenChange, residentId }: Props) {
-  const { addTask, residents } = useCare();
+export function AddTaskModal({ open, onOpenChange, residentId, task, linkedCarePlanId, linkedInterventionId }: Props) {
+  const { addTask, updateTask, residents } = useCare();
   const [form, setForm] = useState<Omit<Task, "id">>(empty(residentId));
-  const [priority, setPriority] = useState("Medium");
-  const [description, setDescription] = useState("");
 
   useEffect(() => {
     if (open) {
-      setForm(empty(residentId));
-      setPriority("Medium");
-      setDescription("");
+      if (task) {
+        const { id: _id, ...existing } = task;
+        setForm(existing);
+      } else {
+        setForm({ ...empty(residentId), linkedCarePlanId, linkedInterventionId });
+      }
     }
-  }, [open, residentId]);
+  }, [open, residentId, task, linkedCarePlanId, linkedInterventionId]);
 
   const resident = residents.find((r) => r.id === residentId);
 
@@ -60,8 +69,9 @@ export function AddTaskModal({ open, onOpenChange, residentId }: Props) {
       return;
     }
 
-    const item = addTask(form);
-    toast.success("Task Created");
+    if (task) updateTask(task.id, form);
+    else addTask(form);
+    toast.success(task ? "Task updated" : "Task created");
     onOpenChange(false);
   }
 
@@ -69,7 +79,7 @@ export function AddTaskModal({ open, onOpenChange, residentId }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Add Task</DialogTitle>
+          <DialogTitle>{task ? "Edit Scheduled Task" : "Add Scheduled Task"}</DialogTitle>
           <DialogDescription>
             {resident && `For ${resident.firstName} ${resident.lastName}`}
           </DialogDescription>
@@ -90,22 +100,22 @@ export function AddTaskModal({ open, onOpenChange, residentId }: Props) {
             <Textarea
               rows={3}
               placeholder="Add task details..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={form.description || ""}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
+              <Select value={form.priority || "normal"} onValueChange={(value) => setForm({ ...form, priority: value as Task["priority"] })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
+                  {PRIORITIES.map((priority) => (
+                    <SelectItem key={priority.value} value={priority.value}>
+                      {priority.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -130,13 +140,26 @@ export function AddTaskModal({ open, onOpenChange, residentId }: Props) {
               />
             </div>
           </div>
+
+          <div className="space-y-1.5">
+            <Label>Status</Label>
+            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as Task["status"] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={save}>Create Task</Button>
+          <Button onClick={save}>{task ? "Save Task" : "Create Task"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

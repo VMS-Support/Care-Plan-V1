@@ -406,6 +406,8 @@ function ResidentDetail() {
   });
 
   const [selectedIntervention, setSelectedIntervention] = useState<any>(null);
+  const [selectedCareActionTask, setSelectedCareActionTask] = useState<any>(null);
+  const [selectedCareActionId, setSelectedCareActionId] = useState<string | null>(null);
   const [selectedReviewAction, setSelectedReviewAction] = useState<
     "extend" | "complete" | "cancel" | null
   >(null);
@@ -509,6 +511,11 @@ function ResidentDetail() {
     setSelectedIntervention(intervention);
     setSelectedReviewAction(action);
     setModalState((prev) => ({ ...prev, interventionReview: true }));
+  };
+
+  const handleEditIntervention = (intervention: any) => {
+    setSelectedIntervention(intervention);
+    setModalState((prev) => ({ ...prev, intervention: true }));
   };
 
   const [newNok, setNewNok] = useState({
@@ -2404,7 +2411,7 @@ function ResidentDetail() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 text-[11px]"
-                                onClick={() => handleReviewIntervention(intv, "extend")}
+                                onClick={() => handleEditIntervention(intv)}
                                 disabled={!rolePermissions.canEdit}
                               >
                                 Edit
@@ -3113,11 +3120,17 @@ function ResidentDetail() {
         open={modalState.intervention}
         onOpenChange={(open) => {
           handleCloseModal("intervention");
-          if (!open) setPresetInterventionProblemId(undefined);
+          if (!open) {
+            setPresetInterventionProblemId(undefined);
+            setSelectedIntervention(null);
+            setSelectedCareActionId(null);
+          }
         }}
         residentId={r.id}
         initialProblemId={presetInterventionProblemId}
         lockProblemSelection={!!presetInterventionProblemId}
+        intervention={selectedIntervention}
+        scheduleOnly={Boolean(selectedCareActionId)}
       />
 
       <AddInterventionCompletionModal
@@ -3147,8 +3160,17 @@ function ResidentDetail() {
 
       <AddTaskModal
         open={modalState.task}
-        onOpenChange={(open) => handleCloseModal("task")}
+        onOpenChange={(open) => {
+          handleCloseModal("task");
+          if (!open) {
+            setSelectedCareActionTask(null);
+            setSelectedCareActionId(null);
+          }
+        }}
         residentId={r.id}
+        task={selectedCareActionTask}
+        linkedCarePlanId={selectedCareActionId ? selectedProblem?.id : undefined}
+        linkedInterventionId={selectedCareActionId || undefined}
       />
 
       <IncidentDialog
@@ -3210,109 +3232,27 @@ function ResidentDetail() {
                   </Button>
                 </div>
               )}
-              {newlyCreatedProblemId === selectedProblem.id &&
-                selectedProblemInterventions.length === 0 && (
-                  <div className="rounded-md border bg-muted/20 p-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium">Next Recommended Steps</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Continue from this problem detail when you are ready.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => openAddInterventionForProblem(selectedProblem.id)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" /> Add Care Action
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" /> Add Review Later
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Nursing Care Plan</CardTitle>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-2 text-sm">
-                  <Row label="Care need" value={selectedProblem.problemStatement} />
-                  <Row label="Category" value={selectedProblem.category.replace(/_/g, " ")} />
+                  <Row label="Care Plan Name" value={selectedProblem.carePlanName || selectedProblem.problemStatement} />
                   <Row label="Risk level" value={selectedProblem.riskLevel.replace(/_/g, " ")} />
-                  <Row
-                    label="Activity of Living"
-                    value={getRltDomainForCarePlanProblem(selectedProblem)?.title || "Mapped from care area"}
-                  />
-                  <Row label="Created date" value={selectedProblem.createdAt.slice(0, 10)} />
                   <Row label="Created by" value={selectedProblem.createdBy} />
-                  <Row label="Progress" value={selectedProblem.status} />
-                  <Row label="Care Plan Review Date" value={selectedProblem.reviewDate} />
-                  <Row label="Next Review of Outcome" value={selectedProblem.evaluationDate} />
-                  <Row
-                    label="Source assessment"
-                    value={
-                      selectedProblem.sourceAssessmentType ||
-                      selectedProblem.sourceAssessmentId ||
-                      "â€”"
-                    }
-                  />
+                  <Row label="Created on" value={selectedProblem.createdAt.slice(0, 10)} />
+                  <Row label="Next review date" value={selectedProblem.reviewDate} />
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Plan</CardTitle>
+                  <CardTitle className="text-base">Care Plan Aim / Goal</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="grid md:grid-cols-3 gap-2">
-                    <Input
-                      placeholder="Add plan"
-                      value={goalDraft.statement}
-                      onChange={(e) => setGoalDraft((s) => ({ ...s, statement: e.target.value }))}
-                    />
-                    <Input
-                      type="date"
-                      value={goalDraft.targetDate}
-                      onChange={(e) => setGoalDraft((s) => ({ ...s, targetDate: e.target.value }))}
-                    />
-                    <Button onClick={submitAddGoal}>Add Plan</Button>
-                  </div>
-                  {selectedProblemGoals.map((goal) => (
-                    <div
-                      key={goal.id}
-                      className="border rounded-md p-2 grid md:grid-cols-5 gap-2 items-center text-sm"
-                    >
-                      <div className="md:col-span-2">{goal.statement}</div>
-                      <div className="text-xs">{goal.targetDate || "â€”"}</div>
-                      <div className="text-xs capitalize">{goal.status.replace(/_/g, " ")}</div>
-                      <div className="flex gap-1 justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateGoal(goal.id, { status: "achieved" })}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateGoal(goal.id, { status: "discontinued" })}
-                        >
-                          Archive
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => removeGoal(goal.id)}>
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                  <p className="whitespace-pre-wrap text-sm">
+                    {selectedProblemGoals.find((goal) => goal.status === "active")?.statement || selectedProblem.notes || "No care plan aim or goal recorded."}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -3329,69 +3269,64 @@ function ResidentDetail() {
                       Add Care Action
                     </Button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-                        <tr>
-                          <th className="text-left p-2">Intervention</th>
-                          <th className="text-left p-2">Frequency</th>
-                          <th className="text-left p-2">Assigned</th>
-                          <th className="text-left p-2">Status</th>
-                          <th className="text-left p-2">Start</th>
-                          <th className="text-left p-2">Review</th>
-                          <th className="text-right p-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {selectedProblemInterventions.map((intv) => {
-                          return (
-                            <tr key={intv.id}>
-                              <td className="p-2">{intv.name}</td>
-                              <td className="p-2 text-xs">
-                                {intv.frequencyType.replace(/_/g, " ")}
-                              </td>
-                              <td className="p-2 text-xs">
-                                {intv.assignedStaffName || intv.assignedRole || "â€”"}
-                              </td>
-                              <td className="p-2 text-xs">{intv.status.replace(/_/g, " ")}</td>
-                              <td className="p-2 text-xs">{intv.startDate}</td>
-                              <td className="p-2 text-xs">{intv.reviewDate}</td>
-                              <td className="p-2 text-right">
-                                <div className="inline-flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleRecordCompletion(intv)}
-                                  >
-                                    Open
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleReviewIntervention(intv, "extend")}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      discontinueProblemIntervention(
-                                        intv.id,
-                                        "Discontinued from problem detail",
-                                      )
-                                    }
-                                  >
-                                    Discontinue
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  {selectedProblemInterventions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No care actions have been added.</p>
+                  )}
+                  {selectedProblemInterventions.map((intv) => (
+                    <details key={intv.id} className="rounded-md border">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <div className="font-medium">{intv.name}</div>
+                          {(intv.description || intv.notes) && (
+                            <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                              {intv.description || intv.notes}
+                            </div>
+                          )}
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {intv.careActionType === "scheduled" ? `Scheduled ${intv.frequencyType.replace(/_/g, " ")}` : "Not scheduled"}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          {intv.status.replace(/_/g, " ")}
+                        </Badge>
+                      </summary>
+                      <div className="space-y-3 border-t p-3 text-sm">
+                        <div>
+                          <div className="text-xs font-medium text-muted-foreground">Care action details</div>
+                          <p className="mt-1 whitespace-pre-wrap">{intv.description || intv.notes || "No additional instructions recorded."}</p>
+                        </div>
+                        <div className="grid gap-2 text-xs sm:grid-cols-3">
+                          <span>Assigned: {intv.assignedStaffName || intv.assignedRole || "Unassigned"}</span>
+                          <span>Start: {intv.startDate || "Not scheduled"}{intv.startTime ? ` at ${intv.startTime}` : ""}</span>
+                          <span>Review: {intv.reviewDate || "Not set"}</span>
+                        </div>
+                        <div className="rounded-md bg-muted/30 p-2">
+                          <div className="text-xs font-medium">Scheduled Tasks</div>
+                          <p className="mt-1 text-xs text-muted-foreground">A scheduled task is this Care Action's schedule; it is not a separate assigned task.</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
+                              Add Schedule Task
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
+                              Edit Schedule
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleRecordCompletion(intv)}>
+                            Record completion
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => discontinueProblemIntervention(intv.id, "Discontinued from care plan")}
+                          >
+                            Discontinue
+                          </Button>
+                        </div>
+                      </div>
+                    </details>
+                  ))}
                 </CardContent>
               </Card>
 
@@ -3422,33 +3357,36 @@ function ResidentDetail() {
                       </div>
                     </div>
                   ))}
-                  <div className="pt-3">
-                    <div className="text-sm font-medium">Related Daily Notes</div>
-                    <div className="mt-2 space-y-2">
-                      {linkedDailyNotes.length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          No Daily Notes have been linked to this care plan.
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Related Daily Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {linkedDailyNotes.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No Daily Notes have been linked to this care plan.
+                    </p>
+                  )}
+                  {linkedDailyNotes
+                    .slice()
+                    .sort((left, right) => right.date.localeCompare(left.date))
+                    .map((note) => (
+                      <div key={note.id} className="rounded-md border p-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{new Date(note.date).toLocaleString("en-GB")}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {note.shift}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{note.staff}</span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-sm">
+                          {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
                         </p>
-                      )}
-                      {linkedDailyNotes
-                        .slice()
-                        .sort((left, right) => right.date.localeCompare(left.date))
-                        .map((note) => (
-                          <div key={note.id} className="rounded-md border p-2 text-sm">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{new Date(note.date).toLocaleString("en-GB")}</span>
-                              <Badge variant="outline" className="text-[10px] capitalize">
-                                {note.shift}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">{note.staff}</span>
-                            </div>
-                            <p className="mt-1 line-clamp-2 text-sm">
-                              {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
+                      </div>
+                    ))}
                 </CardContent>
               </Card>
             </div>

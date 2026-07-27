@@ -89,7 +89,9 @@ export function scheduledInterventions(
       const problem = problemById.get(intervention.problemId);
       const actionType = intervention.careActionType || (intervention.frequencyType === "prn" ? "prn" : intervention.frequencyType === "once" ? "one_off" : "scheduled");
       const usesScheduledProjection = intervention.careActionType ? actionType === "scheduled" : actionType !== "prn" && actionType !== "triggered";
-      return problem?.status === "active" && intervention.status === "active" && usesScheduledProjection;
+      // A Care Action is a clinical instruction.  It belongs in operational
+      // queues only after its schedule has explicitly been enabled.
+      return problem?.status === "active" && intervention.status === "active" && intervention.isScheduled === true && usesScheduledProjection;
     })
     .map((intervention): ScheduledIntervention => {
       const interventionLogs = (logsByIntervention.get(intervention.id) || []).sort((a, b) =>
