@@ -1582,8 +1582,17 @@ function ResidentDetail() {
       </Dialog>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle className="text-base">Active Nursing Care Plans</CardTitle>
+          <CreateCarePlanDialog
+            residentId={r.id}
+            onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
+            trigger={
+              <Button size="sm">
+                <ClipboardList className="mr-1 h-3 w-3" /> Add Care Plan
+              </Button>
+            }
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           {groupedActiveCarePlans.map(({ domain, carePlans }) => {
@@ -1651,38 +1660,30 @@ function ResidentDetail() {
             );
           })}
           {unmappedActiveCarePlans.length > 0 && (
-            <div className="rounded-md border p-3">
-              <div className="font-medium">Template Care Plans</div>
-              <div className="text-xs text-muted-foreground">
-                Care plans created from reusable templates.
-              </div>
-              <div className="mt-3 space-y-2">
-                {unmappedActiveCarePlans
-                  .slice()
-                  .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
-                  .map((problem) => (
-                    <div
-                      key={problem.id}
-                      className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="line-clamp-1">{problem.carePlanName || problem.problemStatement}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Review due {problem.reviewDate}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
-                          {problem.riskLevel.replace(/_/g, " ")}
-                        </Badge>
-                        <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
-                          Open
-                        </Button>
-                      </div>
+            unmappedActiveCarePlans
+              .slice()
+              .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
+              .map((problem) => (
+                <div
+                  key={problem.id}
+                  className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="line-clamp-1">{problem.carePlanName || problem.problemStatement}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Review due {problem.reviewDate}
                     </div>
-                  ))}
-              </div>
-            </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
+                      {problem.riskLevel.replace(/_/g, " ")}
+                    </Badge>
+                    <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
+                      Open
+                    </Button>
+                  </div>
+                </div>
+              ))
           )}
           {allActiveCarePlansComplete && (
             <div className="rounded-md border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">
@@ -3404,7 +3405,8 @@ function ResidentDetail() {
                     .slice()
                     .sort((left, right) => right.date.localeCompare(left.date))
                     .map((note) => (
-                      <div key={note.id} className="rounded-md border p-2 text-sm">
+                      <details key={note.id} className="rounded-md border p-2 text-sm">
+                        <summary className="cursor-pointer list-none">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{new Date(note.date).toLocaleString("en-GB")}</span>
                           <Badge variant="outline" className="text-[10px] capitalize">
@@ -3415,7 +3417,11 @@ function ResidentDetail() {
                         <p className="mt-1 line-clamp-2 text-sm">
                           {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
                         </p>
-                      </div>
+                        </summary>
+                        <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">
+                          {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
+                        </p>
+                      </details>
                     ))}
                 </CardContent>
               </Card>
