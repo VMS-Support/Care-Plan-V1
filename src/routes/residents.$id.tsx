@@ -1623,11 +1623,11 @@ function ResidentDetail() {
                   {sortedCarePlans.slice(0, 3).map((problem) => (
                     <div
                       key={problem.id}
-                      className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                      className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm dark:bg-muted/30 md:flex-row md:items-center md:justify-between"
                     >
                       <div className="min-w-0">
-                        <div className="line-clamp-1">{problem.problemStatement}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="line-clamp-1 text-base font-semibold text-foreground">{problem.problemStatement}</div>
+                        <div className="mt-1 text-sm text-foreground/80">
                           Review of Outcome {problem.evaluationDate}
                         </div>
                       </div>
@@ -1666,11 +1666,11 @@ function ResidentDetail() {
               .map((problem) => (
                 <div
                   key={problem.id}
-                  className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm dark:bg-muted/30 md:flex-row md:items-center md:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="line-clamp-1">{problem.carePlanName || problem.problemStatement}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="line-clamp-1 text-base font-semibold text-foreground">{problem.carePlanName || problem.problemStatement}</div>
+                    <div className="mt-1 text-sm text-foreground/80">
                       Review due {problem.reviewDate}
                     </div>
                   </div>
