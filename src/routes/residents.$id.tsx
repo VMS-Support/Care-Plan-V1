@@ -621,6 +621,10 @@ function ResidentDetail() {
     () => getCarePlansGroupedByRltDomain(id, activeProblems),
     [activeProblems, id],
   );
+  const unmappedActiveCarePlans = useMemo(
+    () => activeProblems.filter((problem) => !getRltDomainForCarePlanProblem(problem)),
+    [activeProblems],
+  );
   const rProblemInterventions = problemInterventions.filter((i) => i.residentId === id);
   const rProblemLogs = problemInterventionLogs.filter((l) => l.residentId === id);
   const rProblemEvaluations = problemEvaluations.filter((e) =>
@@ -1637,6 +1641,40 @@ function ResidentDetail() {
               </div>
             );
           })}
+          {unmappedActiveCarePlans.length > 0 && (
+            <div className="rounded-md border p-3">
+              <div className="font-medium">Template Care Plans</div>
+              <div className="text-xs text-muted-foreground">
+                Care plans created from reusable templates.
+              </div>
+              <div className="mt-3 space-y-2">
+                {unmappedActiveCarePlans
+                  .slice()
+                  .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
+                  .map((problem) => (
+                    <div
+                      key={problem.id}
+                      className="flex flex-col gap-2 rounded-md bg-muted/25 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="line-clamp-1">{problem.carePlanName || problem.problemStatement}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Review due {problem.reviewDate}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
+                          {problem.riskLevel.replace(/_/g, " ")}
+                        </Badge>
+                        <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
+                          Open
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
           {allActiveCarePlansComplete && (
             <div className="rounded-md border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">
               All active nursing care plans are complete and up to date.
@@ -4085,4 +4123,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

@@ -276,6 +276,7 @@ const nav: NavItem[] = [
     icon: ClipboardList,
     capability: "careplan.view",
   },
+  { to: "/care-plan-templates", label: "Care Plan Templates", icon: ClipboardList, capability: "careplan.view" },
   {
     to: "/compliance",
     label: "Compliance",

@@ -1,0 +1,1 @@
+import { createFileRoute } from "@tanstack/react-router"; import { CarePlanTemplates } from "@/components/care/CarePlanTemplates"; export const Route=createFileRoute("/care-plan-templates")({component:CarePlanTemplates});

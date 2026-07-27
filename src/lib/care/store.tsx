@@ -44,6 +44,7 @@ import type {
   TimelineEventType,
   ResidentCarePlan,
   CarePlanProblem,
+  CarePlanTemplate,
   ProblemGoal,
   ProblemIntervention,
   ProblemInterventionLog,
@@ -3009,6 +3010,7 @@ function seedData() {
   const migrated = {
     residentCarePlans: [] as ResidentCarePlan[],
     carePlanProblems: [] as CarePlanProblem[],
+    carePlanTemplates: [] as CarePlanTemplate[],
     problemGoals: [] as ProblemGoal[],
     problemInterventions: [] as ProblemIntervention[],
     problemEvaluations: [] as ProblemEvaluation[],
@@ -3283,6 +3285,7 @@ function seedData() {
     // unified model
     residentCarePlans: migrated.residentCarePlans,
     carePlanProblems: migrated.carePlanProblems,
+    carePlanTemplates: migrated.carePlanTemplates,
     problemGoals: migrated.problemGoals,
     problemInterventions: migrated.problemInterventions,
     problemInterventionLogs: migrated.problemInterventionLogs,
@@ -3393,6 +3396,7 @@ const FACILITY_SCOPED_ARRAY_KEYS: ScopedArrayKey[] = [
   "timelineEvents",
   "residentCarePlans",
   "carePlanProblems",
+  "carePlanTemplates",
   "problemGoals",
   "problemInterventions",
   "problemInterventionLogs",
@@ -3709,8 +3713,10 @@ function loadInitialStore(): Store {
     delete (parsed as any).carePlans;
     delete (parsed as any).carePlanEvaluations;
     delete (parsed as any).carePlanReviews;
-    delete (parsed as any).carePlanTemplates;
     delete (parsed as any).legacyCarePlanIdToProblemId;
+    parsed.carePlanTemplates = Array.isArray(parsed.carePlanTemplates)
+      ? parsed.carePlanTemplates
+      : [];
     parsed.notes = parsed.notes?.map((note) => {
       const { linkedCarePlanId: _removed, ...rest } = note as DailyNote & { linkedCarePlanId?: string };
       return rest;
@@ -4309,7 +4315,11 @@ interface CareCtx extends Store {
     sourceAssessmentType?: any;
     contextReferences?: CarePlanProblem["contextReferences"];
     initialPlan?: { statement: string; targetDate?: string };
+    carePlanTemplateId?: string; carePlanName?: string; initialCareActions?: Array<{ heading: string; description?: string }>;
   }) => CarePlanProblem;
+  createCarePlanTemplate: (input: Pick<CarePlanTemplate, "name" | "aimGoal" | "actions"> & Partial<CarePlanTemplate>) => CarePlanTemplate;
+  updateCarePlanTemplate: (id: string, input: Partial<CarePlanTemplate>) => void;
+  deleteCarePlanTemplate: (id: string) => void;
   updateProblem: (id: string, patch: Partial<CarePlanProblem>, reason?: string) => void;
   resolveProblem: (id: string, reason: string) => void;
   reopenProblem: (id: string, reason: string) => void;
@@ -10577,6 +10587,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
             input.rltDomainId ||
             (input.category !== "custom" ? CATEGORY_TO_RLT_DOMAIN[input.category] : undefined),
           customCategoryLabel: input.customCategoryLabel,
+          carePlanTemplateId: input.carePlanTemplateId,
+          carePlanName: input.carePlanName,
           problemStatement: input.problemStatement,
           riskLevel: input.riskLevel,
           sourceAssessmentId: input.sourceAssessmentId,
@@ -10625,11 +10637,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
               createdBy: currentUserName,
             }
           : null;
+        const initialActions: ProblemIntervention[] = (input.initialCareActions || []).filter((action) => action.heading.trim()).map((action) => ({ id: newId("int"), carePlanId: item.id, problemId: item.id, residentId: item.residentId, facilityId: item.facilityId, name: action.heading.trim(), description: action.description?.trim(), isScheduled: false, frequencyType: "custom", frequencyInstructions: "Not scheduled", startDate: item.createdAt.slice(0, 10), reviewDate: item.reviewDate, endDate: item.reviewDate, status: "active", createdAt: item.createdAt, createdBy: currentUserName, createdByRole: currentRole }));
         setStore((s) => ({
           ...s,
           residentCarePlans: newRcp ? [newRcp, ...s.residentCarePlans] : s.residentCarePlans,
           carePlanProblems: [item, ...s.carePlanProblems],
           problemGoals: initialGoal ? [initialGoal, ...s.problemGoals] : s.problemGoals,
+          problemInterventions: [...initialActions, ...s.problemInterventions],
           problemHistory: initialGoal
             ? [
                 {
@@ -10656,6 +10670,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
         return item;
       },
+
+      createCarePlanTemplate: (input) => { const now = new Date().toISOString(); const name = input.name.trim(); const aimGoal = input.aimGoal.trim(); const actions = input.actions.filter((item) => item.heading.trim()).map((item, index) => ({ ...item, id: item.id || newId("cpta"), heading: item.heading.trim(), sortOrder: index + 1 })); if (!name || !aimGoal || !actions.length) throw new Error("Template name, goal and at least one care action are required."); if (new Set(actions.map((item) => item.heading.toLowerCase())).size !== actions.length) throw new Error("Care Action headings must be unique."); const template: CarePlanTemplate = { id: newId("cpt"), facilityId: activeFacilityId, name, aimGoal, actions, reviewIntervalMonths: input.reviewIntervalMonths, nextReviewDate: input.nextReviewDate, active: input.active ?? true, createdAt: now, createdBy: currentUserName, updatedAt: now }; setStore((s) => ({ ...s, carePlanTemplates: [template, ...s.carePlanTemplates] })); logAudit({ user: currentUserName, role: currentRole, action: "Template Created", entity: template.id }); return template; },
+      updateCarePlanTemplate: (id, input) => { setStore((s) => ({ ...s, carePlanTemplates: s.carePlanTemplates.map((item) => item.id === id ? { ...item, ...input, actions: input.actions ? input.actions.map((action, index) => ({ ...action, sortOrder: index + 1 })) : item.actions, updatedAt: new Date().toISOString() } : item) })); logAudit({ user: currentUserName, role: currentRole, action: input.active === false ? "Template Archived" : "Template Updated", entity: id }); },
+      deleteCarePlanTemplate: (id) => { if (store.carePlanProblems.some((item) => item.carePlanTemplateId === id)) throw new Error("This template has already been assigned to a resident and cannot be deleted. Archive it instead."); setStore((s) => ({ ...s, carePlanTemplates: s.carePlanTemplates.filter((item) => item.id !== id) })); logAudit({ user: currentUserName, role: currentRole, action: "Template Deleted", entity: id }); },
 
       updateProblem: (id, patch, reason) => {
         const before = store.carePlanProblems.find((p) => p.id === id);

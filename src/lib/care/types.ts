@@ -4936,6 +4936,8 @@ export interface CarePlanProblem {
   category: ProblemCategory;
   rltDomainId?: RltDomainId;
   customCategoryLabel?: string;
+  carePlanTemplateId?: string;
+  carePlanName?: string;
   problemStatement: string;
   riskLevel: ProblemRiskLevel;
   sourceAssessmentId?: string;
@@ -4981,6 +4983,7 @@ export interface ProblemIntervention {
   problemId: string;
   residentId: string;
   name: string;
+  isScheduled?: boolean;
   description?: string;
   careActionType?: CareActionType;
   priority?: CareActionPriority;
@@ -5020,6 +5023,9 @@ export interface ProblemIntervention {
   discontinuedByRole?: Role;
   discontinuedReason?: string;
 }
+
+export interface CarePlanTemplateAction { id: string; heading: string; sortOrder: number; }
+export interface CarePlanTemplate { id: string; facilityId: string; name: string; aimGoal: string; actions: CarePlanTemplateAction[]; reviewIntervalMonths?: number; nextReviewDate?: string; active: boolean; createdAt: string; createdBy: string; updatedAt: string; }
 
 export interface ProblemInterventionLog {
   id: string;

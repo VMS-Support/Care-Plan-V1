@@ -29,6 +29,7 @@ import { Route as HandoversRouteImport } from './routes/handovers'
 import { Route as DailyNotesRouteImport } from './routes/daily-notes'
 import { Route as ComplianceRouteImport } from './routes/compliance'
 import { Route as CarePlansRouteImport } from './routes/care-plans'
+import { Route as CarePlanTemplatesRouteImport } from './routes/care-plan-templates'
 import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as AssessmentsRouteImport } from './routes/assessments'
 import { Route as AlertsRouteImport } from './routes/alerts'
@@ -205,6 +206,11 @@ const ComplianceRoute = ComplianceRouteImport.update({
 const CarePlansRoute = CarePlansRouteImport.update({
   id: '/care-plans',
   path: '/care-plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarePlanTemplatesRoute = CarePlanTemplatesRouteImport.update({
+  id: '/care-plan-templates',
+  path: '/care-plan-templates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditLogsRoute = AuditLogsRouteImport.update({
@@ -639,6 +645,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
+  '/care-plan-templates': typeof CarePlanTemplatesRoute
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
@@ -737,6 +744,7 @@ export interface FileRoutesByTo {
   '/accounts-dashboard': typeof AccountsDashboardRoute
   '/alerts': typeof AlertsRoute
   '/audit-logs': typeof AuditLogsRoute
+  '/care-plan-templates': typeof CarePlanTemplatesRoute
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
@@ -836,6 +844,7 @@ export interface FileRoutesById {
   '/alerts': typeof AlertsRoute
   '/assessments': typeof AssessmentsRouteWithChildren
   '/audit-logs': typeof AuditLogsRoute
+  '/care-plan-templates': typeof CarePlanTemplatesRoute
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
@@ -937,6 +946,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/assessments'
     | '/audit-logs'
+    | '/care-plan-templates'
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
@@ -1035,6 +1045,7 @@ export interface FileRouteTypes {
     | '/accounts-dashboard'
     | '/alerts'
     | '/audit-logs'
+    | '/care-plan-templates'
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
@@ -1133,6 +1144,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/assessments'
     | '/audit-logs'
+    | '/care-plan-templates'
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
@@ -1233,6 +1245,7 @@ export interface RootRouteChildren {
   AlertsRoute: typeof AlertsRoute
   AssessmentsRoute: typeof AssessmentsRouteWithChildren
   AuditLogsRoute: typeof AuditLogsRoute
+  CarePlanTemplatesRoute: typeof CarePlanTemplatesRoute
   CarePlansRoute: typeof CarePlansRoute
   ComplianceRoute: typeof ComplianceRoute
   DailyNotesRoute: typeof DailyNotesRoute
@@ -1409,6 +1422,13 @@ declare module '@tanstack/react-router' {
       path: '/care-plans'
       fullPath: '/care-plans'
       preLoaderRoute: typeof CarePlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/care-plan-templates': {
+      id: '/care-plan-templates'
+      path: '/care-plan-templates'
+      fullPath: '/care-plan-templates'
+      preLoaderRoute: typeof CarePlanTemplatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit-logs': {
@@ -2255,6 +2275,7 @@ const rootRouteChildren: RootRouteChildren = {
   AlertsRoute: AlertsRoute,
   AssessmentsRoute: AssessmentsRouteWithChildren,
   AuditLogsRoute: AuditLogsRoute,
+  CarePlanTemplatesRoute: CarePlanTemplatesRoute,
   CarePlansRoute: CarePlansRoute,
   ComplianceRoute: ComplianceRoute,
   DailyNotesRoute: DailyNotesRoute,
