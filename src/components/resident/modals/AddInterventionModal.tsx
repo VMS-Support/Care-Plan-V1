@@ -118,6 +118,7 @@ export function AddInterventionModal({
   const assignedRoleUsers = users
     .filter((user) => user.role === (form.assignedRole || "nurse") && user.status !== "inactive")
     .sort((left, right) => left.name.localeCompare(right.name));
+  const contentOnlyEdit = Boolean(intervention && !scheduleOnly);
 
   function validateForm() {
     if (!form.problemId.trim()) {
@@ -153,6 +154,16 @@ export function AddInterventionModal({
   }
 
   function save() {
+    if (intervention && contentOnlyEdit) {
+      if (!form.name.trim()) {
+        toast.error("Care Action name is required");
+        return;
+      }
+      updateProblemIntervention(intervention.id, { name: form.name.trim(), description: form.description?.trim() });
+      toast.success("Care Action updated");
+      onOpenChange(false);
+      return;
+    }
     if (!validateForm()) return;
 
     try {
@@ -166,7 +177,10 @@ export function AddInterventionModal({
         createdByRole: currentRole,
       };
       if (intervention) {
-        updateProblemIntervention(intervention.id, payload);
+        // The Care Action already owns its Care Plan and resident relationship.
+        // Schedule edits must not attempt to re-submit those immutable links.
+        const { residentId: _residentId, problemId: _problemId, carePlanId: _carePlanId, ...editablePayload } = payload;
+        updateProblemIntervention(intervention.id, editablePayload);
       } else {
         addProblemIntervention(payload);
       }
@@ -180,18 +194,25 @@ export function AddInterventionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-3xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(event) => {
+          // This dialog can be opened over the Nursing Care Plan dialog. Prevent
+          // the same click from reaching and dismissing that parent dialog.
+          event.preventDefault();
+          onOpenChange(false);
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{scheduleOnly ? (intervention?.isScheduled ? "Edit Schedule" : "Add Schedule Task") : intervention ? "Edit Care Action" : "Add Care Action"}</DialogTitle>
           <DialogDescription>
             {resident &&
-              `For ${resident.firstName} ${resident.lastName} â€” ${scheduleOnly ? "configure this Care Action schedule" : "define and schedule the care action"}`}
+              `For ${resident.firstName} ${resident.lastName}: ${scheduleOnly ? "configure this Care Action schedule" : "define and schedule the care action"}`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-3 space-y-3">
-          {/* Care Plan Problem Selection */}
-          <div className="col-span-2 space-y-1.5">
+          {!contentOnlyEdit && <div className="col-span-2 space-y-1.5">
             <Label>Related Nursing Care Plan *</Label>
             <Select
               value={form.problemId}
@@ -214,9 +235,9 @@ export function AddInterventionModal({
                 No active nursing care plans. Create one first.
               </p>
             )}
-          </div>
+          </div>}
 
-          <div className="col-span-2 space-y-1.5">
+          {!contentOnlyEdit && <div className="col-span-2 space-y-1.5">
             <Label>Care Action Type *</Label>
             <Select value={actionType} disabled={scheduleOnly} onValueChange={(value) => {
               const next = value as CareActionType;
@@ -231,7 +252,7 @@ export function AddInterventionModal({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">{CARE_ACTION_TYPE_DESCRIPTIONS[actionType]}</p>
-          </div>
+          </div>}
 
           {/* Care Action Name */}
           {!scheduleOnly && <div className="col-span-2 space-y-1.5">
@@ -245,7 +266,7 @@ export function AddInterventionModal({
 
           {/* Description */}
           <div className="col-span-2 space-y-1.5">
-            <Label>Description</Label>
+            <Label>{contentOnlyEdit ? "Care Action Details" : "Description"}</Label>
             <Textarea
               rows={2}
               placeholder="Detailed description of the care action..."
@@ -254,6 +275,7 @@ export function AddInterventionModal({
             />
           </div>
 
+          {!contentOnlyEdit && <>
           {actionType === "scheduled" && <div className="space-y-1.5">
             <Label>Frequency *</Label>
             <Select value={frequency} onValueChange={(v) => setFrequency(v as FrequencyType)}>
@@ -421,13 +443,14 @@ export function AddInterventionModal({
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </div>
+          </>}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          {scheduleOnly && intervention && <Button variant="destructive" onClick={() => { deleteProblemIntervention(intervention.id); toast.success("Care Action deleted"); onOpenChange(false); }}>Delete Completely</Button>}
+          {!scheduleOnly && intervention && <Button variant="destructive" onClick={() => { deleteProblemIntervention(intervention.id); toast.success("Care Action deleted"); onOpenChange(false); }}>Delete Care Action</Button>}
           <Button onClick={save}>{scheduleOnly ? "Save Schedule" : intervention ? "Save Care Action" : "Create Care Action"}</Button>
         </DialogFooter>
       </DialogContent>

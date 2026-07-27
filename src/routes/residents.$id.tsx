@@ -408,6 +408,8 @@ function ResidentDetail() {
   const [selectedIntervention, setSelectedIntervention] = useState<any>(null);
   const [selectedCareActionTask, setSelectedCareActionTask] = useState<any>(null);
   const [selectedCareActionId, setSelectedCareActionId] = useState<string | null>(null);
+  const [scheduleToDelete, setScheduleToDelete] = useState<any>(null);
+  const [scheduleDeleteReason, setScheduleDeleteReason] = useState("");
   const [selectedReviewAction, setSelectedReviewAction] = useState<
     "extend" | "complete" | "cancel" | null
   >(null);
@@ -3116,6 +3118,30 @@ function ResidentDetail() {
         residentId={r.id}
       />
 
+      <Dialog open={Boolean(scheduleToDelete)} onOpenChange={(open) => { if (!open) setScheduleToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Scheduled Task</DialogTitle>
+            <DialogDescription>
+              Delete the schedule for {scheduleToDelete?.name || "this Care Action"}? The Care Action itself will remain available.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Reason for deletion *</Label>
+            <Textarea value={scheduleDeleteReason} onChange={(event) => setScheduleDeleteReason(event.target.value)} placeholder="Enter the reason for deleting this scheduled task" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleToDelete(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={!scheduleDeleteReason.trim()} onClick={() => {
+              if (!scheduleToDelete) return;
+              updateProblemIntervention(scheduleToDelete.id, { isScheduled: false }, scheduleDeleteReason.trim());
+              toast.success("Scheduled task deleted");
+              setScheduleToDelete(null);
+            }}>Delete Scheduled Task</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AddInterventionModal
         open={modalState.intervention}
         onOpenChange={(open) => {
@@ -3272,8 +3298,10 @@ function ResidentDetail() {
                   {selectedProblemInterventions.length === 0 && (
                     <p className="text-sm text-muted-foreground">No care actions have been added.</p>
                   )}
-                  {selectedProblemInterventions.map((intv) => (
-                    <details key={intv.id} className="rounded-md border">
+                  {selectedProblemInterventions.map((intv) => {
+                    const legacyScheduledTaskCount = rTasks.filter((task) => task.linkedInterventionId === intv.id && task.status !== "deleted").length;
+                    const scheduledTaskCount = Math.max(intv.isScheduled ? 1 : 0, legacyScheduledTaskCount);
+                    return <details key={intv.id} className="rounded-md border">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
                         <div className="min-w-0">
                           <div className="font-medium">{intv.name}</div>
@@ -3282,13 +3310,18 @@ function ResidentDetail() {
                               {intv.description || intv.notes}
                             </div>
                           )}
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {intv.careActionType === "scheduled" ? `Scheduled ${intv.frequencyType.replace(/_/g, " ")}` : "Not scheduled"}
-                          </div>
+                          {scheduledTaskCount > 0 && <div className="mt-1 text-xs font-medium text-emerald-700">
+                            ({scheduledTaskCount} scheduled task{scheduledTaskCount === 1 ? "" : "s"})
+                          </div>}
                         </div>
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          {intv.status.replace(/_/g, " ")}
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">
+                            {intv.status.replace(/_/g, " ")}
+                          </Badge>
+                          <Button size="sm" variant="outline" onClick={(event) => { event.preventDefault(); handleEditIntervention(intv); }}>
+                            Edit
+                          </Button>
+                        </div>
                       </summary>
                       <div className="space-y-3 border-t p-3 text-sm">
                         <div>
@@ -3297,12 +3330,21 @@ function ResidentDetail() {
                         </div>
                         <div className="grid gap-2 text-xs sm:grid-cols-3">
                           <span>Assigned: {intv.assignedStaffName || intv.assignedRole || "Unassigned"}</span>
-                          <span>Start: {intv.startDate || "Not scheduled"}{intv.startTime ? ` at ${intv.startTime}` : ""}</span>
+                          {intv.isScheduled && <span>Start: {intv.startDate}{intv.startTime ? ` at ${intv.startTime}` : ""}</span>}
                           <span>Review: {intv.reviewDate || "Not set"}</span>
                         </div>
                         <div className="rounded-md bg-muted/30 p-2">
                           <div className="text-xs font-medium">Scheduled Tasks</div>
                           <p className="mt-1 text-xs text-muted-foreground">A scheduled task is this Care Action's schedule; it is not a separate assigned task.</p>
+                          {scheduledTaskCount > 0 && <div className="mt-2 flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs">
+                            <span>{intv.frequencyType.replace(/_/g, " ")} schedule</span>
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>Edit</Button>
+                              <Button size="icon" variant="ghost" title="Delete scheduled task" onClick={() => { setScheduleToDelete(intv); setScheduleDeleteReason(""); }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>}
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
                               Add Schedule Task
@@ -3312,21 +3354,9 @@ function ResidentDetail() {
                             </Button>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleRecordCompletion(intv)}>
-                            Record completion
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => discontinueProblemIntervention(intv.id, "Discontinued from care plan")}
-                          >
-                            Discontinue
-                          </Button>
-                        </div>
                       </div>
-                    </details>
-                  ))}
+                    </details>;
+                  })}
                 </CardContent>
               </Card>
 
