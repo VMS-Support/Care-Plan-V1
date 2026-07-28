@@ -1,6 +1,6 @@
 export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don" | "group_owner";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
-export type ResidentStatus = "active" | "discharged" | "deceased" | "deleted";
+export type ResidentStatus = "active" | "pre_admission" | "discharged" | "deceased" | "deleted";
 
 import type {
   AbsenceEpisodeId,
@@ -4211,6 +4211,16 @@ export interface Resident {
   endOfLife: boolean;
   currentMedication: string;
   status: ResidentStatus;
+  preAdmission?: {
+    residentType: string;
+    referredFrom: string;
+    referralSource?: string;
+    proposedAdmissionDate?: string;
+    primaryContactName?: string;
+    primaryContactPhone?: string;
+    createdAt: string;
+    convertedAt?: string;
+  };
   residentType?: ResidentType;
   bed?: BedInfo;
   keyWorkers?: KeyWorkers;

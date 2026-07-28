@@ -1,18 +1,21 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ArrowLeft, Check, CircleCheck, Search } from "lucide-react";
 import { assessmentMeta, assessmentItems, uniformScale, scoreAssessment } from "@/lib/care/scoring";
+import { ASSESSMENT_CATEGORIES } from "@/lib/care/assessments";
 import { toast } from "sonner";
 import type { AssessmentType } from "@/lib/care/types";
 
-const TYPES: AssessmentType[] = ["barthel", "waterlow", "abbey_pain", "mna", "norton", "nutrition", "pinch_me"];
+const TYPES = Object.keys(assessmentItems) as AssessmentType[];
 
 export const Route = createFileRoute("/assessments/new/$residentId")({
   validateSearch: (s: Record<string, unknown>) => ({ type: (s.type as AssessmentType) ?? "barthel" }),
@@ -23,8 +26,7 @@ export const Route = createFileRoute("/assessments/new/$residentId")({
 function NewAssessment() {
   const { residentId } = Route.useParams();
   const { type } = Route.useSearch() as { type: AssessmentType };
-  const { residents, addAssessment, currentRole, currentUserName, canAccess } = useCare();
-  const navigate = useNavigate();
+  const { residents, assessments, addAssessment, currentRole, currentUserName, canAccess } = useCare();
   const resident = residents.find(r => r.id === residentId);
 
   const items = assessmentItems[type] as any[];
@@ -34,8 +36,36 @@ function NewAssessment() {
   const [recommendations, setRecommendations] = useState("");
   const [reviewDate, setReviewDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
   const [nextReassessmentDate, setNextReassessmentDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerCategory, setPickerCategory] = useState("all");
+  const [submittedAssessmentName, setSubmittedAssessmentName] = useState<string | null>(null);
+
+  // Keep this workspace ready for the next selected assessment instead of sending
+  // the user back through the resident's Quick Actions flow.
+  useEffect(() => {
+    setScores({});
+    setNotes("");
+    setRecommendations("");
+  }, [type]);
 
   const result = useMemo(() => scoreAssessment(type, scores), [type, scores]);
+  const currentAssessments = useMemo(
+    () => assessments
+      .filter((assessment) => assessment.residentId === residentId && assessment.status === "completed")
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [assessments, residentId],
+  );
+  const availableAssessments = useMemo(() => {
+    const query = pickerQuery.trim().toLowerCase();
+    const categoryTypes = pickerCategory === "all"
+      ? TYPES
+      : ASSESSMENT_CATEGORIES.find((category) => category.id === pickerCategory)?.types ?? [];
+    return categoryTypes.filter((assessmentType) => {
+      const meta = assessmentMeta[assessmentType];
+      return !query || `${meta.name} ${meta.description}`.toLowerCase().includes(query);
+    });
+  }, [pickerCategory, pickerQuery]);
 
   if (!resident) return <div className="p-8">Resident not found.</div>;
   if (!canAccess("assessment.create", { nursingHomeId: resident.facilityId, wardId: resident.wardId, residentId })) {
@@ -59,8 +89,18 @@ function NewAssessment() {
       status: draft ? "draft" : "completed",
       reviewDate, nextReassessmentDate, version: 1,
     });
-    toast.success(draft ? "Draft saved" : "Assessment submitted");
-    navigate({ to: "/residents/$id", params: { id: residentId } });
+    if (draft) toast.success("Draft saved. Select another assessment when ready.");
+    else setSubmittedAssessmentName(assessmentMeta[type].name);
+    setScores({});
+    setNotes("");
+    setRecommendations("");
+  }
+
+  function createAnotherAssessment() {
+    setSubmittedAssessmentName(null);
+    setPickerQuery("");
+    setPickerCategory("all");
+    setPickerOpen(true);
   }
 
   return (
@@ -69,12 +109,31 @@ function NewAssessment() {
         <ArrowLeft className="h-4 w-4" /> {resident.firstName} {resident.lastName}
       </Link>
 
+      <Dialog open={Boolean(submittedAssessmentName)} onOpenChange={(open) => !open && setSubmittedAssessmentName(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Assessment submitted <CircleCheck className="h-5 w-5 text-emerald-600" aria-label="Submitted successfully" />
+            </DialogTitle>
+            <DialogDescription>
+              {submittedAssessmentName} has been submitted for {resident.firstName} {resident.lastName}.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/residents/$id" params={{ id: residentId }}>Back to resident profile</Link>
+            </Button>
+            <Button onClick={createAnotherAssessment}>Create another assessment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{assessmentMeta[type].name}</h1>
           <p className="text-sm text-muted-foreground">{assessmentMeta[type].description}</p>
         </div>
-        <div className="flex flex-wrap gap-1">
+        <div className="hidden">
           {TYPES.map(t => (
             <Link key={t} to="/assessments/new/$residentId" params={{ residentId }} search={{ type: t } as any}>
               <Button variant={type === t ? "default" : "outline"} size="sm" className="capitalize">
@@ -83,6 +142,57 @@ function NewAssessment() {
             </Link>
           ))}
         </div>
+      </div>
+
+      <section className="rounded-xl border bg-muted/30 px-4 py-3" aria-label="Resident being assessed">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-12 w-12 shrink-0 border">
+            <AvatarImage src={resident.photoUrl} alt={`${resident.firstName} ${resident.lastName}`} className="object-cover" />
+            <AvatarFallback>{`${resident.firstName[0] || ""}${resident.lastName[0] || ""}`.toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assessing resident</p>
+            <p className="font-semibold truncate">{resident.firstName} {resident.lastName}</p>
+            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              {resident.roomNumber && <span>Room {resident.roomNumber}</span>}
+              {resident.dob && <span>DOB {new Date(resident.dob).toLocaleDateString()}</span>}
+              {(resident.residentNumber || resident.externalResidentId) && <span>ID {resident.residentNumber || resident.externalResidentId}</span>}
+            </div>
+          </div>
+          <Link to="/residents/$id" params={{ id: residentId }} className="text-xs font-medium text-primary hover:underline shrink-0">View profile</Link>
+        </div>
+      </section>
+
+      <div className="flex justify-end">
+        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogTrigger asChild><Button variant="outline">Change assessment</Button></DialogTrigger>
+        <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b">
+            <DialogTitle>Select an assessment</DialogTitle>
+            <DialogDescription>Search or browse by clinical area to continue this assessment for {resident.firstName} {resident.lastName}.</DialogDescription>
+            <div className="relative pt-3">
+              <Search className="absolute left-3 top-6 h-4 w-4 text-muted-foreground" />
+              <Input autoFocus value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder="Search assessments, e.g. pressure, falls or cognition" className="pl-9" />
+            </div>
+          </DialogHeader>
+          <div className="grid md:grid-cols-[11rem_1fr] min-h-[22rem]">
+            <nav className="border-b md:border-b-0 md:border-r bg-muted/30 p-3 flex md:flex-col gap-1 overflow-x-auto" aria-label="Assessment categories">
+              <Button size="sm" variant={pickerCategory === "all" ? "secondary" : "ghost"} className="justify-start shrink-0" onClick={() => setPickerCategory("all")}>All assessments</Button>
+              {ASSESSMENT_CATEGORIES.map((category) => <Button key={category.id} size="sm" variant={pickerCategory === category.id ? "secondary" : "ghost"} className="justify-start shrink-0" onClick={() => setPickerCategory(category.id)}>{category.label}</Button>)}
+            </nav>
+            <div className="p-4 max-h-[30rem] overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-3">{availableAssessments.length} assessment{availableAssessments.length === 1 ? "" : "s"} available</p>
+              {availableAssessments.length ? <div className="grid sm:grid-cols-2 gap-2">
+                {availableAssessments.map((assessmentType) => <Link key={assessmentType} to="/assessments/new/$residentId" params={{ residentId }} search={{ type: assessmentType } as any} onClick={() => setPickerOpen(false)} className={`group relative rounded-lg border p-3 pr-9 transition-colors hover:border-primary hover:bg-primary/5 ${type === assessmentType ? "border-primary bg-primary/5" : "bg-background"}`}>
+                  <div className="font-medium text-sm">{assessmentMeta[assessmentType].name}</div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{assessmentMeta[assessmentType].description}</p>
+                  {type === assessmentType && <Check className="absolute right-3 top-3 h-4 w-4 text-primary" aria-label="Current assessment" />}
+                </Link>)}
+              </div> : <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No assessments match your search.</div>}
+            </div>
+          </div>
+        </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
@@ -163,6 +273,31 @@ function NewAssessment() {
                   </ul>
                 </div>
               )}
+              <div className="mt-5 border-t pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold text-sm">Current assessments</h2>
+                    <p className="text-xs text-muted-foreground">Completed for this resident</p>
+                  </div>
+                  <Badge variant="secondary">{currentAssessments.length}</Badge>
+                </div>
+                {currentAssessments.length ? (
+                  <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {currentAssessments.map((assessment) => (
+                      <Link key={assessment.id} to="/assessments/$assessmentId" params={{ assessmentId: assessment.id }} className="block rounded-md border p-2.5 transition-colors hover:bg-muted/60">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium leading-tight">{assessmentMeta[assessment.type].name}</span>
+                          {(() => {
+                            const overdue = Boolean(assessment.nextReassessmentDate && assessment.nextReassessmentDate < new Date().toISOString().slice(0, 10));
+                            return <Badge className={`shrink-0 text-[10px] ${overdue ? "bg-destructive text-destructive-foreground hover:bg-destructive" : "bg-emerald-600 text-white hover:bg-emerald-600"}`}>{overdue ? "Overdue" : "Active"}</Badge>;
+                          })()}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{new Date(assessment.date).toLocaleDateString()} · Score {assessment.totalScore}{assessment.nextReassessmentDate ? ` · Review ${assessment.nextReassessmentDate}` : ""}</p>
+                      </Link>
+                    ))}
+                  </div>
+                ) : <p className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">No completed assessments yet. Submitted assessments will appear here immediately.</p>}
+              </div>
             </CardContent>
           </Card>
         </div>

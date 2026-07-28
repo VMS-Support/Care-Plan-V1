@@ -50,6 +50,7 @@ import { Route as WorkforceEmploymentRouteImport } from './routes/workforce.empl
 import { Route as WorkforceCompetenciesRouteImport } from './routes/workforce.competencies'
 import { Route as WorkforceAgencyRouteImport } from './routes/workforce.agency'
 import { Route as VitalsAuditRouteImport } from './routes/vitals.audit'
+import { Route as ResidentsPreAdmissionsRouteImport } from './routes/residents.pre-admissions'
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
 import { Route as ReportsDailyCareRouteImport } from './routes/reports.daily-care'
 import { Route as MaintenanceWorkOrdersRouteImport } from './routes/maintenance.work-orders'
@@ -312,6 +313,11 @@ const VitalsAuditRoute = VitalsAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
   getParentRoute: () => VitalsRoute,
+} as any)
+const ResidentsPreAdmissionsRoute = ResidentsPreAdmissionsRouteImport.update({
+  id: '/pre-admissions',
+  path: '/pre-admissions',
+  getParentRoute: () => ResidentsRoute,
 } as any)
 const ResidentsIdRoute = ResidentsIdRouteImport.update({
   id: '/$id',
@@ -683,6 +689,7 @@ export interface FileRoutesByFullPath {
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
+  '/residents/pre-admissions': typeof ResidentsPreAdmissionsRoute
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
@@ -781,6 +788,7 @@ export interface FileRoutesByTo {
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
+  '/residents/pre-admissions': typeof ResidentsPreAdmissionsRoute
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
@@ -882,6 +890,7 @@ export interface FileRoutesById {
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
+  '/residents/pre-admissions': typeof ResidentsPreAdmissionsRoute
   '/vitals/audit': typeof VitalsAuditRoute
   '/workforce/agency': typeof WorkforceAgencyRoute
   '/workforce/competencies': typeof WorkforceCompetenciesRoute
@@ -984,6 +993,7 @@ export interface FileRouteTypes {
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
+    | '/residents/pre-admissions'
     | '/vitals/audit'
     | '/workforce/agency'
     | '/workforce/competencies'
@@ -1082,6 +1092,7 @@ export interface FileRouteTypes {
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
+    | '/residents/pre-admissions'
     | '/vitals/audit'
     | '/workforce/agency'
     | '/workforce/competencies'
@@ -1182,6 +1193,7 @@ export interface FileRouteTypes {
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
+    | '/residents/pre-admissions'
     | '/vitals/audit'
     | '/workforce/agency'
     | '/workforce/competencies'
@@ -1570,6 +1582,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/vitals/audit'
       preLoaderRoute: typeof VitalsAuditRouteImport
       parentRoute: typeof VitalsRoute
+    }
+    '/residents/pre-admissions': {
+      id: '/residents/pre-admissions'
+      path: '/pre-admissions'
+      fullPath: '/residents/pre-admissions'
+      preLoaderRoute: typeof ResidentsPreAdmissionsRouteImport
+      parentRoute: typeof ResidentsRoute
     }
     '/residents/$id': {
       id: '/residents/$id'
@@ -2201,11 +2220,13 @@ const ResidentsIdRouteWithChildren = ResidentsIdRoute._addFileChildren(
 
 interface ResidentsRouteChildren {
   ResidentsIdRoute: typeof ResidentsIdRouteWithChildren
+  ResidentsPreAdmissionsRoute: typeof ResidentsPreAdmissionsRoute
   ResidentsIndexRoute: typeof ResidentsIndexRoute
 }
 
 const ResidentsRouteChildren: ResidentsRouteChildren = {
   ResidentsIdRoute: ResidentsIdRouteWithChildren,
+  ResidentsPreAdmissionsRoute: ResidentsPreAdmissionsRoute,
   ResidentsIndexRoute: ResidentsIndexRoute,
 }
 

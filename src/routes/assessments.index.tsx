@@ -4,6 +4,7 @@ import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { deriveStatus, riskBadgeCls } from "@/lib/care/assessments";
+import { ASSESSMENT_CATEGORIES } from "@/lib/care/assessments";
 import { getDonRiskAssessmentMetric } from "@/domain/assessments/riskAssessmentComplianceService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Accordion,
   AccordionContent,
@@ -34,6 +36,8 @@ import {
   ShieldAlert,
   UserCheck,
   Printer,
+  Plus,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { Assessment, AssessmentType } from "@/lib/care/types";
 
@@ -81,39 +85,11 @@ interface ResidentQueueItem {
   oldestDueDate: string;
 }
 
-const ALL_TYPES: AssessmentType[] = [
-  "abbey_pain",
-  "waterlow",
-  "barthel",
-  "must",
-  "mna",
-  "mmse",
-  "four_at",
-  "falls",
-  "continence",
-  "pain_chart",
-  "cornell",
-  "gds15",
-  "abc",
-  "abs",
-  "norton",
-  "nutrition",
-  "pinch_me",
-];
+const ALL_TYPES = Object.keys(assessmentMeta) as AssessmentType[];
 
 const CORE_TYPES: AssessmentType[] = ["waterlow", "barthel", "abbey_pain", "must", "falls", "mmse"];
 
-const CATEGORY_FILTERS: Array<{ id: string; label: string; types: AssessmentType[] }> = [
-  { id: "mobility", label: "Mobility", types: ["barthel"] },
-  { id: "pressure_care", label: "Pressure Care", types: ["waterlow", "norton"] },
-  { id: "nutrition", label: "Nutrition", types: ["must", "mna", "nutrition"] },
-  { id: "cognition", label: "Cognition", types: ["mmse", "four_at"] },
-  { id: "falls_risk", label: "Falls Risk", types: ["falls"] },
-  { id: "pain", label: "Pain", types: ["abbey_pain", "pain_chart"] },
-  { id: "behaviour", label: "Behaviour", types: ["abc", "abs", "cornell", "gds15"] },
-  { id: "continence", label: "Continence", types: ["continence"] },
-  { id: "safety", label: "Safety", types: ["four_at", "norton", "falls"] },
-];
+const CATEGORY_FILTERS = ASSESSMENT_CATEGORIES;
 
 function toDateKey(value?: string) {
   return value ? value.slice(0, 10) : "";
@@ -151,6 +127,75 @@ function dueText(dueDate: string, status: QueueStatus, todayKey: string) {
   if (status === "overdue") return `Overdue · ${dueDate}`;
   if (dueDate === todayKey) return "Due Today";
   return `Due ${dueDate}`;
+}
+
+function clearDueText(dueDate: string, todayKey: string) {
+  if (!dueDate) return "Scheduled";
+  const days = Math.floor((new Date(dueDate).getTime() - new Date(todayKey).getTime()) / 86400000);
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`;
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  return `Due in ${days} days`;
+}
+
+function StartAssessmentDialog({
+  open, onOpenChange, residents, assessments,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  residents: { id: string; firstName: string; lastName: string; roomNumber: string; residentNumber?: string; externalResidentId?: string; status: string; deletedAt?: string }[];
+  assessments: Assessment[];
+}) {
+  const navigate = useNavigate();
+  const [residentQuery, setResidentQuery] = useState("");
+  const [assessmentQuery, setAssessmentQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [residentId, setResidentId] = useState<string | null>(null);
+  const [assessmentType, setAssessmentType] = useState<AssessmentType | null>(null);
+  const activeResidents = residents.filter((resident) => resident.status === "active" && !resident.deletedAt);
+  const matchingResidents = activeResidents.filter((resident) => `${resident.firstName} ${resident.lastName} ${resident.roomNumber} ${resident.residentNumber || ""} ${resident.externalResidentId || ""}`.toLowerCase().includes(residentQuery.toLowerCase()));
+  const categoryTypes = category === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((item) => item.id === category)?.types || [];
+  const matchingTypes = categoryTypes.filter((type) => `${assessmentMeta[type].name} ${assessmentMeta[type].description}`.toLowerCase().includes(assessmentQuery.toLowerCase()));
+  const selectedResident = activeResidents.find((resident) => resident.id === residentId);
+  const previousExists = Boolean(residentId && assessmentType && assessments.some((assessment) => assessment.residentId === residentId && assessment.type === assessmentType && assessment.status === "completed"));
+
+  function start() {
+    if (!residentId || !assessmentType) return;
+    onOpenChange(false);
+    navigate({ to: "/assessments/new/$residentId", params: { residentId }, search: { type: assessmentType } as any });
+  }
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>Assess a resident</DialogTitle>
+        <DialogDescription>Select the resident first, then choose the assessment to start.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-6 md:grid-cols-2">
+        <section className="space-y-3">
+          <div><p className="font-semibold">1. Select resident</p><p className="text-sm text-muted-foreground">Search by name, room or resident number.</p></div>
+          <Input value={residentQuery} onChange={(event) => setResidentQuery(event.target.value)} placeholder="Search active residents" aria-label="Search active residents" className="h-11" />
+          <div className="max-h-64 overflow-y-auto rounded-lg border divide-y">
+            {matchingResidents.map((resident) => <button key={resident.id} type="button" onClick={() => setResidentId(resident.id)} className={`w-full px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${residentId === resident.id ? "bg-primary/10" : ""}`}>
+              <span className="block font-medium">{resident.firstName} {resident.lastName}</span><span className="text-sm text-muted-foreground">Room {resident.roomNumber || "not assigned"}{resident.residentNumber ? ` · ${resident.residentNumber}` : ""}</span>
+            </button>)}
+            {!matchingResidents.length && <p className="p-4 text-sm text-muted-foreground">No active residents found.</p>}
+          </div>
+        </section>
+        <section className="space-y-3">
+          <div><p className="font-semibold">2. Select assessment</p><p className="text-sm text-muted-foreground">Choose from all configured assessment templates.</p></div>
+          <Select value={category} onValueChange={setCategory}><SelectTrigger className="h-11"><SelectValue placeholder="Assessment category" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{CATEGORY_FILTERS.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select>
+          <Input value={assessmentQuery} onChange={(event) => setAssessmentQuery(event.target.value)} placeholder="Search assessments" aria-label="Search assessments" className="h-11" />
+          <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
+            {matchingTypes.map((type) => <button key={type} type="button" onClick={() => setAssessmentType(type)} className={`w-full px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${assessmentType === type ? "bg-primary/10" : ""}`}><span className="block font-medium">{assessmentMeta[type].name}</span><span className="text-sm text-muted-foreground">{assessmentMeta[type].description}</span></button>)}
+            {!matchingTypes.length && <p className="p-4 text-sm text-muted-foreground">No assessment templates found.</p>}
+          </div>
+        </section>
+      </div>
+      {selectedResident && assessmentType && <div className="rounded-lg border bg-muted/30 p-3 text-sm"><span className="font-medium">Ready:</span> {assessmentMeta[assessmentType].name} for {selectedResident.firstName} {selectedResident.lastName}.{previousExists && <p className="mt-2 text-muted-foreground">A previous assessment exists. The new assessment will be saved as a new version.</p>}</div>}
+      <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button className="min-h-11" disabled={!residentId || !assessmentType} onClick={start}>Start Assessment</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }
 
 function daysAgoLabel(dueDate: string, todayKey: string) {
@@ -575,6 +620,10 @@ function AssessmentsList() {
   const [assignedF, setAssignedF] = useState("all");
   const [wingF, setWingF] = useState("all");
   const [roomF, setRoomF] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<"all" | "overdue" | "today" | "week" | "high">("all");
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"due" | "resident" | "assessment" | "risk" | "assigned">("due");
 
   const isGovernanceRole = currentRole === "cnm" || currentRole === "don";
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -660,7 +709,9 @@ function AssessmentsList() {
       });
     if (viewMode === "by_resident") return allActiveRows;
     if (viewMode === "by_assessment_type") return allActiveRows;
-    return latestRows.filter((r) => r.status === "due" || r.status === "overdue");
+    // Nurse View's All filter should include every current assessment for a resident,
+    // including active assessments that are not yet due for review.
+    return latestRows;
   }, [allActiveRows, currentUserName, latestRows, viewMode]);
 
   const filteredRows = useMemo(() => {
@@ -832,6 +883,11 @@ function AssessmentsList() {
       (r) => (r.status === "due" || r.status === "overdue") && r.dueDate === todayKey,
     ).length;
     const overdue = latestRows.filter((r) => r.status === "overdue").length;
+    const dueThisWeek = latestRows.filter((r) => {
+      if (!r.dueDate) return false;
+      const days = Math.floor((new Date(r.dueDate).getTime() - new Date(todayKey).getTime()) / 86400000);
+      return days >= 1 && days <= 7;
+    }).length;
     const highRiskResidents = new Set(
       latestRows
         .filter((r) => r.assessment.riskLevel === "high" || r.assessment.riskLevel === "very_high")
@@ -848,6 +904,7 @@ function AssessmentsList() {
       residentsRequiringAssessment,
       dueToday,
       overdue,
+      dueThisWeek,
       highRiskResidents,
       missingAssessments: residentsMissingMandatory.length,
       myAssessments,
@@ -949,34 +1006,44 @@ function AssessmentsList() {
     setAssignedF("all");
     setWingF("all");
     setRoomF("all");
+    setQuickFilter("all");
   };
 
+  const nurseQueueRows = useMemo(() => filteredRows.filter((row) => {
+    const days = row.dueDate ? Math.floor((new Date(row.dueDate).getTime() - new Date(todayKey).getTime()) / 86400000) : Number.POSITIVE_INFINITY;
+    if (quickFilter === "overdue") return days < 0;
+    if (quickFilter === "today") return days === 0;
+    if (quickFilter === "week") return days >= 0 && days <= 7;
+    if (quickFilter === "high") return row.assessment.riskLevel === "high" || row.assessment.riskLevel === "very_high";
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === "resident") return a.residentName.localeCompare(b.residentName);
+    if (sortBy === "assessment") return assessmentMeta[a.assessment.type].name.localeCompare(assessmentMeta[b.assessment.type].name);
+    if (sortBy === "risk") return riskOrder(b.assessment.riskLevel) - riskOrder(a.assessment.riskLevel);
+    if (sortBy === "assigned") return (a.assessment.assignedToName || "Unassigned").localeCompare(b.assessment.assignedToName || "Unassigned");
+    return priorityRank(a) - priorityRank(b) || `${a.dueDate || "9999-12-31"}`.localeCompare(`${b.dueDate || "9999-12-31"}`);
+  }), [filteredRows, quickFilter, sortBy, todayKey]);
+
   const nurseQueueView = (
-    <>
-      <AssessmentQueueFilters
-        search={search}
-        setSearch={setSearch}
-        categoryF={categoryF}
-        setCategoryF={setCategoryF}
-        typeF={typeF}
-        setTypeF={setTypeF}
-        statusF={statusF}
-        setStatusF={setStatusF}
-        riskF={riskF}
-        setRiskF={setRiskF}
-        assignedF={assignedF}
-        setAssignedF={setAssignedF}
-        wingF={wingF}
-        setWingF={setWingF}
-        roomF={roomF}
-        setRoomF={setRoomF}
-        users={users}
-        wings={wings}
-        rooms={availableRooms}
-        onReset={resetAssessmentFilters}
-      />
-      <AssessmentWorkQueue groups={residentQueueGroups} todayKey={todayKey} />
-    </>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input className="h-12 pl-10 text-base" placeholder="Search resident, room or resident number" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+        <div className="flex flex-wrap gap-2">
+          {([['all', 'All'], ['overdue', 'Overdue'], ['today', 'Due today'], ['week', 'Due this week'], ['high', 'High risk']] as const).map(([value, label]) => <Button key={value} variant={quickFilter === value ? "default" : "outline"} className="min-h-11" onClick={() => setQuickFilter(value)}>{label}</Button>)}
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}><SelectTrigger className="h-11 w-[10.5rem]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="due">Sort: due date</SelectItem><SelectItem value="resident">Sort: resident</SelectItem><SelectItem value="assessment">Sort: assessment</SelectItem><SelectItem value="risk">Sort: risk</SelectItem><SelectItem value="assigned">Sort: assigned to</SelectItem></SelectContent></Select>
+          <Button variant="outline" className="min-h-11" onClick={() => setMoreFiltersOpen((open) => !open)}><SlidersHorizontal className="mr-2 h-4 w-4" />More filters</Button>
+        </div>
+      </div>
+      {moreFiltersOpen && <AssessmentQueueFilters search="" setSearch={() => {}} categoryF={categoryF} setCategoryF={setCategoryF} typeF={typeF} setTypeF={setTypeF} statusF={statusF} setStatusF={setStatusF} riskF={riskF} setRiskF={setRiskF} assignedF={assignedF} setAssignedF={setAssignedF} wingF={wingF} setWingF={setWingF} roomF={roomF} setRoomF={setRoomF} users={users} wings={wings} rooms={availableRooms} onReset={resetAssessmentFilters} />}
+      <Card>
+        <CardContent className="p-0">
+          {nurseQueueRows.length ? <>
+            <div className="hidden md:block overflow-x-auto"><table className="w-full text-base"><thead className="bg-muted/60 text-sm"><tr><th className="p-4 text-left">Resident</th><th className="p-4 text-left">Room</th><th className="p-4 text-left">Assessment</th><th className="p-4 text-left">Due</th><th className="p-4 text-left">Risk / priority</th><th className="p-4 text-left">Assigned to</th><th className="p-4 text-right">Action</th></tr></thead><tbody className="divide-y">{nurseQueueRows.map((row) => <tr key={row.assessment.id} className="hover:bg-muted/30"><td className="p-4 font-semibold">{row.residentName}</td><td className="p-4">{row.roomNumber ? `Room ${row.roomNumber}` : "—"}</td><td className="p-4">{assessmentMeta[row.assessment.type].name}</td><td className="p-4 font-medium">{clearDueText(row.dueDate, todayKey)}</td><td className="p-4"><Badge variant="outline" className={`text-sm capitalize ${riskBadgeCls(row.assessment.riskLevel)}`}>{row.assessment.riskLevel.replace("_", " ")} risk</Badge></td><td className="p-4">{row.assessment.assignedToName || "Unassigned"}</td><td className="p-4 text-right"><Link to="/assessments/new/$residentId" params={{ residentId: row.assessment.residentId }} search={{ type: row.assessment.type } as any}><Button className="min-h-11">Start assessment</Button></Link></td></tr>)}</tbody></table></div>
+            <div className="md:hidden divide-y">{nurseQueueRows.map((row) => <div key={row.assessment.id} className="p-4 space-y-3"><div className="flex justify-between gap-3"><div><p className="font-semibold text-lg">{row.residentName}</p><p className="text-muted-foreground">Room {row.roomNumber || "not assigned"}</p></div><Badge variant="outline" className={`h-fit text-sm capitalize ${riskBadgeCls(row.assessment.riskLevel)}`}>{row.assessment.riskLevel.replace("_", " ")} risk</Badge></div><p className="text-base"><span className="font-medium">{assessmentMeta[row.assessment.type].name}</span> · {clearDueText(row.dueDate, todayKey)}</p><Link to="/assessments/new/$residentId" params={{ residentId: row.assessment.residentId }} search={{ type: row.assessment.type } as any} className="block"><Button className="w-full min-h-11">Start assessment</Button></Link></div>)}</div>
+          </> : <div className="p-10 text-center"><p className="text-lg font-semibold">No assessments are due for this filter.</p><p className="mt-2 text-muted-foreground">Active assessment tasks will appear here when they become due.</p><Button className="mt-5 min-h-11" onClick={() => setStartDialogOpen(true)}><Plus className="mr-2 h-5 w-5" />Assess a resident</Button></div>}
+        </CardContent>
+      </Card>
+    </div>
   );
 
   const exportGovernanceCsv = () => {
@@ -1011,72 +1078,59 @@ function AssessmentsList() {
     <div className="p-4 md:p-8 space-y-5 max-w-[1500px]">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assessment Work Queue</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Clinical assessment record system with a default task-focused nurse view.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">Assessments</h1>
+          <p className="text-base text-muted-foreground mt-1">View upcoming assessment reviews and complete resident assessments.</p>
         </div>
-        <Link to="/assessments/reassessment">
-          <Button variant="outline">
-            <ClipboardList className="h-4 w-4 mr-1.5" /> Review Workflow
-          </Button>
-        </Link>
+        <Button className="min-h-11 w-full sm:w-auto" onClick={() => setStartDialogOpen(true)}><Plus className="h-5 w-5 mr-2" />Assess a resident</Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
+      <StartAssessmentDialog open={startDialogOpen} onOpenChange={setStartDialogOpen} residents={residents} assessments={assessments} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setQuickFilter("overdue")}>
+          <CardContent className="p-4 flex items-center gap-3 min-h-24">
             <CalendarClock className="h-5 w-5 text-warning-foreground" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.residentsRequiringAssessment}</div>
-              <div className="text-[11px] text-muted-foreground">Residents Requiring Assessment</div>
+              <div className="text-3xl font-semibold tabular-nums">{summary.overdue}</div>
+              <div className="text-sm text-muted-foreground">Overdue</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setQuickFilter("today")}>
+          <CardContent className="p-4 flex items-center gap-3 min-h-24">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.dueToday}</div>
-              <div className="text-[11px] text-muted-foreground">Assessments Due Today</div>
+              <div className="text-3xl font-semibold tabular-nums">{summary.dueToday}</div>
+              <div className="text-sm text-muted-foreground">Due today</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setQuickFilter("week")}>
+          <CardContent className="p-4 flex items-center gap-3 min-h-24">
             <ShieldAlert className="h-5 w-5 text-warning-foreground" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.overdue}</div>
-              <div className="text-[11px] text-muted-foreground">Overdue Assessments</div>
+              <div className="text-3xl font-semibold tabular-nums">{summary.dueThisWeek}</div>
+              <div className="text-sm text-muted-foreground">Due this week</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setQuickFilter("high")}>
+          <CardContent className="p-4 flex items-center gap-3 min-h-24">
             <Layers className="h-5 w-5 text-muted-foreground" />
             <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.highRiskResidents}</div>
-              <div className="text-[11px] text-muted-foreground">High Risk Residents</div>
+              <div className="text-3xl font-semibold tabular-nums">{summary.highRiskResidents}</div>
+              <div className="text-sm text-muted-foreground">High risk</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <UserCheck className="h-5 w-5 text-info" />
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">{summary.missingAssessments}</div>
-              <div className="text-[11px] text-muted-foreground">Missing Initial Assessments</div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <div className="space-y-4">
-        {isGovernanceRole ? (
+        {false ? (
           <Tabs value={roleView} onValueChange={(v) => setRoleView(v as "nurse" | "governance")}>
             <TabsList className="h-auto">
               <TabsTrigger value="nurse">Nurse View</TabsTrigger>

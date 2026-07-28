@@ -1349,6 +1349,17 @@ function ResidentDetail() {
         </>}
       />
       <EditResidentProfileDialog resident={r} users={users} canEditSensitiveIdentifiers={residentViewCapabilities.includes("resident_profile.edit_sensitive_identifiers")} open={profileEditOpen} onOpenChange={setProfileEditOpen} onSave={(input) => updateResidentProfile(r.id, input)} />
+      {r.preAdmission?.convertedAt && <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Pre-Admission</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-5">
+          <div><span className="text-muted-foreground">Resident Type</span><p className="font-medium">{r.preAdmission.residentType}</p></div>
+          <div><span className="text-muted-foreground">Referred From</span><p className="font-medium">{r.preAdmission.referredFrom}</p></div>
+          <div><span className="text-muted-foreground">Referral Source</span><p className="font-medium">{r.preAdmission.referralSource || "Not recorded"}</p></div>
+          <div><span className="text-muted-foreground">Proposed Admission</span><p className="font-medium">{r.preAdmission.proposedAdmissionDate || "Not recorded"}</p></div>
+          <div><span className="text-muted-foreground">Converted to Active</span><p className="font-medium">{new Date(r.preAdmission.convertedAt).toLocaleDateString()}</p></div>
+          <Button variant="outline" size="sm" className="w-fit" asChild><Link to="/residents/pre-admissions">View Pre-Admission Record</Link></Button>
+        </CardContent>
+      </Card>}
 
       <Card className="hidden">
         <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-5">
@@ -1834,14 +1845,14 @@ function ResidentDetail() {
         <div className="flex items-center gap-2 flex-wrap">
             <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="activities">Activities of Living</TabsTrigger>
+              <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
+              <TabsTrigger value="activities">Care Plans</TabsTrigger>
+              <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
               <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
-            <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
-            <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
-            <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
-            <TabsTrigger value="mdt">MDT ({rMDT.length})</TabsTrigger>
-            <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
-            <TabsTrigger value="tasks">Actions ({rTasks.length})</TabsTrigger>
+              <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
+              <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
+              <TabsTrigger value="nok">Next of Kin ({r.nextOfKinList?.length || 0})</TabsTrigger>
+              <TabsTrigger value="handovers">Handovers ({rHandovers.length})</TabsTrigger>
           </TabsList>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1859,46 +1870,48 @@ function ResidentDetail() {
               <DropdownMenuItem onClick={() => setActiveTab("outings")}>
                 Outings ({rOutings.length})
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab("handovers")}>
-                Handovers ({rHandovers.length})
+              <DropdownMenuItem onClick={() => setActiveTab("mdt")}>
+                MDT ({rMDT.length})
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab("nok")}>
-                Next of Kin ({r.nextOfKinList?.length || 0})
+              <DropdownMenuItem onClick={() => setActiveTab("tasks")}>
+                Actions ({rTasks.length})
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <TabsContent value="activities" className="space-y-4">
-          <RltClinicalWorkspace
-            overview={rltClinicalOverview}
-            timelineItems={rltTimelineItems}
-            onOpenCarePlan={(carePlanItemId) => openProblemDetail(carePlanItemId)}
-            createCarePlanAction={(domain) => {
-              const dependencyRecord = rltDependencyState.records.find(
-                (record) =>
-                  record.residentId === r.id &&
-                  record.rltDomainId === domain.rltDomainId &&
-                  record.status === "current",
-              );
-              return (
-                <CreateCarePlanDialog
-                  residentId={r.id}
-                  initialRltDomainId={domain.rltDomainId}
-                  currentDependencyLevel={dependencyRecord?.dependencyLevel || null}
-                  onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
-                  trigger={
-                    <Button size="sm" variant="outline">
-                      Create Care Plan
-                    </Button>
-                  }
-                />
-              );
-            }}
-            domainSupplement={(domain) =>
-              domain.rltDomainId === "dying" ? <EndOfLifePathwayPanel residentId={r.id} /> : null
-            }
-          />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Current care plans</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Active care plans for {r.firstName} {r.lastName}.</p>
+              </div>
+              <CreateCarePlanDialog
+                residentId={r.id}
+                onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
+                trigger={<Button className="min-h-11"><Plus className="mr-2 h-4 w-4" />Add care plan</Button>}
+              />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {activeProblems
+                .slice()
+                .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
+                .map((problem) => (
+                  <div key={problem.id} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-base">{problem.carePlanName || problem.problemStatement}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Review due {problem.reviewDate}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`capitalize ${riskColor(problem.riskLevel)}`}>{problem.riskLevel.replace(/_/g, " ")} risk</Badge>
+                      <Button variant="outline" className="min-h-11" onClick={() => openProblemDetail(problem.id)}>Open care plan</Button>
+                    </div>
+                  </div>
+                ))}
+              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use “Add care plan” to create one for this resident.</p></div>}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">

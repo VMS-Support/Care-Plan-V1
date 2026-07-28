@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,6 @@ import {
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
 import type { AssessmentType } from "@/lib/care/types";
-import { toast } from "sonner";
 
 interface Props {
   open: boolean;
@@ -41,7 +41,8 @@ const ASSESSMENT_CATEGORIES: Record<string, AssessmentType[]> = {
 
 export function AddAssessmentModal({ open, onOpenChange, residentId }: Props) {
   const { residents } = useCare();
-  const [step, setStep] = useState<"select" | "review" | "form">("select");
+  const navigate = useNavigate();
+  const [step, setStep] = useState<"select" | "review">("select");
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentType | null>(null);
   const [category, setCategory] = useState("Mobility & Function");
 
@@ -63,10 +64,12 @@ export function AddAssessmentModal({ open, onOpenChange, residentId }: Props) {
 
   function handleLaunchAssessment() {
     if (!selectedAssessment) return;
-    // In a real implementation, this would open an embedded assessment form
-    // For now, we'll show a placeholder
-    setStep("form");
-    toast.info(`Assessment form for ${assessmentMeta[selectedAssessment].name} would open here`);
+    onOpenChange(false);
+    navigate({
+      to: "/assessments/new/$residentId",
+      params: { residentId },
+      search: { type: selectedAssessment } as any,
+    });
   }
 
   if (step === "select") {
@@ -167,43 +170,6 @@ export function AddAssessmentModal({ open, onOpenChange, residentId }: Props) {
               Back
             </Button>
             <Button onClick={handleLaunchAssessment}>Continue to Assessment</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (step === "form" && selectedAssessment) {
-    const meta = assessmentMeta[selectedAssessment];
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Step 3: {meta.name} Assessment Form</DialogTitle>
-            <DialogDescription>
-              Complete the assessment for {resident?.firstName} {resident?.lastName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="bg-muted/50 p-4 rounded-md text-center text-sm text-muted-foreground">
-            <p>Assessment form placeholder for: {selectedAssessment}</p>
-            <p className="text-xs mt-1">
-              In a real implementation, the full assessment form would render here
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStep("review")}>
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                toast.success("Assessment submitted successfully");
-                onOpenChange(false);
-              }}
-            >
-              Complete Assessment
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

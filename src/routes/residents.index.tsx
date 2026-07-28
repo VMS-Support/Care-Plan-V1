@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import type { Resident } from "@/lib/care/types";
+import { QuickPreAdmissionDialog } from "@/components/resident/QuickPreAdmissionDialog";
 
 export const Route = createFileRoute("/residents/")({
   head: () => ({ meta: [{ title: "Residents — CarePath" }] }),
@@ -56,6 +57,8 @@ const FILTERS: { value: Filter; label: string }[] = [
 function NewResidentDialog() {
   const { addResident, rooms } = useCare();
   const navigate = useNavigate();
+  const [choiceOpen, setChoiceOpen] = useState(false);
+  const [preAdmissionOpen, setPreAdmissionOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [form, setForm] = useState({
@@ -221,8 +224,21 @@ function NewResidentDialog() {
   };
 
   return (
+    <>
+    <Dialog open={choiceOpen} onOpenChange={setChoiceOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Create Resident</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">How would you like to proceed?</p>
+        <div className="space-y-2">
+          <button className="w-full rounded-md border p-3 text-left hover:bg-muted" onClick={() => { setChoiceOpen(false); setOpen(true); }}><div className="font-medium">Create Active Resident</div><div className="text-sm text-muted-foreground">Resident has already been admitted.</div></button>
+          <button className="w-full rounded-md border p-3 text-left hover:bg-muted" onClick={() => { setChoiceOpen(false); setPreAdmissionOpen(true); }}><div className="font-medium">Create Pre-Admission</div><div className="text-sm text-muted-foreground">Resident is being assessed before admission.</div></button>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setChoiceOpen(false)}>Cancel</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <QuickPreAdmissionDialog open={preAdmissionOpen} onOpenChange={setPreAdmissionOpen} />
+    <Button onClick={() => setChoiceOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> Create Resident</Button>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1.5" /> New Resident</Button></DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Admit New Resident</DialogTitle></DialogHeader>
         <div className="grid md:grid-cols-2 gap-3">
@@ -346,6 +362,7 @@ function NewResidentDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
@@ -414,6 +431,7 @@ function ResidentsList() {
   const allowed = new Set(filteredResidentIds);
 
   const filtered = residents.filter(r => {
+    if (r.status === "pre_admission") return false;
     if (globalActive && !allowed.has(r.id)) return false;
     if (filter !== "all" && (r.residentType || "active") !== filter) return false;
     const t = (r.firstName + " " + r.lastName + " " + r.roomNumber + " " + r.id).toLowerCase();
@@ -424,6 +442,7 @@ function ResidentsList() {
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-col md:flex-row justify-between gap-3">
         <div>
+          <div className="flex gap-4 text-sm mb-2"><span className="font-medium text-primary">Active Residents</span><Link to="/residents/pre-admissions" className="text-muted-foreground hover:text-foreground">Pre-Admissions</Link></div>
           <h1 className="text-2xl font-semibold tracking-tight">Residents</h1>
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} of {residents.length} residents</p>
         </div>
