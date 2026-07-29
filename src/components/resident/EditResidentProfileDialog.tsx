@@ -31,8 +31,19 @@ type FormState = {
   religion: string;
   preferredLanguage: string;
   allergies: string;
+  primaryDiagnosis: string;
+  medicalHistory: string;
+  currentMedication: string;
+  consultant: string;
+  emergencyContact: string;
+  mentalCapacity: Resident["mentalCapacity"];
+  bedType: NonNullable<Resident["bed"]>["bedType"];
+  mattressType: NonNullable<Resident["bed"]>["mattressType"];
+  bedInstallationDate: string;
+  bedReviewDate: string;
   photoUrl: string;
   namedNurseUserId: string;
+  namedCarerUserId: string;
   keyWorkerUserId: string;
   gpUserId: string;
   primaryContactId: string;
@@ -71,8 +82,19 @@ export function EditResidentProfileDialog({
     religion: resident.religion || "",
     preferredLanguage: resident.preferredLanguage || "",
     allergies: resident.allergies || "",
+    primaryDiagnosis: resident.primaryDiagnosis || "",
+    medicalHistory: resident.medicalHistory || "",
+    currentMedication: resident.currentMedication || "",
+    consultant: resident.consultant || "",
+    emergencyContact: resident.emergencyContact || "",
+    mentalCapacity: resident.mentalCapacity || "not_assessed",
+    bedType: resident.bed?.bedType || "standard",
+    mattressType: resident.bed?.mattressType || "standard",
+    bedInstallationDate: resident.bed?.installationDate || "",
+    bedReviewDate: resident.bed?.reviewDate || "",
     photoUrl: resident.photoUrl || "",
     namedNurseUserId: users.find((item) => item.name === resident.keyWorkers?.namedNurse)?.id || NONE,
+    namedCarerUserId: users.find((item) => item.name === resident.keyWorkers?.namedCarer)?.id || NONE,
     keyWorkerUserId: users.find((item) => item.name === resident.keyWorkers?.keyWorker)?.id || NONE,
     gpUserId: users.find((item) => item.name === resident.gp)?.id || NONE,
     primaryContactId: resident.nextOfKinList?.find((item) => item.primaryContact)?.id || NONE,
@@ -167,9 +189,10 @@ export function EditResidentProfileDialog({
 
   const save = () => {
     try {
-      const { residentNumber, ...editableForm } = form;
+      const { residentNumber, bedType, mattressType, bedInstallationDate, bedReviewDate, ...editableForm } = form;
       onSave({
         ...editableForm,
+        bed: bedInstallationDate || bedReviewDate ? { bedType, mattressType, installationDate: bedInstallationDate, reviewDate: bedReviewDate } : undefined,
         ...(canEditSensitiveIdentifiers ? { residentNumber } : {}),
         namedNurseUserId: form.namedNurseUserId === NONE ? "" : form.namedNurseUserId,
         keyWorkerUserId: form.keyWorkerUserId === NONE ? "" : form.keyWorkerUserId,
@@ -203,17 +226,14 @@ export function EditResidentProfileDialog({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-3">
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                  <Input value={form.photoUrl} onChange={(event) => update({ photoUrl: event.target.value })} placeholder="Paste image URL or upload a file" />
-                  <Button variant="outline" type="button" onClick={() => update({ photoUrl: "" })}>
-                    <X className="mr-2 h-4 w-4" /> Remove
-                  </Button>
+                <div className="flex flex-wrap gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">
+                    <Camera className="h-4 w-4" />
+                    {photoLoading ? "Processing image..." : "Upload image"}
+                    <input type="file" accept="image/*" className="sr-only" disabled={photoLoading} onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
+                  </label>
+                  {form.photoUrl && <Button variant="outline" type="button" onClick={() => update({ photoUrl: "" })}><X className="mr-2 h-4 w-4" /> Remove</Button>}
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">
-                  <Camera className="h-4 w-4" />
-                  {photoLoading ? "Processing image..." : "Upload image"}
-                  <input type="file" accept="image/*" className="sr-only" disabled={photoLoading} onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
-                </label>
               </div>
             </div>
           </Section>
@@ -230,7 +250,7 @@ export function EditResidentProfileDialog({
             </div>
           </Section>
 
-          <Section title="Personal and Clinical Summary">
+          <Section title="Personal Details and Communication">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Gender</Label>
@@ -268,9 +288,30 @@ export function EditResidentProfileDialog({
             </div>
           </Section>
 
+          <Section title="Clinical Information">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5 md:col-span-2"><Label>Primary diagnosis</Label><Input value={form.primaryDiagnosis} onChange={(event) => update({ primaryDiagnosis: event.target.value })} placeholder="Primary diagnosis or reason for care" /></div>
+              <div className="space-y-1.5"><Label>Consultant</Label><Input value={form.consultant} onChange={(event) => update({ consultant: event.target.value })} placeholder="Consultant name or service" /></div>
+              <div className="space-y-1.5"><Label>Emergency contact</Label><Input value={form.emergencyContact} onChange={(event) => update({ emergencyContact: event.target.value })} placeholder="Name and phone number" /></div>
+              <div className="space-y-1.5 md:col-span-2"><Label>Medical history</Label><Textarea value={form.medicalHistory} onChange={(event) => update({ medicalHistory: event.target.value })} rows={3} placeholder="Relevant diagnoses, history and clinical background" /></div>
+              <div className="space-y-1.5 md:col-span-2"><Label>Current medication</Label><Textarea value={form.currentMedication} onChange={(event) => update({ currentMedication: event.target.value })} rows={3} placeholder="Current medication summary" /></div>
+              <div className="space-y-1.5"><Label>Mental capacity</Label><Select value={form.mentalCapacity} onValueChange={(mentalCapacity) => update({ mentalCapacity: mentalCapacity as Resident["mentalCapacity"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="not_assessed">Not assessed</SelectItem><SelectItem value="has_capacity">Has capacity</SelectItem><SelectItem value="lacks_capacity">Lacks capacity</SelectItem><SelectItem value="fluctuating">Fluctuating capacity</SelectItem></SelectContent></Select></div>
+            </div>
+          </Section>
+
+          <Section title="Bed Management">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Bed type</Label><Select value={form.bedType} onValueChange={(bedType) => update({ bedType: bedType as FormState["bedType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["standard", "low", "profiling", "bariatric", "pressure_relief", "air_mattress", "specialist"].map((value) => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Mattress type</Label><Select value={form.mattressType} onValueChange={(mattressType) => update({ mattressType: mattressType as FormState["mattressType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["standard", "foam", "dynamic", "air_mattress", "pressure_relieving", "alternating_air", "low_air_loss", "gel"].map((value) => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Installed date</Label><Input type="date" value={form.bedInstallationDate} onChange={(event) => update({ bedInstallationDate: event.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Review date</Label><Input type="date" value={form.bedReviewDate} onChange={(event) => update({ bedReviewDate: event.target.value })} /></div>
+            </div>
+          </Section>
+
           <Section title="Professional and Contact Relationships">
             <div className="grid gap-3 md:grid-cols-2">
               <Relationship label="Named Nurse" value={form.namedNurseUserId} onChange={(value) => update({ namedNurseUserId: value })} options={homeUsers.filter((item) => ["nurse", "cnm", "don"].includes(item.role))} />
+              <Relationship label="Named Carer" value={form.namedCarerUserId} onChange={(value) => update({ namedCarerUserId: value })} options={homeUsers.filter((item) => ["carer", "nurse"].includes(item.role))} />
               <Relationship label="Key Worker" value={form.keyWorkerUserId} onChange={(value) => update({ keyWorkerUserId: value })} options={homeUsers} />
               <Relationship label="GP" value={form.gpUserId} onChange={(value) => update({ gpUserId: value })} options={homeUsers.filter((item) => item.role === "doctor")} />
               <div className="space-y-1.5">
@@ -290,10 +331,6 @@ export function EditResidentProfileDialog({
             </div>
           </Section>
 
-          <div className="rounded-md border bg-muted/30 p-3 text-sm">
-            <p className="font-medium">Managed through source workflows</p>
-            <p className="text-muted-foreground">Current placement, DNAR and advance directives, isolation, dependency, assessments, Care Plans and medication are managed in their own workflows.</p>
-          </div>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={close}>Cancel</Button>

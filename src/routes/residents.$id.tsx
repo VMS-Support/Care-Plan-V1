@@ -3,6 +3,7 @@ import { useCare, age } from "@/lib/care/store";
 import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { can } from "@/lib/care/permissions";
 import { assessmentMeta } from "@/lib/care/scoring";
+import { latestAssessmentsByType } from "@/lib/care/assessmentVersions";
 import {
   getCarePlansGroupedByRltDomain,
   getRltDomainForCarePlanProblem,
@@ -35,12 +36,14 @@ import {
   Plus,
   Bed,
   UserCog,
-  Activity,
   ClipboardList,
   Trash2,
   Archive,
   Ban,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -105,6 +108,7 @@ import type {
   ProblemRiskLevel,
   ProblemStatus,
   Resident,
+  NextOfKin,
 } from "@/lib/care/types";
 import { calcNEWS2 } from "@/lib/care/vitals";
 import {
@@ -357,6 +361,9 @@ function ResidentDetail() {
     rltTimelineTagState,
     softDeleteAssessment,
     addNextOfKin,
+    updateNextOfKin,
+    acknowledgeAlert,
+    resolveAlert,
     addGoal,
     updateGoal,
     removeGoal,
@@ -375,6 +382,7 @@ function ResidentDetail() {
 
   // Modal state
   const [nokOpen, setNokOpen] = useState(false);
+  const [editingNok, setEditingNok] = useState<NextOfKin | null>(null);
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
@@ -406,6 +414,7 @@ function ResidentDetail() {
   });
 
   const [selectedIntervention, setSelectedIntervention] = useState<any>(null);
+  const [residentAssessmentsOpen, setResidentAssessmentsOpen] = useState(false);
   const [selectedCareActionTask, setSelectedCareActionTask] = useState<any>(null);
   const [selectedCareActionId, setSelectedCareActionId] = useState<string | null>(null);
   const [scheduleToDelete, setScheduleToDelete] = useState<any>(null);
@@ -612,6 +621,7 @@ function ResidentDetail() {
   const rA = assessments
     .filter((a) => a.residentId === id && a.status !== "deleted")
     .sort((a, b) => b.date.localeCompare(a.date));
+  const clinicalSnapshotAssessments = latestAssessmentsByType(rA);
   const rADeleted = assessments.filter((a) => a.residentId === id && a.status === "deleted");
   const rN = notes.filter((n) => n.residentId === id);
   const rAlerts = alerts.filter(
@@ -635,6 +645,19 @@ function ResidentDetail() {
     [activeProblems],
   );
   const rProblemInterventions = problemInterventions.filter((i) => i.residentId === id);
+  const orderedProblemInterventions = [
+    ...rProblemInterventions
+      .filter((intervention) => !intervention.parentInterventionId)
+      .flatMap((heading) => [
+        heading,
+        ...rProblemInterventions.filter((task) => task.parentInterventionId === heading.id),
+      ]),
+    ...rProblemInterventions.filter(
+      (intervention) =>
+        intervention.parentInterventionId &&
+        !rProblemInterventions.some((heading) => heading.id === intervention.parentInterventionId),
+    ),
+  ];
   const rProblemLogs = problemInterventionLogs.filter((l) => l.residentId === id);
   const rProblemEvaluations = problemEvaluations.filter((e) =>
     rProblems.some((p) => p.id === e.problemId),
@@ -698,6 +721,9 @@ function ResidentDetail() {
   const selectedProblemInterventions = selectedProblem
     ? rProblemInterventions.filter((i) => i.problemId === selectedProblem.id && (!i.carePlanId || i.carePlanId === selectedProblem.id))
     : [];
+  const selectedCareActionHeadings = selectedProblemInterventions.filter(
+    (intervention) => !intervention.parentInterventionId,
+  );
   const selectedProblemLogs = selectedProblem
     ? rProblemLogs.filter((l) => l.problemId === selectedProblem.id)
     : [];
@@ -1592,6 +1618,58 @@ function ResidentDetail() {
         </DialogContent>
       </Dialog>
 
+      <Collapsible open={residentAssessmentsOpen} onOpenChange={setResidentAssessmentsOpen}>
+      <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="text-teal-600" aria-hidden="true">⌁</span> Resident Assessments
+            </CardTitle>
+            <CollapsibleTrigger asChild>
+              <Button size="sm" variant="ghost" className="shrink-0" aria-label={residentAssessmentsOpen ? "Collapse resident assessments" : "Expand resident assessments"}>
+                {residentAssessmentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <Button size="sm" className="shrink-0" onClick={() => handleOpenModal("assessment")}>
+            <Plus className="mr-1.5 h-4 w-4" /> Add Assessment
+          </Button>
+        </CardHeader>
+        <CollapsibleContent>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {clinicalSnapshotAssessments.map((assessment) => {
+              const meta = assessmentMeta[assessment.type];
+              const isOverdue = Boolean(
+                assessment?.nextReassessmentDate && assessment.nextReassessmentDate < today.toISOString().slice(0, 10),
+              );
+              return (
+                <Link
+                  key={assessment.id}
+                  to="/assessments/$assessmentId"
+                  params={{ assessmentId: assessment.id }}
+                  className="min-h-32 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-950"
+                >
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{meta.name}</div>
+                  <div className="mt-2 flex items-baseline gap-1">
+                    <span className="text-2xl font-semibold text-slate-950 dark:text-white">{assessment.totalScore}</span>
+                    {meta.max && <span className="text-xs text-muted-foreground">/{meta.max}</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className={`text-[10px] ${riskColor(assessment.riskLevel)}`}>{assessment.interpretation}</Badge>
+                    <Badge variant="outline" className={`text-[10px] ${isOverdue ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"}`}>{isOverdue ? "Overdue" : "Completed"}</Badge>
+                  </div>
+                  <div className="mt-2 text-right text-[11px] text-muted-foreground">Review {assessment.nextReassessmentDate || assessment.reviewDate || assessment.date}</div>
+                </Link>
+              );
+            })}
+            {clinicalSnapshotAssessments.length === 0 && <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">No assessments have been completed for this resident yet.</div>}
+          </div>
+        </CardContent>
+        </CollapsibleContent>
+      </Card>
+      </Collapsible>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle className="text-base">Active Nursing Care Plans</CardTitle>
@@ -1600,7 +1678,7 @@ function ResidentDetail() {
             onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
             trigger={
               <Button size="sm">
-                <ClipboardList className="mr-1 h-3 w-3" /> Add Care Plan
+                <ClipboardList className="mr-1 h-3 w-3" /> Add from Template
               </Button>
             }
           />
@@ -1709,7 +1787,7 @@ function ResidentDetail() {
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
-                  <ClipboardList className="h-3 w-3 mr-1" /> Create Nursing Care Plan
+                  <ClipboardList className="h-3 w-3 mr-1" /> Add from Template
                   </Button>
                 }
               />
@@ -1762,8 +1840,11 @@ function ResidentDetail() {
       </Dialog>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Upcoming Care Actions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="text-base">Upcoming Scheduled Care Actions</CardTitle>
+          <Button size="sm" onClick={() => handleOpenModal("intervention")}>
+            <Plus className="mr-1.5 h-4 w-4" /> Create Scheduled Care Action
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           {upcomingInterventionTasks.map((task) => (
@@ -1828,10 +1909,7 @@ function ResidentDetail() {
 
           {upcomingInterventionTasks.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">No upcoming care actions.</p>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("activities")}>
-                Open Activities of Living
-              </Button>
+              <p className="text-sm text-muted-foreground">No upcoming scheduled care actions.</p>
             </div>
           )}
         </CardContent>
@@ -1890,7 +1968,7 @@ function ResidentDetail() {
               <CreateCarePlanDialog
                 residentId={r.id}
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
-                trigger={<Button className="min-h-11"><Plus className="mr-2 h-4 w-4" />Add care plan</Button>}
+                trigger={<Button className="min-h-11"><Plus className="mr-2 h-4 w-4" />Add from Template</Button>}
               />
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1909,7 +1987,7 @@ function ResidentDetail() {
                     </div>
                   </div>
                 ))}
-              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use “Add care plan” to create one for this resident.</p></div>}
+              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use “Add from Template” to create one for this resident.</p></div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1923,17 +2001,18 @@ function ResidentDetail() {
             ) : (
               <div />
             )}
-            <Button size="sm" variant="outline" onClick={() => setProfileEditOpen(true)}>
-              Edit Resident Profile
+            <Button size="sm" onClick={() => setProfileEditOpen(true)}>
+              Edit Overview Details
             </Button>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <User2 className="h-4 w-4" /> Clinical
                 </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Primary diagnosis" value={r.primaryDiagnosis} />
@@ -1943,10 +2022,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Pill className="h-4 w-4" /> Medication
                 </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
               </CardHeader>
               <CardContent className="text-sm">
                 <p>{r.currentMedication}</p>
@@ -1966,10 +2046,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <UserCog className="h-4 w-4" /> Key Workers
                 </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Named Nurse" value={r.keyWorkers?.namedNurse || "â€”"} />
@@ -1978,10 +2059,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Phone className="h-4 w-4" /> GP / Consultant
                 </CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="GP" value={r.gp} />
@@ -1990,8 +2072,9 @@ function ResidentDetail() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle className="text-base">Preferences</CardTitle>
+                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <Row label="Communication" value={r.communicationNeeds} />
@@ -2156,39 +2239,9 @@ function ResidentDetail() {
 
         <TabsContent value="assessments" className="space-y-3">
           <div className="flex flex-wrap gap-2 items-center">
-            <Link to="/residents/$id/assessments" params={{ id: r.id }}>
-              <Button size="sm">
-                <Activity className="h-3 w-3 mr-1" /> Assessment Work Queue
-              </Button>
-            </Link>
-            <Link to="/residents/$id/quality-of-life" params={{ id: r.id }}>
-              <Button size="sm" variant="outline">
-                Quality of Life
-              </Button>
-            </Link>
-            <Separator orientation="vertical" className="h-6 mx-1" />
-            {(
-              [
-                "barthel",
-                "waterlow",
-                "abbey_pain",
-                "mna",
-                "norton",
-                "nutrition",
-                "pinch_me",
-              ] as const
-            ).map((t) => (
-              <Link
-                key={t}
-                to="/assessments/new/$residentId"
-                params={{ residentId: r.id }}
-                search={{ type: t } as any}
-              >
-                <Button size="sm" variant="outline">
-                  <Plus className="h-3 w-3 mr-1" /> {assessmentMeta[t].name}
-                </Button>
-              </Link>
-            ))}
+            <Button size="sm" onClick={() => handleOpenModal("assessment")}>
+              <Plus className="h-4 w-4 mr-1.5" /> Add assessment
+            </Button>
           </div>
           <Card>
             <CardContent className="p-0">
@@ -2396,11 +2449,14 @@ function ResidentDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {rProblemInterventions.map((intv) => {
+                    {orderedProblemInterventions.map((intv) => {
                       const problem = rProblems.find((p) => p.id === intv.problemId);
+                      const parentHeading = intv.parentInterventionId
+                        ? rProblemInterventions.find((heading) => heading.id === intv.parentInterventionId)
+                        : undefined;
                       return (
                         <tr key={intv.id} className="hover:bg-muted/30">
-                          <td className="p-3 font-medium"><div className="flex flex-wrap items-center gap-2"><span>{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div></td>
+                          <td className="p-3 font-medium"><div className={`flex flex-wrap items-center gap-2 ${parentHeading ? "pl-5" : ""}`}><span>{parentHeading && "↳ "}{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div>{parentHeading && <div className="pl-5 pt-0.5 text-[10px] font-normal text-muted-foreground">Under: {parentHeading.name}</div>}</td>
                           <td className="p-3 text-xs">{problem?.problemStatement || "â€”"}</td>
                           <td className="p-3 text-xs">{getCanonicalCareActionType(intv) === "scheduled" ? intv.frequencyType.replace(/_/g, " ") : getCanonicalCareActionType(intv) === "prn" ? intv.prnConfiguration?.indication || "As needed" : getCanonicalCareActionType(intv) === "triggered" ? intv.triggerConfiguration?.triggerConditionSummary || "On defined trigger" : intv.oneOffConfiguration?.dueAt ? new Date(intv.oneOffConfiguration.dueAt).toLocaleString() : "Once, no fixed due time"}</td>
                           <td className="p-3 text-xs">
@@ -2620,36 +2676,65 @@ function ResidentDetail() {
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <Label>Name</Label>
+                    <Label htmlFor="nok-name">Name</Label>
                     <Input
+                      id="nok-name"
+                      autoComplete="name"
+                      placeholder="Full name"
                       value={newNok.name}
                       onChange={(e) => setNewNok({ ...newNok, name: e.target.value })}
                     />
                   </div>
                   <div>
                     <Label>Relationship</Label>
-                    <Input
+                    <Select
                       value={newNok.relationship}
-                      onChange={(e) => setNewNok({ ...newNok, relationship: e.target.value })}
-                    />
+                      onValueChange={(relationship) => setNewNok({ ...newNok, relationship })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Spouse / Partner">Spouse / Partner</SelectItem>
+                        <SelectItem value="Parent">Parent</SelectItem>
+                        <SelectItem value="Son">Son</SelectItem>
+                        <SelectItem value="Daughter">Daughter</SelectItem>
+                        <SelectItem value="Sibling">Sibling</SelectItem>
+                        <SelectItem value="Grandchild">Grandchild</SelectItem>
+                        <SelectItem value="Niece / Nephew">Niece / Nephew</SelectItem>
+                        <SelectItem value="Friend">Friend</SelectItem>
+                        <SelectItem value="Legal representative">Legal representative</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
-                    <Label>Phone</Label>
+                    <Label htmlFor="nok-phone">Phone</Label>
                     <Input
+                      id="nok-phone"
+                      type="tel"
+                      autoComplete="tel"
+                      placeholder="Landline number"
                       value={newNok.phone}
                       onChange={(e) => setNewNok({ ...newNok, phone: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label>Mobile</Label>
+                    <Label htmlFor="nok-mobile">Mobile</Label>
                     <Input
+                      id="nok-mobile"
+                      type="tel"
+                      autoComplete="tel-national"
+                      placeholder="Mobile number"
                       value={newNok.mobile}
                       onChange={(e) => setNewNok({ ...newNok, mobile: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label>Email</Label>
+                    <Label htmlFor="nok-email">Email</Label>
                     <Input
+                      id="nok-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
                       value={newNok.email}
                       onChange={(e) => setNewNok({ ...newNok, email: e.target.value })}
                     />
@@ -2715,8 +2800,8 @@ function ResidentDetail() {
                   </Button>
                   <Button
                     onClick={() => {
-                      if (!newNok.name) {
-                        toast.error("Name required");
+                      if (!newNok.name.trim() || !newNok.relationship) {
+                        toast.error("Name and relationship are required");
                         return;
                       }
                       addNextOfKin(r.id, newNok);
@@ -2743,6 +2828,24 @@ function ResidentDetail() {
               </DialogContent>
             </Dialog>
           </div>
+          <Dialog open={Boolean(editingNok)} onOpenChange={(open) => !open && setEditingNok(null)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Edit Next of Kin</DialogTitle></DialogHeader>
+              {editingNok && <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><Label htmlFor="edit-nok-name">Name</Label><Input id="edit-nok-name" value={editingNok.name} onChange={(event) => setEditingNok({ ...editingNok, name: event.target.value })} /></div>
+                <div><Label>Relationship</Label><Select value={editingNok.relationship} onValueChange={(relationship) => setEditingNok({ ...editingNok, relationship })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Spouse / Partner">Spouse / Partner</SelectItem><SelectItem value="Parent">Parent</SelectItem><SelectItem value="Son">Son</SelectItem><SelectItem value="Daughter">Daughter</SelectItem><SelectItem value="Sibling">Sibling</SelectItem><SelectItem value="Grandchild">Grandchild</SelectItem><SelectItem value="Niece / Nephew">Niece / Nephew</SelectItem><SelectItem value="Friend">Friend</SelectItem><SelectItem value="Legal representative">Legal representative</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select></div>
+                <div><Label htmlFor="edit-nok-phone">Phone</Label><Input id="edit-nok-phone" type="tel" value={editingNok.phone} onChange={(event) => setEditingNok({ ...editingNok, phone: event.target.value })} /></div>
+                <div><Label htmlFor="edit-nok-mobile">Mobile</Label><Input id="edit-nok-mobile" type="tel" value={editingNok.mobile} onChange={(event) => setEditingNok({ ...editingNok, mobile: event.target.value })} /></div>
+                <div><Label htmlFor="edit-nok-email">Email</Label><Input id="edit-nok-email" type="email" value={editingNok.email} onChange={(event) => setEditingNok({ ...editingNok, email: event.target.value })} /></div>
+                <div className="col-span-2"><Label htmlFor="edit-nok-address">Address</Label><Input id="edit-nok-address" value={editingNok.address} onChange={(event) => setEditingNok({ ...editingNok, address: event.target.value })} /></div>
+                <div className="col-span-2 grid grid-cols-2 gap-2 text-sm">
+                  {([['primaryContact', 'Primary contact'], ['emergencyContact', 'Emergency contact'], ['powerOfAttorney', 'Power of attorney'], ['legalRepresentative', 'Legal representative']] as const).map(([field, label]) => <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={editingNok[field]} onChange={(event) => setEditingNok({ ...editingNok, [field]: event.target.checked })} />{label}</label>)}
+                </div>
+                <div className="col-span-2"><Label htmlFor="edit-nok-notes">Notes</Label><Textarea id="edit-nok-notes" value={editingNok.notes} onChange={(event) => setEditingNok({ ...editingNok, notes: event.target.value })} /></div>
+              </div>}
+              <DialogFooter><Button variant="outline" onClick={() => setEditingNok(null)}>Cancel</Button><Button onClick={() => { if (!editingNok?.name.trim() || !editingNok.relationship) { toast.error("Name and relationship are required"); return; } updateNextOfKin(r.id, editingNok.id, editingNok); setEditingNok(null); toast.success("Next of kin updated"); }}>Save changes</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
           {(r.nextOfKinList || []).map((n) => (
             <Card key={n.id}>
               <CardContent className="p-4">
@@ -2758,6 +2861,7 @@ function ResidentDetail() {
                     {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
                   </div>
                   <div className="flex flex-wrap gap-1">
+                    <Button size="sm" variant="outline" onClick={() => setEditingNok({ ...n })}>Edit</Button>
                     {n.primaryContact && (
                       <Badge variant="default" className="text-[10px]">
                         Primary
@@ -2790,88 +2894,15 @@ function ResidentDetail() {
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Resident alerts</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Clinical alerts recorded for {r.firstName} {r.lastName} only.</p>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-4"><span className="text-3xl font-semibold tabular-nums">{openAlertCount}</span><span className="ml-3 text-sm text-muted-foreground">open clinical alert{openAlertCount === 1 ? "" : "s"}</span></div>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Alerts & Risks</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center justify-between border rounded-md p-2">
-                <span>High Risk Resident Flags</span>
-                <Badge variant="outline">{highRiskFlags.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between border rounded-md p-2">
-                <span>Overdue Assessments</span>
-                <Badge variant="outline">{overdueAssessments.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between border rounded-md p-2">
-                <span>Overdue Reviews</span>
-                <Badge variant="outline">{overdueProblemReviews.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between border rounded-md p-2">
-                <span>Open Incidents</span>
-                <Badge variant="outline">{openIncidents.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between border rounded-md p-2">
-                <span>Clinical Alerts</span>
-                <Badge variant="outline">{openAlertCount}</Badge>
-              </div>
-              <div className="border rounded-md p-2 space-y-2">
-                <div className="font-medium text-sm">Outstanding Actions</div>
-                {openTasks.length > 0 ? (
-                  <div className="space-y-1">
-                    {openTasks.slice(0, 3).map((task) => {
-                      const taskDate = task.dueDate.slice(0, 10);
-                      let dueLabel = `Due ${taskDate}`;
-                      if (taskDate < todayKey) dueLabel = "Overdue";
-                      else if (taskDate === todayKey) dueLabel = "Due Today";
-                      else if (taskDate === tomorrowKey) dueLabel = "Due Tomorrow";
-
-                      return (
-                        <div
-                          key={task.id}
-                          className="flex items-center justify-between gap-2 text-xs"
-                        >
-                          <span className="truncate">{task.title}</span>
-                          <span className="text-muted-foreground whitespace-nowrap">
-                            {dueLabel}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {openTasks.length > 3 && (
-                      <div className="text-xs text-muted-foreground">
-                        +{openTasks.length - 3} more
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">No Outstanding Actions</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Clinical Alerts</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {rAlerts.length > 0 ? (
-                rAlerts.map((a) => (
-                  <div key={a.id} className="border rounded-md p-3 flex items-center gap-3">
-                    <AlertTriangle className="h-5 w-5 text-warning-foreground" />
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{a.title}</div>
-                      <p className="text-xs text-muted-foreground">{a.description}</p>
-                    </div>
-                    <Badge variant="outline" className="capitalize">
-                      {a.priority}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No clinical alerts recorded.</p>
-              )}
+            <CardHeader><CardTitle className="text-lg">Clinical alerts</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {rAlerts.length ? rAlerts.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((alert) => <div key={alert.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start"><AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${alert.priority === "critical" || alert.priority === "high" ? "text-destructive" : "text-warning-foreground"}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{alert.title}</p><Badge variant="outline" className={`capitalize ${alert.priority === "critical" || alert.priority === "high" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/40 bg-warning/10 text-warning-foreground"}`}>{alert.priority} priority</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.description}</p><p className="mt-2 text-xs text-muted-foreground">Raised {new Date(alert.createdAt).toLocaleString()}{alert.acknowledged ? ` · Acknowledged by ${alert.acknowledgedBy || "staff"}` : " · Needs acknowledgement"}</p></div><div className="flex shrink-0 gap-2">{!alert.acknowledged && <Button variant="outline" className="min-h-11" onClick={() => { acknowledgeAlert(alert.id); toast.success("Alert acknowledged"); }}>Acknowledge</Button>}<Button variant="outline" className="min-h-11" onClick={() => { resolveAlert(alert.id); toast.success("Alert resolved"); }}>Resolve</Button></div></div></div>) : <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No open clinical alerts.</p><p className="mt-1 text-sm text-muted-foreground">New alerts will appear here when action is needed.</p></div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -3312,9 +3343,13 @@ function ResidentDetail() {
                   {selectedProblemInterventions.length === 0 && (
                     <p className="text-sm text-muted-foreground">No care actions have been added.</p>
                   )}
-                  {selectedProblemInterventions.map((intv) => {
+                  {selectedCareActionHeadings.map((intv) => {
+                    const childScheduledTasks = selectedProblemInterventions.filter(
+                      (task) => task.parentInterventionId === intv.id,
+                    );
                     const legacyScheduledTaskCount = rTasks.filter((task) => task.linkedInterventionId === intv.id && task.status !== "deleted").length;
-                    const scheduledTaskCount = Math.max(intv.isScheduled ? 1 : 0, legacyScheduledTaskCount);
+                    const ownScheduledTaskCount = Math.max(intv.isScheduled ? 1 : 0, legacyScheduledTaskCount);
+                    const scheduledTaskCount = childScheduledTasks.length + ownScheduledTaskCount;
                     return <details key={intv.id} className="rounded-md border">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
                         <div className="min-w-0">
@@ -3324,7 +3359,7 @@ function ResidentDetail() {
                               {intv.description || intv.notes}
                             </div>
                           )}
-                          {scheduledTaskCount > 0 && <div className="mt-1 text-xs font-medium text-emerald-700">
+                          {scheduledTaskCount > 0 && <div className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                             ({scheduledTaskCount} scheduled task{scheduledTaskCount === 1 ? "" : "s"})
                           </div>}
                         </div>
@@ -3347,10 +3382,27 @@ function ResidentDetail() {
                           {intv.isScheduled && <span>Start: {intv.startDate}{intv.startTime ? ` at ${intv.startTime}` : ""}</span>}
                           <span>Review: {intv.reviewDate || "Not set"}</span>
                         </div>
-                        <div className="rounded-md bg-muted/30 p-2">
-                          <div className="text-xs font-medium">Scheduled Tasks</div>
-                          <p className="mt-1 text-xs text-muted-foreground">A scheduled task is this Care Action's schedule; it is not a separate assigned task.</p>
-                          {scheduledTaskCount > 0 && <div className="mt-2 flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs">
+                          <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+                            <div className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+                              <Calendar className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                              Scheduled Tasks
+                            </div>
+                          <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">Tasks listed here belong to this care action heading.</p>
+                          {childScheduledTasks.map((task) => (
+                            <div key={task.id} className="mt-3 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+                              <div>
+                                <div className="text-base font-semibold text-slate-800 dark:text-slate-100">{task.name}</div>
+                                <div className="mt-1 text-slate-600 dark:text-slate-300">{task.frequencyType.replace(/_/g, " ")} · {task.startDate}{task.startTime ? ` at ${task.startTime}` : ""}</div>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <Button size="sm" variant="outline" className="min-h-10 px-3 font-semibold" onClick={() => handleEditIntervention(task)}>Edit</Button>
+                                <Button size="icon" variant="outline" className="h-10 w-10 text-destructive" title="Delete scheduled task" onClick={() => { setScheduleToDelete(task); setScheduleDeleteReason(""); }}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          {ownScheduledTaskCount > 0 && <div className="mt-2 flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs">
                             <span>{intv.frequencyType.replace(/_/g, " ")} schedule</span>
                             <div className="flex items-center gap-1">
                               <Button size="sm" variant="ghost" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>Edit</Button>

@@ -4,6 +4,7 @@ import { useCare } from "@/lib/care/store";
 import { assessmentMeta, assessmentItems, uniformScale } from "@/lib/care/scoring";
 import { can } from "@/lib/care/permissions";
 import { deriveStatus, riskBadgeCls, statusBadgeCls } from "@/lib/care/assessments";
+import { displayAssessmentVersion, sortAssessmentsByRecency } from "@/lib/care/assessmentVersions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,8 +64,7 @@ function AssessmentDetail() {
 
   const versionChain = useMemo(() => {
     if (!a) return [];
-    return assessments.filter(x => x.residentId === a.residentId && x.type === a.type)
-      .sort((x, y) => (y.version || 1) - (x.version || 1));
+    return sortAssessmentsByRecency(assessments.filter(x => x.residentId === a.residentId && x.type === a.type));
   }, [assessments, a]);
 
   const history = useMemo(() => {
@@ -87,6 +87,7 @@ function AssessmentDetail() {
   const ds = deriveStatus(a);
   const audit = a.auditTrail || [];
   const comments = a.clinicalComments || [];
+  const displayedVersion = displayAssessmentVersion(a, assessments);
 
   function scheduleReassessment() {
     if (!a || !r) return;
@@ -141,7 +142,7 @@ function AssessmentDetail() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-semibold">{meta.name}</h1>
                 <Badge variant="outline" className={`capitalize ${statusBadgeCls(ds)}`}>{ds}</Badge>
-                {a.version && a.version > 1 && <Badge variant="secondary" className="text-[10px]">v{a.version}</Badge>}
+                {displayedVersion > 1 && <Badge variant="secondary" className="text-[10px]">v{displayedVersion}</Badge>}
                 {a.locked && <Badge variant="outline" className="text-[10px]"><Lock className="h-2.5 w-2.5 mr-1" />Locked</Badge>}
               </div>
               <Link to="/residents/$id" params={{ id: r.id }} className="text-sm text-primary hover:underline">
@@ -164,33 +165,12 @@ function AssessmentDetail() {
             <Info label="Category" value={a.category || meta.category} />
             <Info label="Review Frequency" value={a.reviewFrequency || "â€”"} />
             <Info label="Next Reassessment" value={a.nextReassessmentDate || "â€”"} />
-            <Info label="Version" value={String(a.version || 1)} />
+            <Info label="Version" value={String(displayedVersion)} />
             <Info label="Risk Level" value={a.riskLevel} />
           </div>
 
           <div className="flex flex-wrap gap-2 mt-4 print:hidden">
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5 mr-1.5" /> Print</Button>
-            <Button variant="outline" size="sm" onClick={() => window.print()}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export PDF</Button>
-            {can(currentRole, "careplan.create") && (
-              <CreateCarePlanDialog
-                residentId={r.id}
-                initialRltDomainId={getApprovedRltDomainsForAssessmentRecord(a)[0]?.id}
-                buttonLabel="Create Nursing Care Plan"
-                trigger={
-                  <Button variant="outline" size="sm">
-                    <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Create Nursing Care Plan
-                  </Button>
-                }
-                onCreated={(problem) =>
-                  navigate({
-                    to: "/residents/$id",
-                    params: { id: problem.residentId },
-                    search: { carePlanProblemId: problem.id },
-                  })
-                }
-              />
-            )}
-            {can(currentRole, "task.create") && <Button variant="outline" size="sm" onClick={scheduleReassessment}><CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Schedule Reassessment</Button>}
             {a.status === "completed" && !a.supersededById && can(currentRole, "assessment.archive") && (
               <ReasonDialog
                 trigger={<Button variant="outline" size="sm"><Archive className="h-3.5 w-3.5 mr-1.5" /> Archive</Button>}
@@ -253,40 +233,6 @@ function AssessmentDetail() {
         </CardContent>
       </Card>
 
-      {/* History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Score History &amp; Trend</CardTitle>
-          {trend && (
-            <p className="text-xs text-muted-foreground">
-              Previous: <strong>{prev?.totalScore}</strong> Â· Î” <strong>{delta! > 0 ? "+" : ""}{delta}</strong> Â· {" "}
-              <span className="inline-flex items-center gap-1 font-medium">
-                {trend === "Improved" && <TrendingDown className="h-3 w-3 text-success" />}
-                {trend === "Deteriorated" && <TrendingUp className="h-3 w-3 text-destructive" />}
-                {trend === "Stable" && <Minus className="h-3 w-3" />}
-                {trend}
-              </span>
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          {history.length === 0 ? <p className="text-sm text-muted-foreground">No prior records.</p> : (
-            <div className="divide-y text-sm">
-              {history.map(h => (
-                <Link key={h.id} to="/assessments/$assessmentId" params={{ assessmentId: h.id }}
-                  className="flex items-center justify-between py-2 hover:bg-muted/40 px-2 -mx-2 rounded">
-                  <div>
-                    <span className="font-medium tabular-nums">{h.totalScore}</span>
-                    <span className="text-muted-foreground ml-2 text-xs">{h.interpretation}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">v{h.version || 1} Â· {h.date.slice(0, 10)} Â· {h.assessor}</div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Version chain */}
       {versionChain.length > 1 && (
         <Card>
@@ -294,7 +240,7 @@ function AssessmentDetail() {
           <CardContent className="divide-y text-sm">
             {versionChain.map(v => (
               <Link key={v.id} to="/assessments/$assessmentId" params={{ assessmentId: v.id }} className={`flex items-center gap-2 py-2 hover:bg-muted/40 px-2 -mx-2 rounded ${v.id === a.id ? "bg-accent/30" : ""}`}>
-                <Badge variant="outline" className="text-[10px]">v{v.version || 1}</Badge>
+                <Badge variant="outline" className="text-[10px]">v{displayAssessmentVersion(v, assessments)}</Badge>
                 <span className="font-medium tabular-nums">{v.totalScore}</span>
                 <Badge variant="outline" className={`text-[10px] capitalize ${statusBadgeCls(deriveStatus(v))}`}>{deriveStatus(v)}</Badge>
                 <span className="text-xs text-muted-foreground flex-1">{v.date.slice(0, 10)} Â· {v.assessor}</span>
@@ -330,25 +276,6 @@ function AssessmentDetail() {
           )}
         </CardContent>
       </Card>
-
-      {/* Linked records */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <LinkedList
-          title={`Linked Care Plans (${linkedCP.length})`}
-          items={linkedCP.map((c) => {
-            const domain = getRltDomainForCarePlanProblem(c);
-            return {
-              id: c.id,
-              title: `${domain?.title || c.category.replace(/_/g, " ")} care plan`,
-              sub: `${c.status} · Review ${c.reviewDate}`,
-            };
-          })}
-        />
-        <LinkedList title={`Linked Interventions (${linkedI.length})`} items={linkedI.map(i => ({ id: i.id, title: i.intervention, sub: `${i.date.slice(0,10)} Â· ${i.staff}` }))} />
-        <LinkedList title={`Linked Tasks (${linkedT.length})`} items={linkedT.map(t => ({ id: t.id, title: t.title, sub: `Due ${t.dueDate} Â· ${t.status}` }))} />
-        <LinkedList title={`Linked Incidents (${linkedIn.length})`} items={linkedIn.map(i => ({ id: i.id, title: i.type, sub: `${i.date} Â· ${i.severity}` }))} />
-        <LinkedList title={`Linked MDT (${linkedM.length})`} items={linkedM.map(m => ({ id: m.id, title: (m.meetingType || m.discussion).slice(0, 60), sub: `${m.date} Â· ${m.authoredBy}` }))} />
-      </div>
 
       {/* Audit Trail */}
       <Card>

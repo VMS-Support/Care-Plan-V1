@@ -293,20 +293,6 @@ function NewNote() {
               onChange={(residentId) => setF({ ...f, residentId, carePlanId: null })}
             />
           </div>
-          <div className="col-span-2">
-            <Label>Related Care Plan</Label>
-            <Select value={f.carePlanId || "none"} onValueChange={v => setF({ ...f, carePlanId: v === "none" ? null : v })} disabled={!f.residentId}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {residentCarePlans.map((plan) => (
-                  <SelectItem key={plan.id} value={plan.id}>
-                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div>
             <Label>Shift *</Label>
             <Select value={f.shift} onValueChange={v => setF({ ...f, shift: v as DailyNote["shift"] })}>
@@ -345,6 +331,16 @@ function NewNote() {
               value={f.observation}
               onChange={e => setF({ ...f, observation: e.target.value })}
             />
+          </div>
+          <div className="col-span-2">
+            <Label>Related Care Plan</Label>
+            <Select value={f.carePlanId || "none"} onValueChange={v => setF({ ...f, carePlanId: v === "none" ? null : v })} disabled={!f.residentId}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {residentCarePlans.map((plan) => <SelectItem key={plan.id} value={plan.id}>{getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           {allowedFields(f.category).size > 0 && (
             <div className="col-span-2 border-t pt-3 text-sm font-medium">Additional Information</div>

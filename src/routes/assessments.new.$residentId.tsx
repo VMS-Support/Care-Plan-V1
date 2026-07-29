@@ -87,7 +87,7 @@ function NewAssessment() {
       scores, totalScore: result.totalScore, interpretation: result.interpretation, riskLevel: result.riskLevel,
       notes, recommendations,
       status: draft ? "draft" : "completed",
-      reviewDate, nextReassessmentDate, version: 1,
+      reviewDate, nextReassessmentDate,
     });
     if (draft) toast.success("Draft saved. Select another assessment when ready.");
     else setSubmittedAssessmentName(assessmentMeta[type].name);

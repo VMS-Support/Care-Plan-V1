@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
-  BedDouble,
   HeartPulse,
   MapPin,
   Scale,
@@ -161,11 +160,6 @@ export function ResidentHeader({
               icon={<MapPin className="h-4 w-4" />}
               label="Current placement"
               value={placement}
-            />
-            <InfoLine
-              icon={<BedDouble className="h-4 w-4" />}
-              label={`Dependency: ${header.dependency.summaryLabel}`}
-              value={`${header.dependency.domainsRecorded} of 12 Activities recorded`}
             />
             <InfoLine
               icon={<Scale className="h-4 w-4" />}

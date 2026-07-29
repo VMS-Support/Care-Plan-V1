@@ -96,8 +96,10 @@ export function getDonDashboard(input: {
     label: "Care Plan Completion",
     numerator: carePlanCompletionScope.upToDateCount,
     denominator: carePlanCompletionScope.totalCount,
-    empty: "No active care plans configured.",
-    helper: dueCarePlans.length ? "Requires Review" : "Up to Date",
+    empty: "No active care plans requiring review.",
+    helper: carePlanCompletionScope.totalCount
+      ? `${carePlanCompletionScope.upToDateCount} of ${carePlanCompletionScope.totalCount} Up to Date`
+      : "No reviewable care plans",
     route: "/care-plans",
   });
   const riskAssessmentCompletion = donRiskAssessmentCard(care, reportingDate);
@@ -175,7 +177,7 @@ export function getDonDashboard(input: {
       unavailableMetric("Financial Performance", "Finance module unavailable", "/accounts"),
     ],
     priorities: [
-      row("Care Plans Due", dueCarePlans.length, "/care-plans"),
+      row("Care Plans Overdue", dueCarePlans.length, "/care-plans"),
       row("Assessments Overdue", dueAssessments.length, "/assessments", dueAssessments.some((assessment) => dateDue(assessment.dueDate || assessment.reviewDate || assessment.nextReassessmentDate, reportingDate, true))),
       row("Medication Reviews Due", "Source Unavailable", "/daily-notes", false, "source_unavailable"),
       row("Staff Training Due", training.overdueCount, "/workforce/training", training.overdueCount > 0),
@@ -245,12 +247,17 @@ const INACTIVE_CARE_PLAN_STATUSES = new Set([
 ]);
 
 function getCarePlanCompletionScope(care: StoreLike, residentIds: Set<string>, reportingDate: string) {
+  // Completion is a review-compliance measure: only active care plans with a
+  // periodic review date belong in its denominator. A plan due today remains
+  // up to date; it becomes overdue only after its review date has passed.
   const currentProblems = activeRows(care.carePlanProblems).filter(
     (problem) =>
       residentIds.has(problem.residentId) &&
-      !INACTIVE_CARE_PLAN_STATUSES.has(String(problem.status || "").toLowerCase()),
+      String(problem.status || "").toLowerCase() === "active" &&
+      !INACTIVE_CARE_PLAN_STATUSES.has(String(problem.status || "").toLowerCase()) &&
+      Boolean(problem.reviewDate),
   );
-  const dueProblems = currentProblems.filter((problem) => isCarePlanItemDue(problem, reportingDate));
+  const dueProblems = currentProblems.filter((problem) => isCarePlanReviewOverdue(problem, reportingDate));
   const totalCount = currentProblems.length;
   const dueCount = dueProblems.length;
 
@@ -263,13 +270,12 @@ function getCarePlanCompletionScope(care: StoreLike, residentIds: Set<string>, r
   };
 }
 
-function isCarePlanItemDue(item: any, reportingDate: string) {
+function isCarePlanReviewOverdue(item: any, reportingDate: string) {
   const status = String(item.status || "").toLowerCase();
-  if (status.includes("overdue") || status === "review_due" || status === "evaluation_due" || status === "under_review") {
+  if (status.includes("overdue")) {
     return true;
   }
-  if (!item.reviewDate && !item.evaluationDate) return true;
-  return dateDue(item.reviewDate, reportingDate) || dateDue(item.evaluationDate, reportingDate);
+  return dateDue(item.reviewDate, reportingDate, true);
 }
 
 function percentageMetric(input: {

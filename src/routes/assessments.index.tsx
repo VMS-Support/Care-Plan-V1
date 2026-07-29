@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
+import { latestAssessmentsByType } from "@/lib/care/assessmentVersions";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { deriveStatus, riskBadgeCls } from "@/lib/care/assessments";
 import { ASSESSMENT_CATEGORIES } from "@/lib/care/assessments";
@@ -633,16 +634,10 @@ function AssessmentsList() {
     [assessments],
   );
 
-  const latestByResidentType = useMemo(() => {
-    const sorted = [...activeAssessments].sort((a, b) => b.date.localeCompare(a.date));
-    const map = new Map<string, Assessment>();
-    for (const a of sorted) {
-      if (a.supersededById) continue;
-      const key = `${a.residentId}:${a.type}`;
-      if (!map.has(key)) map.set(key, a);
-    }
-    return map;
-  }, [activeAssessments]);
+  const latestByResidentType = useMemo(
+    () => new Map(latestAssessmentsByType(activeAssessments).map((assessment) => [`${assessment.residentId}:${assessment.type}`, assessment])),
+    [activeAssessments],
+  );
 
   const latestRows = useMemo(() => {
     return Array.from(latestByResidentType.values())

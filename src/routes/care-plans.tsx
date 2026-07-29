@@ -60,7 +60,7 @@ export const Route = createFileRoute("/care-plans")({
   component: CarePlansPage,
 });
 
-type WorkflowTab = "register" | "governance";
+type WorkflowTab = "register";
 type QuickFilter =
   | "all"
   | "mine"
@@ -513,11 +513,6 @@ function CarePlansPage() {
   const [evaluatingProblemId, setEvaluatingProblemId] = useState<string | null>(null);
   const [selectorResidentId, setSelectorResidentId] = useState<string | null>(null);
 
-  const governanceView = currentRole === "cnm" || currentRole === "don";
-  const visibleTabs = governanceView
-    ? (["register", "governance"] as const)
-    : (["register"] as const);
-
   const rows = useMemo(() => {
     const unifiedRows = carePlanProblems
       .map((problem) => {
@@ -900,82 +895,18 @@ function CarePlansPage() {
     };
   }, [carePlanProblems]);
 
-  const governance = useMemo(() => {
-    const overdueReviews = rows.filter(
-      (row) =>
-        row.reviewDays !== null &&
-        row.reviewDays < 0 &&
-        !INACTIVE_STATUSES.includes(row.plan.status),
-    );
-    const overdueEvaluations = rows.filter(
-      (row) =>
-        row.evaluationDays !== null &&
-        row.evaluationDays < 0 &&
-        !INACTIVE_STATUSES.includes(row.plan.status),
-    );
-    const activeRows = rows.filter((row) => !INACTIVE_STATUSES.includes(row.plan.status));
-    const compliant = activeRows.filter((row) => !row.hasOverdue).length;
-    const compliance =
-      activeRows.length === 0 ? 100 : Math.round((compliant / activeRows.length) * 100);
-
-    const byWing = Object.values(
-      rows.reduce<Record<string, { name: string; count: number }>>((acc, row) => {
-        const name = row.resident.wingId || "Unassigned";
-        acc[name] = acc[name] || { name, count: 0 };
-        acc[name].count += 1;
-        return acc;
-      }, {}),
-    ).sort((left, right) => right.count - left.count);
-
-    const byNurse = Object.values(
-      rows.reduce<Record<string, { name: string; count: number }>>((acc, row) => {
-        const name = row.resident.keyWorkers?.namedNurse || row.plan.assignedStaff || "Unassigned";
-        acc[name] = acc[name] || { name, count: 0 };
-        acc[name].count += 1;
-        return acc;
-      }, {}),
-    ).sort((left, right) => right.count - left.count);
-
-    const carePlanAudit = auditLogs.filter((entry) => entry.entityType === "care_plan");
-
-    return {
-      overdueReviews,
-      overdueEvaluations,
-      missingCarePlans: residentsWithoutActivePlan,
-      compliance,
-      byWing,
-      byNurse,
-      auditStats: {
-        total: carePlanAudit.length,
-        archived: carePlanAudit.filter((entry) => entry.action.toLowerCase().includes("archiv"))
-          .length,
-        revised: carePlanAudit.filter((entry) => entry.action.toLowerCase().includes("revis"))
-          .length,
-        evaluations: problemEvaluations.length,
-        reviews: problemReviews.length,
-      },
-    };
-  }, [
-    auditLogs,
-    problemEvaluations.length,
-    problemReviews.length,
-    residentsWithoutActivePlan,
-    rows,
-  ]);
-
   return (
     <div className="p-4 md:p-8 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Care Plans</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Faster access for frontline updates, with governance oversight preserved for CNMs and
-            DONs.
+            View current care plans, reviews and care actions for every resident.
           </p>
         </div>
         {can(currentRole, "careplan.create") && (
           <CreateCarePlanDialog
-            buttonLabel="New Nursing Care Plan"
+            buttonLabel="Add Care Plan from Template"
             onCreated={(problem) =>
               navigate({
                 to: "/residents/$id",
@@ -1099,12 +1030,7 @@ function CarePlansPage() {
         className="space-y-4"
       >
         <TabsList className="flex-wrap h-auto">
-          {visibleTabs.map((value) => (
-            <TabsTrigger key={value} value={value}>
-              {value === "register" && "Care Plan Register"}
-              {value === "governance" && "Governance"}
-            </TabsTrigger>
-          ))}
+          <TabsTrigger value="register">Care Plan Register</TabsTrigger>
         </TabsList>
 
         <TabsContent value={tab} className="space-y-4">
@@ -1141,14 +1067,6 @@ function CarePlansPage() {
                 >
                   High Risk
                 </QuickFilterButton>
-                {governanceView && (
-                  <QuickFilterButton
-                    active={filter === "discontinued"}
-                    onClick={() => setFilter("discontinued")}
-                  >
-                    Discontinued
-                  </QuickFilterButton>
-                )}
               </div>
 
               <Card>
@@ -1618,6 +1536,8 @@ function CarePlansPage() {
             </>
           )}
 
+          {/* Governance dashboard removed: care-plan monitoring is managed through the register filters. */}
+          {/*
           {tab === "governance" && governanceView && (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1704,6 +1624,7 @@ function CarePlansPage() {
               </div>
             </div>
           )}
+          */}
         </TabsContent>
       </Tabs>
     </div>

@@ -4989,6 +4989,7 @@ export interface ProblemGoal {
 
 export interface ProblemIntervention {
   id: string;
+  parentInterventionId?: string;
   facilityId?: string;
   carePlanId: string;
   problemId: string;

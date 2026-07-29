@@ -86,7 +86,7 @@ export function AddInterventionModal({
   intervention,
   scheduleOnly = false,
 }: Props) {
-  const { carePlanProblems, residents, users, currentUserName, currentRole, addProblemIntervention, updateProblemIntervention, deleteProblemIntervention } =
+  const { carePlanProblems, problemInterventions, residents, users, currentUserName, currentRole, addProblemIntervention, updateProblemIntervention, deleteProblemIntervention } =
     useCare();
   const [form, setForm] = useState<Omit<ProblemIntervention, "id">>(empty(residentId));
   const [frequency, setFrequency] = useState<FrequencyType>("daily");
@@ -115,16 +115,15 @@ export function AddInterventionModal({
   const problems = carePlanProblems.filter(
     (p) => p.residentId === residentId && p.status === "active",
   );
+  const relatedCareActions = problemInterventions.filter(
+    (action) => action.problemId === form.problemId && action.status === "active" && !action.parentInterventionId,
+  );
   const assignedRoleUsers = users
     .filter((user) => user.role === (form.assignedRole || "nurse") && user.status !== "inactive")
     .sort((left, right) => left.name.localeCompare(right.name));
   const contentOnlyEdit = Boolean(intervention && !scheduleOnly);
 
   function validateForm() {
-    if (!form.problemId.trim()) {
-      toast.error("Please select a care plan problem");
-      return false;
-    }
     if (!form.name.trim()) {
       toast.error("Intervention name is required");
       return false;
@@ -213,16 +212,17 @@ export function AddInterventionModal({
 
         <div className="grid grid-cols-2 gap-3 space-y-3">
           {!contentOnlyEdit && <div className="col-span-2 space-y-1.5">
-            <Label>Related Nursing Care Plan *</Label>
+            <Label>Related Nursing Care Plan (optional)</Label>
             <Select
-              value={form.problemId}
-              onValueChange={(v) => setForm({ ...form, problemId: v })}
+              value={form.problemId || "__none"}
+              onValueChange={(v) => setForm({ ...form, problemId: v === "__none" ? "" : v })}
               disabled={lockProblemSelection || scheduleOnly}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a nursing care plan..." />
+                <SelectValue placeholder="No care plan linked" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none">No care plan linked</SelectItem>
                 {problems.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {scheduleOnly && intervention ? `${p.carePlanName || p.problemStatement} â€¢ ${intervention.name}` : `${p.problemStatement} â€¢ ${p.category.replace(/_/g, " ")} â€¢ ${p.riskLevel.replace(/_/g, " ")} â€¢ ${p.status}`}
@@ -231,9 +231,7 @@ export function AddInterventionModal({
               </SelectContent>
             </Select>
             {problems.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No active nursing care plans. Create one first.
-              </p>
+              <p className="text-xs text-muted-foreground">This action can be created without a care plan.</p>
             )}
           </div>}
 
@@ -254,22 +252,31 @@ export function AddInterventionModal({
             <p className="text-xs text-muted-foreground">{CARE_ACTION_TYPE_DESCRIPTIONS[actionType]}</p>
           </div>}
 
-          {/* Care Action Name */}
+          {/* Care Action Heading */}
           {!scheduleOnly && <div className="col-span-2 space-y-1.5">
-            <Label>Care Action Name *</Label>
+            <Label>Care Plan Care Action Heading *</Label>
+            {form.problemId && relatedCareActions.length > 0 && <Select value={form.parentInterventionId || "__new"} onValueChange={(value) => setForm({ ...form, parentInterventionId: value === "__new" ? undefined : value })}>
+              <SelectTrigger><SelectValue placeholder="Select a care action heading" /></SelectTrigger>
+              <SelectContent>
+                {relatedCareActions.map((heading) => <SelectItem key={heading.id} value={heading.id}>{heading.name}</SelectItem>)}
+                <SelectItem value="__new">Create a new heading</SelectItem>
+              </SelectContent>
+            </Select>}
             <Input
-              placeholder="e.g., Daily skin inspection, reposition every 2 hours"
+              className={form.problemId && relatedCareActions.length > 0 ? "mt-2" : ""}
+              placeholder={form.parentInterventionId ? "e.g., Morning skin check" : "e.g., Daily skin inspection"}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
+            <p className="text-xs text-muted-foreground">Select an existing heading to add this task underneath it, or enter a new heading for a new care action.</p>
           </div>}
 
           {/* Description */}
           <div className="col-span-2 space-y-1.5">
-            <Label>{contentOnlyEdit ? "Care Action Details" : "Description"}</Label>
+            <Label>{contentOnlyEdit ? "Care Action Name" : "Care Action Name"}</Label>
             <Textarea
               rows={2}
-              placeholder="Detailed description of the care action..."
+              placeholder="Enter the name of the scheduled care action..."
               value={form.description || ""}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />

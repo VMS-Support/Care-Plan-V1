@@ -136,26 +136,6 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
             <Input value={resident ? `${resident.firstName} ${resident.lastName}` : residentId} disabled />
           </div>
 
-          <div className="col-span-2 space-y-1.5">
-            <Label>Related Care Plan</Label>
-            <Select
-              value={form.carePlanId || "none"}
-              onValueChange={(value) => setForm({ ...form, carePlanId: value === "none" ? null : value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {currentCarePlans.map((plan) => (
-                  <SelectItem key={plan.id} value={plan.id}>
-                    {getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="space-y-1.5">
             <Label>Shift *</Label>
             <Select value={form.shift} onValueChange={(value) => setForm({ ...form, shift: value as DailyNote["shift"] })}>
@@ -202,6 +182,17 @@ export function AddDailyNoteModal({ open, onOpenChange, residentId }: Props) {
               value={form.observation}
               onChange={(event) => setForm({ ...form, observation: event.target.value })}
             />
+          </div>
+
+          <div className="col-span-2 space-y-1.5">
+            <Label>Related Care Plan</Label>
+            <Select value={form.carePlanId || "none"} onValueChange={(value) => setForm({ ...form, carePlanId: value === "none" ? null : value })}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {currentCarePlans.map((plan) => <SelectItem key={plan.id} value={plan.id}>{getRltDomainForCarePlanProblem(plan)?.title || plan.category.replace(/_/g, " ")} - {plan.problemStatement}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           {allowedFields(form.category).size > 0 && (

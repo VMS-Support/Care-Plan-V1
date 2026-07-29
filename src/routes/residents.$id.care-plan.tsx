@@ -1,6 +1,7 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
+import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import {
   CATEGORY_LABELS, RISK_COLORS, PREDEFINED_GOALS, frequencyLabel,
 } from "@/lib/care/problems";
@@ -413,66 +414,12 @@ function PlansEditor({ problemId }: { problemId: string }) {
 // ============ Add problem ============
 
 function AddProblemButton({ residentId }: { residentId: string }) {
-  const { addProblem } = useCare();
-  const [open, setOpen] = useState(false);
-  const [category, setCategory] = useState<ProblemCategory>("pressure");
-  const [statement, setStatement] = useState("");
-  const [risk, setRisk] = useState<ProblemRiskLevel>("moderate");
-  const [evalDate, setEvalDate] = useState(todayPlus(7));
-  const [reviewDate, setReviewDate] = useState(todayPlus(90));
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="h-4 w-4 mr-1" /> Add Nursing Care Plan</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>Add Nursing Care Plan</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Category</Label>
-            <Select value={category} onValueChange={v => setCategory(v as ProblemCategory)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CATEGORY_OPTIONS.map(c => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Care Need</Label>
-            <Textarea value={statement} onChange={e => setStatement(e.target.value)} rows={3}
-              placeholder="Describe the resident care needâ€¦" />
-          </div>
-          <div>
-            <Label>Risk Level</Label>
-            <Select value={risk} onValueChange={v => setRisk(v as ProblemRiskLevel)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {RISK_OPTIONS.map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Next Review of Outcome</Label>
-              <Input type="date" value={evalDate} onChange={e => setEvalDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Care Plan Review Date</Label>
-              <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button disabled={!statement.trim()} onClick={() => {
-            addProblem({ residentId, category, problemStatement: statement.trim(), riskLevel: risk, evaluationDate: evalDate, reviewDate });
-            toast.success("Nursing care plan added");
-            setOpen(false); setStatement("");
-          }}>Add Nursing Care Plan</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <CreateCarePlanDialog
+      residentId={residentId}
+      buttonLabel="Add Care Plan from Template"
+      trigger={<Button><Plus className="mr-1 h-4 w-4" />Add from Template</Button>}
+    />
   );
 }
 

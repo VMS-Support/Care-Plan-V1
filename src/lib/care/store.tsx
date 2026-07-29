@@ -4315,7 +4315,7 @@ interface CareCtx extends Store {
     sourceAssessmentType?: any;
     contextReferences?: CarePlanProblem["contextReferences"];
     initialPlan?: { statement: string; targetDate?: string };
-    carePlanTemplateId?: string; carePlanName?: string; initialCareActions?: Array<{ heading: string; description?: string }>;
+    carePlanTemplateId?: string; carePlanName?: string; initialCareActions?: Array<{ heading: string; description?: string; scheduledTasks?: Array<{ name: string; frequencyType: FrequencyType; startDate: string; startTime?: string; endDate: string }> }>;
   }) => CarePlanProblem;
   createCarePlanTemplate: (input: Pick<CarePlanTemplate, "name" | "aimGoal" | "actions"> & Partial<CarePlanTemplate>) => CarePlanTemplate;
   updateCarePlanTemplate: (id: string, input: Partial<CarePlanTemplate>) => void;
@@ -4329,7 +4329,9 @@ interface CareCtx extends Store {
   removeGoal: (id: string) => void;
   addProblemIntervention: (input: {
     problemId: string;
+    residentId: string;
     carePlanId?: string;
+    parentInterventionId?: string;
     name: string;
     description?: string;
     frequencyType: FrequencyType;
@@ -6300,6 +6302,23 @@ export function CareProvider({ children }: { children: ReactNode }) {
       addAssessment: (a) => {
         const now = new Date().toISOString();
         const isCompleted = (a.status || "completed") === "completed";
+        const priorAssessment = store.assessments
+          .filter(
+            (assessment) =>
+              assessment.residentId === a.residentId &&
+              assessment.type === a.type &&
+              assessment.status !== "deleted" &&
+              !assessment.supersededById,
+          )
+          .sort((left, right) => (right.version || 1) - (left.version || 1) || `${right.lockedAt || right.date}`.localeCompare(`${left.lockedAt || left.date}`))[0];
+        const sameTypeAssessmentCount = store.assessments.filter(
+          (assessment) =>
+            assessment.residentId === a.residentId &&
+            assessment.type === a.type &&
+            assessment.status !== "deleted" &&
+            !assessment.deletedAt,
+        ).length;
+        const itemId = uid();
         const audit: AssessmentAuditEntry[] = [
           ...(a.auditTrail || []),
           {
@@ -6311,6 +6330,18 @@ export function CareProvider({ children }: { children: ReactNode }) {
             at: now,
           },
         ];
+        if (priorAssessment) {
+          audit.push({
+            id: uid(),
+            action: "revised",
+            byUserId: currentUser.id,
+            byUserName: currentUserName,
+            byRole: currentRole,
+            at: now,
+            reason: "Repeat assessment recorded",
+            fromVersionId: priorAssessment.id,
+          });
+        }
         if (isCompleted) {
           audit.push({
             id: uid(),
@@ -6331,9 +6362,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }
         const item: Assessment = {
           ...a,
-          id: uid(),
+          id: itemId,
           status: a.status || "completed",
-          version: a.version || 1,
+          version: a.version || (priorAssessment ? sameTypeAssessmentCount + 1 : 1),
+          previousVersionId: a.previousVersionId || priorAssessment?.id,
+          supersedesId: a.supersedesId || priorAssessment?.id,
           category: a.category || (a.type ? categoryFor(a.type) : undefined),
           reviewFrequency: a.reviewFrequency || "monthly",
           reviewTriggers: a.reviewTriggers || ["routine"],
@@ -6349,13 +6382,38 @@ export function CareProvider({ children }: { children: ReactNode }) {
           clinicalComments: a.clinicalComments || [],
           linkedProblemIds: a.linkedProblemIds || [],
         };
-        setStore((s) => ({ ...s, assessments: [item, ...s.assessments] }));
+        setStore((s) => ({
+          ...s,
+          assessments: [
+            item,
+            ...s.assessments.map((assessment) =>
+              assessment.id === priorAssessment?.id
+                ? {
+                    ...assessment,
+                    supersededById: itemId,
+                    auditTrail: [
+                      ...(assessment.auditTrail || []),
+                      {
+                        id: uid(),
+                        action: "superseded" as const,
+                        byUserId: currentUser.id,
+                        byUserName: currentUserName,
+                        byRole: currentRole,
+                        at: now,
+                        reason: "Replaced by a repeat assessment",
+                      },
+                    ],
+                  }
+                : assessment,
+            ),
+          ],
+        }));
         // Emit timeline event
         const ev: TimelineEvent = {
           id: uid(),
           residentId: a.residentId,
           type: "assessment.created",
-          title: `${a.type.replace("_", " ")} assessment ${isCompleted ? "completed" : "started"}`,
+          title: `${a.type.replace("_", " ")} assessment ${priorAssessment ? "revised" : isCompleted ? "completed" : "started"}`,
           description: isCompleted ? `Score ${a.totalScore} · ${a.interpretation}` : "Draft saved",
           linkedRecordId: item.id,
           linkedRecordKind: "assessment",
@@ -6367,7 +6425,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         logAudit({
           user: currentUserName,
           role: currentRole,
-          action: `Created ${a.type} assessment`,
+          action: `${priorAssessment ? "Revised" : "Created"} ${a.type} assessment`,
           entity: a.residentId,
         });
         return item;
@@ -10638,7 +10696,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
               createdBy: currentUserName,
             }
           : null;
-        const initialActions: ProblemIntervention[] = (input.initialCareActions || []).filter((action) => action.heading.trim()).map((action) => ({ id: newId("int"), carePlanId: item.id, problemId: item.id, residentId: item.residentId, facilityId: item.facilityId, name: action.heading.trim(), description: action.description?.trim(), isScheduled: false, frequencyType: "custom", frequencyInstructions: "Not scheduled", startDate: item.createdAt.slice(0, 10), reviewDate: item.reviewDate, endDate: item.reviewDate, status: "active", createdAt: item.createdAt, createdBy: currentUserName, createdByRole: currentRole }));
+        const initialActions: ProblemIntervention[] = (input.initialCareActions || [])
+          .filter((action) => action.heading.trim())
+          .flatMap((action) => {
+            const headingId = newId("int");
+            return [
+              { id: headingId, carePlanId: item.id, problemId: item.id, residentId: item.residentId, facilityId: item.facilityId, name: action.heading.trim(), description: action.description?.trim(), isScheduled: false, frequencyType: "custom" as FrequencyType, frequencyInstructions: "Care action heading", startDate: item.createdAt.slice(0, 10), reviewDate: item.reviewDate, endDate: item.reviewDate, status: "active" as const, createdAt: item.createdAt, createdBy: currentUserName, createdByRole: currentRole },
+              ...(action.scheduledTasks || []).filter((task) => task.name.trim()).map((task) => ({ id: newId("int"), parentInterventionId: headingId, carePlanId: item.id, problemId: item.id, residentId: item.residentId, facilityId: item.facilityId, name: task.name.trim(), description: `Scheduled task under: ${action.heading.trim()}`, isScheduled: true, frequencyType: task.frequencyType, frequencyInstructions: `Care action heading: ${action.heading.trim()}`, startDate: task.startDate, startTime: task.startTime, reviewDate: item.reviewDate, endDate: task.endDate, status: "active" as const, createdAt: item.createdAt, createdBy: currentUserName, createdByRole: currentRole })),
+            ] as ProblemIntervention[];
+          });
         setStore((s) => ({
           ...s,
           residentCarePlans: newRcp ? [newRcp, ...s.residentCarePlans] : s.residentCarePlans,
@@ -11024,18 +11090,21 @@ export function CareProvider({ children }: { children: ReactNode }) {
 
       addProblemIntervention: (input) => {
         const prob = store.carePlanProblems.find((p) => p.id === input.problemId);
-        if (!prob || prob.status !== "active") {
+        const resident = store.residents.find((item) => item.id === (prob?.residentId || input.residentId));
+        if (prob && prob.status !== "active") {
           throw new Error("Active care plan problem not found for intervention");
         }
-        if (input.carePlanId && input.carePlanId !== prob.id) {
+        if (!resident) throw new Error("Resident not found for care action");
+        if (prob && input.carePlanId && input.carePlanId !== prob.id) {
           throw new Error("Care action must be attached to the currently opened care plan");
         }
         const item: ProblemIntervention = {
           id: newId("int"),
-          carePlanId: prob.id,
+          parentInterventionId: input.parentInterventionId,
+          carePlanId: prob?.id || "",
           problemId: input.problemId,
-          residentId: prob.residentId,
-          facilityId: prob.facilityId,
+          residentId: prob?.residentId || resident.id,
+          facilityId: prob?.facilityId || resident.facilityId,
           name: input.name,
           description: input.description,
           isScheduled: input.careActionType === "scheduled",
@@ -11067,10 +11136,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
 
         const ev: TimelineEvent = {
           id: newId("tle"),
-          residentId: prob.residentId,
+          residentId: prob?.residentId || resident.id,
           type: "intervention.created",
           title: `Intervention Created: ${input.name}`,
-          description: `${prob.problemStatement} · ${input.frequencyType} starting ${input.startDate}, review ${input.reviewDate}`,
+          description: `${prob?.problemStatement || "No care plan linked"} · ${input.frequencyType} starting ${input.startDate}, review ${input.reviewDate}`,
           createdAt: item.createdAt,
           createdBy: item.createdBy,
           role: item.createdByRole,
@@ -11081,7 +11150,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => {
           const nextFlexibleState: FlexibleCareActionState = structuredClone(s.flexibleCareActionState);
           if (configuration.careActionType === "one_off") {
-            const nursingHomeId = prob.facilityId || activeFacilityId;
+            const nursingHomeId = prob?.facilityId || resident.facilityId || activeFacilityId;
             const access = createStaffAccessContext(currentUser, nursingHomeId);
             activateOneOffCareAction(nextFlexibleState, item, s.carePlanProblems, { userAccountId: currentUser.id, staffMemberId: access.staffMemberId, nursingHomeId, capabilities: getEffectivePermissions(s, access, { nursingHomeId }), occurredAt: item.createdAt, correlationId: `one-off-create:${item.id}`, residentExists: (residentId) => s.residents.some((candidate) => candidate.id === residentId), residentBelongsToHome: (residentId, homeId) => s.residents.some((candidate) => candidate.id === residentId && (candidate.facilityId || activeFacilityId) === homeId) });
           }
