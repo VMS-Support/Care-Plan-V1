@@ -12,8 +12,12 @@ export interface ResidentAdministrativeDetailsViewModel {
     previousSurname?: string;
     dateOfBirth: string;
     residentNumber?: string;
+    registrationNumber?: string;
     gender: string;
     nationality?: string;
+    ethnicity?: string;
+    maritalStatus?: string;
+    occupation?: string;
     preferredLanguage?: string;
     religion?: string;
   };
@@ -23,7 +27,11 @@ export interface ResidentAdministrativeDetailsViewModel {
     admittedFrom?: string;
     residentStatus: string;
     presenceStatus?: string;
+    currentAccommodationStatus?: string;
+    readmittedWithin28Days?: string;
+    nursingHomeFacility: string;
   };
+  residentClassification: { dependencyLevel?: string; supportLevel?: string };
   residentContactDetails: { address?: string; phone?: string; email?: string };
   fundingAndInsurance?: { provider?: string; maskedPolicyNumber?: string; expiryDate?: string };
   contractAndAccommodation?: {
@@ -41,6 +49,8 @@ export interface ResidentAdministrativeDetailsViewModel {
     maskedGpVisitCardNumber?: string;
     gpVisitCardExpiry?: string;
   };
+  healthcareIdentifiers?: { maskedDpsNumber?: string; dpsExpiry?: string; maskedPpsNumber?: string };
+  additionalInformation?: { maskedPensionReference?: string; hseOffice?: string };
   representatives: {
     firstContact?: string;
     nominatedRepresentative?: string;
@@ -122,8 +132,12 @@ export function getResidentAdministrativeDetails(input: {
       previousSurname: r.previousSurname,
       dateOfBirth: r.dob,
       residentNumber: identifiers ? r.residentNumber : mask(r.residentNumber),
+      registrationNumber: identifiers ? r.registrationNumber : mask(r.registrationNumber),
       gender: r.gender,
       nationality: r.nationality,
+      ethnicity: r.ethnicity,
+      maritalStatus: r.maritalStatus,
+      occupation: r.occupation || r.aKeyToMe?.occupation,
       preferredLanguage: r.preferredLanguage,
       religion: r.religion,
     },
@@ -133,10 +147,16 @@ export function getResidentAdministrativeDetails(input: {
       admittedFrom: r.admissionSource,
       residentStatus: r.lifecycleStatus || r.status,
       presenceStatus: r.presenceStatus,
+      currentAccommodationStatus: r.currentAccommodationStatus,
+      readmittedWithin28Days: r.readmittedWithin28Days === undefined ? undefined : r.readmittedWithin28Days ? "Yes" : "No",
+      nursingHomeFacility: input.nursingHomeId,
     },
+    residentClassification: { dependencyLevel: r.dependencyLevel ? `${r.dependencyLevel.charAt(0).toUpperCase()}${r.dependencyLevel.slice(1)} Dependency` : undefined, supportLevel: r.supportLevel?.replace(/_/g, " ") },
     residentContactDetails: { address: r.address, phone: r.phone, email: r.email },
     fundingAndInsurance: insurance,
     medicalCards: medical,
+    healthcareIdentifiers: input.capabilities.includes("resident_administration.view_identifiers") ? { maskedDpsNumber: r.dpsNumber, dpsExpiry: r.dpsExpiry, maskedPpsNumber: r.ppsNumber } : { maskedDpsNumber: mask(r.dpsNumber), dpsExpiry: r.dpsExpiry, maskedPpsNumber: mask(r.ppsNumber) },
+    additionalInformation: { maskedPensionReference: identifiers ? r.pensionReference : mask(r.pensionReference), hseOffice: r.hseOffice },
     representatives: {
       firstContact: input.contacts.primary.firstContact?.displayName,
       nominatedRepresentative: input.contacts.primary.nominatedRepresentative?.displayName,

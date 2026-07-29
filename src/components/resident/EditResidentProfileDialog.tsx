@@ -23,7 +23,11 @@ type FormState = {
   gender: Resident["gender"];
   pronouns: string;
   residentNumber: string;
+  registrationNumber: string;
   nationality: string;
+  ethnicity: string;
+  maritalStatus: string;
+  occupation: string;
   phone: string;
   email: string;
   address: string;
@@ -38,7 +42,19 @@ type FormState = {
   emergencyContact: string;
   mentalCapacity: Resident["mentalCapacity"];
   admissionDate: string;
+  admissionType: NonNullable<Resident["admissionType"]>;
+  admissionSource: NonNullable<Resident["admissionSource"]>;
+  currentAccommodationStatus: NonNullable<Resident["currentAccommodationStatus"]>;
+  readmittedWithin28Days: "yes" | "no";
   dependencyLevel: NonNullable<Resident["dependencyLevel"]>;
+  supportLevel: NonNullable<Resident["supportLevel"]>;
+  medicalCardNumber: string;
+  medicalCardExpiry: string;
+  dpsNumber: string;
+  dpsExpiry: string;
+  ppsNumber: string;
+  pensionReference: string;
+  hseOffice: string;
   bedType: NonNullable<Resident["bed"]>["bedType"];
   mattressType: NonNullable<Resident["bed"]>["mattressType"];
   bedInstallationDate: string;
@@ -76,7 +92,11 @@ export function EditResidentProfileDialog({
     gender: resident.gender,
     pronouns: resident.pronouns || "",
     residentNumber: resident.residentNumber || resident.externalResidentId || "",
+    registrationNumber: resident.registrationNumber || "",
     nationality: resident.nationality || "",
+    ethnicity: resident.ethnicity || "",
+    maritalStatus: resident.maritalStatus || "",
+    occupation: resident.occupation || resident.aKeyToMe?.occupation || "",
     phone: resident.phone || "",
     email: resident.email || "",
     address: resident.address || "",
@@ -91,7 +111,19 @@ export function EditResidentProfileDialog({
     emergencyContact: resident.emergencyContact || "",
     mentalCapacity: resident.mentalCapacity || "not_assessed",
     admissionDate: resident.admissionDate || "",
+    admissionType: resident.admissionType || "long_term",
+    admissionSource: resident.admissionSource || "",
+    currentAccommodationStatus: resident.currentAccommodationStatus || "permanent",
+    readmittedWithin28Days: resident.readmittedWithin28Days ? "yes" : "no",
     dependencyLevel: resident.dependencyLevel || "medium",
+    supportLevel: resident.supportLevel || "standard",
+    medicalCardNumber: resident.medicalCardNumber || "",
+    medicalCardExpiry: resident.medicalCardExpiry || "",
+    dpsNumber: resident.dpsNumber || "",
+    dpsExpiry: resident.dpsExpiry || "",
+    ppsNumber: resident.ppsNumber || "",
+    pensionReference: resident.pensionReference || "",
+    hseOffice: resident.hseOffice || "",
     bedType: resident.bed?.bedType || "standard",
     mattressType: resident.bed?.mattressType || "standard",
     bedInstallationDate: resident.bed?.installationDate || "",
@@ -136,7 +168,7 @@ export function EditResidentProfileDialog({
   const update = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }));
 
   const field = (key: keyof FormState, label: string, type = "text") =>
-    key === "residentNumber" && !canEditSensitiveIdentifiers ? null : (
+    ["residentNumber", "registrationNumber", "medicalCardNumber", "medicalCardExpiry", "dpsNumber", "dpsExpiry", "ppsNumber", "pensionReference"].includes(key) && !canEditSensitiveIdentifiers ? null : (
       <div className="space-y-1.5">
         <Label>{label}</Label>
         <Input type={type} value={String(form[key] || "")} onChange={(event) => update({ [key]: event.target.value })} />
@@ -193,11 +225,12 @@ export function EditResidentProfileDialog({
 
   const save = () => {
     try {
-      const { residentNumber, bedType, mattressType, bedInstallationDate, bedReviewDate, ...editableForm } = form;
+      const { residentNumber, registrationNumber, medicalCardNumber, medicalCardExpiry, dpsNumber, dpsExpiry, ppsNumber, pensionReference, readmittedWithin28Days, bedType, mattressType, bedInstallationDate, bedReviewDate, ...editableForm } = form;
       onSave({
         ...editableForm,
+        readmittedWithin28Days: readmittedWithin28Days === "yes",
         bed: bedInstallationDate || bedReviewDate ? { bedType, mattressType, installationDate: bedInstallationDate, reviewDate: bedReviewDate } : undefined,
-        ...(canEditSensitiveIdentifiers ? { residentNumber } : {}),
+        ...(canEditSensitiveIdentifiers ? { residentNumber, registrationNumber, medicalCardNumber, medicalCardExpiry, dpsNumber, dpsExpiry, ppsNumber, pensionReference } : {}),
         namedNurseUserId: form.namedNurseUserId === NONE ? "" : form.namedNurseUserId,
         keyWorkerUserId: form.keyWorkerUserId === NONE ? "" : form.keyWorkerUserId,
         gpUserId: form.gpUserId === NONE ? "" : form.gpUserId,
@@ -242,7 +275,7 @@ export function EditResidentProfileDialog({
             </div>
           </Section>
 
-          <Section title="Identity">
+          <Section title="Personal Information">
             <div className="grid gap-3 md:grid-cols-3">
               {field("firstName", "Legal first name")}
               {field("middleName", "Middle name")}
@@ -250,11 +283,12 @@ export function EditResidentProfileDialog({
               {field("preferredName", "Preferred name")}
               {field("previousSurname", "Previous surname")}
               {field("dob", "Date of birth", "date")}
-              {field("residentNumber", "Resident number")}
+              {field("residentNumber", "Resident Identifier")}
+              {field("registrationNumber", "Registration Number")}
             </div>
           </Section>
 
-          <Section title="Personal Details and Communication">
+          <Section title="Personal Background and Communication">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Gender</Label>
@@ -269,14 +303,11 @@ export function EditResidentProfileDialog({
               </div>
               {field("pronouns", "Pronouns")}
               {field("nationality", "Nationality")}
-              {field("phone", "Phone")}
-              {field("email", "Email", "email")}
+              {field("ethnicity", "Ethnicity")}
+              {field("maritalStatus", "Marital status")}
+              {field("occupation", "Occupation")}
               {field("preferredLanguage", "Preferred language")}
               {field("religion", "Religion")}
-              <div className="space-y-1.5 md:col-span-2">
-                <Label>Address</Label>
-                <Input value={form.address} onChange={(event) => update({ address: event.target.value })} />
-              </div>
               <div className="space-y-1.5 md:col-span-3">
                 <Label>Allergies</Label>
                 <Textarea
@@ -292,10 +323,54 @@ export function EditResidentProfileDialog({
             </div>
           </Section>
 
+          <Section title="Contact Information">
+            <div className="grid gap-3 md:grid-cols-2">
+              {field("phone", "Resident Phone Number")}
+              {field("email", "Email Address", "email")}
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Address</Label>
+                <Input value={form.address} onChange={(event) => update({ address: event.target.value })} />
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Admission Details">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Admission Date <span className="text-destructive">*</span></Label><Input type="date" value={form.admissionDate} onChange={(event) => update({ admissionDate: event.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Admission Type</Label><Select value={form.admissionType} onValueChange={(admissionType) => update({ admissionType: admissionType as FormState["admissionType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="long_term">Long Term</SelectItem><SelectItem value="short_stay">Short Term</SelectItem><SelectItem value="respite">Respite</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Admission Source</Label><Select value={form.admissionSource || NONE} onValueChange={(admissionSource) => update({ admissionSource: admissionSource === NONE ? "" : admissionSource as FormState["admissionSource"] })}><SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger><SelectContent><SelectItem value={NONE}>Not recorded</SelectItem><SelectItem value="home">Home</SelectItem><SelectItem value="hospital">Acute Hospital</SelectItem><SelectItem value="another_care_home">Another Nursing Home</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Current Accommodation Status</Label><Select value={form.currentAccommodationStatus} onValueChange={(currentAccommodationStatus) => update({ currentAccommodationStatus: currentAccommodationStatus as FormState["currentAccommodationStatus"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="permanent">Permanent placement</SelectItem><SelectItem value="temporary">Temporary placement</SelectItem><SelectItem value="hospital">In hospital</SelectItem><SelectItem value="leave">Temporary leave</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Re-admitted Within 28 Days</Label><Select value={form.readmittedWithin28Days} onValueChange={(readmittedWithin28Days) => update({ readmittedWithin28Days: readmittedWithin28Days as FormState["readmittedWithin28Days"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Current Nursing Home / Facility</Label><Input value={resident.facilityId || "Current ORITAS facility"} disabled /></div>
+            </div>
+          </Section>
+
+          <Section title="Resident Classification">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Dependency Level</Label><Select value={form.dependencyLevel} onValueChange={(dependencyLevel) => update({ dependencyLevel: dependencyLevel as FormState["dependencyLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low Dependency</SelectItem><SelectItem value="medium">Medium Dependency</SelectItem><SelectItem value="high">High Dependency</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Support Level</Label><Select value={form.supportLevel} onValueChange={(supportLevel) => update({ supportLevel: supportLevel as FormState["supportLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="minimal">Minimal support</SelectItem><SelectItem value="standard">Standard support</SelectItem><SelectItem value="enhanced">Enhanced support</SelectItem><SelectItem value="one_to_one">One-to-one support</SelectItem></SelectContent></Select></div>
+            </div>
+          </Section>
+
+          <Section title="Healthcare Information">
+            <div className="grid gap-3 md:grid-cols-2">
+              {field("medicalCardNumber", "Medical Card Number")}
+              {field("medicalCardExpiry", "Medical Card Expiry Date", "date")}
+              {field("dpsNumber", "DPS Number")}
+              {field("dpsExpiry", "DPS Expiry Date", "date")}
+              {field("ppsNumber", "PPS Number")}
+            </div>
+          </Section>
+
+          <Section title="Additional Information">
+            <div className="grid gap-3 md:grid-cols-2">
+              {field("pensionReference", "Pension Reference")}
+              {field("hseOffice", "HSE Office / Area")}
+            </div>
+          </Section>
+
           <Section title="Clinical Information">
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5"><Label>Admission date</Label><Input type="date" value={form.admissionDate} onChange={(event) => update({ admissionDate: event.target.value })} /></div>
-              <div className="space-y-1.5"><Label>Dependency level</Label><Select value={form.dependencyLevel} onValueChange={(dependencyLevel) => update({ dependencyLevel: dependencyLevel as FormState["dependencyLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low Dependency</SelectItem><SelectItem value="medium">Medium Dependency</SelectItem><SelectItem value="high">High Dependency</SelectItem></SelectContent></Select></div>
               <div className="space-y-1.5 md:col-span-2"><Label>Primary diagnosis</Label><Input value={form.primaryDiagnosis} onChange={(event) => update({ primaryDiagnosis: event.target.value })} placeholder="Primary diagnosis or reason for care" /></div>
               <div className="space-y-1.5"><Label>Consultant</Label><Input value={form.consultant} onChange={(event) => update({ consultant: event.target.value })} placeholder="Consultant name or service" /></div>
               <div className="space-y-1.5"><Label>Emergency contact</Label><Input value={form.emergencyContact} onChange={(event) => update({ emergencyContact: event.target.value })} placeholder="Name and phone number" /></div>

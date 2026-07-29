@@ -2,6 +2,7 @@ export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don" | "group_owner";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
 export type ResidentStatus = "active" | "pre_admission" | "discharged" | "deceased" | "deleted";
 export type ResidentDependencyLevel = "low" | "medium" | "high";
+export type ResidentSupportLevel = "minimal" | "standard" | "enhanced" | "one_to_one";
 
 import type {
   AbsenceEpisodeId,
@@ -4160,6 +4161,8 @@ export interface Resident {
   facilityId?: string;
   lifecycleStatus?: ResidentLifecycleStatus;
   admissionType?: AdmissionType;
+  currentAccommodationStatus?: "permanent" | "temporary" | "hospital" | "leave" | "other";
+  readmittedWithin28Days?: boolean;
   presenceStatus?: ResidentPresenceStatus;
   currentAdmissionId?: AdmissionId;
   lifecycleStatusReason?: string;
@@ -4181,7 +4184,11 @@ export interface Resident {
   previousSurname?: string;
   pronouns?: string;
   residentNumber?: string;
+  registrationNumber?: string;
   nationality?: string;
+  ethnicity?: string;
+  maritalStatus?: string;
+  occupation?: string;
   phone?: string;
   email?: string;
   address?: string;
@@ -4197,6 +4204,7 @@ export interface Resident {
   roomId?: string;
   admissionDate: string;
   dependencyLevel?: ResidentDependencyLevel;
+  supportLevel?: ResidentSupportLevel;
   primaryDiagnosis: string;
   medicalHistory: string;
   allergies: string;
@@ -4241,6 +4249,11 @@ export interface Resident {
   healthInsuranceExpiry?: string;
   medicalCardNumber?: string;
   medicalCardExpiry?: string;
+  dpsNumber?: string;
+  dpsExpiry?: string;
+  ppsNumber?: string;
+  pensionReference?: string;
+  hseOffice?: string;
   gpVisitCardNumber?: string;
   gpVisitCardExpiry?: string;
   contractStatus?: string;

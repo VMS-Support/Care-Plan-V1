@@ -29,7 +29,7 @@ export function ResidentAdministrativeDetails({
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <Settings2 className="h-4 w-4" />
-            Administrative Details
+            Resident Details
             {model.attention.length > 0 && (
               <Badge variant="outline" className="text-amber-700">
                 <AlertCircle className="mr-1 h-3 w-3" />
@@ -38,11 +38,11 @@ export function ResidentAdministrativeDetails({
             )}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Identification, registration and administrative information.
+            Personal, admission, classification and healthcare information.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>
-          View Administrative Details
+          View Resident Details
           <ChevronDown
             className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           />
@@ -58,17 +58,23 @@ export function ResidentAdministrativeDetails({
             </div>
           )}
           <div className="grid gap-5 md:grid-cols-2">
-            <Group title="Resident Identification">
+            <Group title="Personal Information">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Legal Name" value={model.identification.legalName} />
                 <Field label="Preferred Name" value={model.identification.preferredName} />
                 <Field label="Date of Birth" value={model.identification.dateOfBirth} />
-                <Field label="Resident Number" value={model.identification.residentNumber} />
+                <Field label="Resident Identifier" value={model.identification.residentNumber} />
+                <Field label="Registration Number" value={model.identification.registrationNumber} />
+                <Field label="Gender" value={model.identification.gender} />
                 <Field label="Nationality" value={model.identification.nationality} />
+                <Field label="Ethnicity" value={model.identification.ethnicity} />
+                <Field label="Religion" value={model.identification.religion} />
+                <Field label="Marital Status" value={model.identification.maritalStatus} />
+                <Field label="Occupation" value={model.identification.occupation} />
                 <Field label="Language" value={model.identification.preferredLanguage} />
               </div>
             </Group>
-            <Group title="Admission and Registration">
+            <Group title="Admission Details">
               <div className="grid grid-cols-2 gap-3">
                 <Field
                   label="Admission Date"
@@ -78,17 +84,24 @@ export function ResidentAdministrativeDetails({
                   label="Admission Type"
                   value={model.admissionAndRegistration.admissionType}
                 />
-                <Field label="Admitted From" value={model.admissionAndRegistration.admittedFrom} />
+                <Field label="Admission Source" value={model.admissionAndRegistration.admittedFrom} />
                 <Field
                   label="Current Status"
                   value={model.admissionAndRegistration.residentStatus}
                 />
+                <Field label="Current Accommodation Status" value={model.admissionAndRegistration.currentAccommodationStatus} />
+                <Field label="Re-admitted Within 28 Days" value={model.admissionAndRegistration.readmittedWithin28Days} />
+                <Field label="Nursing Home / Facility" value={model.admissionAndRegistration.nursingHomeFacility} />
               </div>
             </Group>
-            <Group title="Address and Contact Information">
+            <Group title="Contact Information">
               <Field label="Address" value={model.residentContactDetails.address} />
               <Field label="Phone" value={model.residentContactDetails.phone} />
               <Field label="Email" value={model.residentContactDetails.email} />
+            </Group>
+            <Group title="Resident Classification">
+              <Field label="Dependency Level" value={model.residentClassification.dependencyLevel} />
+              <Field label="Support Level" value={model.residentClassification.supportLevel} />
             </Group>
             <Group title="Administrative Representatives">
               <Field label="First Contact" value={model.representatives.firstContact} />
@@ -116,19 +129,24 @@ export function ResidentAdministrativeDetails({
               </Group>
             )}
             {model.medicalCards ? (
-              <Group title="Medical and GP Card Details">
+              <Group title="Healthcare Information">
                 <Field label="Medical Card" value={model.medicalCards.maskedMedicalCardNumber} />
                 <Field label="Medical Card Expiry" value={model.medicalCards.medicalCardExpiry} />
-                <Field label="GP Visit Card" value={model.medicalCards.maskedGpVisitCardNumber} />
-                <Field label="GP Visit Card Expiry" value={model.medicalCards.gpVisitCardExpiry} />
+                <Field label="DPS Number" value={model.healthcareIdentifiers?.maskedDpsNumber} />
+                <Field label="DPS Expiry" value={model.healthcareIdentifiers?.dpsExpiry} />
+                <Field label="PPS Number" value={model.healthcareIdentifiers?.maskedPpsNumber} />
               </Group>
             ) : (
-              <Group title="Medical and GP Card Details">
+              <Group title="Healthcare Information">
                 <p className="text-sm text-muted-foreground">
-                  Medical Card details have not been recorded.
+                  Healthcare identifiers have not been recorded.
                 </p>
               </Group>
             )}
+            <Group title="Additional Information">
+              <Field label="Pension Reference" value={model.additionalInformation?.maskedPensionReference} />
+              <Field label="HSE Office / Area" value={model.additionalInformation?.hseOffice} />
+            </Group>
           </div>
           {canEdit && (
             <Button variant="outline" onClick={onEdit}>

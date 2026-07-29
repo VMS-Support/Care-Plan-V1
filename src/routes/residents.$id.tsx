@@ -2006,82 +2006,80 @@ function ResidentDetail() {
             </Button>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <User2 className="h-4 w-4" /> Clinical
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="Primary diagnosis" value={r.primaryDiagnosis} />
-                <Row label="Medical history" value={r.medicalHistory} />
-                <Row label="Allergies" value={r.allergies} />
-                <Row label="Mental capacity" value={r.mentalCapacity.replace("_", " ")} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Pill className="h-4 w-4" /> Medication
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
-              </CardHeader>
-              <CardContent className="text-sm">
-                <p>{r.currentMedication}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Bed className="h-4 w-4" /> Bed Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="Bed type" value={r.bed?.bedType?.replace("_", " ") || "â€”"} />
-                <Row label="Mattress" value={r.bed?.mattressType?.replace("_", " ") || "â€”"} />
-                <Row label="Installed" value={r.bed?.installationDate || "â€”"} />
-                <Row label="Review date" value={r.bed?.reviewDate || "â€”"} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <UserCog className="h-4 w-4" /> Key Workers
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="Named Nurse" value={r.keyWorkers?.namedNurse || "â€”"} />
-                <Row label="Named Carer" value={r.keyWorkers?.namedCarer || "â€”"} />
-                <Row label="Key Worker" value={r.keyWorkers?.keyWorker || "â€”"} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Phone className="h-4 w-4" /> GP / Consultant
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="GP" value={r.gp} />
-                <Row label="Consultant" value={r.consultant} />
-                <Row label="Emergency contact" value={r.emergencyContact} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-3">
-                <CardTitle className="text-base">Preferences</CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setProfileEditOpen(true)}>Edit</Button>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="Communication" value={r.communicationNeeds} />
-                <Row label="Religion" value={r.religion} />
-                <Row label="Preferred language" value={r.preferredLanguage} />
-              </CardContent>
-            </Card>
+          <div className="grid gap-5 md:grid-cols-2">
+            <OverviewCard title="Resident Information" icon={<User2 className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+              <OverviewField label="Preferred Name" value={r.preferredName} />
+              <OverviewField label="Date of Birth" value={r.dob} />
+              <OverviewField label="Age" value={r.dob ? `${age(r.dob)} years` : undefined} />
+              <OverviewField label="Gender" value={r.gender} />
+              <OverviewField label="Marital Status" value={r.maritalStatus} />
+              <OverviewField label="Ethnicity" value={r.ethnicity} />
+              <OverviewField label="Religion" value={r.religion} />
+              <OverviewField label="Resident Identifier" value={residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers") ? r.residentNumber || r.externalResidentId : undefined} />
+              <OverviewField label="Registration Number" value={residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers") ? r.registrationNumber : undefined} />
+              <OverviewField label="Resident Phone" value={r.phone} />
+              <OverviewField label="Email" value={r.email} />
+              <OverviewField label="Address" value={r.address} wide />
+              <OverviewField label="Admission Date" value={r.admissionDate} />
+              <OverviewField label="Admission Type" value={r.admissionType?.replace(/_/g, " ")} />
+              <OverviewField label="Admission Source" value={r.admissionSource?.replace(/_/g, " ")} />
+              <OverviewField label="Current Accommodation Status" value={r.currentAccommodationStatus?.replace(/_/g, " ")} />
+              <OverviewField label="Re-admitted Within 28 Days" value={r.readmittedWithin28Days === undefined ? undefined : r.readmittedWithin28Days ? "Yes" : "No"} />
+              <OverviewField label="Nursing Home / Facility" value={r.facilityId || activeFacilityId} />
+              <OverviewField label="Room" value={r.roomNumber} />
+              <OverviewField label="Bed" value={r.bed?.bedType?.replace(/_/g, " ")} />
+              <OverviewField label="Dependency Level" value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined} />
+              <OverviewField label="Support Level" value={r.supportLevel?.replace(/_/g, " ")} />
+            </OverviewCard>
+
+            <OverviewCard title="Clinical Summary" icon={<ClipboardList className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+              <OverviewField label="Primary Diagnosis" value={r.primaryDiagnosis} wide />
+              <OverviewField label="Relevant Medical History" value={r.medicalHistory} wide />
+              <OverviewField label="Known Allergies" value={r.allergies} wide emphasis={Boolean(r.allergies)} />
+              <OverviewField label="Mental Capacity" value={r.mentalCapacity?.replace(/_/g, " ")} />
+              <OverviewField label="Resuscitation Status" value={r.dnarStatus === "yes" ? "DNAR recorded" : r.dnarStatus === "no" ? "No DNAR recorded" : undefined} />
+              <OverviewField label="Dependency Level" value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined} />
+              <OverviewField label="Communication Needs" value={r.communicationNeeds} wide />
+            </OverviewCard>
+
+            <OverviewCard title="Medication Summary" icon={<Pill className="h-5 w-5" />}>
+              <div className="rounded-lg border border-border bg-muted/20 p-4 text-base leading-6">
+                <p className="font-medium">Medication information is temporarily unavailable.</p>
+                <p className="mt-1 text-muted-foreground">NuLife medication integration is not currently connected for this resident.</p>
+                <Button className="mt-4 min-h-11" variant="outline" onClick={() => toast.info("Medication information will refresh when NuLife is available.")}>Retry</Button>
+              </div>
+            </OverviewCard>
+
+            <OverviewCard title="Bed & Accommodation" icon={<Bed className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+              <OverviewField label="Facility" value={r.facilityId || activeFacilityId} />
+              <OverviewField label="Wing" value={r.wingId} />
+              <OverviewField label="Room" value={r.roomNumber} />
+              <OverviewField label="Bed Type" value={r.bed?.bedType?.replace(/_/g, " ")} />
+              <OverviewField label="Mattress Type" value={r.bed?.mattressType?.replace(/_/g, " ")} />
+              <OverviewField label="Mattress Installed Date" value={r.bed?.installationDate} />
+              <OverviewField label="Mattress Review Date" value={r.bed?.reviewDate} />
+              <OverviewField label="Current Accommodation Status" value={r.currentAccommodationStatus?.replace(/_/g, " ")} />
+            </OverviewCard>
+
+            <OverviewCard title="Healthcare Team" icon={<UserCog className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+              <OverviewField label="GP" value={r.gp} />
+              <OverviewField label="Consultant" value={r.consultant} />
+              <OverviewField label="Consultant Specialty" value={r.consultantSpecialty} />
+              <OverviewField label="Named Nurse" value={r.keyWorkers?.namedNurse} />
+              <OverviewField label="Named Carer" value={r.keyWorkers?.namedCarer} />
+              <OverviewField label="Key Worker" value={r.keyWorkers?.keyWorker} />
+            </OverviewCard>
+
+            <OverviewCard title="Resident Preferences" icon={<Phone className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+              <OverviewField label="Preferred Name" value={r.preferredName} />
+              <OverviewField label="Preferred Language" value={r.preferredLanguage} />
+              <OverviewField label="Communication Needs" value={r.communicationNeeds} wide />
+              <OverviewField label="Religion" value={r.religion} />
+              <OverviewField label="Likes" value={r.aKeyToMe?.likes} wide />
+              <OverviewField label="Dislikes" value={r.aKeyToMe?.dislikes} wide />
+              <OverviewField label="Preferred Routine" value={r.aKeyToMe?.dailyRoutine} wide />
+              <OverviewField label="Personal Care Preferences" value={r.otherPreferences} wide />
+            </OverviewCard>
           </div>
 
           <ResidentDocuments
@@ -2097,12 +2095,6 @@ function ResidentDetail() {
             onOpenSource={(route) => {
               if (typeof window !== "undefined") window.location.assign(route);
             }}
-          />
-          <ResidentAdministrativeDetails
-            model={residentAdministrativeDetails}
-            canEdit={residentAdministrationCapabilities.includes("resident_administration.edit")}
-            onEdit={() => setProfileEditOpen(true)}
-            onOpenContacts={() => setActiveTab("nok")}
           />
         </TabsContent>
 
@@ -4159,6 +4151,31 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-3 gap-2">
       <div className="text-xs text-muted-foreground capitalize">{label}</div>
       <div className="col-span-2 capitalize">{value || "â€”"}</div>
+    </div>
+  );
+}
+
+function OverviewCard({ title, icon, onEdit, children }: { title: string; icon: ReactNode; onEdit?: () => void; children: ReactNode }) {
+  return (
+    <Card className="border-border shadow-sm">
+      <CardHeader className="flex min-h-16 flex-row items-center justify-between gap-3 border-b pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+          {icon}
+          {title}
+        </CardTitle>
+        {onEdit && <Button size="sm" variant="outline" className="min-h-11" onClick={onEdit}>Edit</Button>}
+      </CardHeader>
+      <CardContent className="grid gap-x-6 gap-y-4 pt-5 text-base sm:grid-cols-2">{children}</CardContent>
+    </Card>
+  );
+}
+
+function OverviewField({ label, value, wide = false, emphasis = false }: { label: string; value?: string; wide?: boolean; emphasis?: boolean }) {
+  if (!value?.trim()) return null;
+  return (
+    <div className={wide ? "sm:col-span-2" : undefined}>
+      <p className="text-sm font-medium text-foreground/80">{label}</p>
+      <p className={`mt-1 break-words leading-6 ${emphasis ? "font-medium" : ""}`}>{value}</p>
     </div>
   );
 }

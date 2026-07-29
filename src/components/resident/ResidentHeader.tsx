@@ -125,6 +125,7 @@ export function ResidentHeader({
     .join(" - ");
   const residentStatus = titleCase(header.lifecycleStatus || "unknown");
   const presenceStatus = titleCase(header.currentPlacement.presenceStatus);
+  const admissionType = header.admissionType ? titleCase(header.admissionType) : undefined;
 
   return (
     <div className="overflow-hidden rounded-xl bg-card shadow-sm">
@@ -140,6 +141,7 @@ export function ResidentHeader({
                 <h1 className="text-2xl font-semibold tracking-tight">{header.identity.displayName}</h1>
                 <Badge className="bg-emerald-50 text-emerald-800 hover:bg-emerald-50">{residentStatus}</Badge>
                 <Badge className="bg-white/10 text-white hover:bg-white/10">{presenceStatus}</Badge>
+                {admissionType && <Badge className="bg-white/10 text-white hover:bg-white/10">{admissionType}</Badge>}
               </div>
               {legalDifferent && (
                 <p className="text-sm text-white/70">Legal name: {header.identity.legalDisplayName}</p>
@@ -149,7 +151,7 @@ export function ResidentHeader({
                 {header.identity.age !== undefined ? ` - Age ${header.identity.age}` : ""}
               </p>
               {header.identity.residentNumber && (
-                <p className="text-xs text-white/60">Resident number {header.identity.residentNumber}</p>
+                <p className="text-xs text-white/60">Resident Identifier {header.identity.residentNumber}</p>
               )}
             </div>
           </section>
