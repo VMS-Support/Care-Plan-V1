@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
+  CalendarDays,
   HeartPulse,
   MapPin,
   Scale,
@@ -30,6 +31,17 @@ const formatDateTime = (value?: string) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return "Date not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 };
 
@@ -169,6 +181,16 @@ export function ResidentHeader({
                   ? `${latestWeight.weightKg.toFixed(1)} kg - ${formatDateTime(latestWeight.recordedAt)}`
                   : "No weight recorded"
               }
+            />
+            <InfoLine
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="Admitted"
+              value={header.admissionDate ? formatDate(header.admissionDate) : "Not recorded"}
+            />
+            <InfoLine
+              icon={<HeartPulse className="h-4 w-4" />}
+              label="Dependency level"
+              value={header.dependencyLevel ? `${titleCase(header.dependencyLevel)} Dependency` : "Not recorded"}
             />
           </div>
 

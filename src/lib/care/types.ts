@@ -1,6 +1,7 @@
 export type Role = "carer" | "nurse" | "doctor" | "cnm" | "don" | "group_owner";
 export type ResidentType = "active" | "inactive" | "active_respite" | "inactive_respite";
 export type ResidentStatus = "active" | "pre_admission" | "discharged" | "deceased" | "deleted";
+export type ResidentDependencyLevel = "low" | "medium" | "high";
 
 import type {
   AbsenceEpisodeId,
@@ -4195,6 +4196,7 @@ export interface Resident {
   unitId?: string;
   roomId?: string;
   admissionDate: string;
+  dependencyLevel?: ResidentDependencyLevel;
   primaryDiagnosis: string;
   medicalHistory: string;
   allergies: string;

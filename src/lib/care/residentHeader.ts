@@ -22,6 +22,8 @@ export interface ResidentHeaderViewModel {
   gp?: ResidentProfessionalSummary;
   primaryContact?: ResidentContactSummary;
   lifecycleStatus: string;
+  admissionDate?: string;
+  dependencyLevel?: Resident["dependencyLevel"];
   updatedAt: string;
 }
 
@@ -71,6 +73,8 @@ export function getResidentHeader(data: ResidentHeaderData, residentId: string, 
     namedNurse: professional(resident.keyWorkers?.namedNurse, "Named Nurse", data.users), keyWorker: professional(resident.keyWorkers?.keyWorker, "Key Worker", data.users), gp: data.contacts?.primary.gp ? { id: data.contacts.primary.gp.contactId, displayName: data.contacts.primary.gp.displayName, roleLabel: "GP", phone: data.contacts.primary.gp.phone || data.contacts.primary.gp.mobile, email: data.contacts.primary.gp.email, active: data.contacts.primary.gp.active, sourceRoute: data.contacts.primary.gp.route } : professional(resident.gp, "GP", data.users),
     primaryContact: data.contacts?.primary.firstContact ? { contactId: data.contacts.primary.firstContact.contactId, displayName: data.contacts.primary.firstContact.displayName, relationship: data.contacts.primary.firstContact.relationshipToResident, phone: data.contacts.primary.firstContact.mobile || data.contacts.primary.firstContact.phone, email: data.contacts.primary.firstContact.email, nominatedRepresentative: Boolean(data.contacts.primary.nominatedRepresentative?.contactId === data.contacts.primary.firstContact.contactId), powerOfAttorney: data.contacts.primary.firstContact.authorityLabel?.includes("Power of Attorney"), sourceRoute: data.contacts.primary.firstContact.route } : primary ? { contactId: primary.id, displayName: primary.name, relationship: primary.relationship, phone: primary.mobile || primary.phone, email: primary.email, nominatedRepresentative: primary.legalRepresentative, powerOfAttorney: primary.powerOfAttorney, sourceRoute: `/residents/${resident.id}?careSection=nok` } : undefined,
     lifecycleStatus: resident.lifecycleStatus || resident.residentType || resident.status,
+    admissionDate: resident.admissionDate,
+    dependencyLevel: resident.dependencyLevel || "medium",
     updatedAt: resident.profileUpdatedAt || resident.lifecycleUpdatedAt || resident.admissionDate || authorization.generatedAt || new Date().toISOString(),
   };
 }

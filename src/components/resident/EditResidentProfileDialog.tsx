@@ -37,6 +37,8 @@ type FormState = {
   consultant: string;
   emergencyContact: string;
   mentalCapacity: Resident["mentalCapacity"];
+  admissionDate: string;
+  dependencyLevel: NonNullable<Resident["dependencyLevel"]>;
   bedType: NonNullable<Resident["bed"]>["bedType"];
   mattressType: NonNullable<Resident["bed"]>["mattressType"];
   bedInstallationDate: string;
@@ -88,6 +90,8 @@ export function EditResidentProfileDialog({
     consultant: resident.consultant || "",
     emergencyContact: resident.emergencyContact || "",
     mentalCapacity: resident.mentalCapacity || "not_assessed",
+    admissionDate: resident.admissionDate || "",
+    dependencyLevel: resident.dependencyLevel || "medium",
     bedType: resident.bed?.bedType || "standard",
     mattressType: resident.bed?.mattressType || "standard",
     bedInstallationDate: resident.bed?.installationDate || "",
@@ -290,6 +294,8 @@ export function EditResidentProfileDialog({
 
           <Section title="Clinical Information">
             <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Admission date</Label><Input type="date" value={form.admissionDate} onChange={(event) => update({ admissionDate: event.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Dependency level</Label><Select value={form.dependencyLevel} onValueChange={(dependencyLevel) => update({ dependencyLevel: dependencyLevel as FormState["dependencyLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low Dependency</SelectItem><SelectItem value="medium">Medium Dependency</SelectItem><SelectItem value="high">High Dependency</SelectItem></SelectContent></Select></div>
               <div className="space-y-1.5 md:col-span-2"><Label>Primary diagnosis</Label><Input value={form.primaryDiagnosis} onChange={(event) => update({ primaryDiagnosis: event.target.value })} placeholder="Primary diagnosis or reason for care" /></div>
               <div className="space-y-1.5"><Label>Consultant</Label><Input value={form.consultant} onChange={(event) => update({ consultant: event.target.value })} placeholder="Consultant name or service" /></div>
               <div className="space-y-1.5"><Label>Emergency contact</Label><Input value={form.emergencyContact} onChange={(event) => update({ emergencyContact: event.target.value })} placeholder="Name and phone number" /></div>

@@ -180,6 +180,7 @@ function NewResidentDialog() {
       wingId: rooms.find((room) => room.id === form.roomId)?.wingId,
       unitId: rooms.find((room) => room.id === form.roomId)?.unitId,
       admissionDate: form.admissionDate || new Date().toISOString().slice(0, 10),
+      dependencyLevel: "medium",
       admissionSource: form.admissionSource,
       primaryDiagnosis: form.primaryDiagnosis.trim(),
       medicalHistory: form.medicalHistory.trim(),

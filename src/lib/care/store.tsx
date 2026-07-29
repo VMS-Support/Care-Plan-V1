@@ -649,6 +649,7 @@ const sanitizeDailyNoteStructuredFields = <T extends Partial<DailyNote>>(input: 
 const STORE_STORAGE_KEY = "carepath-pro-data";
 const LEGACY_STORE_STORAGE_KEY = "carepath-pro-store";
 const TRAINING_COURSE_CLEANUP_VERSION = "2026-07-17-clear-training-courses";
+const RESIDENT_CLINICAL_DEMO_CLEANUP_VERSION = "2026-07-29-clear-seeded-resident-clinical-records";
 export const BALLYMORE_FACILITY_ID = "facility-ballymore-haven";
 export const HAZELWOOD_FACILITY_ID = "facility-hazelwood-care";
 const ACTIVE_FACILITY_STORAGE_KEY = "carepath-pro-active-facility";
@@ -800,6 +801,43 @@ function clearPersistedTrainingCoursesOnce(parsed: Partial<Store>) {
       !event.trainingCompletionId,
   );
   record.trainingCourseCleanupVersion = TRAINING_COURSE_CLEANUP_VERSION;
+  return record;
+}
+
+const SEEDED_DAILY_NOTE_OBSERVATIONS = new Set([
+  "Baseline observations completed and care plan actions delivered.",
+  "Resident engaged with support; no acute deterioration observed.",
+  "Night settled with routine checks and repositioning as required.",
+]);
+
+function clearPersistedSeededResidentClinicalRecordsOnce(parsed: Partial<Store>) {
+  const record = parsed as Partial<Store> & { residentClinicalDemoCleanupVersion?: string };
+  if (record.residentClinicalDemoCleanupVersion === RESIDENT_CLINICAL_DEMO_CLEANUP_VERSION) return parsed;
+
+  record.assessments = (record.assessments || []).filter(
+    (assessment) => !assessment.auditTrail?.some((entry) => /^aud-\d+-(c|d|l)-/.test(entry.id)),
+  );
+  record.notes = (record.notes || []).filter(
+    (note) => !SEEDED_DAILY_NOTE_OBSERVATIONS.has(note.observation),
+  );
+  // The legacy intervention collection was populated only by the resident demo generator.
+  record.interventions = [];
+
+  const removedProblemIds = new Set(
+    (record.carePlanProblems || [])
+      .filter((problem) => problem.createdBy === "System")
+      .map((problem) => problem.id),
+  );
+  record.carePlanProblems = (record.carePlanProblems || []).filter((problem) => !removedProblemIds.has(problem.id));
+  record.problemInterventions = (record.problemInterventions || []).filter(
+    (intervention) => intervention.createdBy !== "System" && !removedProblemIds.has(intervention.problemId),
+  );
+  record.problemGoals = (record.problemGoals || []).filter((goal) => !removedProblemIds.has(goal.problemId));
+  record.problemEvaluations = (record.problemEvaluations || []).filter((evaluation) => !removedProblemIds.has(evaluation.problemId));
+  record.problemReviews = (record.problemReviews || []).filter((review) => !removedProblemIds.has(review.problemId));
+  record.problemInterventionLogs = (record.problemInterventionLogs || []).filter((log) => !removedProblemIds.has(log.problemId));
+  record.problemHistory = (record.problemHistory || []).filter((entry) => !removedProblemIds.has(entry.problemId));
+  record.residentClinicalDemoCleanupVersion = RESIDENT_CLINICAL_DEMO_CLEANUP_VERSION;
   return record;
 }
 
@@ -3007,6 +3045,12 @@ function seedData() {
     });
   });
 
+  // Resident clinical records are entered through their workflows; do not ship demo care plans,
+  // care actions, assessments or daily notes against real resident profiles.
+  assessments.length = 0;
+  interventions.length = 0;
+  notes.length = 0;
+
   const migrated = {
     residentCarePlans: [] as ResidentCarePlan[],
     carePlanProblems: [] as CarePlanProblem[],
@@ -3722,6 +3766,7 @@ function loadInitialStore(): Store {
       return rest;
     });
     clearPersistedTrainingCoursesOnce(parsed);
+    clearPersistedSeededResidentClinicalRecordsOnce(parsed);
     sanitizePersistedResidentProfilePhotos(parsed);
     const hasLegacyGeneratedVitals = parsed.vitals?.some((vital) => /^v-R-\d{4}-\d+$/.test(vital.id));
     if (hasLegacyGeneratedVitals) {
