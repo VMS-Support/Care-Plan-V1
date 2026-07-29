@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, Check, ChevronsUpDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import type { Resident, UserProfile } from "@/lib/care/types";
 import type { UpdateResidentProfileInput } from "@/lib/care/residentProfile";
+import { MARITAL_STATUS_OPTIONS, NATIONALITY_OPTIONS, RELIGION_OPTIONS } from "@/lib/care/residentReferenceData";
 
 const NONE = "__none__";
+export type ResidentProfileEditSection = "resident" | "clinical" | "bed" | "team" | "preferences";
 
 type FormState = {
   firstName: string;
@@ -33,6 +37,9 @@ type FormState = {
   address: string;
   communicationNeeds: string;
   religion: string;
+  religionOther: string;
+  maritalStatusOther: string;
+  nationalityOther: string;
   preferredLanguage: string;
   allergies: string;
   primaryDiagnosis: string;
@@ -71,6 +78,7 @@ export function EditResidentProfileDialog({
   resident,
   users,
   canEditSensitiveIdentifiers,
+  section,
   open,
   onOpenChange,
   onSave,
@@ -78,6 +86,7 @@ export function EditResidentProfileDialog({
   resident: Resident;
   users: UserProfile[];
   canEditSensitiveIdentifiers: boolean;
+  section?: ResidentProfileEditSection;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (input: UpdateResidentProfileInput) => void;
@@ -102,6 +111,9 @@ export function EditResidentProfileDialog({
     address: resident.address || "",
     communicationNeeds: resident.communicationNeeds || "",
     religion: resident.religion || "",
+    religionOther: "",
+    maritalStatusOther: "",
+    nationalityOther: "",
     preferredLanguage: resident.preferredLanguage || "",
     allergies: resident.allergies || "",
     primaryDiagnosis: resident.primaryDiagnosis || "",
@@ -140,6 +152,8 @@ export function EditResidentProfileDialog({
   const [baseline, setBaseline] = useState("");
   const [photoLoading, setPhotoLoading] = useState(false);
   const dirty = JSON.stringify(form) !== baseline;
+  const sectionTitle: Record<ResidentProfileEditSection, string> = { resident: "Resident Information", clinical: "Clinical Summary", bed: "Bed & Accommodation", team: "Healthcare Team", preferences: "Resident Preferences" };
+  const show = (...sections: ResidentProfileEditSection[]) => !section || sections.includes(section);
 
   useEffect(() => {
     if (open) {
@@ -225,9 +239,12 @@ export function EditResidentProfileDialog({
 
   const save = () => {
     try {
-      const { residentNumber, registrationNumber, medicalCardNumber, medicalCardExpiry, dpsNumber, dpsExpiry, ppsNumber, pensionReference, readmittedWithin28Days, bedType, mattressType, bedInstallationDate, bedReviewDate, ...editableForm } = form;
-      onSave({
+      const { residentNumber, registrationNumber, medicalCardNumber, medicalCardExpiry, dpsNumber, dpsExpiry, ppsNumber, pensionReference, readmittedWithin28Days, religionOther, maritalStatusOther, nationalityOther, bedType, mattressType, bedInstallationDate, bedReviewDate, ...editableForm } = form;
+      const payload: UpdateResidentProfileInput = {
         ...editableForm,
+        religion: form.religion === "Other" && religionOther.trim() ? religionOther.trim() : form.religion,
+        maritalStatus: form.maritalStatus === "Other" && maritalStatusOther.trim() ? maritalStatusOther.trim() : form.maritalStatus,
+        nationality: form.nationality === "Other" && nationalityOther.trim() ? nationalityOther.trim() : form.nationality,
         readmittedWithin28Days: readmittedWithin28Days === "yes",
         bed: bedInstallationDate || bedReviewDate ? { bedType, mattressType, installationDate: bedInstallationDate, reviewDate: bedReviewDate } : undefined,
         ...(canEditSensitiveIdentifiers ? { residentNumber, registrationNumber, medicalCardNumber, medicalCardExpiry, dpsNumber, dpsExpiry, ppsNumber, pensionReference } : {}),
@@ -236,7 +253,15 @@ export function EditResidentProfileDialog({
         gpUserId: form.gpUserId === NONE ? "" : form.gpUserId,
         primaryContactId: form.primaryContactId === NONE ? "" : form.primaryContactId,
         reason: "Resident Profile edited",
-      });
+      };
+      const sectionKeys: Record<ResidentProfileEditSection, Array<keyof UpdateResidentProfileInput>> = {
+        resident: ["firstName", "middleName", "lastName", "preferredName", "previousSurname", "dob", "gender", "residentNumber", "registrationNumber", "nationality", "ethnicity", "maritalStatus", "occupation", "phone", "email", "address", "admissionDate", "admissionType", "admissionSource", "currentAccommodationStatus", "readmittedWithin28Days", "dependencyLevel", "supportLevel", "medicalCardNumber", "medicalCardExpiry", "dpsNumber", "dpsExpiry", "ppsNumber", "pensionReference", "hseOffice", "reason"],
+        clinical: ["primaryDiagnosis", "medicalHistory", "allergies", "mentalCapacity", "communicationNeeds", "reason"],
+        bed: ["bed", "reason"],
+        team: ["consultant", "namedNurseUserId", "namedCarerUserId", "keyWorkerUserId", "gpUserId", "primaryContactId", "reason"],
+        preferences: ["preferredName", "preferredLanguage", "communicationNeeds", "religion", "otherPreferences", "reason"],
+      };
+      onSave(section ? Object.fromEntries(sectionKeys[section].filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]])) as UpdateResidentProfileInput : payload);
       setBaseline(JSON.stringify(form));
       onOpenChange(false);
       toast.success("Resident Profile updated");
@@ -249,11 +274,11 @@ export function EditResidentProfileDialog({
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Resident Profile</DialogTitle>
-          <DialogDescription>Update resident identity, contact information, photo, allergies and professional relationships.</DialogDescription>
+          <DialogTitle>{section ? `Edit ${sectionTitle[section]}` : "Edit Resident Profile"}</DialogTitle>
+          <DialogDescription>{resident.firstName} {resident.lastName}</DialogDescription>
         </DialogHeader>
         <div className="space-y-5">
-          <Section title="Profile Photo">
+          {show("resident") && <Section title="Profile Photo">
             <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-center">
               <Avatar className="h-24 w-24 rounded-xl">
                 <AvatarImage src={form.photoUrl} alt={`${form.firstName} ${form.lastName}`} className="object-cover" />
@@ -273,9 +298,9 @@ export function EditResidentProfileDialog({
                 </div>
               </div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Personal Information">
+          {show("resident") && <Section title="Personal Information">
             <div className="grid gap-3 md:grid-cols-3">
               {field("firstName", "Legal first name")}
               {field("middleName", "Middle name")}
@@ -286,9 +311,9 @@ export function EditResidentProfileDialog({
               {field("residentNumber", "Resident Identifier")}
               {field("registrationNumber", "Registration Number")}
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Personal Background and Communication">
+          {show("resident", "preferences") && <Section title="Personal Background and Communication">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Gender</Label>
@@ -302,12 +327,15 @@ export function EditResidentProfileDialog({
                 </Select>
               </div>
               {field("pronouns", "Pronouns")}
-              {field("nationality", "Nationality")}
+              <SearchableSelect label="Nationality" value={form.nationality} options={NATIONALITY_OPTIONS} onChange={(nationality) => update({ nationality })} />
+              {form.nationality === "Other" && field("nationalityOther", "Please specify nationality")}
               {field("ethnicity", "Ethnicity")}
-              {field("maritalStatus", "Marital status")}
+              <SearchableSelect label="Marital Status" value={form.maritalStatus} options={MARITAL_STATUS_OPTIONS} onChange={(maritalStatus) => update({ maritalStatus })} />
+              {form.maritalStatus === "Other" && field("maritalStatusOther", "Please specify marital status")}
               {field("occupation", "Occupation")}
               {field("preferredLanguage", "Preferred language")}
-              {field("religion", "Religion")}
+              <SearchableSelect label="Religion" value={form.religion} options={RELIGION_OPTIONS} onChange={(religion) => update({ religion })} />
+              {form.religion === "Other" && field("religionOther", "Please specify religion")}
               <div className="space-y-1.5 md:col-span-3">
                 <Label>Allergies</Label>
                 <Textarea
@@ -321,9 +349,9 @@ export function EditResidentProfileDialog({
                 <Textarea value={form.communicationNeeds} onChange={(event) => update({ communicationNeeds: event.target.value })} />
               </div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Contact Information">
+          {show("resident") && <Section title="Contact Information">
             <div className="grid gap-3 md:grid-cols-2">
               {field("phone", "Resident Phone Number")}
               {field("email", "Email Address", "email")}
@@ -332,9 +360,9 @@ export function EditResidentProfileDialog({
                 <Input value={form.address} onChange={(event) => update({ address: event.target.value })} />
               </div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Admission Details">
+          {show("resident") && <Section title="Admission Details">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5"><Label>Admission Date <span className="text-destructive">*</span></Label><Input type="date" value={form.admissionDate} onChange={(event) => update({ admissionDate: event.target.value })} /></div>
               <div className="space-y-1.5"><Label>Admission Type</Label><Select value={form.admissionType} onValueChange={(admissionType) => update({ admissionType: admissionType as FormState["admissionType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="long_term">Long Term</SelectItem><SelectItem value="short_stay">Short Term</SelectItem><SelectItem value="respite">Respite</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
@@ -343,16 +371,16 @@ export function EditResidentProfileDialog({
               <div className="space-y-1.5"><Label>Re-admitted Within 28 Days</Label><Select value={form.readmittedWithin28Days} onValueChange={(readmittedWithin28Days) => update({ readmittedWithin28Days: readmittedWithin28Days as FormState["readmittedWithin28Days"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Current Nursing Home / Facility</Label><Input value={resident.facilityId || "Current ORITAS facility"} disabled /></div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Resident Classification">
+          {show("resident") && <Section title="Resident Classification">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5"><Label>Dependency Level</Label><Select value={form.dependencyLevel} onValueChange={(dependencyLevel) => update({ dependencyLevel: dependencyLevel as FormState["dependencyLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low Dependency</SelectItem><SelectItem value="medium">Medium Dependency</SelectItem><SelectItem value="high">High Dependency</SelectItem></SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Support Level</Label><Select value={form.supportLevel} onValueChange={(supportLevel) => update({ supportLevel: supportLevel as FormState["supportLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="minimal">Minimal support</SelectItem><SelectItem value="standard">Standard support</SelectItem><SelectItem value="enhanced">Enhanced support</SelectItem><SelectItem value="one_to_one">One-to-one support</SelectItem></SelectContent></Select></div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Healthcare Information">
+          {show("resident") && <Section title="Healthcare Information">
             <div className="grid gap-3 md:grid-cols-2">
               {field("medicalCardNumber", "Medical Card Number")}
               {field("medicalCardExpiry", "Medical Card Expiry Date", "date")}
@@ -360,16 +388,16 @@ export function EditResidentProfileDialog({
               {field("dpsExpiry", "DPS Expiry Date", "date")}
               {field("ppsNumber", "PPS Number")}
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Additional Information">
+          {show("resident", "preferences") && <Section title={show("preferences") && !show("resident") ? "Resident Preferences" : "Additional Information"}>
             <div className="grid gap-3 md:grid-cols-2">
               {field("pensionReference", "Pension Reference")}
               {field("hseOffice", "HSE Office / Area")}
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Clinical Information">
+          {show("clinical") && <Section title="Clinical Information">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5 md:col-span-2"><Label>Primary diagnosis</Label><Input value={form.primaryDiagnosis} onChange={(event) => update({ primaryDiagnosis: event.target.value })} placeholder="Primary diagnosis or reason for care" /></div>
               <div className="space-y-1.5"><Label>Consultant</Label><Input value={form.consultant} onChange={(event) => update({ consultant: event.target.value })} placeholder="Consultant name or service" /></div>
@@ -378,18 +406,18 @@ export function EditResidentProfileDialog({
               <div className="space-y-1.5 md:col-span-2"><Label>Current medication</Label><Textarea value={form.currentMedication} onChange={(event) => update({ currentMedication: event.target.value })} rows={3} placeholder="Current medication summary" /></div>
               <div className="space-y-1.5"><Label>Mental capacity</Label><Select value={form.mentalCapacity} onValueChange={(mentalCapacity) => update({ mentalCapacity: mentalCapacity as Resident["mentalCapacity"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="not_assessed">Not assessed</SelectItem><SelectItem value="has_capacity">Has capacity</SelectItem><SelectItem value="lacks_capacity">Lacks capacity</SelectItem><SelectItem value="fluctuating">Fluctuating capacity</SelectItem></SelectContent></Select></div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Bed Management">
+          {show("bed") && <Section title="Bed Management">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5"><Label>Bed type</Label><Select value={form.bedType} onValueChange={(bedType) => update({ bedType: bedType as FormState["bedType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["standard", "low", "profiling", "bariatric", "pressure_relief", "air_mattress", "specialist"].map((value) => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Mattress type</Label><Select value={form.mattressType} onValueChange={(mattressType) => update({ mattressType: mattressType as FormState["mattressType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["standard", "foam", "dynamic", "air_mattress", "pressure_relieving", "alternating_air", "low_air_loss", "gel"].map((value) => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Installed date</Label><Input type="date" value={form.bedInstallationDate} onChange={(event) => update({ bedInstallationDate: event.target.value })} /></div>
               <div className="space-y-1.5"><Label>Review date</Label><Input type="date" value={form.bedReviewDate} onChange={(event) => update({ bedReviewDate: event.target.value })} /></div>
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Professional and Contact Relationships">
+          {show("team") && <Section title="Professional and Contact Relationships">
             <div className="grid gap-3 md:grid-cols-2">
               <Relationship label="Named Nurse" value={form.namedNurseUserId} onChange={(value) => update({ namedNurseUserId: value })} options={homeUsers.filter((item) => ["nurse", "cnm", "don"].includes(item.role))} />
               <Relationship label="Named Carer" value={form.namedCarerUserId} onChange={(value) => update({ namedCarerUserId: value })} options={homeUsers.filter((item) => ["carer", "nurse"].includes(item.role))} />
@@ -410,7 +438,7 @@ export function EditResidentProfileDialog({
                 </Select>
               </div>
             </div>
-          </Section>
+          </Section>}
 
         </div>
         <DialogFooter>
@@ -424,9 +452,9 @@ export function EditResidentProfileDialog({
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {children}
+    <section className="rounded-lg border border-border bg-muted/20 p-4 shadow-sm">
+      <h3 className="mb-4 border-b border-border pb-2 text-xl font-semibold leading-7 text-foreground">{title}</h3>
+      <div className="space-y-3">{children}</div>
     </section>
   );
 }
@@ -446,6 +474,42 @@ function Relationship({ label, value, onChange, options }: { label: string; valu
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+function SearchableSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const values = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="min-h-11 w-full justify-between font-normal">
+            <span className="truncate">{value || `Select ${label.toLowerCase()}`}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+            <CommandList>
+              <CommandEmpty>No matching options.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem value="not-recorded" onSelect={() => { onChange(""); setOpen(false); }}>
+                  <Check className={`mr-2 h-4 w-4 ${!value ? "opacity-100" : "opacity-0"}`} />Not recorded
+                </CommandItem>
+                {values.map((option) => (
+                  <CommandItem key={option} value={option} onSelect={() => { onChange(option); setOpen(false); }}>
+                    <Check className={`mr-2 h-4 w-4 ${value === option ? "opacity-100" : "opacity-0"}`} />{option}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

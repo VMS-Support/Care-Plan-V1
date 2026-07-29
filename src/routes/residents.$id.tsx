@@ -70,7 +70,7 @@ import { ObservationHistory } from "@/components/observations/ObservationHistory
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
 import { ResidentHeader } from "@/components/resident/ResidentHeader";
-import { EditResidentProfileDialog } from "@/components/resident/EditResidentProfileDialog";
+import { EditResidentProfileDialog, type ResidentProfileEditSection } from "@/components/resident/EditResidentProfileDialog";
 import { ResidentDocuments } from "@/components/resident/ResidentDocuments";
 import { ResidentAdministrativeDetails } from "@/components/resident/ResidentAdministrativeDetails";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
@@ -384,6 +384,7 @@ function ResidentDetail() {
   const [nokOpen, setNokOpen] = useState(false);
   const [editingNok, setEditingNok] = useState<NextOfKin | null>(null);
   const [profileEditOpen, setProfileEditOpen] = useState(false);
+  const [overviewEditSection, setOverviewEditSection] = useState<ResidentProfileEditSection | undefined>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
@@ -1374,7 +1375,7 @@ function ResidentDetail() {
           <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>Timeline</Button>
         </>}
       />
-      <EditResidentProfileDialog resident={r} users={users} canEditSensitiveIdentifiers={residentViewCapabilities.includes("resident_profile.edit_sensitive_identifiers")} open={profileEditOpen} onOpenChange={setProfileEditOpen} onSave={(input) => updateResidentProfile(r.id, input)} />
+      <EditResidentProfileDialog resident={r} users={users} canEditSensitiveIdentifiers={residentViewCapabilities.includes("resident_profile.edit_sensitive_identifiers")} section={overviewEditSection} open={profileEditOpen} onOpenChange={(open) => { setProfileEditOpen(open); if (!open) setOverviewEditSection(undefined); }} onSave={(input) => updateResidentProfile(r.id, input)} />
       {r.preAdmission?.convertedAt && <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Pre-Admission</CardTitle></CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-5">
@@ -2007,7 +2008,7 @@ function ResidentDetail() {
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
-            <OverviewCard title="Resident Information" icon={<User2 className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+            <OverviewCard title="Resident Information" icon={<User2 className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("resident"); setProfileEditOpen(true); }}>
               <OverviewField label="Preferred Name" value={r.preferredName} />
               <OverviewField label="Date of Birth" value={r.dob} />
               <OverviewField label="Age" value={r.dob ? `${age(r.dob)} years` : undefined} />
@@ -2032,7 +2033,7 @@ function ResidentDetail() {
               <OverviewField label="Support Level" value={r.supportLevel?.replace(/_/g, " ")} />
             </OverviewCard>
 
-            <OverviewCard title="Clinical Summary" icon={<ClipboardList className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+            <OverviewCard title="Clinical Summary" icon={<ClipboardList className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("clinical"); setProfileEditOpen(true); }}>
               <OverviewField label="Primary Diagnosis" value={r.primaryDiagnosis} wide />
               <OverviewField label="Relevant Medical History" value={r.medicalHistory} wide />
               <OverviewField label="Known Allergies" value={r.allergies} wide emphasis={Boolean(r.allergies)} />
@@ -2050,7 +2051,7 @@ function ResidentDetail() {
               </div>
             </OverviewCard>
 
-            <OverviewCard title="Bed & Accommodation" icon={<Bed className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+            <OverviewCard title="Bed & Accommodation" icon={<Bed className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("bed"); setProfileEditOpen(true); }}>
               <OverviewField label="Facility" value={r.facilityId || activeFacilityId} />
               <OverviewField label="Wing" value={r.wingId} />
               <OverviewField label="Room" value={r.roomNumber} />
@@ -2061,7 +2062,7 @@ function ResidentDetail() {
               <OverviewField label="Current Accommodation Status" value={r.currentAccommodationStatus?.replace(/_/g, " ")} />
             </OverviewCard>
 
-            <OverviewCard title="Healthcare Team" icon={<UserCog className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+            <OverviewCard title="Healthcare Team" icon={<UserCog className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("team"); setProfileEditOpen(true); }}>
               <OverviewField label="GP" value={r.gp} />
               <OverviewField label="Consultant" value={r.consultant} />
               <OverviewField label="Consultant Specialty" value={r.consultantSpecialty} />
@@ -2070,7 +2071,7 @@ function ResidentDetail() {
               <OverviewField label="Key Worker" value={r.keyWorkers?.keyWorker} />
             </OverviewCard>
 
-            <OverviewCard title="Resident Preferences" icon={<Phone className="h-5 w-5" />} onEdit={() => setProfileEditOpen(true)}>
+            <OverviewCard title="Resident Preferences" icon={<Phone className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("preferences"); setProfileEditOpen(true); }}>
               <OverviewField label="Preferred Name" value={r.preferredName} />
               <OverviewField label="Preferred Language" value={r.preferredLanguage} />
               <OverviewField label="Communication Needs" value={r.communicationNeeds} wide />
