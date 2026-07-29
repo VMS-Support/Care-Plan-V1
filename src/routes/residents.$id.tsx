@@ -800,6 +800,38 @@ function ResidentDetail() {
   const upcomingInterventionTasks = useMemo(() => {
     return scheduledInterventions(rProblemInterventions, rProblemLogs, rProblems, now);
   }, [now, rProblemInterventions, rProblemLogs, rProblems]);
+  const dueResidentReviews = useMemo(() => {
+    const reviews = [
+      ...clinicalSnapshotAssessments
+        .filter(
+          (assessment) =>
+            !!assessment.nextReassessmentDate &&
+            assessment.status !== "archived" &&
+            assessment.status !== "superseded" &&
+            assessment.nextReassessmentDate <= todayKey,
+        )
+        .map((assessment) => ({
+          id: `assessment-${assessment.id}`,
+          kind: "Assessment review",
+          title: assessmentMeta[assessment.type]?.name || assessment.type,
+          dueDate: assessment.nextReassessmentDate as string,
+          status: assessment.nextReassessmentDate === todayKey ? "Due today" : "Overdue",
+          assessmentId: assessment.id,
+        })),
+      ...activeProblems
+        .filter((carePlan) => !!carePlan.reviewDate && carePlan.reviewDate <= todayKey)
+        .map((carePlan) => ({
+          id: `care-plan-${carePlan.id}`,
+          kind: "Care plan review",
+          title: carePlan.problemStatement,
+          dueDate: carePlan.reviewDate,
+          status: carePlan.reviewDate === todayKey ? "Due today" : "Overdue",
+          carePlanId: carePlan.id,
+        })),
+    ];
+
+    return reviews.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+  }, [activeProblems, clinicalSnapshotAssessments, todayKey]);
 
   const selectedCarePlanGroup =
     groupedActiveCarePlans.find((group) => group.domain.id === selectedCarePlanGroupDomainId) || null;
@@ -1857,14 +1889,78 @@ function ResidentDetail() {
             <Plus className="mr-1.5 h-4 w-4" /> Create Scheduled Care Action
           </Button>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {upcomingInterventionTasks.map((task) => (
+        <CardContent className="grid gap-5 xl:grid-cols-2">
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-medium">Reviews requiring attention</h3>
+              <p className="text-xs text-muted-foreground">Due assessment and care-plan reviews for this resident.</p>
+            </div>
+            {dueResidentReviews.map((review) => (
+              <div key={review.id} className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground">{review.kind}</div>
+                    <div className="font-medium">{review.title}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Review due: {review.dueDate}</div>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-warning-foreground">
+                    {review.status}
+                  </Badge>
+                </div>
+                <div className="mt-3">
+                  {"assessmentId" in review ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link to="/assessments/$assessmentId" params={{ assessmentId: review.assessmentId }}>
+                        Open Assessment
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => openProblemDetail(review.carePlanId)}>
+                      Open Care Plan
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {dueResidentReviews.length === 0 && (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                No assessment or care-plan reviews are due.
+              </div>
+            )}
+          </section>
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-medium">Scheduled Care Action Tasks</h3>
+              <p className="text-xs text-muted-foreground">Upcoming and overdue scheduled tasks for this resident.</p>
+            </div>
+          {upcomingInterventionTasks.map((task) => {
+            const heading = task.intervention.parentInterventionId
+              ? rProblemInterventions.find((item) => item.id === task.intervention.parentInterventionId)
+              : null;
+            const linkedScheduledTask = rTasks.find(
+              (scheduledTask) =>
+                scheduledTask.linkedInterventionId === task.intervention.id &&
+                scheduledTask.status !== "deleted",
+            );
+            // Early scheduled tasks stored their user-entered task name in description.
+            // Prefer it only when it is not the system-generated heading context.
+            const taskName = linkedScheduledTask?.title ||
+              (task.intervention.parentInterventionId &&
+              task.intervention.description &&
+              !task.intervention.description.startsWith("Scheduled task under:")
+                ? task.intervention.description
+                : task.intervention.name);
+            return (
             <div key={task.intervention.id} className="rounded-md border p-3 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-medium">{task.intervention.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {task.problem?.problemStatement || "Unlinked care plan problem"}
+                    <div className="font-medium">{taskName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {heading
+                        ? `Care action: ${heading.name}`
+                        : linkedScheduledTask
+                          ? `Care action: ${task.intervention.name}`
+                          : task.problem?.problemStatement || "Unlinked care plan problem"}
                   </div>
                 </div>
                 <Badge variant="outline" className={statusBadgeClass(task.status)}>
@@ -1916,13 +2012,15 @@ function ResidentDetail() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {upcomingInterventionTasks.length === 0 && (
             <div className="rounded-md border p-6 text-center space-y-3">
               <p className="text-sm text-muted-foreground">No upcoming scheduled care actions.</p>
             </div>
           )}
+          </section>
         </CardContent>
       </Card>
 
@@ -3205,6 +3303,7 @@ function ResidentDetail() {
         lockProblemSelection={!!presetInterventionProblemId}
         intervention={selectedIntervention}
         scheduleOnly={Boolean(selectedCareActionId)}
+        parentInterventionId={selectedIntervention ? undefined : selectedCareActionId || undefined}
       />
 
       <AddInterventionCompletionModal
@@ -3415,7 +3514,7 @@ function ResidentDetail() {
                             </div>
                           </div>}
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(null); setPresetInterventionProblemId(selectedProblem.id); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
                               Add Schedule Task
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>

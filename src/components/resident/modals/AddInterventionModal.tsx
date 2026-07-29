@@ -31,6 +31,7 @@ interface Props {
   lockProblemSelection?: boolean;
   intervention?: ProblemIntervention | null;
   scheduleOnly?: boolean;
+  parentInterventionId?: string;
 }
 
 const FREQUENCY_OPTIONS: { label: string; value: FrequencyType }[] = [
@@ -85,6 +86,7 @@ export function AddInterventionModal({
   lockProblemSelection,
   intervention,
   scheduleOnly = false,
+  parentInterventionId,
 }: Props) {
   const { carePlanProblems, problemInterventions, residents, users, currentUserName, currentRole, addProblemIntervention, updateProblemIntervention, deleteProblemIntervention } =
     useCare();
@@ -105,11 +107,16 @@ export function AddInterventionModal({
       if (initialProblemId) {
         newForm.problemId = initialProblemId;
       }
+      if (parentInterventionId) {
+        newForm.parentInterventionId = parentInterventionId;
+        newForm.careActionType = "scheduled";
+        newForm.isScheduled = true;
+      }
       setForm(newForm);
       setFrequency("daily");
       setActionType("scheduled");
     }
-  }, [open, residentId, initialProblemId, intervention]);
+  }, [open, residentId, initialProblemId, intervention, parentInterventionId]);
 
   const resident = residents.find((r) => r.id === residentId);
   const problems = carePlanProblems.filter(
@@ -203,10 +210,10 @@ export function AddInterventionModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{scheduleOnly ? (intervention?.isScheduled ? "Edit Schedule" : "Add Schedule Task") : intervention ? "Edit Care Action" : "Add Care Action"}</DialogTitle>
+          <DialogTitle>{scheduleOnly ? (intervention ? "Edit Schedule" : "Add Scheduled Task") : intervention ? "Edit Care Action" : "Add Care Action"}</DialogTitle>
           <DialogDescription>
             {resident &&
-              `For ${resident.firstName} ${resident.lastName}: ${scheduleOnly ? "configure this Care Action schedule" : "define and schedule the care action"}`}
+              `For ${resident.firstName} ${resident.lastName}: ${scheduleOnly ? intervention ? "configure this Care Action schedule" : "add a scheduled task under this Care Action heading" : "define and schedule the care action"}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -254,7 +261,7 @@ export function AddInterventionModal({
 
           {/* Care Action Heading */}
           {!scheduleOnly && <div className="col-span-2 space-y-1.5">
-            <Label>Care Plan Care Action Heading *</Label>
+            <Label>{form.parentInterventionId ? "Scheduled Task Name *" : "Care Plan Care Action Heading *"}</Label>
             {form.problemId && relatedCareActions.length > 0 && <Select value={form.parentInterventionId || "__new"} onValueChange={(value) => setForm({ ...form, parentInterventionId: value === "__new" ? undefined : value })}>
               <SelectTrigger><SelectValue placeholder="Select a care action heading" /></SelectTrigger>
               <SelectContent>
@@ -268,15 +275,24 @@ export function AddInterventionModal({
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-            <p className="text-xs text-muted-foreground">Select an existing heading to add this task underneath it, or enter a new heading for a new care action.</p>
+            <p className="text-xs text-muted-foreground">Select an existing heading to add a named scheduled task underneath it, or enter a new heading for a new care action.</p>
           </div>}
 
+          {scheduleOnly && !intervention && <div className="col-span-2 space-y-1.5">
+            <Label>Scheduled Task Name *</Label>
+            <Input
+              placeholder="e.g., Take for a Walk Daily"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">This creates a new task under the selected Care Action heading.</p>
+          </div>}
           {/* Description */}
           <div className="col-span-2 space-y-1.5">
-            <Label>{contentOnlyEdit ? "Care Action Name" : "Care Action Name"}</Label>
+            <Label>{form.parentInterventionId ? "Scheduled Task Details" : "Care Action Details"}</Label>
             <Textarea
               rows={2}
-              placeholder="Enter the name of the scheduled care action..."
+              placeholder={form.parentInterventionId ? "Optional details for this scheduled task..." : "Optional care action details..."}
               value={form.description || ""}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
@@ -457,7 +473,7 @@ export function AddInterventionModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          {!scheduleOnly && intervention && <Button variant="destructive" onClick={() => { deleteProblemIntervention(intervention.id); toast.success("Care Action deleted"); onOpenChange(false); }}>Delete Care Action</Button>}
+          {!scheduleOnly && intervention && <Button variant="destructive" onClick={() => { deleteProblemIntervention(intervention.id, "Care action deleted from resident care plan"); toast.success("Care Action deleted"); onOpenChange(false); }}>Delete Care Action</Button>}
           <Button onClick={save}>{scheduleOnly ? "Save Schedule" : intervention ? "Save Care Action" : "Create Care Action"}</Button>
         </DialogFooter>
       </DialogContent>
