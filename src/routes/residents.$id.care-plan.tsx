@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
@@ -35,7 +35,7 @@ const ASSIGNED_ROLES: Array<{ value: Role; label: string }> = [
 ];
 
 export const Route = createFileRoute("/residents/$id/care-plan")({
-  head: ({ params }) => ({ meta: [{ title: `Care Plan â€” ${params.id} â€” CarePath` }] }),
+  head: ({ params }) => ({ meta: [{ title: `Care Plan — ${params.id} — CarePath` }] }),
   component: ResidentCarePlanPage,
 });
 
@@ -84,7 +84,7 @@ function ResidentCarePlanPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Resident Care Plan</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {r.firstName} {r.lastName} Â· Room {r.roomNumber} Â·{" "}
+            {r.firstName} {r.lastName} · Room {r.roomNumber} ·{" "}
             {rcp ? <>Plan created {rcp.createdAt.slice(0, 10)} by {rcp.createdBy}</> : "No active plan yet"}
           </p>
         </div>
@@ -236,7 +236,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
             </div>
             <p className="text-sm font-medium">{problem.problemStatement}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Created {problem.createdAt.slice(0, 10)} by {problem.createdBy} Â· Eval {problem.evaluationDate} Â· Review {problem.reviewDate}
+              Created {problem.createdAt.slice(0, 10)} by {problem.createdBy} · Eval {problem.evaluationDate} · Review {problem.reviewDate}
             </p>
           </div>
           {problem.status === "active" && (
@@ -266,8 +266,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                   <div className="font-medium">{i.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {frequencyLabel(i.frequencyType, i.frequencyValue, i.frequencyInstructions)}
-                    {i.assignedRole && ` Â· ${i.assignedRole}`}
-                    {i.assignedStaffName && ` Â· ${i.assignedStaffName}`}
+                    {i.assignedRole && ` · ${i.assignedRole}`}
+                    {i.assignedStaffName && ` · ${i.assignedStaffName}`}
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -286,8 +286,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
             <ul className="text-xs space-y-1">
               {logs.map(l => (
                 <li key={l.id} className="text-muted-foreground">
-                  {l.date} {l.time} Â· <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName} ({l.role})
-                  {l.comments && ` â€” ${l.comments}`}
+                  {l.date} {l.time} · <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName} ({l.role})
+                  {l.comments && ` — ${l.comments}`}
                 </li>
               ))}
             </ul>
@@ -302,8 +302,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                 <div className="font-medium uppercase tracking-wide text-muted-foreground">Evaluations ({evals.length})</div>
                 {evals.slice(0, 3).map(e => (
                   <div key={e.id} className="border rounded p-2">
-                    <div className="font-medium">{e.date.slice(0, 10)} Â· <span className="capitalize">{e.progress.replace("_", " ")}</span></div>
-                    <div className="text-muted-foreground">{e.evaluatorName} â€” {e.summary}</div>
+                    <div className="font-medium">{e.date.slice(0, 10)} · <span className="capitalize">{e.progress.replace("_", " ")}</span></div>
+                    <div className="text-muted-foreground">{e.evaluatorName} — {e.summary}</div>
                   </div>
                 ))}
               </div>
@@ -313,8 +313,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
                 <div className="font-medium uppercase tracking-wide text-muted-foreground">Formal Reviews ({reviews.length})</div>
                 {reviews.slice(0, 3).map(rv => (
                   <div key={rv.id} className="border rounded p-2">
-                    <div className="font-medium">{rv.reviewDate.slice(0, 10)} Â· <span className="capitalize">{rv.outcome}</span></div>
-                    <div className="text-muted-foreground">{rv.reviewedByName} â€” {rv.comments}</div>
+                    <div className="font-medium">{rv.reviewDate.slice(0, 10)} · <span className="capitalize">{rv.outcome}</span></div>
+                    <div className="text-muted-foreground">{rv.reviewedByName} — {rv.comments}</div>
                   </div>
                 ))}
               </div>
@@ -332,9 +332,9 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
               {history.map(h => (
                 <div key={h.id} className="border-b last:border-b-0 py-1">
                   <div className="font-medium">
-                    {h.timestamp.slice(0, 16).replace("T", " ")} Â· {h.action.replace(/_/g, " ")}
+                    {h.timestamp.slice(0, 16).replace("T", " ")} · {h.action.replace(/_/g, " ")}
                   </div>
-                  <div className="text-muted-foreground">{h.userName} ({h.role}){h.reason ? ` â€” ${h.reason}` : ""}</div>
+                  <div className="text-muted-foreground">{h.userName} ({h.role}){h.reason ? ` — ${h.reason}` : ""}</div>
                   {h.newValue && <div className="text-muted-foreground italic">{h.newValue.slice(0, 200)}</div>}
                 </div>
               ))}
@@ -344,7 +344,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         {problem.status === "resolved" && problem.resolvedReason && (
           <div className="text-xs text-muted-foreground italic border-t pt-2">
-            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} â€” {problem.resolvedReason}
+            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} — {problem.resolvedReason}
           </div>
         )}
       </CardContent>
@@ -400,7 +400,7 @@ function PlansEditor({ problemId }: { problemId: string }) {
       <div className="flex gap-2">
         <Input
           value={newStatement} onChange={e => setNewStatement(e.target.value)}
-          placeholder="Add custom goalâ€¦" className="h-8 text-sm"
+          placeholder="Add custom goal…" className="h-8 text-sm"
         />
         <Button size="sm" disabled={!newStatement.trim()} onClick={() => {
           addPlan(problemId, newStatement.trim());
@@ -466,7 +466,7 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
             </div>
             {freqType !== "prn" && freqType !== "custom" && (
               <div>
-                <Label>Every N {freqType === "hourly" ? "hours" : freqType === "daily" ? "Ã— per day" : freqType}</Label>
+                <Label>Every N {freqType === "hourly" ? "hours" : freqType === "daily" ? " per day" : freqType}</Label>
                 <Input type="number" min={1} value={freqValue} onChange={e => setFreqValue(+e.target.value)} />
               </div>
             )}
@@ -542,7 +542,7 @@ function DiscontinueButton({ interventionId }: { interventionId: string }) {
       <DialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Trash2 className="h-3 w-3" /></Button></DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Discontinue care action</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reasonâ€¦" />
+        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason…" />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="destructive" disabled={!reason.trim()} onClick={() => {
@@ -766,7 +766,7 @@ function ResolveDialog({ problemId }: { problemId: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Resolve Problem</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Resolution reason (e.g. reassessment normal)â€¦" />
+        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Resolution reason (e.g. reassessment normal)…" />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button disabled={!reason.trim()} onClick={() => {

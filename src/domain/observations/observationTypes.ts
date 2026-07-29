@@ -162,6 +162,6 @@ export const OBSERVATION_SET_LABELS: Record<ObservationSetType, string> = {
 export const OBSERVATION_UNIT_LABELS: Record<ObservationUnit, string> = {
   celsius: "°C", beats_per_minute: "bpm", breaths_per_minute: "breaths/min",
   mmHg: "mmHg", percent: "%", litres_per_minute: "L/min", kilograms: "kg",
-  centimetres: "cm", metres: "m", kg_per_m2: "kg/m²", mmol_per_litre: "mmol/L",
+  centimetres: "cm", metres: "m", kg_per_m2: "kg/m", mmol_per_litre: "mmol/L",
   score: "Score", none: "",
 };

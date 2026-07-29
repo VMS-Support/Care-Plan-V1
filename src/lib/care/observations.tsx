@@ -236,7 +236,7 @@ const PAIN: ModuleSpec = {
     const recent = obs.filter(o => !o.deletedAt).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)).slice(0, 3);
     if (recent.length === 0) return out;
     if (recent.length >= 2 && recent.every(o => (num(o.data.score) ?? 0) >= 7)) {
-      out.push({ severity: "critical", title: "Persistent severe pain", message: "≥2 consecutive scores ≥7/10.", recommendation: "Urgent pain review — escalate to GP.", sourceId: recent[0].id });
+      out.push({ severity: "critical", title: "Persistent severe pain", message: ", recommendation: "Urgent pain review — escalate to GP.", sourceId: recent[0].id });
     } else if ((num(recent[0].data.score) ?? 0) >= 7) {
       out.push({ severity: "warning", title: `Pain score ${recent[0].data.score}/10`, message: "Severe pain recorded.", recommendation: "Review pain management plan.", sourceId: recent[0].id });
     }
@@ -397,16 +397,16 @@ const WOUND: ModuleSpec = {
     { key: "dressing", label: "Dressing Applied", type: "text" },
     { key: "photoUrl", label: "Photo URL (optional)", type: "text", helper: "Paste a hosted image URL — local upload requires Cloud" },
   ],
-  summarize: o => `${String(o.data.woundType ?? "wound").replace("_", " ")} · ${o.data.location ?? "—"} · ${o.data.length ?? "?"}×${o.data.width ?? "?"}×${o.data.depth ?? "?"}cm`,
+  summarize: o => `${String(o.data.woundType ?? "wound").replace("_", " ")} · ${o.data.location ?? "—"} · ${o.data.length ?? "?"}${o.data.width ?? "?"}${o.data.depth ?? "?"}cm`,
   columns: [
     { key: "type", label: "Type", render: o => String(o.data.woundType ?? "—").replace("_", " ") },
     { key: "location", label: "Location", render: o => o.data.location ?? "—" },
-    { key: "size", label: "Size (L×W×D)", render: o => `${o.data.length ?? "?"}×${o.data.width ?? "?"}×${o.data.depth ?? "?"}` },
+    { key: "size", label: "Size (L , render: o => `${o.data.length ?? "?"}${o.data.width ?? "?"}${o.data.depth ?? "?"}` },
     { key: "exudate", label: "Exudate", render: o => o.data.exudate ?? "—" },
     { key: "dressing", label: "Dressing", render: o => o.data.dressing ?? "—" },
   ],
   trends: [
-    { key: "area", label: "Wound Area", unit: "cm²", extract: o => {
+    { key: "area", label: "Wound Area", unit: "cm, extract: o => {
       const l = num(o.data.length); const w = num(o.data.width);
       return l && w ? +(l * w).toFixed(2) : undefined;
     } },
@@ -426,7 +426,7 @@ const WOUND: ModuleSpec = {
       const aFirst = (num(first.data.length) ?? 0) * (num(first.data.width) ?? 0);
       const aLast = (num(last.data.length) ?? 0) * (num(last.data.width) ?? 0);
       if (aFirst > 0 && aLast > aFirst * 1.2) {
-        out.push({ severity: "warning", title: `Deteriorating wound (${loc})`, message: `Area ${aFirst.toFixed(1)}→${aLast.toFixed(1)} cm².`, recommendation: "Review wound care plan / tissue viability referral.", sourceId: last.id });
+        out.push({ severity: "warning", title: `Deteriorating wound (${loc})`, message: `Area ${aFirst.toFixed(1)}→${aLast.toFixed(1)} cm.`, recommendation: "Review wound care plan / tissue viability referral.", sourceId: last.id });
       }
     });
     // New pressure area in last 7 days

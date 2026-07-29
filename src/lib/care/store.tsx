@@ -987,6 +987,29 @@ function vitalWithCalculatedNEWS2(source: VitalSign): VitalSign {
     : vital;
 }
 
+function vitalAuditSummary(vital: VitalSign) {
+  const readings = [
+    vital.temperature !== undefined && `Temperature ${vital.temperature} °C`,
+    vital.pulse !== undefined && `Pulse ${vital.pulse} bpm`,
+    vital.respiratoryRate !== undefined && `Respiratory rate ${vital.respiratoryRate}/min`,
+    vital.systolicBP !== undefined && `Blood pressure ${vital.systolicBP}${vital.diastolicBP !== undefined ? `/${vital.diastolicBP}` : ""} mmHg`,
+    vital.spo2 !== undefined && `SpOš ${vital.spo2}%${vital.onOxygen ? ` on oxygen${vital.oxygenLpm ? ` ${vital.oxygenLpm} L/min` : ""}` : ""}`,
+    vital.bloodGlucose !== undefined && `Blood glucose ${vital.bloodGlucose} mmol/L${vital.glucoseContext ? ` (${vital.glucoseContext.replace(/_/g, " ")})` : ""}`,
+    vital.weight !== undefined && `Weight ${vital.weight} kg`,
+    vital.height !== undefined && `Height ${vital.height} cm`,
+    vital.painScore !== undefined && `Pain ${vital.painScore}/10${vital.painLocation ? ` (${vital.painLocation})` : ""}`,
+    vital.fluidIntakeMl !== undefined && `Fluid intake ${vital.fluidIntakeMl} ml`,
+    vital.fluidOutputMl !== undefined && `Fluid output ${vital.fluidOutputMl} ml`,
+    vital.news2Score !== undefined && `NEWS2 ${vital.news2Score}${vital.news2Risk ? ` (${vital.news2Risk})` : ""}`,
+  ].filter(Boolean);
+  return {
+    observationType: vital.observationType?.replace(/_/g, " ") || "observation",
+    recordedAt: `${vital.date} ${vital.time}`,
+    readings,
+    summary: readings.join(" · ") || "No numeric readings recorded",
+  };
+}
+
 function syncUidSequence(snapshot: unknown) {
   const text = JSON.stringify(snapshot);
   const matches = text.matchAll(/"id":"id-([0-9a-z]+)"/g);
@@ -11805,9 +11828,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
         const ev: TimelineEvent = {
           id: uid(),
           residentId: input.residentId,
-          type: "intervention.logged",
+          type: "chart.observation",
           title: `Vital signs recorded`,
-          description: `By ${currentUserName}`,
+          description: `${vitalAuditSummary(item).summary} · Recorded by ${currentUserName}`,
           linkedRecordId: item.id,
           linkedRecordKind: "observation" as any,
           createdAt: now,
@@ -11823,8 +11846,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
         logAudit({
           user: currentUserName,
           role: currentRole,
-          action: "Recorded vital signs",
+          action: `Recorded vital signs: ${vitalAuditSummary(item).observationType}`,
           entity: item.id,
+          after: JSON.stringify(vitalAuditSummary(item)),
         });
         return item;
       },

@@ -485,7 +485,7 @@ function AssignmentTable({ rows, empty = "No active or completed Training assign
 }
 
 function SortableTh({ label, sortKey, active, onSort }: { label: string; sortKey: TrainingAssignmentSortKey; active?: { key: TrainingAssignmentSortKey; direction: SortDirection }; onSort: (key: TrainingAssignmentSortKey) => void }) {
-  return <th className="px-4 py-3"><button className="text-left hover:text-foreground" onClick={() => onSort(sortKey)}>{label}{active?.key === sortKey ? ` ${active.direction === "asc" ? "↑" : "↓"}` : ""}</button></th>;
+  return <th className="px-4 py-3"><button className="text-left hover:text-foreground" onClick={() => onSort(sortKey)}>{label}{active?.key === sortKey ? ` ${active.direction === "asc" ? "š" : "š"}` : ""}</button></th>;
 }
 
 function AssignmentRow({ row, care, onStart, onComplete, onCancel }: { row: any; care: ReturnType<typeof useCare>; onStart: (id: string) => void; onComplete: (id: string) => void; onCancel: (id: string, reason: string) => void }) {

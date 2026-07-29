@@ -88,7 +88,7 @@ export const mnaItems = [
   { key: "mobility", label: "Mobility", options: [[0, "Bed/chair bound"], [1, "Out of bed but no outings"], [2, "Goes out"]] },
   { key: "stress", label: "Psychological stress / acute disease", options: [[0, "Yes"], [2, "No"]] },
   { key: "neuro", label: "Neuropsychological problems", options: [[0, "Severe dementia/depression"], [1, "Mild dementia"], [2, "None"]] },
-  { key: "bmi", label: "BMI", options: [[0, "<19"], [1, "19–<21"], [2, "21–<23"], [3, "≥23"]] },
+  { key: "bmi", label: "BMI", options: [[0, "<19"], [1, "19–<21"], [2, "], [3, "]] },
 ] as const;
 
 export function scoreMNA(s: Record<string, number>): Result {
@@ -122,7 +122,7 @@ export function scoreNorton(s: Record<string, number>): Result {
 // Nutrition Care Plan ---------------------------------------------
 export const nutritionItems = [
   { key: "weightTrend", label: "Weight trend (3 months)", options: [[0, "Stable / gaining"], [1, "Minor loss"], [2, "Moderate loss"], [3, "Significant loss"]] },
-  { key: "bmi", label: "BMI", options: [[0, "≥23"], [1, "21–<23"], [2, "19–<21"], [3, "<19"]] },
+  { key: "bmi", label: "BMI", options: [[0, "], [1, "], [2, "19–<21"], [3, "<19"]] },
   { key: "diet", label: "Diet texture", options: [[0, "Normal"], [1, "Soft"], [2, "Pureed"], [3, "NBM"]] },
   { key: "fluidIntake", label: "Fluid intake", options: [[0, "Adequate"], [1, "Moderate"], [2, "Poor"], [3, "Very poor"]] },
   { key: "swallowing", label: "Swallowing", options: [[0, "No difficulty"], [1, "Mild"], [2, "Moderate"], [3, "Severe / SLT"]] },
@@ -198,7 +198,7 @@ export function scoreFourAT(s: Record<string, number>): Result {
   const total = sumScores(s);
   let interpretation = "Delirium unlikely";
   let riskLevel: Result["riskLevel"] = "low";
-  if (total >= 4) { interpretation = "Possible delirium ± cognitive impairment — urgent review"; riskLevel = "very_high"; }
+  if (total >= 4) { interpretation = "Possible delirium  — urgent review"; riskLevel = "very_high"; }
   else if (total >= 1) { interpretation = "Possible cognitive impairment"; riskLevel = "moderate"; }
   return { totalScore: total, interpretation, riskLevel };
 }

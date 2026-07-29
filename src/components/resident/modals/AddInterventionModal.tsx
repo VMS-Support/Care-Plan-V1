@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -225,7 +225,7 @@ export function AddInterventionModal({
                 <SelectItem value="__none">No care plan linked</SelectItem>
                 {problems.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {scheduleOnly && intervention ? `${p.carePlanName || p.problemStatement} â€¢ ${intervention.name}` : `${p.problemStatement} â€¢ ${p.category.replace(/_/g, " ")} â€¢ ${p.riskLevel.replace(/_/g, " ")} â€¢ ${p.status}`}
+                    {scheduleOnly && intervention ? `${p.carePlanName || p.problemStatement} • ${intervention.name}` : `${p.problemStatement} • ${p.category.replace(/_/g, " ")} • ${p.riskLevel.replace(/_/g, " ")} • ${p.status}`}
                   </SelectItem>
                 ))}
               </SelectContent>

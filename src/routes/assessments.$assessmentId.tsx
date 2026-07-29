@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta, assessmentItems, uniformScale } from "@/lib/care/scoring";
@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/assessments/$assessmentId")({
-  head: () => ({ meta: [{ title: "Assessment Detail â€” CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Detail — CarePath" }] }),
   component: AssessmentDetail,
 });
 
@@ -36,7 +36,7 @@ function ReasonDialog({ trigger, title, label, variant = "default", onConfirm }:
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <Textarea placeholder={`Reasonâ€¦`} value={reason} onChange={e => setReason(e.target.value)} />
+        <Textarea placeholder={`Reason…`} value={reason} onChange={e => setReason(e.target.value)} />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant={variant} disabled={!reason.trim()} onClick={() => { onConfirm(reason); setOpen(false); }}>{label}</Button>
@@ -116,7 +116,7 @@ function AssessmentDetail() {
             <div className="font-medium">This assessment is locked</div>
             <div className="text-xs text-muted-foreground">
               Locked by {a.lockedBy || a.assessor} on {(a.lockedAt || a.date).slice(0, 16).replace("T", " ")}.
-              Content cannot be edited â€” create a revision to update.
+              Content cannot be edited — create a revision to update.
             </div>
           </div>
           {can(currentRole, "assessment.create_revision") && !a.supersededById && (
@@ -131,7 +131,7 @@ function AssessmentDetail() {
       {a.supersededById && (
         <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm print:hidden">
           This version has been superseded by a newer revision.{" "}
-          <Link to="/assessments/$assessmentId" params={{ assessmentId: a.supersededById }} className="text-primary underline">View latest â†’</Link>
+          <Link to="/assessments/$assessmentId" params={{ assessmentId: a.supersededById }} className="text-primary underline">View latest →</Link>
         </div>
       )}
 
@@ -146,7 +146,7 @@ function AssessmentDetail() {
                 {a.locked && <Badge variant="outline" className="text-[10px]"><Lock className="h-2.5 w-2.5 mr-1" />Locked</Badge>}
               </div>
               <Link to="/residents/$id" params={{ id: r.id }} className="text-sm text-primary hover:underline">
-                {r.firstName} {r.lastName} Â· Room {r.roomNumber}
+                {r.firstName} {r.lastName} · Room {r.roomNumber}
               </Link>
               <p className="text-xs text-muted-foreground mt-1">{meta.description}</p>
               {a.revisionReason && <p className="text-xs italic mt-1 text-muted-foreground"><strong>Revision reason:</strong> {a.revisionReason}</p>}
@@ -160,11 +160,11 @@ function AssessmentDetail() {
           <Separator className="my-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <Info label="Completed By" value={a.assessor} />
-            <Info label="Role" value={a.assessorRole || "â€”"} />
+            <Info label="Role" value={a.assessorRole || "—"} />
             <Info label="Date" value={a.date.slice(0, 10)} />
             <Info label="Category" value={a.category || meta.category} />
-            <Info label="Review Frequency" value={a.reviewFrequency || "â€”"} />
-            <Info label="Next Reassessment" value={a.nextReassessmentDate || "â€”"} />
+            <Info label="Review Frequency" value={a.reviewFrequency || "—"} />
+            <Info label="Next Reassessment" value={a.nextReassessmentDate || "—"} />
             <Info label="Version" value={String(displayedVersion)} />
             <Info label="Risk Level" value={a.riskLevel} />
           </div>
@@ -219,8 +219,8 @@ function AssessmentDetail() {
                 return (
                   <tr key={it.key}>
                     <td className="p-2">{it.label}</td>
-                    <td className="p-2 text-muted-foreground">{opt ? opt[1] : (val === undefined ? "â€”" : String(val))}</td>
-                    <td className="p-2 text-right font-medium tabular-nums">{val ?? "â€”"}</td>
+                    <td className="p-2 text-muted-foreground">{opt ? opt[1] : (val === undefined ? "—" : String(val))}</td>
+                    <td className="p-2 text-right font-medium tabular-nums">{val ?? "—"}</td>
                   </tr>
                 );
               })}
@@ -243,7 +243,7 @@ function AssessmentDetail() {
                 <Badge variant="outline" className="text-[10px]">v{displayAssessmentVersion(v, assessments)}</Badge>
                 <span className="font-medium tabular-nums">{v.totalScore}</span>
                 <Badge variant="outline" className={`text-[10px] capitalize ${statusBadgeCls(deriveStatus(v))}`}>{deriveStatus(v)}</Badge>
-                <span className="text-xs text-muted-foreground flex-1">{v.date.slice(0, 10)} Â· {v.assessor}</span>
+                <span className="text-xs text-muted-foreground flex-1">{v.date.slice(0, 10)} · {v.assessor}</span>
                 {v.revisionReason && <span className="text-xs text-muted-foreground italic truncate max-w-[14rem]">"{v.revisionReason}"</span>}
               </Link>
             ))}
@@ -259,14 +259,14 @@ function AssessmentDetail() {
           {comments.map(c => (
             <div key={c.id} className="border-l-2 border-primary/30 pl-3">
               <div className="text-xs text-muted-foreground">
-                <strong className="text-foreground">{c.authorName}</strong> ({c.role}) Â· {c.at.slice(0, 16).replace("T", " ")}
+                <strong className="text-foreground">{c.authorName}</strong> ({c.role}) · {c.at.slice(0, 16).replace("T", " ")}
               </div>
               <div className="text-sm mt-1 whitespace-pre-wrap">{c.body}</div>
             </div>
           ))}
           {can(currentRole, "assessment.comment") && (
             <div className="pt-2 border-t print:hidden">
-              <Textarea placeholder="Add clinical comment (visible to all authorised staff, audited)â€¦" value={comment} onChange={e => setComment(e.target.value)} />
+              <Textarea placeholder="Add clinical comment (visible to all authorised staff, audited)…" value={comment} onChange={e => setComment(e.target.value)} />
               <div className="flex justify-end mt-2">
                 <Button size="sm" disabled={!comment.trim()} onClick={() => { addAssessmentComment(a.id, comment.trim()); setComment(""); toast.success("Comment added"); }}>
                   Post Comment
@@ -286,7 +286,7 @@ function AssessmentDetail() {
               {audit.slice().reverse().map(e => (
                 <li key={e.id} className="border-l-2 border-border pl-3">
                   <div className="font-medium capitalize">{e.action.replace(/_/g, " ")}</div>
-                  <div className="text-muted-foreground">{e.byUserName} ({e.byRole}) Â· {e.at.slice(0, 16).replace("T", " ")}</div>
+                  <div className="text-muted-foreground">{e.byUserName} ({e.byRole}) · {e.at.slice(0, 16).replace("T", " ")}</div>
                   {e.reason && <div className="text-muted-foreground italic">"{e.reason}"</div>}
                 </li>
               ))}

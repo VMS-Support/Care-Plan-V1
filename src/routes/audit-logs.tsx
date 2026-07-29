@@ -1,10 +1,10 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCare } from "@/lib/care/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/audit-logs")({
-  head: () => ({ meta: [{ title: "Audit Trail â€” CarePath" }] }),
+  head: () => ({ meta: [{ title: "Audit Trail — CarePath" }] }),
   component: AuditLogsPage,
 });
 
@@ -22,13 +22,13 @@ function AuditLogsPage() {
           <Card key={l.id}><CardContent className="p-3 flex items-center gap-3 text-sm">
             <Badge variant="outline" className="capitalize text-[10px]">{l.role || "user"}</Badge>
             <div className="flex-1 min-w-0">
-              <div><strong>{l.user}</strong> â€” {l.action}</div>
-              <div className="text-xs text-muted-foreground">Entity: {l.entity}{l.reason ? ` Â· Reason: ${l.reason}` : ""}</div>
+              <div><strong>{l.user}</strong> — {l.action}</div>
+              <div className="text-xs text-muted-foreground">Entity: {l.entity}{l.reason ? ` · Reason: ${l.reason}` : ""}</div>
             </div>
             <div className="text-xs text-muted-foreground whitespace-nowrap">{new Date(l.timestamp).toLocaleString()}</div>
           </CardContent></Card>
         ))}
-        {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">No activity yet â€” actions you take will be logged here.</p>}
+        {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">No activity yet — actions you take will be logged here.</p>}
       </div>
     </div>
   );

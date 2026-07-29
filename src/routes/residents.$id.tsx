@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCare, age } from "@/lib/care/store";
 import { isActionRequiredAlert } from "@/lib/care/alerts";
 import { can } from "@/lib/care/permissions";
@@ -109,6 +109,7 @@ import type {
   ProblemStatus,
   Resident,
   NextOfKin,
+  TimelineEvent,
 } from "@/lib/care/types";
 import { calcNEWS2 } from "@/lib/care/vitals";
 import {
@@ -123,9 +124,24 @@ export const Route = createFileRoute("/residents/$id")({
     carePlanProblemId:
       typeof search.carePlanProblemId === "string" ? search.carePlanProblemId : undefined,
   }),
-  head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} â€” CarePath` }] }),
+  head: ({ params }) => ({ meta: [{ title: `Resident ${params.id} — CarePath` }] }),
   component: ResidentDetail,
 });
+
+type ResidentTimelineModule = "assessments" | "careplans" | "interventions" | "evaluations" | "incidents" | "mdt" | "tasks" | "vitals" | "visitors" | "outings" | "alerts" | "other";
+const timelineModuleForEvent = (event: TimelineEvent): ResidentTimelineModule => {
+  if (event.type.startsWith("assessment.")) return "assessments";
+  if (event.type.startsWith("careplan.")) return event.type === "careplan.evaluated" ? "evaluations" : "careplans";
+  if (event.type.startsWith("intervention.")) return "interventions";
+  if (event.type.startsWith("mdt.")) return "mdt";
+  if (event.type.startsWith("task.")) return "tasks";
+  if (event.type.startsWith("incident.")) return "incidents";
+  if (event.type.startsWith("chart.")) return "vitals";
+  if (event.type.startsWith("visitor.")) return "visitors";
+  if (event.type.startsWith("outing.")) return "outings";
+  if (event.type.startsWith("alert.")) return "alerts";
+  return "other";
+};
 
 function riskColor(level: string) {
   if (level === "very_high") return "bg-destructive/10 text-destructive border-destructive/30";
@@ -246,7 +262,7 @@ function DeleteAssessmentDialog({
           Assessments are soft-deleted and retained for audit. Provide a reason.
         </p>
         <Textarea
-          placeholder="Reason for deletionâ€¦"
+          placeholder="Reason for deletion…"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -820,6 +836,9 @@ function ResidentDetail() {
   const glucoseStatus = trendStatus(glucoseValues);
 
   const residentTimelineEntries = useMemo(() => {
+    const residentEventRecordIds = new Set(
+      timelineEvents.filter((event) => event.residentId === id && event.linkedRecordId).map((event) => event.linkedRecordId),
+    );
     const items = [
       ...rA.map((a) => ({
         id: `assess-${a.id}`,
@@ -829,7 +848,7 @@ function ResidentDetail() {
         summary: `Score ${a.totalScore} (${a.interpretation})`,
         by: a.assessor,
       })),
-      ...rProblems.map((p) => ({
+      ...rProblems.filter((p) => !residentEventRecordIds.has(p.id)).map((p) => ({
         id: `cp-${p.id}`,
         module: "careplans" as const,
         at: p.createdAt,
@@ -837,28 +856,28 @@ function ResidentDetail() {
         summary: p.problemStatement,
         by: p.createdBy,
       })),
-      ...rProblemInterventions.map((i) => ({
+      ...rProblemInterventions.filter((i) => !residentEventRecordIds.has(i.id)).map((i) => ({
         id: `int-${i.id}`,
         module: "interventions" as const,
         at: i.updatedAt || i.createdAt,
         title: i.name,
-        summary: `${i.frequencyType.replace(/_/g, " ")} Â· ${i.status.replace(/_/g, " ")}`,
+        summary: `${i.frequencyType.replace(/_/g, " ")} · ${i.status.replace(/_/g, " ")}`,
         by: i.updatedBy || i.createdBy,
       })),
-      ...rProblemEvaluations.map((e) => ({
+      ...rProblemEvaluations.filter((e) => !residentEventRecordIds.has(e.id)).map((e) => ({
         id: `eval-${e.id}`,
         module: "evaluations" as const,
         at: e.date,
         title: "Care plan review",
-        summary: `${e.progress.replace(/_/g, " ")} Â· plan met: ${e.goalsMet}`,
+        summary: `${e.progress.replace(/_/g, " ")} · plan met: ${e.goalsMet}`,
         by: e.evaluatorName,
       })),
-      ...rProblemReviews.map((rev) => ({
+      ...rProblemReviews.filter((rev) => !residentEventRecordIds.has(rev.id)).map((rev) => ({
         id: `rev-${rev.id}`,
         module: "careplans" as const,
         at: rev.reviewDate,
         title: "Care plan review",
-        summary: `${rev.outcome} Â· ${rev.comments || ""}`,
+        summary: `${rev.outcome} · ${rev.comments || ""}`,
         by: rev.reviewedByName,
       })),
       ...rTasks.map((t) => ({
@@ -911,7 +930,7 @@ function ResidentDetail() {
       })),
       ...rAlerts.map((a) => ({
         id: `alert-${a.id}`,
-        module: "careplans" as const,
+        module: "alerts" as const,
         at: a.createdAt,
         title: `Alert: ${a.title}`,
         summary: a.description,
@@ -921,17 +940,7 @@ function ResidentDetail() {
         .filter((e) => e.residentId === id)
         .map((e) => ({
           id: `tle-${e.id}`,
-          module: e.type.startsWith("assessment")
-            ? ("assessments" as const)
-            : e.type.startsWith("intervention")
-              ? ("interventions" as const)
-              : e.type.startsWith("careplan")
-                ? ("careplans" as const)
-                : e.type.startsWith("task")
-                  ? ("tasks" as const)
-                  : e.type.startsWith("incident")
-                    ? ("incidents" as const)
-                    : ("careplans" as const),
+          module: timelineModuleForEvent(e),
           at: e.createdAt,
           title: e.title,
           summary: e.description || e.type,
@@ -939,7 +948,8 @@ function ResidentDetail() {
         })),
     ];
 
-    return items.sort((a, b) => `${b.at}`.localeCompare(`${a.at}`));
+    return Array.from(new Map(items.map((item) => [item.id, item])).values())
+      .sort((a, b) => `${b.at}`.localeCompare(`${a.at}`) || a.id.localeCompare(b.id));
   }, [
     rA,
     rProblems,
@@ -1005,7 +1015,7 @@ function ResidentDetail() {
       createdBy: a.assessor,
       date: a.date,
       reason: a.revisionReason || "Initial",
-      supersededBy: a.supersededById || "â€”",
+      supersededBy: a.supersededById || "—",
     }));
 
     const carePlanRows = rProblems.map((p) => {
@@ -1528,7 +1538,7 @@ function ResidentDetail() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Bed</div>
-                <span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "â€”"}</span>
+                <span className="capitalize">{r.bed?.bedType?.replace("_", " ") || "—"}</span>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Admitted</div>
@@ -1624,7 +1634,7 @@ function ResidentDetail() {
         <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <span className="text-teal-600" aria-hidden="true">⌁</span> Resident Assessments
+              <span className="text-teal-600" aria-hidden="true"></span> Resident Assessments
             </CardTitle>
             <CollapsibleTrigger asChild>
               <Button size="sm" variant="ghost" className="shrink-0" aria-label={residentAssessmentsOpen ? "Collapse resident assessments" : "Expand resident assessments"}>
@@ -1988,7 +1998,7 @@ function ResidentDetail() {
                     </div>
                   </div>
                 ))}
-              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use “Add from Template” to create one for this resident.</p></div>}
+              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use Add from Template to create one for this resident.</p></div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -2155,7 +2165,7 @@ function ResidentDetail() {
                         <div className="font-medium">{VITAL_TYPE_LABELS[type]}</div>
                         <div className="text-xs text-muted-foreground">
                           {formatVitalValues(vital, residentVitals, r)}
-                          {news.complete ? ` Â· NEWS2 ${news.total}` : ""}
+                          {news.complete ? ` · NEWS2 ${news.total}` : ""}
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[10px] shrink-0">
@@ -2197,7 +2207,7 @@ function ResidentDetail() {
                     status={temperatureStatus}
                     detail={
                       temperatureValues.length >= 2
-                        ? `${temperatureValues[0]}Â°C from ${temperatureValues[1]}Â°C`
+                        ? `${temperatureValues[0]}°C from ${temperatureValues[1]}°C`
                         : "More temperature records needed"
                     }
                   />
@@ -2284,7 +2294,7 @@ function ResidentDetail() {
                           <span className="text-muted-foreground capitalize">{a.assessorRole}</span>
                         </td>
                         <td className="p-3 text-xs">{a.date.slice(0, 10)}</td>
-                        <td className="p-3 text-xs">{a.nextReassessmentDate || "â€”"}</td>
+                        <td className="p-3 text-xs">{a.nextReassessmentDate || "—"}</td>
                         <td className="p-3 text-right">
                           <div className="inline-flex gap-1 items-center">
                             <Link to="/assessments/$assessmentId" params={{ assessmentId: a.id }}>
@@ -2334,7 +2344,7 @@ function ResidentDetail() {
           {rADeleted.length > 0 && (
             <details className="border rounded-md p-3 text-sm">
               <summary className="cursor-pointer font-medium">
-                Deleted assessments ({rADeleted.length}) â€” audit trail
+                Deleted assessments ({rADeleted.length}) — audit trail
               </summary>
               <div className="mt-2 space-y-2">
                 {rADeleted.map((a) => (
@@ -2342,9 +2352,9 @@ function ResidentDetail() {
                     key={a.id}
                     className="text-xs text-muted-foreground border-l-2 border-destructive/40 pl-3"
                   >
-                    <strong>{assessmentMeta[a.type].name}</strong> Â· {a.date.slice(0, 10)}
+                    <strong>{assessmentMeta[a.type].name}</strong> · {a.date.slice(0, 10)}
                     <br />
-                    Deleted by {a.deletedBy} on {a.deletedAt?.slice(0, 10)} â€” {a.deletedReason}
+                    Deleted by {a.deletedBy} on {a.deletedAt?.slice(0, 10)} — {a.deletedReason}
                   </div>
                 ))}
               </div>
@@ -2449,11 +2459,11 @@ function ResidentDetail() {
                         : undefined;
                       return (
                         <tr key={intv.id} className="hover:bg-muted/30">
-                          <td className="p-3 font-medium"><div className={`flex flex-wrap items-center gap-2 ${parentHeading ? "pl-5" : ""}`}><span>{parentHeading && "↳ "}{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div>{parentHeading && <div className="pl-5 pt-0.5 text-[10px] font-normal text-muted-foreground">Under: {parentHeading.name}</div>}</td>
-                          <td className="p-3 text-xs">{problem?.problemStatement || "â€”"}</td>
+                          <td className="p-3 font-medium"><div className={`flex flex-wrap items-center gap-2 ${parentHeading ? "pl-5" : ""}`}><span>{parentHeading && " "}{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div>{parentHeading && <div className="pl-5 pt-0.5 text-[10px] font-normal text-muted-foreground">Under: {parentHeading.name}</div>}</td>
+                          <td className="p-3 text-xs">{problem?.problemStatement || "—"}</td>
                           <td className="p-3 text-xs">{getCanonicalCareActionType(intv) === "scheduled" ? intv.frequencyType.replace(/_/g, " ") : getCanonicalCareActionType(intv) === "prn" ? intv.prnConfiguration?.indication || "As needed" : getCanonicalCareActionType(intv) === "triggered" ? intv.triggerConfiguration?.triggerConditionSummary || "On defined trigger" : intv.oneOffConfiguration?.dueAt ? new Date(intv.oneOffConfiguration.dueAt).toLocaleString() : "Once, no fixed due time"}</td>
                           <td className="p-3 text-xs">
-                            {intv.assignedStaffName || intv.assignedRole || "â€”"}
+                            {intv.assignedStaffName || intv.assignedRole || "—"}
                           </td>
                           <td className="p-3 text-xs">{intv.startDate}</td>
                           <td className="p-3 text-xs">{intv.reviewDate}</td>
@@ -2545,7 +2555,7 @@ function ResidentDetail() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="font-medium capitalize">
-                    {i.type.replace("_", " ")} â€” {i.date}
+                    {i.type.replace("_", " ")} — {i.date}
                   </div>
                   <div className="flex gap-1.5">
                     <Badge variant="outline" className="capitalize">
@@ -2558,7 +2568,7 @@ function ResidentDetail() {
                 </div>
                 <p className="text-sm mt-1">{i.description}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Action: {i.immediateAction} Â· Reported by {i.reportedBy}
+                  Action: {i.immediateAction} · Reported by {i.reportedBy}
                 </p>
               </CardContent>
             </Card>
@@ -2573,7 +2583,7 @@ function ResidentDetail() {
             <Card key={m.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium">
-                  {m.date} Â· {m.meetingType || "MDT"} Â· {m.authoredBy}
+                  {m.date} · {m.meetingType || "MDT"} · {m.authoredBy}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">Attendees: {m.attendees}</p>
                 <p className="text-sm mt-2">
@@ -2602,7 +2612,7 @@ function ResidentDetail() {
                   <span className="text-xs text-muted-foreground">({v.relationship})</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {v.date} Â· {v.arrivalTime}â€“{v.departureTime} Â· Signed in by {v.signedInBy}
+                  {v.date} · {v.arrivalTime}–{v.departureTime} · Signed in by {v.signedInBy}
                 </p>
                 {v.notes && <p className="text-sm mt-1">{v.notes}</p>}
               </CardContent>
@@ -2618,10 +2628,10 @@ function ResidentDetail() {
             <Card key={o.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium">
-                  {o.destination} â€” {o.date}
+                  {o.destination} — {o.date}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {o.departureTime}â€“{o.returnTime} Â· {o.transportMethod} Â· With {o.accompaniedBy}
+                  {o.departureTime}–{o.returnTime} · {o.transportMethod} · With {o.accompaniedBy}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Risk assessment: {o.riskAssessmentCompleted ? "Completed" : "Not completed"}
@@ -2640,7 +2650,7 @@ function ResidentDetail() {
             <Card key={h.id}>
               <CardContent className="p-4">
                 <div className="text-sm font-medium capitalize">
-                  {h.shift} shift â€” {h.date}
+                  {h.shift} shift — {h.date}
                 </div>
                 <p className="text-xs text-muted-foreground">{h.staff}</p>
                 <p className="text-sm mt-1">{h.summary}</p>
@@ -2849,7 +2859,7 @@ function ResidentDetail() {
                       <span className="text-xs text-muted-foreground">({n.relationship})</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {n.phone || n.mobile} Â· {n.email}
+                      {n.phone || n.mobile} · {n.email}
                     </div>
                     {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
                   </div>
@@ -2931,7 +2941,7 @@ function ResidentDetail() {
                   <div>
                     <div className="font-medium text-sm">{t.title}</div>
                     <div className="text-xs text-muted-foreground">
-                      Assigned to {t.assignedTo} Â· Due {t.dueDate}
+                      Assigned to {t.assignedTo} · Due {t.dueDate}
                     </div>
                   </div>
                   <Badge
@@ -2954,7 +2964,7 @@ function ResidentDetail() {
                 <div>
                   <div className="font-medium">{t.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    Due {t.dueDate} Â· {t.assignedTo}
+                    Due {t.dueDate} · {t.assignedTo}
                   </div>
                 </div>
                 <Badge variant="outline" className="capitalize">
@@ -2976,7 +2986,7 @@ function ResidentDetail() {
                   <div key={t.id} className="text-xs border rounded-md p-2">
                     <div className="font-medium">{t.title}</div>
                     <div className="text-muted-foreground">
-                      Progress: {t.status} Â· Due: {t.dueDate} Â· Assigned To: {t.assignedTo}
+                      Progress: {t.status} · Due: {t.dueDate} · Assigned To: {t.assignedTo}
                     </div>
                   </div>
                 ))}
@@ -3035,7 +3045,7 @@ function ResidentDetail() {
                 </div>
                 <div className="text-sm font-medium">{e.title}</div>
                 <div className="text-xs text-muted-foreground capitalize">
-                  {e.module} Â· {e.summary || "â€”"} Â· {e.by || "System"}
+                  {e.module} · {e.summary || "—"} · {e.by || "System"}
                 </div>
               </div>
             ))}
@@ -3072,12 +3082,12 @@ function ResidentDetail() {
                     <td className="p-2 text-xs">{row.timestamp.slice(0, 10)}</td>
                     <td className="p-2 text-xs">{row.timestamp.slice(11, 16)}</td>
                     <td className="p-2 text-xs">{row.user}</td>
-                    <td className="p-2 text-xs capitalize">{row.role || "â€”"}</td>
+                    <td className="p-2 text-xs capitalize">{row.role || "—"}</td>
                     <td className="p-2 text-xs">{row.module}</td>
                     <td className="p-2 text-xs">{row.action}</td>
-                    <td className="p-2 text-xs truncate max-w-40">{row.before || "â€”"}</td>
-                    <td className="p-2 text-xs truncate max-w-40">{row.after || "â€”"}</td>
-                    <td className="p-2 text-xs">{row.reason || "â€”"}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.before || "—"}</td>
+                    <td className="p-2 text-xs truncate max-w-40">{row.after || "—"}</td>
+                    <td className="p-2 text-xs">{row.reason || "—"}</td>
                   </tr>
                 ))}
                 {residentAuditRows.length === 0 && (
@@ -3119,8 +3129,8 @@ function ResidentDetail() {
                     <td className="p-2 text-xs">v{row.version}</td>
                     <td className="p-2 text-xs">{row.createdBy}</td>
                     <td className="p-2 text-xs">{`${row.date}`.slice(0, 16).replace("T", " ")}</td>
-                    <td className="p-2 text-xs">{row.reason || "â€”"}</td>
-                    <td className="p-2 text-xs">{row.supersededBy || "â€”"}</td>
+                    <td className="p-2 text-xs">{row.reason || "—"}</td>
+                    <td className="p-2 text-xs">{row.supersededBy || "—"}</td>
                   </tr>
                 ))}
                 {residentVersionRows.length === 0 && (
@@ -3435,14 +3445,14 @@ function ResidentDetail() {
                   {selectedProblemEvaluations.map((evl) => (
                     <div key={evl.id} className="border rounded-md p-2 text-sm">
                       <div className="font-medium">
-                        {evl.date.slice(0, 10)} Â· {evl.evaluatorName}
+                        {evl.date.slice(0, 10)} · {evl.evaluatorName}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Progress: {evl.progress.replace(/_/g, " ")} Â· Plan Met: {evl.goalsMet}
+                        Progress: {evl.progress.replace(/_/g, " ")} · Plan Met: {evl.goalsMet}
                       </div>
-                      <div className="text-xs">Outcome: {evl.recommendations || "â€”"}</div>
+                      <div className="text-xs">Outcome: {evl.recommendations || "—"}</div>
                       <div className="text-xs text-muted-foreground">
-                        Next Review of Outcome: {evl.nextEvaluationDate || "â€”"}
+                        Next Review of Outcome: {evl.nextEvaluationDate || "—"}
                       </div>
                     </div>
                   ))}
@@ -4151,7 +4161,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-3 gap-2">
       <div className="text-xs text-muted-foreground capitalize">{label}</div>
-      <div className="col-span-2 capitalize">{value || "â€”"}</div>
+      <div className="col-span-2 capitalize">{value || "—"}</div>
     </div>
   );
 }

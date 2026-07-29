@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
@@ -18,7 +18,7 @@ import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } fr
 import type { CarePlanProblem, DailyNote, Resident } from "@/lib/care/types";
 
 export const Route = createFileRoute("/daily-notes")({
-  head: () => ({ meta: [{ title: "Daily Notes â€” CarePath" }] }),
+  head: () => ({ meta: [{ title: "Daily Notes — CarePath" }] }),
   component: DailyNotesPage,
 });
 

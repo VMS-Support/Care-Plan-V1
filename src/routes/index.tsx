@@ -471,7 +471,7 @@ function EnterpriseOverviewDashboard() {
 
       <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[#536176]">
         <span>Data last refreshed: 20 May 2025 08:30</span>
-        <span className="text-base">↻</span>
+        <span className="text-base">šš</span>
       </div>
     </div>
   );
@@ -631,12 +631,12 @@ function EnterpriseLegend({ label, value, tone }: { label: string; value: string
 
 function EnterpriseFinancialGrid() {
   const items = [
-    [Euro, "Total Revenue", "€2.48M", "vs €2.32M last month", "green"],
-    [Euro, "EBITDA", "€682K", "vs €612K last month", "green"],
-    [TrendingUp, "Agency Spend", "€145K", "vs €132K last month", "red"],
-    [Euro, "Occupancy Income", "€2.24M", "vs €1.68M last month", "green"],
-    [Euro, "Operating Cost", "€1.80M", "vs €1.68M last month", "red"],
-    [Users, "Net Profit", "€324K", "vs €287K last month", "green"],
+    [Euro, "Total Revenue", "šš2.48M", "vs šš2.32M last month", "green"],
+    [Euro, "EBITDA", "šš682K", "vs šš612K last month", "green"],
+    [TrendingUp, "Agency Spend", "šš145K", "vs šš132K last month", "red"],
+    [Euro, "Occupancy Income", "šš2.24M", "vs šš1.68M last month", "green"],
+    [Euro, "Operating Cost", "šš1.80M", "vs šš1.68M last month", "red"],
+    [Users, "Net Profit", "šš324K", "vs šš287K last month", "green"],
   ] as const;
   return (
     <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-3">
@@ -1940,7 +1940,7 @@ function NurseScheduleDialogRow({
               <div className="min-w-0">
                 <div className="truncate font-semibold text-[#071a3d]">{child.title}</div>
                 <div className="text-xs capitalize text-slate-500">
-                  {child.time} Â· {child.status?.replace(/_/g, " ") || "Open"}
+                  {child.time}  {child.status?.replace(/_/g, " ") || "Open"}
                 </div>
               </div>
               <Badge variant="outline">{child.kind}</Badge>

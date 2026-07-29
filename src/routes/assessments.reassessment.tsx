@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { assessmentMeta } from "@/lib/care/scoring";
@@ -11,7 +11,7 @@ import { ArrowLeft, RefreshCw, AlertTriangle, Clock, Users, Zap } from "lucide-r
 import type { AssessmentType } from "@/lib/care/types";
 
 export const Route = createFileRoute("/assessments/reassessment")({
-  head: () => ({ meta: [{ title: "Assessment Review Queue â€” CarePath" }] }),
+  head: () => ({ meta: [{ title: "Assessment Review Queue — CarePath" }] }),
   component: ReassessmentQueue,
 });
 
@@ -138,8 +138,8 @@ function ReassessmentQueue() {
                         <td className="p-3"><Link to="/residents/$id/assessments" params={{ id: t.residentId }} className="hover:text-primary">{r?.firstName} {r?.lastName}</Link></td>
                         <td className="p-3"><Badge variant="outline" className="capitalize text-[10px]"><Zap className="h-3 w-3 mr-1" />{t.trigger.replace(/_/g, " ")}</Badge></td>
                         <td className="p-3 text-xs capitalize">{t.sourceModule}</td>
-                        <td className="p-3 text-xs">{t.affectedAssessmentTypes.map(x => assessmentMeta[x].name).join(", ") || "â€”"}</td>
-                        <td className="p-3 text-xs">{t.byUserName || "â€”"}</td>
+                        <td className="p-3 text-xs">{t.affectedAssessmentTypes.map(x => assessmentMeta[x].name).join(", ") || "—"}</td>
+                        <td className="p-3 text-xs">{t.byUserName || "—"}</td>
                       </tr>
                     );
                   })}
@@ -155,7 +155,7 @@ function ReassessmentQueue() {
 }
 
 function QueueTable({ list, residents }: { list: { a: any; ds: string }[]; residents: any[] }) {
-  if (list.length === 0) return <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Nothing here. ðŸŽ‰</CardContent></Card>;
+  if (list.length === 0) return <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Nothing here. šš</CardContent></Card>;
   return (
     <Card>
       <CardContent className="p-0">

@@ -311,7 +311,7 @@ function TopFilter({ icon: Icon, label }: { icon?: any; label: string }) {
     <button className="flex h-11 items-center gap-2 rounded-lg bg-white px-4 text-sm font-medium shadow-sm">
       {Icon && <Icon className="h-4 w-4" />}
       {label}
-      <span className="text-[#6d7788]">⌄</span>
+      <span className="text-[#6d7788]"></span>
     </button>
   );
 }
@@ -421,7 +421,7 @@ function SimpleTable({ headers, rows, footer, urgency }: { headers: string[]; ro
       <div className="overflow-x-auto">
       <table className="min-w-[520px] w-full text-left text-xs">
         <thead><tr className="text-[#536176]">{headers.map((header) => <th key={header} className="pb-3 font-medium">{header}</th>)}</tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.join("-")} className="border-t border-[#edf1f6]">{row.map((cell, index) => <td key={index} className="py-3">{urgency && index === row.length - 1 ? <Urgency value={cell} /> : index === row.length - 1 && /days/.test(cell) ? <span className="text-[#be7a13]">◷ {cell}</span> : cell}</td>)}</tr>)}</tbody>
+        <tbody>{rows.map((row) => <tr key={row.join("-")} className="border-t border-[#edf1f6]">{row.map((cell, index) => <td key={index} className="py-3">{urgency && index === row.length - 1 ? <Urgency value={cell} /> : index === row.length - 1 && /days/.test(cell) ? <span className="text-[#be7a13]"> {cell}</span> : cell}</td>)}</tr>)}</tbody>
       </table>
       </div>
       <Link to="/reports" className="mt-5 flex items-center justify-between text-xs font-medium text-[#0b4f93]">{footer}<ArrowRight className="h-3.5 w-3.5" /></Link>

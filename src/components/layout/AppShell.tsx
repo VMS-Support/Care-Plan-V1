@@ -1,5 +1,5 @@
-import { Link, useRouterState, Outlet } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useNavigate, useRouterState, Outlet } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { CareProvider, useCare } from "@/lib/care/store";
 import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import {
@@ -55,6 +55,10 @@ type NavItem = {
   capability?: string;
   visible?: (canAccess: CapabilityCheck, currentRole: ReturnType<typeof useCare>["currentRole"]) => boolean;
 };
+type AppModule = "care" | "maintenance" | "workforce";
+const moduleForPath = (pathname: string): AppModule => pathname.startsWith("/maintenance") ? "maintenance" : pathname.startsWith("/workforce") || pathname.startsWith("/staff-management") || pathname.startsWith("/training-dashboard") ? "workforce" : "care";
+const moduleLanding: Record<AppModule, string> = { care: "/", maintenance: "/maintenance", workforce: "/staff-management" };
+const moduleLabels: Record<AppModule, string> = { care: "Care Planning", maintenance: "Maintenance", workforce: "Workforce Management" };
 
 function openAlertCounts({
   alerts,
@@ -323,9 +327,11 @@ const maintenanceNav: NavItem[] = [
 
 function SidebarInner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const { tasks, alerts, clinicalAlerts, canAccess, currentRole } = useCare();
-  const [workforceOpen, setWorkforceOpen] = useState(pathname.startsWith("/workforce") || pathname.startsWith("/staff-management"));
-  const [maintenanceOpen, setMaintenanceOpen] = useState(pathname.startsWith("/maintenance"));
+  const [activeModule, setActiveModule] = useState<AppModule>(() => moduleForPath(pathname));
+  const [moduleMenuOpen, setModuleMenuOpen] = useState(false);
+  useEffect(() => setActiveModule(moduleForPath(pathname)), [pathname]);
   const todayKey = new Date().toISOString().slice(0, 10);
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completed" && t.status !== "deleted" && t.dueDate.slice(0, 10) < todayKey,
@@ -369,10 +375,18 @@ function SidebarInner() {
   const visibleMaintenance = maintenanceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
+  const moduleNav = activeModule === "maintenance" ? visibleMaintenance : activeModule === "workforce" ? visibleWorkforce : visible;
+  const availableModules: AppModule[] = ["care", ...(canViewMaintenance && visibleMaintenance.length ? ["maintenance" as const] : []), ...(visibleWorkforce.length ? ["workforce" as const] : [])];
+  const switchModule = (module: AppModule) => {
+    setModuleMenuOpen(false);
+    setActiveModule(module);
+    navigate({ to: moduleLanding[module] });
+  };
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className="flex items-center gap-2 px-5 py-5 border-b border-sidebar-border">
+      <div className="px-5 py-5 border-b border-sidebar-border">
+        <div className="flex items-center gap-2">
         <img
           src={`${import.meta.env.BASE_URL}nucare-logo.png`}
           alt="NuCare"
@@ -382,9 +396,16 @@ function SidebarInner() {
           <div className="font-semibold tracking-tight">NuCare</div>
           <div className="text-xs text-sidebar-foreground/60">Care Planning System</div>
         </div>
+        </div>
+        <div className="relative mt-4">
+          <button type="button" onClick={() => setModuleMenuOpen((open) => !open)} aria-expanded={moduleMenuOpen} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/60 px-3 text-sm font-medium hover:bg-sidebar-accent">
+            <span>{moduleLabels[activeModule]}</span><ChevronDown className={cn("h-4 w-4 transition-transform", moduleMenuOpen && "rotate-180")} />
+          </button>
+          {moduleMenuOpen && <div className="absolute left-0 right-0 top-12 z-50 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-lg">{availableModules.map((module) => <button key={module} type="button" onClick={() => switchModule(module)} className={cn("flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm", module === activeModule ? "bg-sidebar-primary text-sidebar-primary-foreground" : "hover:bg-sidebar-accent")}>{moduleLabels[module]}</button>)}</div>}
+        </div>
       </div>
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        {visible.map((item) => {
+        {moduleNav.map((item) => {
           const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
@@ -423,89 +444,6 @@ function SidebarInner() {
             </Link>
           );
         })}
-        {canViewMaintenance && visibleMaintenance.length > 0 && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setMaintenanceOpen((open) => !open)}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                pathname.startsWith("/maintenance")
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              )}
-              aria-expanded={maintenanceOpen}
-            >
-              <Wrench className="h-4 w-4" />
-              <span className="flex-1 text-left">Maintenance</span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", maintenanceOpen && "rotate-180")} />
-            </button>
-            {maintenanceOpen && (
-              <div className="mt-1 space-y-0.5 pl-5">
-                {visibleMaintenance.map((item) => {
-                  const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
-                        active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-        {visibleWorkforce.length > 0 && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setWorkforceOpen((open) => !open)}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                pathname.startsWith("/workforce") || pathname.startsWith("/staff-management")
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              )}
-            >
-              <UserRoundCog className="h-4 w-4" />
-              <span className="flex-1 text-left">Workforce Management</span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", workforceOpen && "rotate-180")} />
-            </button>
-            {workforceOpen && (
-              <div className="mt-1 space-y-0.5 pl-5">
-                {visibleWorkforce.map((item) => {
-                  const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors",
-                        active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </nav>
     </aside>
   );

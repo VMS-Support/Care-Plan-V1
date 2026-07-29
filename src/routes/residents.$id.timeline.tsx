@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useCare } from "@/lib/care/store";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/residents/$id/timeline")({
-  head: () => ({ meta: [{ title: "Resident Timeline â€” CarePath" }] }),
+  head: () => ({ meta: [{ title: "Resident Timeline — CarePath" }] }),
   component: ResidentTimeline,
 });
 
@@ -86,7 +86,7 @@ function ResidentTimeline() {
           ts: a.date,
           icon: Stethoscope,
           type: `${a.type.toUpperCase()} Assessment ${a.status === "completed" ? "Completed" : "Created"}`,
-          summary: `${a.totalScore} â€” ${a.interpretation}`,
+          summary: `${a.totalScore} — ${a.interpretation}`,
           user: a.assessor,
           role: a.assessorRole,
           tone:
@@ -157,7 +157,7 @@ function ResidentTimeline() {
           ts: i.date,
           icon: HeartPulse,
           type: "Intervention Recorded",
-          summary: `${i.intervention} â€” ${i.outcome}`,
+          summary: `${i.intervention} — ${i.outcome}`,
           user: i.staff,
         });
       });
@@ -239,7 +239,7 @@ function ResidentTimeline() {
           ts: o.date,
           icon: Plane,
           type: "Outing",
-          summary: `${o.destination} Â· ${o.accompaniedBy}`,
+          summary: `${o.destination} · ${o.accompaniedBy}`,
           user: o.accompaniedBy,
         });
       });
@@ -313,7 +313,7 @@ function ResidentTimeline() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Resident Timeline</h1>
         <p className="text-sm text-muted-foreground">
-          {r.firstName} {r.lastName} Â· Room {r.roomNumber} Â· {events.length} events
+          {r.firstName} {r.lastName} · Room {r.roomNumber} · {events.length} events
         </p>
       </div>
 
@@ -338,7 +338,7 @@ function ResidentTimeline() {
                       {e.user && (
                         <p className="text-xs text-muted-foreground mt-1">
                           {e.user}
-                          {e.role ? ` Â· ${e.role}` : ""}
+                          {e.role ? ` · ${e.role}` : ""}
                         </p>
                       )}
                     </div>

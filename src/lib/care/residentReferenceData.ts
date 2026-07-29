@@ -1,6 +1,6 @@
 /** Shared reference data for resident demographic forms. Keep resident values as strings for legacy compatibility. */
 export const RELIGION_OPTIONS = [
-  "Roman Catholic", "Church of Ireland", "Anglican", "Presbyterian", "Methodist", "Baptist", "Orthodox Christian", "Other Christian", "Islam", "Hinduism", "Buddhism", "Judaism", "Sikhism", "Baháʼí Faith", "Jehovah’s Witness", "Humanist", "Atheist", "Agnostic", "No Religion", "Prefer Not to Say", "Other",
+  "Roman Catholic", "Church of Ireland", "Anglican", "Presbyterian", "Methodist", "Baptist", "Orthodox Christian", "Other Christian", "Islam", "Hinduism", "Buddhism", "Judaism", "Sikhism", "BahŠ Faith", "Jehovah’s Witness", "Humanist", "Atheist", "Agnostic", "No Religion", "Prefer Not to Say", "Other",
 ];
 
 export const MARITAL_STATUS_OPTIONS = [
