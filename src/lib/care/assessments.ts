@@ -9,12 +9,15 @@ export const ASSESSMENT_CATEGORIES: { id: AssessmentCategory; label: string; typ
   { id: "pain",           label: "Pain",           types: ["abbey_pain", "pain_chart"] },
   { id: "nutrition",      label: "Nutrition",      types: ["must", "mna", "nutrition"] },
   { id: "cognition",      label: "Cognition",      types: ["mmse", "four_at"] },
-  { id: "continence",     label: "Continence",     types: ["continence", "urinary_incontinence_assessment"] },
+  { id: "continence",     label: "Continence",     types: ["continence", "urinary_incontinence_assessment", "baseline_continence", "continence_assessment"] },
   { id: "behaviour",      label: "Behaviour",      types: ["abc", "abs", "cornell", "gds15"] },
-  { id: "safety",         label: "Safety",         types: ["falls"] },
+  { id: "safety",         label: "Falls and Mobility", types: ["falls", "stratify_falls"] },
   { id: "person_centred", label: "Person Centred", types: ["pinch_me"] },
   { id: "dependency_adl", label: "Dependency & ADL", types: ["dependency_assessment_tool", "dependency_rating_scale"] },
   { id: "mobility_equipment", label: "Mobility & Equipment", types: ["cannard_falls", "post_fall_assessment", "wheelchair_mobile_chair_risk"] },
+  { id: "emergency_planning", label: "Emergency Planning & Evacuation", types: ["personal_emergency_evacuation_plan"] },
+  { id: "restrictive_practice", label: "Safety, Equipment & Restrictive Practice", types: ["bed_rail_assessment_hse"] },
+  { id: "person_centred_communication", label: "Person-Centred Care & Communication", types: ["a_key_to_me"] },
 ];
 
 export function categoryFor(type: AssessmentType): AssessmentCategory {

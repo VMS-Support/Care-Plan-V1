@@ -1991,7 +1991,14 @@ export type AssessmentType =
   | "dependency_rating_scale"
   | "post_fall_assessment"
   | "wheelchair_mobile_chair_risk"
-  | "urinary_incontinence_assessment";
+  | "urinary_incontinence_assessment"
+  | "stratify_falls"
+  | "personal_emergency_evacuation_plan"
+  | "bed_rail_assessment_hse"
+  | "a_key_to_me"
+  | "baseline_continence"
+  | "continence_assessment"
+  | "medley_assessment_tool";
 export type RltDomainId =
   | "safe_environment"
   | "communication"
@@ -2043,7 +2050,10 @@ export type AssessmentCategory =
   | "safety"
   | "person_centred"
   | "dependency_adl"
-  | "mobility_equipment";
+  | "mobility_equipment"
+  | "emergency_planning"
+  | "restrictive_practice"
+  | "person_centred_communication";
 
 export interface AssessmentTemplateMetadata {
   sourceTitle?: string;
