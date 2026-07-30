@@ -721,7 +721,7 @@ function enterpriseTone(tone: string) {
 function DonDashboard() {
   const care = useCare();
   const { currentUser, activeFacility, setActiveFacilityId } = care;
-  const [reportingDate, setReportingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportingDate, setReportingDate] = useState(() => scheduleDateKey(new Date()));
   const [clock, setClock] = useState(() => new Date());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const [refreshing, setRefreshing] = useState(false);

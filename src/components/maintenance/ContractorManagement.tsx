@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { MaintenanceTimeline } from "@/components/maintenance/MaintenanceTimeline";
 
 type Tab = "overview" | "register" | "archived";
 type Mode = "list" | "new" | "detail" | "edit";
@@ -161,7 +162,7 @@ function ContractorDetail({ contractor, message, setMessage, run }: { contractor
       {tab === "service" && <ServiceAreasPanel rows={serviceAreas} onNew={() => setAreaDialog({ open: true })} onEdit={(area) => setAreaDialog({ open: true, area })} run={run} />}
       {tab === "homes" && <HomesPanel rows={associations} onNew={() => setHomeDialog({ open: true })} onEdit={(association) => setHomeDialog({ open: true, association })} run={run} />}
       {tab === "notes" && <NotesPanel rows={notes} onNew={() => setNoteDialog({ open: true })} onEdit={(note) => setNoteDialog({ open: true, note })} run={run} />}
-      {tab === "timeline" && <Card><CardHeader><CardTitle>Timeline</CardTitle></CardHeader><CardContent><InfoList title="Contractor Timeline" rows={timeline.map((item) => `${formatDateTime(item.eventDate)} - ${item.summary}${item.details ? ` - ${item.details}` : ""}`)} empty="No timeline events recorded." /></CardContent></Card>}
+      {tab === "timeline" && <Card><CardHeader><CardTitle>Timeline</CardTitle></CardHeader><CardContent><MaintenanceTimeline events={timeline.map((item) => ({ id: item.id, at: item.eventDate, title: item.summary, actor: item.userId, description: item.details, category: "Contractor" }))} empty="No contractor activity has been recorded." /></CardContent></Card>}
       {tab === "audit" && <Card><CardHeader><CardTitle>Audit</CardTitle></CardHeader><CardContent><InfoList title="Audit Trail" rows={audits.map((item) => `${formatDateTime(item.timestamp)} - ${item.action} - ${item.user}`)} empty="No contractor audit records found." /></CardContent></Card>}
       <ContactDialog open={contactDialog.open} contact={contactDialog.contact} contractor={contractor} onOpenChange={(open) => setContactDialog({ open })} />
       <ServiceAreaDialog open={areaDialog.open} area={areaDialog.area} contractor={contractor} onOpenChange={(open) => setAreaDialog({ open })} />

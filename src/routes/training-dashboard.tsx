@@ -30,7 +30,7 @@ const ALL = "all";
 function TrainingDashboard() {
   const care = useCare();
   const [homeId, setHomeId] = useState(ALL);
-  const [reportingDate, setReportingDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reportingDate, setReportingDate] = useState(() => localTodayKey());
   const [refreshedAt, setRefreshedAt] = useState(new Date().toISOString());
   const canView = care.canAccess("training.view") || care.canAccess("training.view_compliance") || care.canAccess("assessment.reports");
   const period = { from: `${reportingDate.slice(0, 7)}-01`, to: reportingDate };
@@ -269,4 +269,10 @@ function formatDateTime(value: string) {
 
 function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("en-IE", { day: "2-digit", month: "short" }).format(new Date(`${value}T00:00:00`));
+}
+
+function localTodayKey() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }

@@ -22,7 +22,7 @@ export function OperationalContextSwitcher() {
           size="sm"
           className="h-8 gap-1 px-2 text-xs"
           aria-label="Operational date"
-          onClick={() => setOperationalDate(new Date().toISOString().slice(0, 10))}
+          onClick={() => setOperationalDate(localDateKey(new Date()))}
         >
           <CalendarDays className="h-3.5 w-3.5" />
           {formatOperationalDate(operationalContext.operationalDate)}
@@ -49,5 +49,12 @@ function formatOperationalDate(value: string) {
 function shiftDate(value: string, offsetDays: number) {
   const date = new Date(`${value}T00:00:00`);
   date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
+  return localDateKey(date);
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

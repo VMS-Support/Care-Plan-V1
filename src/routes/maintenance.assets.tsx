@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { MaintenanceTimeline } from "@/components/maintenance/MaintenanceTimeline";
 
 export const Route = createFileRoute("/maintenance/assets")({
   head: () => ({ meta: [{ title: "Maintenance Assets - NuCare" }] }),
@@ -374,7 +375,7 @@ function LocationHistoryPanel({ asset }: { asset: MaintenanceAsset }) {
 function TimelinePanel({ asset }: { asset: MaintenanceAsset }) {
   const care = useCare();
   const events = timelineForAsset({ asset, documents: care.maintenanceAssetDocuments, photos: care.maintenanceAssetPhotos, locations: care.maintenanceAssetLocationHistory, relationships: care.maintenanceAssetRelationships, workOrders: care.maintenanceWorkOrders });
-  return <div className="space-y-3">{events.map((event, index) => <div key={`${event.at}-${index}`} className="rounded-md border p-3 text-sm"><div className="font-medium">{event.summary}</div><div className="text-xs text-muted-foreground">{formatDateTime(event.at)} - {event.user}</div>{event.reference && <div className="mt-1">{event.reference}</div>}</div>)}</div>;
+  return <MaintenanceTimeline events={events.map((event, index) => ({ id: `${asset.id}-${event.at}-${index}`, at: event.at, title: event.summary, actor: event.user, reference: event.reference, category: "Asset" }))} empty="No asset activity has been recorded." />;
 }
 
 function WorkOrderHistory({ records }: { records: MaintenanceWorkOrder[] }) {
