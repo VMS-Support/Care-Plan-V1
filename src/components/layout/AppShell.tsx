@@ -281,12 +281,6 @@ const nav: NavItem[] = [
     capability: "careplan.view",
   },
   { to: "/care-plan-templates", label: "Care Plan Templates", icon: ClipboardList, capability: "careplan.view" },
-  {
-    to: "/compliance",
-    label: "Compliance",
-    icon: ShieldCheck,
-    capability: "compliance.view",
-  },
   { to: "/daily-notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/handovers", label: "Handovers", icon: UserCheck },
   {
