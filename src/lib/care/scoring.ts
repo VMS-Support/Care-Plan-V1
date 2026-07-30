@@ -1,4 +1,4 @@
-import type { AssessmentType } from "./types";
+import type { AssessmentTemplateMetadata, AssessmentType } from "./types";
 
 type Result = {
   totalScore: number;
@@ -205,30 +205,30 @@ export function scoreFourAT(s: Record<string, number>): Result {
 
 // GDS-15 -----------------------------------------------------------
 export const gds15Items = [
-  { key: "q1", label: "Are you basically satisfied with your life?", inverted: true },
-  { key: "q2", label: "Have you dropped many of your activities & interests?" },
-  { key: "q3", label: "Do you feel your life is empty?" },
-  { key: "q4", label: "Do you often get bored?" },
-  { key: "q5", label: "Are you in good spirits most of the time?", inverted: true },
-  { key: "q6", label: "Are you afraid something bad will happen to you?" },
-  { key: "q7", label: "Do you feel happy most of the time?", inverted: true },
-  { key: "q8", label: "Do you often feel helpless?" },
-  { key: "q9", label: "Do you prefer to stay in rather than going out?" },
-  { key: "q10", label: "Do you feel you have more memory problems than most?" },
-  { key: "q11", label: "Do you think it's wonderful to be alive now?", inverted: true },
-  { key: "q12", label: "Do you feel worthless the way you are now?" },
-  { key: "q13", label: "Do you feel full of energy?", inverted: true },
-  { key: "q14", label: "Do you feel your situation is hopeless?" },
-  { key: "q15", label: "Do you think most people are better off than you?" },
+  { key: "q1", label: "Are you basically satisfied with your life?", options: [[0, "Yes"], [1, "No"]] },
+  { key: "q2", label: "Have you dropped many of your activities and interests?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q3", label: "Do you feel that your life is empty?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q4", label: "Do you often get bored?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q5", label: "Are you in good spirits most of the time?", options: [[0, "Yes"], [1, "No"]] },
+  { key: "q6", label: "Are you afraid that something bad is going to happen to you?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q7", label: "Do you feel happy most of the time?", options: [[0, "Yes"], [1, "No"]] },
+  { key: "q8", label: "Do you often feel helpless?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q9", label: "Do you prefer to stay at home rather than go out and do new things?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q10", label: "Do you feel you have more problems with memory than most?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q11", label: "Do you think it is wonderful to be alive now?", options: [[0, "Yes"], [1, "No"]] },
+  { key: "q12", label: "Do you feel pretty worthless the way you are now?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q13", label: "Do you feel full of energy?", options: [[0, "Yes"], [1, "No"]] },
+  { key: "q14", label: "Do you feel that your situation is hopeless?", options: [[1, "Yes"], [0, "No"]] },
+  { key: "q15", label: "Do you think that most people are better off than you are?", options: [[1, "Yes"], [0, "No"]] },
 ] as const;
 
 export function scoreGDS15(s: Record<string, number>): Result {
   const total = sumScores(s);
-  let interpretation = "Normal";
+  let interpretation = "Within the normal range";
   let riskLevel: Result["riskLevel"] = "low";
-  if (total >= 12) { interpretation = "Severe depression"; riskLevel = "very_high"; }
-  else if (total >= 9) { interpretation = "Moderate depression"; riskLevel = "high"; }
-  else if (total >= 5) { interpretation = "Mild depression"; riskLevel = "moderate"; }
+  if (total >= 12) { interpretation = "Severe depressive symptoms"; riskLevel = "very_high"; }
+  else if (total >= 9) { interpretation = "Moderate depressive symptoms"; riskLevel = "high"; }
+  else if (total >= 5) { interpretation = "Mild depressive symptoms"; riskLevel = "moderate"; }
   return { totalScore: total, interpretation, riskLevel };
 }
 
@@ -408,27 +408,56 @@ export function scoreAssessment(type: AssessmentType, scores: Record<string, num
   }
 }
 
-export const assessmentMeta: Record<AssessmentType, { name: string; description: string; category: string; max?: number }> = {
-  barthel: { name: "Barthel Index", description: "Activities of daily living", category: "Functional", max: 100 },
-  waterlow: { name: "Waterlow", description: "Pressure ulcer risk", category: "Skin", max: 60 },
-  abbey_pain: { name: "Abbey Pain Scale", description: "Pain in non-verbal residents", category: "Pain", max: 18 },
-  mna: { name: "MNA", description: "Mini Nutritional Assessment", category: "Nutrition", max: 14 },
-  norton: { name: "Norton", description: "Pressure ulcer risk (Norton)", category: "Skin", max: 20 },
-  nutrition: { name: "Nutrition Care Plan", description: "Composite nutritional review", category: "Nutrition" },
-  pinch_me: { name: "PINCH ME", description: "Acute deterioration screen", category: "Clinical" },
-  mmse: { name: "MMSE", description: "Mini-Mental State Examination", category: "Cognition", max: 30 },
-  four_at: { name: "4AT", description: "Delirium screening", category: "Cognition", max: 12 },
-  gds15: { name: "GDS-15", description: "Geriatric Depression Scale", category: "Mental Health", max: 15 },
-  cornell: { name: "Cornell Scale", description: "Depression in dementia", category: "Mental Health", max: 38 },
-  must: { name: "MUST", description: "Malnutrition Universal Screening Tool", category: "Nutrition", max: 6 },
-  continence: { name: "Continence", description: "Urinary & bowel continence", category: "Continence" },
-  pain_chart: { name: "Pain Chart", description: "0–10 pain monitoring", category: "Pain" },
-  falls: { name: "Falls Risk", description: "Multifactorial falls assessment", category: "Safety" },
-  abs: { name: "Agitated Behaviour Scale", description: "Behavioural agitation", category: "Behaviour", max: 56 },
-  abc: { name: "ABC Tool", description: "Antecedent / Behaviour / Consequence log", category: "Behaviour" },
+export type AssessmentMeta = {
+  name: string;
+  description: string;
+  category: string;
+  shortName?: string;
+  max?: number;
+  template: AssessmentTemplateMetadata;
 };
 
-export const assessmentItems: Record<AssessmentType, ReadonlyArray<any>> = {
+const legacyTemplate = (scored = true): AssessmentTemplateMetadata => ({
+  oritasTemplateVersion: "1.0",
+  active: true,
+  clinicalConfigurationStatus: "approved",
+  scored,
+});
+
+const clinicalSourceRequired = (note: string): AssessmentTemplateMetadata => ({
+  oritasTemplateVersion: "0.1-draft",
+  active: false,
+  clinicalConfigurationStatus: "clinical_source_required",
+  clinicalConfigurationNote: note,
+  scored: false,
+});
+
+export const assessmentMeta: Record<AssessmentType, AssessmentMeta> = {
+  barthel: { name: "Barthel Index", description: "Activities of daily living", category: "Functional", max: 100, template: legacyTemplate() },
+  waterlow: { name: "Waterlow", description: "Pressure ulcer risk", category: "Skin", max: 60, template: legacyTemplate() },
+  abbey_pain: { name: "Abbey Pain Scale", description: "Pain in non-verbal residents", category: "Pain", max: 18, template: legacyTemplate() },
+  mna: { name: "MNA", description: "Mini Nutritional Assessment", category: "Nutrition", max: 14, template: legacyTemplate() },
+  norton: { name: "Norton", description: "Pressure ulcer risk (Norton)", category: "Skin", max: 20, template: legacyTemplate() },
+  nutrition: { name: "Nutrition Care Plan", description: "Composite nutritional review", category: "Nutrition", template: legacyTemplate() },
+  pinch_me: { name: "PINCH ME", description: "Acute deterioration screen", category: "Clinical", template: legacyTemplate() },
+  mmse: { name: "MMSE", description: "Mini-Mental State Examination", category: "Cognition", max: 30, template: legacyTemplate() },
+  four_at: { name: "4AT", description: "Delirium screening", category: "Cognition", max: 12, template: legacyTemplate() },
+  gds15: { name: "Geriatric Depression Scale — Short Form", shortName: "GDS-15", description: "Screening instrument for depressive symptoms", category: "Mental Health and Wellbeing", max: 15, template: { sourceTitle: "Geriatric Depression Scale — Short Form", sourceVersion: "15-item short form", oritasTemplateVersion: "1.0", active: true, clinicalConfigurationStatus: "approved", scored: true } },
+  cornell: { name: "Cornell Scale", description: "Depression in dementia", category: "Mental Health", max: 38, template: legacyTemplate() },
+  must: { name: "MUST", description: "Malnutrition Universal Screening Tool", category: "Nutrition", max: 6, template: legacyTemplate() },
+  continence: { name: "Continence", description: "Urinary & bowel continence", category: "Continence", template: legacyTemplate() },
+  pain_chart: { name: "Pain Chart", description: "0–10 pain monitoring", category: "Pain", template: legacyTemplate() },
+  falls: { name: "Falls Risk", description: "Multifactorial falls assessment", category: "Safety", template: legacyTemplate() },
+  abs: { name: "Agitated Behaviour Scale", description: "Behavioural agitation", category: "Behaviour", max: 56, template: legacyTemplate() },
+  abc: { name: "ABC Tool", description: "Antecedent / Behaviour / Consequence log", category: "Behaviour", template: legacyTemplate() },
+  cannard_falls: { name: "Falls Risk Assessment Scale for the Elderly — Cannard 1996", description: "Draft — Clinical Source Required", category: "Falls and Mobility", template: { ...clinicalSourceRequired("Clinical configuration incomplete — approved Cannard 1996 form required."), sourceTitle: "Cannard G. Fall Risk Assessment Tool", sourceAuthorOrOrganisation: "Cannard G.", publicationYear: 1996 } },
+  dependency_assessment_tool: { name: "Dependency Assessment Tool", description: "Draft — Clinical Source Required", category: "Dependency and Activities of Daily Living", template: clinicalSourceRequired("Approved Dependency Assessment Tool required.") },
+  dependency_rating_scale: { name: "Dependency Rating Scale", description: "Draft — Clinical Source Required", category: "Dependency and Activities of Daily Living", template: clinicalSourceRequired("Approved Dependency Rating Scale required.") },
+  post_fall_assessment: { name: "Post-Fall Assessment", description: "Draft — Clinical Source Required", category: "Falls and Mobility", template: clinicalSourceRequired("Approved Post-Fall Assessment form required.") },
+  wheelchair_mobile_chair_risk: { name: "Risk Assessment for Wheelchairs and Mobile Chairs", description: "Draft — Clinical Source Required", category: "Mobility and Equipment", template: clinicalSourceRequired("Approved wheelchair and mobile chair risk assessment form required.") },
+  urinary_incontinence_assessment: { name: "Assessment Form for Urinary Incontinence", description: "Draft — Clinical Source Required", category: "Continence", template: clinicalSourceRequired("Approved urinary incontinence assessment form required.") },
+};
+export const assessmentItems: Partial<Record<AssessmentType, ReadonlyArray<any>>> = {
   barthel: barthelItems,
   waterlow: waterlowItems,
   abbey_pain: abbeyItems,
@@ -453,6 +482,9 @@ export function uniformScale(type: AssessmentType): ReadonlyArray<readonly [numb
   if (type === "pinch_me") return pinchMeScale;
   if (type === "cornell") return cornellScale;
   if (type === "abs") return absScale;
-  if (type === "gds15") return [[0, "No"], [1, "Yes"]] as const;
   return null;
+}
+
+export function isAssessmentActive(type: AssessmentType): boolean {
+  return assessmentMeta[type].template.active;
 }

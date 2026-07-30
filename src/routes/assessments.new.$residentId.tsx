@@ -10,12 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, Check, CircleCheck, Search } from "lucide-react";
-import { assessmentMeta, assessmentItems, uniformScale, scoreAssessment } from "@/lib/care/scoring";
+import { assessmentMeta, assessmentItems, isAssessmentActive, uniformScale, scoreAssessment } from "@/lib/care/scoring";
 import { ASSESSMENT_CATEGORIES } from "@/lib/care/assessments";
 import { toast } from "sonner";
 import type { AssessmentType } from "@/lib/care/types";
 
-const TYPES = Object.keys(assessmentItems) as AssessmentType[];
+const TYPES = (Object.keys(assessmentItems) as AssessmentType[]).filter(isAssessmentActive);
 
 export const Route = createFileRoute("/assessments/new/$residentId")({
   validateSearch: (s: Record<string, unknown>) => ({ type: (s.type as AssessmentType) ?? "barthel" }),
@@ -29,7 +29,7 @@ function NewAssessment() {
   const { residents, assessments, addAssessment, currentRole, currentUserName, canAccess } = useCare();
   const resident = residents.find(r => r.id === residentId);
 
-  const items = assessmentItems[type] as any[];
+  const items = assessmentItems[type] as any[] | undefined;
   const scale = uniformScale(type);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
@@ -40,6 +40,10 @@ function NewAssessment() {
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerCategory, setPickerCategory] = useState("all");
   const [submittedAssessmentName, setSubmittedAssessmentName] = useState<string | null>(null);
+  const [furtherClinicalReviewRequired, setFurtherClinicalReviewRequired] = useState<"yes" | "no">("no");
+  const [reviewAction, setReviewAction] = useState("");
+  const [responsiblePerson, setResponsiblePerson] = useState("");
+  const [clinicalReviewTargetDate, setClinicalReviewTargetDate] = useState("");
 
   // Keep this workspace ready for the next selected assessment instead of sending
   // the user back through the resident's Quick Actions flow.
@@ -47,6 +51,10 @@ function NewAssessment() {
     setScores({});
     setNotes("");
     setRecommendations("");
+    setFurtherClinicalReviewRequired("no");
+    setReviewAction("");
+    setResponsiblePerson("");
+    setClinicalReviewTargetDate("");
   }, [type]);
 
   const result = useMemo(() => scoreAssessment(type, scores), [type, scores]);
@@ -61,13 +69,14 @@ function NewAssessment() {
     const categoryTypes = pickerCategory === "all"
       ? TYPES
       : ASSESSMENT_CATEGORIES.find((category) => category.id === pickerCategory)?.types ?? [];
-    return categoryTypes.filter((assessmentType) => {
+    return categoryTypes.filter(isAssessmentActive).filter((assessmentType) => {
       const meta = assessmentMeta[assessmentType];
       return !query || `${meta.name} ${meta.description}`.toLowerCase().includes(query);
     });
   }, [pickerCategory, pickerQuery]);
 
   if (!resident) return <div className="p-8">Resident not found.</div>;
+  if (!isAssessmentActive(type) || !items) return <div className="p-8"><p className="font-medium">This assessment is not active.</p><p className="mt-1 text-sm text-muted-foreground">{assessmentMeta[type]?.template.clinicalConfigurationNote || "A clinically approved source configuration is required before this assessment can be used."}</p><Link to="/residents/$id" params={{ id: residentId }} className="mt-4 inline-block text-primary underline text-sm">Back to resident</Link></div>;
   if (!canAccess("assessment.create", { nursingHomeId: resident.facilityId, wardId: resident.wardId, residentId })) {
     return (
       <div className="p-8">
@@ -88,6 +97,13 @@ function NewAssessment() {
       notes, recommendations,
       status: draft ? "draft" : "completed",
       reviewDate, nextReassessmentDate,
+      templateMetadata: { ...assessmentMeta[type].template },
+      payload: type === "gds15" ? {
+        furtherClinicalReviewRequired: furtherClinicalReviewRequired === "yes",
+        reviewAction: furtherClinicalReviewRequired === "yes" ? reviewAction : undefined,
+        responsiblePerson: furtherClinicalReviewRequired === "yes" ? responsiblePerson : undefined,
+        targetDate: furtherClinicalReviewRequired === "yes" ? clinicalReviewTargetDate : undefined,
+      } : undefined,
     });
     if (draft) toast.success("Draft saved. Select another assessment when ready.");
     else setSubmittedAssessmentName(assessmentMeta[type].name);
@@ -132,6 +148,7 @@ function NewAssessment() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{assessmentMeta[type].name}</h1>
           <p className="text-sm text-muted-foreground">{assessmentMeta[type].description}</p>
+          {type === "gds15" && <p className="mt-1 text-sm text-muted-foreground">Choose the answer that best describes how the resident has felt over the past week.</p>}
         </div>
         <div className="hidden">
           {TYPES.map(t => (
@@ -210,7 +227,7 @@ function NewAssessment() {
                         <button key={String(val) + lab} type="button"
                           onClick={() => setScores(s => ({ ...s, [it.key]: val }))}
                           className={`px-3 py-1.5 rounded-md border text-sm transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}>
-                          <span className="font-semibold tabular-nums mr-1.5">{val}</span>{lab}
+                          {type !== "gds15" && <span className="font-semibold tabular-nums mr-1.5">{val}</span>}{lab}
                         </button>
                       );
                     })}
@@ -221,12 +238,26 @@ function NewAssessment() {
           })}
           <Card>
             <CardContent className="p-4 space-y-3">
+              {type === "gds15" && <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/20">
+                <p>The GDS-15 is a screening instrument and is not a diagnosis of depression. Scores or responses causing concern require appropriate clinical review.</p>
+                <div>
+                  <Label htmlFor="gds-clinical-review">Further clinical review required?</Label>
+                  <select id="gds-clinical-review" value={furtherClinicalReviewRequired} onChange={(event) => setFurtherClinicalReviewRequired(event.target.value as "yes" | "no")} className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="no">No</option><option value="yes">Yes</option>
+                  </select>
+                </div>
+                {furtherClinicalReviewRequired === "yes" && <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2"><Label>Review action</Label><Textarea value={reviewAction} onChange={(event) => setReviewAction(event.target.value)} className="mt-1" placeholder="Record the agreed clinical review action" /></div>
+                  <div><Label>Responsible person</Label><Input value={responsiblePerson} onChange={(event) => setResponsiblePerson(event.target.value)} className="mt-1" /></div>
+                  <div><Label>Target date</Label><Input type="date" value={clinicalReviewTargetDate} onChange={(event) => setClinicalReviewTargetDate(event.target.value)} className="mt-1" /></div>
+                </div>}
+              </div>}
               <div>
-                <Label className="text-sm">Clinical Recommendations</Label>
+                <Label className="text-sm">{type === "gds15" ? "Clinical recommendations" : "Clinical Recommendations"}</Label>
                 <Textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} placeholder="Recommended actions, referrals, care plan items…" className="mt-2" />
               </div>
               <div>
-                <Label className="text-sm">Notes</Label>
+                <Label className="text-sm">{type === "gds15" ? "Assessor note (optional)" : "Notes"}</Label>
                 <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Clinical observations, follow-up…" className="mt-2" />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -247,8 +278,7 @@ function NewAssessment() {
           <Card className="sticky top-20">
             <CardHeader><CardTitle className="text-base">Live Score</CardTitle></CardHeader>
             <CardContent>
-              <div className="text-5xl font-semibold tabular-nums">{result.totalScore}</div>
-              <Badge variant="outline" className="mt-2 capitalize">{result.interpretation}</Badge>
+              {allAnswered ? <><div className="text-5xl font-semibold tabular-nums">{result.totalScore}</div><Badge variant="outline" className="mt-2 capitalize">{result.interpretation}</Badge></> : <p className="text-sm text-muted-foreground">Complete all mandatory questions to calculate the final score.</p>}
               <div className="text-xs text-muted-foreground mt-3">
                 {Object.keys(scores).length} of {items.length} answered
               </div>

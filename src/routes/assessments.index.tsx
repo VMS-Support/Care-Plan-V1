@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
-import { assessmentMeta } from "@/lib/care/scoring";
+import { assessmentMeta, isAssessmentActive } from "@/lib/care/scoring";
 import { latestAssessmentsByType } from "@/lib/care/assessmentVersions";
 import { getApprovedRltDomainsForAssessmentRecord } from "@/lib/care/assessmentRltMappings";
 import { deriveStatus, riskBadgeCls } from "@/lib/care/assessments";
@@ -86,7 +86,7 @@ interface ResidentQueueItem {
   oldestDueDate: string;
 }
 
-const ALL_TYPES = Object.keys(assessmentMeta) as AssessmentType[];
+const ALL_TYPES = (Object.keys(assessmentMeta) as AssessmentType[]).filter(isAssessmentActive);
 
 const CORE_TYPES: AssessmentType[] = ["waterlow", "barthel", "abbey_pain", "must", "falls", "mmse"];
 
@@ -155,7 +155,7 @@ function StartAssessmentDialog({
   const [assessmentType, setAssessmentType] = useState<AssessmentType | null>(null);
   const activeResidents = residents.filter((resident) => resident.status === "active" && !resident.deletedAt);
   const matchingResidents = activeResidents.filter((resident) => `${resident.firstName} ${resident.lastName} ${resident.roomNumber} ${resident.residentNumber || ""} ${resident.externalResidentId || ""}`.toLowerCase().includes(residentQuery.toLowerCase()));
-  const categoryTypes = category === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((item) => item.id === category)?.types || [];
+  const categoryTypes = (category === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((item) => item.id === category)?.types || []).filter(isAssessmentActive);
   const matchingTypes = categoryTypes.filter((type) => `${assessmentMeta[type].name} ${assessmentMeta[type].description}`.toLowerCase().includes(assessmentQuery.toLowerCase()));
   const selectedResident = activeResidents.find((resident) => resident.id === residentId);
   const previousExists = Boolean(residentId && assessmentType && assessments.some((assessment) => assessment.residentId === residentId && assessment.type === assessmentType && assessment.status === "completed"));
@@ -445,7 +445,7 @@ function AssessmentQueueFilters({
             <SelectTrigger><SelectValue placeholder="Assessment" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Assessment: All</SelectItem>
-              {(categoryF === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []).map((type) => (
+              {(categoryF === "all" ? ALL_TYPES : CATEGORY_FILTERS.find((c) => c.id === categoryF)?.types || []).filter(isAssessmentActive).map((type) => (
                 <SelectItem key={type} value={type}>{assessmentMeta[type].name}</SelectItem>
               ))}
             </SelectContent>

@@ -171,6 +171,21 @@ function AssessmentDetail() {
 
           <div className="flex flex-wrap gap-2 mt-4 print:hidden">
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5 mr-1.5" /> Print</Button>
+            {a.status === "completed" && !a.supersededById && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate({
+                    to: "/assessments/new/$residentId",
+                    params: { residentId: r.id },
+                    search: { type: a.type },
+                  })
+                }
+              >
+                <ClipboardPlus className="h-3.5 w-3.5 mr-1.5" /> Re-assess
+              </Button>
+            )}
             {a.status === "completed" && !a.supersededById && can(currentRole, "assessment.archive") && (
               <ReasonDialog
                 trigger={<Button variant="outline" size="sm"><Archive className="h-3.5 w-3.5 mr-1.5" /> Archive</Button>}

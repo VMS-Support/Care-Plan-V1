@@ -1985,7 +1985,13 @@ export type AssessmentType =
   | "pain_chart"
   | "falls"
   | "abc"
-  | "abs";
+  | "abs"
+  | "cannard_falls"
+  | "dependency_assessment_tool"
+  | "dependency_rating_scale"
+  | "post_fall_assessment"
+  | "wheelchair_mobile_chair_risk"
+  | "urinary_incontinence_assessment";
 export type RltDomainId =
   | "safe_environment"
   | "communication"
@@ -2035,7 +2041,23 @@ export type AssessmentCategory =
   | "continence"
   | "behaviour"
   | "safety"
-  | "person_centred";
+  | "person_centred"
+  | "dependency_adl"
+  | "mobility_equipment";
+
+export interface AssessmentTemplateMetadata {
+  sourceTitle?: string;
+  sourceAuthorOrOrganisation?: string;
+  publicationYear?: number;
+  sourceVersion?: string;
+  oritasTemplateVersion: string;
+  clinicallyApprovedBy?: string;
+  approvalDate?: string;
+  active: boolean;
+  clinicalConfigurationStatus: "approved" | "clinical_source_required";
+  clinicalConfigurationNote?: string;
+  scored: boolean;
+}
 
 export interface AssessmentAuditEntry {
   id: string;
@@ -4318,6 +4340,8 @@ export interface Assessment {
   linkedTaskIds?: string[];
   // free-form payloads for assessments that need more than numeric scores
   payload?: Record<string, any>;
+  /** Snapshot of the template configuration used when this assessment was completed. */
+  templateMetadata?: AssessmentTemplateMetadata;
 }
 
 export interface InterventionLog {

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCare } from "@/lib/care/store";
-import { assessmentMeta } from "@/lib/care/scoring";
+import { assessmentMeta, isAssessmentActive } from "@/lib/care/scoring";
 import { ASSESSMENT_CATEGORIES } from "@/lib/care/assessments";
 import { Search } from "lucide-react";
 import type { AssessmentType } from "@/lib/care/types";
@@ -30,7 +30,7 @@ interface Props {
   residentId: string;
 }
 
-const ALL_TYPES = Object.keys(assessmentMeta) as AssessmentType[];
+const ALL_TYPES = (Object.keys(assessmentMeta) as AssessmentType[]).filter(isAssessmentActive);
 
 export function AddAssessmentModal({ open, onOpenChange, residentId }: Props) {
   const { residents, assessments } = useCare();
@@ -55,6 +55,7 @@ export function AddAssessmentModal({ open, onOpenChange, residentId }: Props) {
   const assessmentsInCategory = (category === "all"
     ? ALL_TYPES
     : ASSESSMENT_CATEGORIES.find((item) => item.id === category)?.types || [])
+    .filter(isAssessmentActive)
     .filter((type) => `${assessmentMeta[type].name} ${assessmentMeta[type].description}`.toLowerCase().includes(query.toLowerCase()));
 
   function handleSelect(assessmentType: AssessmentType) {

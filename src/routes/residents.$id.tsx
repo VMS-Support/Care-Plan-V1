@@ -2034,9 +2034,9 @@ function ResidentDetail() {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
               <TabsTrigger value="activities">Care Plans</TabsTrigger>
-              <TabsTrigger value="notes">Daily Notes ({rN.length})</TabsTrigger>
-              <TabsTrigger value="vitals">Vitals ({activeVitalRows(rVitals).length})</TabsTrigger>
-              <TabsTrigger value="incidents">Incidents ({rIncidents.length})</TabsTrigger>
+              <TabsTrigger value="notes">Daily Notes</TabsTrigger>
+              <TabsTrigger value="vitals">Vitals</TabsTrigger>
+              <TabsTrigger value="incidents">Incidents ({openIncidents.length})</TabsTrigger>
               <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
               <TabsTrigger value="nok">Next of Kin ({r.nextOfKinList?.length || 0})</TabsTrigger>
               <TabsTrigger value="handovers">Handovers ({rHandovers.length})</TabsTrigger>

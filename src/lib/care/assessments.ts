@@ -9,10 +9,12 @@ export const ASSESSMENT_CATEGORIES: { id: AssessmentCategory; label: string; typ
   { id: "pain",           label: "Pain",           types: ["abbey_pain", "pain_chart"] },
   { id: "nutrition",      label: "Nutrition",      types: ["must", "mna", "nutrition"] },
   { id: "cognition",      label: "Cognition",      types: ["mmse", "four_at"] },
-  { id: "continence",     label: "Continence",     types: ["continence"] },
+  { id: "continence",     label: "Continence",     types: ["continence", "urinary_incontinence_assessment"] },
   { id: "behaviour",      label: "Behaviour",      types: ["abc", "abs", "cornell", "gds15"] },
   { id: "safety",         label: "Safety",         types: ["falls"] },
   { id: "person_centred", label: "Person Centred", types: ["pinch_me"] },
+  { id: "dependency_adl", label: "Dependency & ADL", types: ["dependency_assessment_tool", "dependency_rating_scale"] },
+  { id: "mobility_equipment", label: "Mobility & Equipment", types: ["cannard_falls", "post_fall_assessment", "wheelchair_mobile_chair_risk"] },
 ];
 
 export function categoryFor(type: AssessmentType): AssessmentCategory {
