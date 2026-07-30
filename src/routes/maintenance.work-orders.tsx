@@ -72,6 +72,7 @@ function WorkOrdersPage() {
     [care],
   );
   const result = useMemo(() => queryWorkOrders(scopedSource, search), [scopedSource, search]);
+  const presetCounts = useMemo(() => Object.fromEntries(PRESETS.map((item) => [item.value, queryWorkOrders(scopedSource, { ...search, preset: item.value, page: 1, pageSize: 100 }).total])), [scopedSource, search]);
   const activeFilterCount = [
     search.search,
     search.homeId,
@@ -112,17 +113,18 @@ function WorkOrdersPage() {
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12">
         {PRESETS.map((preset) => (
           <Button
             key={preset.value}
             type="button"
             variant={search.preset === preset.value ? "default" : "outline"}
             size="sm"
-            className="shrink-0"
+            className="h-auto min-h-16 flex-col items-start justify-center whitespace-normal text-left"
             onClick={() => updateSearch({ preset: preset.value, status: undefined, priority: undefined, overdueOnly: undefined, unassignedOnly: undefined })}
           >
-            {preset.label}
+            <span className="text-base font-semibold">{presetCounts[preset.value] || 0}</span>
+            <span className="text-xs">{preset.label}</span>
           </Button>
         ))}
       </div>
@@ -205,36 +207,38 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
     <Card>
       <CardContent className="p-0">
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1280px] text-sm">
             <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Work Order</th>
                 <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Work Order</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Location</th>
-                <th className="px-4 py-3">Due Date</th>
+                <th className="px-4 py-3">Facility / Location</th>
+                <th className="px-4 py-3">Asset</th>
                 <th className="px-4 py-3">Assigned To</th>
-                <th className="px-4 py-3 text-right">Action</th>
+                <th className="px-4 py-3">Due</th>
+                <th className="px-4 py-3">Age</th>
+                <th className="px-4 py-3">Last Updated</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {records.map((record) => (
                 <tr key={record.id} className="border-b last:border-b-0">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold">{record.title}</div>
-                    <div className="text-xs text-muted-foreground">{record.workOrderNumber} - {workOrderCategoryLabel(record.category)}</div>
-                  </td>
                   <td className="px-4 py-3"><PriorityBadge priority={record.priority} /></td>
+                  <td className="px-4 py-3"><div title={workOrderSummary(record, care)}><Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }} className="font-semibold hover:underline">{record.title}</Link><div className="mt-1 text-xs text-muted-foreground">{record.workOrderNumber}</div><div className="mt-1 text-xs text-muted-foreground">Category: {workOrderCategoryLabel(record.category)}</div></div></td>
                   <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
-                  <td className="px-4 py-3">{workOrderLocationLabel(record, care)}</td>
-                  <td className="px-4 py-3"><DueLabel record={record} /></td>
-                  <td className="px-4 py-3">
-                    <div>{workOrderAssigneeLabel(record, care.users)}</div>
+                  <td className="px-4 py-3"><LocationCell record={record} /></td>
+                  <td className="px-4 py-3">{care.maintenanceAssets.find((asset) => asset.id === record.assetId)?.assetName || "—"}</td>
+                  <td className="px-4 py-3"><div>{record.assignedUserId || record.assignedTeamId ? workOrderAssigneeLabel(record, care.users) : <Badge variant="outline" className="border-amber-300 text-amber-800">Unassigned</Badge>}</div>
                     {WAITING_WORK_ORDER_STATUSES.includes(record.status) && record.waitingSince && (
                       <div className="text-xs text-muted-foreground">Waiting since {new Date(record.waitingSince).toLocaleString()}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right"><Button asChild size="sm" variant="outline"><Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }}>Open</Link></Button></td>
+                  <td className="px-4 py-3"><DueLabel record={record} /></td>
+                  <td className="px-4 py-3">{relativeAge(record.createdAt)}</td>
+                  <td className="px-4 py-3" title={new Date(record.updatedAt || record.createdAt).toLocaleString()}>{relativeAge(record.updatedAt || record.createdAt)}</td>
+                  <td className="px-4 py-3 text-right"><WorkOrderActions record={record} /></td>
                 </tr>
               ))}
             </tbody>
@@ -246,6 +250,38 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
       </CardContent>
     </Card>
   );
+}
+
+function LocationCell({ record }: { record: ReturnType<typeof queryWorkOrders>["records"][number] }) {
+  const care = useCare();
+  const home = care.facilities.find((item) => item.id === record.homeId)?.name;
+  const ward = care.wards.find((item) => item.id === record.wardId)?.name;
+  const room = care.rooms.find((item) => String(item.id) === String(record.roomId));
+  return <div className="space-y-0.5"><div>{home || "Not recorded"}</div>{ward && <div className="text-xs text-muted-foreground">{ward}</div>}<div className="text-xs text-muted-foreground">{room?.name || room?.number || record.exactLocation || "Area not recorded"}</div></div>;
+}
+
+function WorkOrderActions({ record }: { record: ReturnType<typeof queryWorkOrders>["records"][number] }) {
+  const care = useCare();
+  const canEdit = care.canAccess("maintenance.work_orders.edit", { nursingHomeId: record.homeId });
+  const canNote = care.canAccess("maintenance.work_orders.execution.add_note", { nursingHomeId: record.homeId });
+  const start = () => canEdit && care.updateMaintenanceWorkOrder(record.id, { status: "IN_PROGRESS", expectedVersion: record.version, changeReason: "Started from Work Order list" });
+  const addNote = () => { const content = window.prompt("Add a Work Order note"); if (content?.trim()) care.addWorkOrderNote(record.id, { noteType: "GENERAL", content }); };
+  return <details className="relative inline-block text-left"><summary className="cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring">Actions</summary><div className="absolute right-0 z-20 mt-1 w-36 rounded-md border bg-popover p-1 shadow-lg"><Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }} className="block rounded px-2 py-1.5 text-xs hover:bg-muted">Open</Link>{canEdit && record.status === "OPEN" && <button type="button" className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={start}>Start Work</button>}{canNote && <button type="button" className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={addNote}>Add Note</button>}<Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }} className="block rounded px-2 py-1.5 text-xs hover:bg-muted">View Timeline</Link></div></details>;
+}
+
+function workOrderSummary(record: ReturnType<typeof queryWorkOrders>["records"][number], care: ReturnType<typeof useCare>) {
+  const asset = care.maintenanceAssets.find((item) => item.id === record.assetId)?.assetName || "None";
+  return [record.description, `Reported: ${record.reporterNameSnapshot || "Not recorded"}`, `Priority: ${workOrderPriorityLabel(record.priority)}`, `Asset: ${asset}`, `Status: ${workOrderStatusLabel(record.status)}`, `Due: ${record.dueAt ? new Date(record.dueAt).toLocaleString() : "Not set"}`].filter(Boolean).join("\n");
+}
+
+function relativeAge(value?: string) {
+  if (!value) return "—";
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day" : `${days} days`;
 }
 
 function BoardView({ records }: { records: ReturnType<typeof queryWorkOrders>["allFiltered"] }) {
@@ -295,6 +331,7 @@ function WorkOrderCard({ record }: { record: ReturnType<typeof queryWorkOrders>[
       </div>
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <div>{workOrderLocationLabel(record, care)}</div>
+        {record.assetId && <div>Asset: {care.maintenanceAssets.find((asset) => asset.id === record.assetId)?.assetName || "Linked asset"}</div>}
         <div>{workOrderAssigneeLabel(record, care.users)}</div>
         {WAITING_WORK_ORDER_STATUSES.includes(record.status) && record.waitingReasonText && (
           <div>{record.waitingReasonText}</div>
