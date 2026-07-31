@@ -7,6 +7,7 @@ import {
   Users,
   ClipboardList,
   HeartPulse,
+  HeartHandshake,
   NotebookPen,
   AlertTriangle,
   BarChart3,
@@ -379,16 +380,16 @@ function SidebarInner() {
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="px-5 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-        <img
-          src={`${import.meta.env.BASE_URL}nucare-logo.png`}
-          alt="NuCare"
-          className="h-9 w-9 rounded-lg object-cover"
-        />
-        <div>
-          <div className="font-semibold tracking-tight">NuCare</div>
-          <div className="text-xs text-sidebar-foreground/60">Care Planning System</div>
-        </div>
+        <div className="flex items-center gap-2.5" aria-label="ORITAS Care Solutions">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#16213f]">
+            <HeartHandshake className="h-7 w-7 text-[#5372f3]" strokeWidth={2.3} aria-hidden="true" />
+          </div>
+          <div className="leading-none">
+            <div className="text-xl font-bold tracking-[0.08em] text-white">ORITAS</div>
+            <div className="mt-1 text-[8px] font-semibold tracking-[0.22em] text-sidebar-foreground/80">
+              CARE SOLUTIONS
+            </div>
+          </div>
         </div>
         <div className="relative mt-4">
           <button type="button" onClick={() => setModuleMenuOpen((open) => !open)} aria-expanded={moduleMenuOpen} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/60 px-3 text-sm font-medium hover:bg-sidebar-accent">

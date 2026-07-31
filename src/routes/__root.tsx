@@ -93,7 +93,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: publicAsset("nucare-logo.png") },
     ],
     links: [
-      { rel: "icon", type: "image/png", href: publicAsset("favicon.png") },
+      { rel: "icon", type: "image/png", href: publicAsset("oritas-favicon.png") },
       { rel: "apple-touch-icon", href: publicAsset("nucare-logo.png") },
       {
         rel: "stylesheet",
