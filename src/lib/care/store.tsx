@@ -3764,9 +3764,9 @@ function filterByFacility(store: Store, activeFacilityId: string): Store {
   return scoped;
 }
 
-function loadInitialStore(): Store {
+function loadInitialStore(readPersistedStore = typeof window !== "undefined"): Store {
   const base = seedData();
-  if (typeof window === "undefined") {
+  if (!readPersistedStore || typeof window === "undefined") {
     const normalizedBase = normalizeFacilities(base);
     normalizeCarePlanRecordOwnership(normalizedBase);
     syncUidSequence(normalizedBase);
@@ -4558,16 +4558,22 @@ interface CareCtx extends Store {
 const Ctx = createContext<CareCtx | null>(null);
 
 export function CareProvider({ children }: { children: ReactNode }) {
-  const [store, rawSetStore] = useState<Store>(() => loadInitialStore());
-  const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    if (typeof window === "undefined") return "u-3";
-    return window.localStorage.getItem(CURRENT_USER_STORAGE_KEY) || "u-3";
-  }); // J. Roberts (Nurse)
-  const [activeFacilityId, setActiveFacilityIdState] = useState<string>(() => {
-    if (typeof window === "undefined") return BALLYMORE_FACILITY_ID;
-    return window.localStorage.getItem(ACTIVE_FACILITY_STORAGE_KEY) || BALLYMORE_FACILITY_ID;
-  });
+  // Use the same initial state during SSR and the first browser render. Browser
+  // storage is restored after hydration so it cannot change the rendered shell.
+  const [store, rawSetStore] = useState<Store>(() => loadInitialStore(false));
+  const [currentUserId, setCurrentUserId] = useState<string>("u-3"); // J. Roberts (Nurse)
+  const [activeFacilityId, setActiveFacilityIdState] = useState<string>(BALLYMORE_FACILITY_ID);
+  const [hasRestoredBrowserState, setHasRestoredBrowserState] = useState(false);
   const [filter, setFilter] = useState<CareFilter>({});
+
+  useEffect(() => {
+    rawSetStore(loadInitialStore(true));
+    setCurrentUserId(window.localStorage.getItem(CURRENT_USER_STORAGE_KEY) || "u-3");
+    setActiveFacilityIdState(
+      window.localStorage.getItem(ACTIVE_FACILITY_STORAGE_KEY) || BALLYMORE_FACILITY_ID,
+    );
+    setHasRestoredBrowserState(true);
+  }, []);
 
   const setStore = useCallback(
     (value: Store | ((previous: Store) => Store)) => {
@@ -4581,23 +4587,26 @@ export function CareProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hasRestoredBrowserState) return;
 
     try {
       window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(store));
     } catch (error) {
       console.error("Failed to persist care store.", error);
     }
-  }, [store]);
+  }, [hasRestoredBrowserState, store]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hasRestoredBrowserState) return;
     window.localStorage.setItem(ACTIVE_FACILITY_STORAGE_KEY, activeFacilityId);
-  }, [activeFacilityId]);
+  }, [activeFacilityId, hasRestoredBrowserState]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hasRestoredBrowserState) return;
     window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, currentUserId);
-  }, [currentUserId]);
+  }, [currentUserId, hasRestoredBrowserState]);
 
   const currentUser = useMemo(
     () => store.users.find((u) => u.id === currentUserId) || store.users[0],
@@ -10473,7 +10482,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
       recordDailyCare: (command) => {
         let saved: DailyCareRecord | undefined;
         setStore((s) => {
-          const context = s.operationalContext;
+          const context = operationalContext;
           const capabilities = [
             "daily_care.view",
             "daily_care.record",
@@ -10594,7 +10603,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
       submitHcaNurseEscalation: (command) => {
         let saved: HcaNurseEscalation | undefined;
         setStore((s) => {
-          const context = s.operationalContext;
+          const context = operationalContext;
           const capabilities = [
             "hca_escalation.submit",
             "hca_escalation.view_own",

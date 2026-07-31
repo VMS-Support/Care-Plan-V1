@@ -26,6 +26,7 @@ import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as InterventionsRouteImport } from './routes/interventions'
 import { Route as IncidentsRouteImport } from './routes/incidents'
 import { Route as HandoversRouteImport } from './routes/handovers'
+import { Route as FastCareRouteImport } from './routes/fast-care'
 import { Route as DailyNotesRouteImport } from './routes/daily-notes'
 import { Route as ComplianceRouteImport } from './routes/compliance'
 import { Route as CarePlansRouteImport } from './routes/care-plans'
@@ -192,6 +193,11 @@ const IncidentsRoute = IncidentsRouteImport.update({
 const HandoversRoute = HandoversRouteImport.update({
   id: '/handovers',
   path: '/handovers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FastCareRoute = FastCareRouteImport.update({
+  id: '/fast-care',
+  path: '/fast-care',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DailyNotesRoute = DailyNotesRouteImport.update({
@@ -655,6 +661,7 @@ export interface FileRoutesByFullPath {
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
+  '/fast-care': typeof FastCareRoute
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
@@ -755,6 +762,7 @@ export interface FileRoutesByTo {
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
+  '/fast-care': typeof FastCareRoute
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
@@ -856,6 +864,7 @@ export interface FileRoutesById {
   '/care-plans': typeof CarePlansRoute
   '/compliance': typeof ComplianceRoute
   '/daily-notes': typeof DailyNotesRoute
+  '/fast-care': typeof FastCareRoute
   '/handovers': typeof HandoversRoute
   '/incidents': typeof IncidentsRoute
   '/interventions': typeof InterventionsRoute
@@ -959,6 +968,7 @@ export interface FileRouteTypes {
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
+    | '/fast-care'
     | '/handovers'
     | '/incidents'
     | '/interventions'
@@ -1059,6 +1069,7 @@ export interface FileRouteTypes {
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
+    | '/fast-care'
     | '/handovers'
     | '/incidents'
     | '/interventions'
@@ -1159,6 +1170,7 @@ export interface FileRouteTypes {
     | '/care-plans'
     | '/compliance'
     | '/daily-notes'
+    | '/fast-care'
     | '/handovers'
     | '/incidents'
     | '/interventions'
@@ -1261,6 +1273,7 @@ export interface RootRouteChildren {
   CarePlansRoute: typeof CarePlansRoute
   ComplianceRoute: typeof ComplianceRoute
   DailyNotesRoute: typeof DailyNotesRoute
+  FastCareRoute: typeof FastCareRoute
   HandoversRoute: typeof HandoversRoute
   IncidentsRoute: typeof IncidentsRoute
   InterventionsRoute: typeof InterventionsRoute
@@ -1413,6 +1426,13 @@ declare module '@tanstack/react-router' {
       path: '/handovers'
       fullPath: '/handovers'
       preLoaderRoute: typeof HandoversRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fast-care': {
+      id: '/fast-care'
+      path: '/fast-care'
+      fullPath: '/fast-care'
+      preLoaderRoute: typeof FastCareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/daily-notes': {
@@ -2300,6 +2320,7 @@ const rootRouteChildren: RootRouteChildren = {
   CarePlansRoute: CarePlansRoute,
   ComplianceRoute: ComplianceRoute,
   DailyNotesRoute: DailyNotesRoute,
+  FastCareRoute: FastCareRoute,
   HandoversRoute: HandoversRoute,
   IncidentsRoute: IncidentsRoute,
   InterventionsRoute: InterventionsRoute,

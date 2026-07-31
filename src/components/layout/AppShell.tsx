@@ -243,10 +243,9 @@ const workforceNav: NavItem[] = [
 const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   {
-    to: "/operations",
-    label: "Operations",
-    icon: Building2,
-    // TODO: Re-enable Operations for Nurse if Operations and Dashboard become separate workflows again.
+    to: "/fast-care",
+    label: "Fast Care",
+    icon: HeartPulse,
     visible: (canAccess) => canAccess("ops.edit") || canAccess("ops.edit_own"),
   },
   { to: "/residents", label: "Residents", icon: Users, capability: "resident.view" },
@@ -346,7 +345,7 @@ function SidebarInner() {
       : "bg-warning/20 text-warning-foreground";
   const groupOwnerHidden = new Set([
     "/daily-notes",
-    "/operations",
+    "/fast-care",
     "/outings",
     "/risks",
     "/alerts",
@@ -492,7 +491,7 @@ function MobileNav() {
       : "bg-warning/20 text-warning-foreground";
   const groupOwnerHidden = new Set([
     "/daily-notes",
-    "/operations",
+    "/fast-care",
     "/outings",
     "/risks",
     "/alerts",

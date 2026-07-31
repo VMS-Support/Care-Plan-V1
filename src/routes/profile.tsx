@@ -379,7 +379,7 @@ function ProfilePage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="/">My Dashboard</SelectItem>
-                    <SelectItem value="/operations">Operations</SelectItem>
+                    <SelectItem value="/fast-care">Fast Care</SelectItem>
                     <SelectItem value="/staff-management">Staff Management</SelectItem>
                     <SelectItem value="/training-dashboard">Training Dashboard</SelectItem>
                   </SelectContent>

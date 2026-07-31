@@ -57,6 +57,7 @@ export function RecordDailyCareDialog({
   open,
   onOpenChange,
   residentId,
+  residentName,
   nursingHomeId,
   wardId,
   roomId,
@@ -66,6 +67,7 @@ export function RecordDailyCareDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   residentId: string;
+  residentName?: string;
   nursingHomeId: string;
   wardId?: string;
   roomId?: string;
@@ -90,6 +92,10 @@ export function RecordDailyCareDialog({
   const [fields, setFields] = useState<Record<string, string | boolean>>({});
   const effectiveCareType = outcome === "refused" ? "refusal" : careType;
   const details = useMemo(() => makeDetails(effectiveCareType, fields, occurredAt, careType, followUpRequired, followUpReason), [effectiveCareType, fields, occurredAt, careType, followUpRequired, followUpReason]);
+  const narrative = useMemo(
+    () => buildDailyCareNarrative(residentName || "Resident", effectiveCareType, outcome, details),
+    [details, effectiveCareType, outcome, residentName],
+  );
   const requiresReason = ["partially_completed", "unable", "not_required", "escalated"].includes(outcome) || outcomeReasonCode === "other";
 
   const set = (key: string, value: string | boolean) => setFields((current) => ({ ...current, [key]: value }));
@@ -97,17 +103,6 @@ export function RecordDailyCareDialog({
     setCareType(type);
     setOutcome(type === "refusal" ? "refused" : outcome === "refused" ? "completed" : outcome);
     setFields({});
-  };
-  const applyShortcut = (shortcut: Shortcut) => {
-    setCareType(shortcut.careType);
-    setOutcome(shortcut.outcome);
-    setParticipationLevel(shortcut.participationLevel ?? participationLevel);
-    setFields(shortcut.fields);
-    setOutcomeSummary(shortcut.summary);
-    if (shortcut.followUpRequired) {
-      setFollowUpRequired(true);
-      setFollowUpReason(shortcut.summary);
-    }
   };
   const reset = () => {
     setMode("quick");
@@ -144,8 +139,10 @@ export function RecordDailyCareDialog({
         participationLevel: outcome === "refused" ? "not_applicable" : participationLevel,
         supportProvided: split(supportProvided),
         residentResponse: residentResponse.trim() || undefined,
-        outcomeSummary: outcomeSummary.trim() || DAILY_CARE_OUTCOME_LABELS[outcome],
-        notes: mode === "detailed" ? notes.trim() || undefined : undefined,
+        outcomeSummary: narrative,
+        notes: [narrative, mode === "detailed" ? outcomeSummary.trim() : "", mode === "detailed" ? notes.trim() : ""]
+          .filter(Boolean)
+          .join(" "),
         details,
         source: { sourceType: "manual", route: "resident_bedside_daily_care" },
         followUpRequired,
@@ -165,7 +162,9 @@ export function RecordDailyCareDialog({
         <DialogHeader className="border-b px-5 py-4">
           <DialogTitle>Record Daily Care</DialogTitle>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="rounded-md bg-muted px-2 py-1">Resident locked</span>
+            <span className="rounded-md bg-muted px-2 py-1">
+              {residentName ? `Resident: ${residentName}` : "Resident locked"}
+            </span>
             {roomId && <span className="rounded-md bg-muted px-2 py-1">Room {roomId}</span>}
             <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1"><Clock className="h-3.5 w-3.5" /> Current shift</span>
           </div>
@@ -201,16 +200,12 @@ export function RecordDailyCareDialog({
             </div>
           </section>
 
-          {mode === "quick" && (
-            <section className="space-y-3">
-              <Label>Frequent Care Shortcuts</Label>
-              <div className="flex flex-wrap gap-2">
-                {shortcuts.map((shortcut) => <Button key={shortcut.label} type="button" variant="secondary" className="h-11" onClick={() => applyShortcut(shortcut)}>{shortcut.label}</Button>)}
-              </div>
-            </section>
-          )}
-
           <DailyCareQuickFields type={effectiveCareType} values={fields} set={set} mode={mode} />
+
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <span className="font-medium">Record summary: </span>
+            <span className="text-muted-foreground">{narrative}</span>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Resident Participation">
@@ -315,19 +310,6 @@ function RefusalWorkflow({ values, set }: { values: Record<string, string | bool
   );
 }
 
-type Shortcut = { label: string; careType: DailyCareType; outcome: DailyCareOutcome; participationLevel?: DailyCareParticipationLevel; summary: string; followUpRequired?: boolean; fields: Record<string, string | boolean> };
-const shortcuts: Shortcut[] = [
-  { label: "Personal Care Completed", careType: "personal_care", outcome: "completed", participationLevel: "with_assistance", summary: "Personal care completed.", fields: { careProvided: "full_body_wash", privacyMaintained: true } },
-  { label: "Oral Care Completed", careType: "oral_care", outcome: "completed", summary: "Oral care completed.", fields: { oralCareProvided: "teeth_brushed", dentures: "not_recorded" } },
-  { label: "Repositioned", careType: "repositioning", outcome: "completed", summary: "Resident repositioned.", fields: { toPosition: "side", residentComfortAfter: true } },
-  { label: "Ate All", careType: "food", outcome: "completed", participationLevel: "independent", summary: "Meal taken well.", fields: { mealType: "lunch", intake: "all", assistance: "independent" } },
-  { label: "Ate Half", careType: "food", outcome: "partially_completed", summary: "Half meal taken.", fields: { mealType: "lunch", intake: "half", assistance: "prompting" } },
-  { label: "Drank 200 ml", careType: "fluids", outcome: "completed", summary: "Fluid intake recorded.", fields: { drinkType: "drink", amountTakenMl: "200", amountOfferedMl: "200", intakeEstimate: "measured", assistance: "independent" } },
-  { label: "Comfortable", careType: "comfort", outcome: "completed", summary: "Resident comfortable.", fields: { comfortState: "comfortable", comfortMeasures: "reassurance" } },
-  { label: "Care Declined", careType: "refusal", outcome: "refused", summary: "Resident declined care.", fields: { refusedCareType: "personal_care", residentResponse: "declined", refusalReason: "not_provided", explanationProvided: true, alternativeType: "later_time", alternativeAccepted: "not_decided" } },
-  { label: "Skin Intact", careType: "skin_observation", outcome: "completed", summary: "Skin intact.", fields: { bodyAreasObserved: "pressure areas", skinState: "intact", blanchingStatus: "not_assessed" } },
-];
-
 function makeDetails(type: DailyCareType, values: Record<string, string | boolean>, occurredAt: string, refusedCareType: DailyCareType, followUpRequired: boolean, followUpReason: string): DailyCareDetails {
   const arr = (key: string) => split(String(values[key] ?? ""));
   const num = (key: string) => Number.isFinite(Number(values[key])) && String(values[key] ?? "").trim() !== "" ? Number(values[key]) : undefined;
@@ -364,3 +346,30 @@ function check(key: string, label: string, values: Record<string, string | boole
 function split(value: string) { return value.split(",").map((item) => item.trim()).filter(Boolean); }
 function nonEmpty<T>(value: T[], fallback: T[]) { return value.length ? value : fallback; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-1.5"><Label>{label}</Label>{children}</div>; }
+
+function buildDailyCareNarrative(
+  residentName: string,
+  type: DailyCareType,
+  outcome: DailyCareOutcome,
+  details: DailyCareDetails,
+) {
+  const care = DAILY_CARE_LABELS[type].toLowerCase();
+  const outcomeLabel = DAILY_CARE_OUTCOME_LABELS[outcome].toLowerCase();
+  const words = (value?: string) => value ? value.replaceAll("_", " ") : "";
+  let observation = "";
+
+  if (details.type === "sleep") observation = words(details.state);
+  else if (details.type === "mood") observation = words(details.observedMood);
+  else if (details.type === "food") observation = details.intake === "all" ? "all of the meal was taken" : `${words(details.intake)} of the meal was taken`;
+  else if (details.type === "fluids" && details.amountTakenMl !== undefined) observation = `${details.amountTakenMl} ml was taken`;
+  else if (details.type === "mobility") observation = words(details.mobilityActivity);
+  else if (details.type === "comfort") observation = words(details.comfortState);
+  else if (details.type === "repositioning") observation = `position changed to ${words(details.toPosition)}`;
+  else if (details.type === "personal_care") observation = words(details.careProvided[0]);
+  else if (details.type === "oral_care") observation = words(details.oralCareProvided[0]);
+  else if (details.type === "activity") observation = details.activityName;
+  else if (details.type === "skin_observation") observation = words(details.skinState[0]);
+  else if (details.type === "refusal") observation = `care was ${words(details.residentResponse || "declined")}`;
+
+  return `${residentName} ${care} was ${outcomeLabel}${observation ? ` and ${care} was ${observation}` : ""}.`;
+}
