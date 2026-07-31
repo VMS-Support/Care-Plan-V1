@@ -102,3 +102,21 @@
   }
   h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 }
+
+/* Maintenance is used on the floor as well as at a desk.  These rules deliberately
+   favour legibility and touch targets over information density in this module only. */
+.maintenance-experience {
+  font-size: 1rem;
+}
+.maintenance-experience h1 { font-size: clamp(1.65rem, 2vw, 2rem); line-height: 1.2; }
+.maintenance-experience h2, .maintenance-experience h3 { line-height: 1.3; }
+.maintenance-experience button, .maintenance-experience [role="button"], .maintenance-experience select, .maintenance-experience input {
+  min-height: 2.75rem;
+}
+.maintenance-experience input, .maintenance-experience select, .maintenance-experience textarea {
+  font-size: 1rem;
+}
+.maintenance-experience table { font-size: 0.95rem; }
+.maintenance-experience th { font-size: 0.78rem; letter-spacing: 0.03em; }
+.maintenance-experience td { vertical-align: top; }
+.maintenance-experience .text-xs { font-size: 0.8rem; line-height: 1.35; }

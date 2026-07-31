@@ -631,17 +631,31 @@ export function queryWorkOrders(source: WorkOrderDataSource, queryInput: Partial
     const term = query.search.trim().toLowerCase();
     records = records.filter((record) => {
       const home = source.facilities.find((item) => item.id === record.homeId)?.name || "";
+      const ward = source.wards.find((item) => String(item.id) === String(record.wardId))?.name || "";
       const room = source.rooms.find((item) => String(item.id) === String(record.roomId));
       const assignee = workOrderAssigneeLabel(record, source.users);
+      const reporter = source.users.find((item) => item.id === record.reportedByUserId)?.name || record.reporterNameSnapshot || "";
       return [
         record.workOrderNumber,
         record.title,
         record.description,
         home,
+        ward,
         room?.number,
         room?.roomNumber,
         room?.name,
+        record.exactLocation,
+        record.areaName,
+        record.category,
+        workOrderCategoryLabel(record.category),
+        record.subcategory,
+        record.type,
+        workOrderTypeLabel(record.type),
+        record.priority,
+        record.status,
         assignee,
+        record.assignedTeamId,
+        reporter,
       ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
     });
   }

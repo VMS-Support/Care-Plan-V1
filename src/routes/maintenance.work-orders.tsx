@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { AlertTriangle, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, LayoutGrid, List, Plus, Search, Wrench } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, FileText, LayoutGrid, List, Plus, Search, Wrench } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import type { MaintenanceWorkOrderPriority, MaintenanceWorkOrderStatus } from "@/lib/care/types";
 import {
@@ -48,6 +48,7 @@ const PRESETS: Array<{ value: WorkOrderPreset; label: string }> = [
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
 ];
+const PRIMARY_PRESETS: WorkOrderPreset[] = ["active", "unassigned", "critical", "due_today", "overdue", "completed"];
 
 function WorkOrdersRoute() {
   const pathname = useRouterState({ select: (state) => state.location.pathname.replace(/\/+$/, "") });
@@ -59,6 +60,7 @@ function WorkOrdersPage() {
   const care = useCare();
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch() as WorkOrderQuery;
+  const [showAllPresets, setShowAllPresets] = useState(false);
 
   if (!care.canAccess("maintenance.work_orders.view")) {
     return <PermissionState />;
@@ -108,13 +110,12 @@ function WorkOrdersPage() {
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Work Orders</h1>
           <p className="text-sm text-muted-foreground">Reactive, corrective, emergency and housekeeping maintenance issues.</p>
         </div>
-        <Button asChild>
-          <Link to="/maintenance/work-orders/new"><Plus className="mr-2 h-4 w-4" />Create Work Order</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2"><Button asChild><Link to="/maintenance/work-orders/new"><Plus className="mr-2 h-4 w-4" />New Work Order</Link></Button><Button variant="outline" onClick={() => exportWorkOrders(result.records)}>Export current list</Button></div>
       </div>
 
+      <div><h2 className="text-base font-semibold">Quick view</h2><p className="text-sm text-muted-foreground">Choose the work that needs attention. Select “More filters” only when needed.</p></div>
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12">
-        {PRESETS.map((preset) => (
+        {PRESETS.filter((preset) => PRIMARY_PRESETS.includes(preset.value) || showAllPresets || search.preset === preset.value).map((preset) => (
           <Button
             key={preset.value}
             type="button"
@@ -127,13 +128,14 @@ function WorkOrdersPage() {
             <span className="text-xs">{preset.label}</span>
           </Button>
         ))}
+        <Button type="button" variant="outline" className="min-h-16 flex-col whitespace-normal" onClick={() => setShowAllPresets((value) => !value)}>{showAllPresets ? "Show fewer" : "More filters"}</Button>
       </div>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 lg:grid-cols-[1.5fr_repeat(5,minmax(130px,1fr))_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input value={search.search || ""} onChange={(event) => updateSearch({ search: event.target.value })} placeholder="Search number, issue, room, Care Home or assignee" className="pl-9" />
+            <Input value={search.search || ""} onChange={(event) => updateSearch({ search: event.target.value })} placeholder="Search anything: issue, room, asset, person or Work Order number" className="pl-9" />
           </div>
           <select className="h-10 rounded-md border bg-background px-3 text-sm" value={search.homeId || ""} onChange={(event) => updateSearch({ homeId: event.target.value || undefined, roomId: undefined })}>
             <option value="">All Care Homes</option>
@@ -219,6 +221,7 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
                 <th className="px-4 py-3">Due</th>
                 <th className="px-4 py-3">Age</th>
                 <th className="px-4 py-3">Last Updated</th>
+                <th className="px-4 py-3">Indicators</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -238,6 +241,7 @@ function ListView({ records }: { records: ReturnType<typeof queryWorkOrders>["re
                   <td className="px-4 py-3"><DueLabel record={record} /></td>
                   <td className="px-4 py-3">{relativeAge(record.createdAt)}</td>
                   <td className="px-4 py-3" title={new Date(record.updatedAt || record.createdAt).toLocaleString()}>{relativeAge(record.updatedAt || record.createdAt)}</td>
+                  <td className="px-4 py-3"><RecordIndicators record={record} /></td>
                   <td className="px-4 py-3 text-right"><WorkOrderActions record={record} /></td>
                 </tr>
               ))}
@@ -269,6 +273,14 @@ function WorkOrderActions({ record }: { record: ReturnType<typeof queryWorkOrder
   return <details className="relative inline-block text-left"><summary className="cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring">Actions</summary><div className="absolute right-0 z-20 mt-1 w-36 rounded-md border bg-popover p-1 shadow-lg"><Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }} className="block rounded px-2 py-1.5 text-xs hover:bg-muted">Open</Link>{canEdit && record.status === "OPEN" && <button type="button" className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={start}>Start Work</button>}{canNote && <button type="button" className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={addNote}>Add Note</button>}<Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: record.id }} className="block rounded px-2 py-1.5 text-xs hover:bg-muted">View Timeline</Link></div></details>;
 }
 
+function RecordIndicators({ record }: { record: ReturnType<typeof queryWorkOrders>["records"][number] }) {
+  const care = useCare();
+  const attachments = care.workOrderAttachments.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+  const notes = care.workOrderNotes.filter((item) => item.workOrderId === record.id && !item.deletedAt);
+  const labels = [attachments.length ? `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}` : "", notes.length ? `${notes.length} note${notes.length === 1 ? "" : "s"}` : "", record.verificationRequired ? "Verification required" : "", record.assetId ? "Asset linked" : ""].filter(Boolean);
+  return labels.length ? <div className="flex flex-wrap gap-1">{attachments.length > 0 && <Badge title={labels.join(", ")} variant="outline"><FileText className="mr-1 h-3 w-3" />{attachments.length}</Badge>}{notes.length > 0 && <Badge title={labels.join(", ")} variant="outline">Notes {notes.length}</Badge>}{record.verificationRequired && <Badge title={labels.join(", ")} variant="outline">Verify</Badge>}{record.assetId && <Badge title={labels.join(", ")} variant="outline">Asset</Badge>}</div> : <span className="text-muted-foreground">—</span>;
+}
+
 function workOrderSummary(record: ReturnType<typeof queryWorkOrders>["records"][number], care: ReturnType<typeof useCare>) {
   const asset = care.maintenanceAssets.find((item) => item.id === record.assetId)?.assetName || "None";
   return [record.description, `Reported: ${record.reporterNameSnapshot || "Not recorded"}`, `Priority: ${workOrderPriorityLabel(record.priority)}`, `Asset: ${asset}`, `Status: ${workOrderStatusLabel(record.status)}`, `Due: ${record.dueAt ? new Date(record.dueAt).toLocaleString() : "Not set"}`].filter(Boolean).join("\n");
@@ -283,6 +295,13 @@ function relativeAge(value?: string) {
   const days = Math.floor(hours / 24);
   return days === 1 ? "1 day" : `${days} days`;
 }
+
+function exportWorkOrders(records: ReturnType<typeof queryWorkOrders>["records"]) {
+  const rows = ["Work Order,Title,Priority,Status,Due Date", ...records.map((record) => [record.workOrderNumber, record.title, record.priority, record.status, record.dueAt || ""].map(csvValue).join(","))];
+  const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a"); link.href = url; link.download = `work-orders-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+}
+function csvValue(value: string) { return `"${value.replaceAll('"', '""')}"`; }
 
 function BoardView({ records }: { records: ReturnType<typeof queryWorkOrders>["allFiltered"] }) {
   const columns = [

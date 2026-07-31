@@ -40,10 +40,10 @@ interface WorkOrderFormProps {
 }
 
 const steps = [
-  { id: "location", label: "Location" },
-  { id: "issue", label: "Issue Details" },
-  { id: "risk", label: "Priority and Risk" },
-  { id: "review", label: "Responsibility and Review" },
+  { id: "issue", label: "What is the problem?" },
+  { id: "location", label: "Where is the issue?" },
+  { id: "details", label: "Details and priority" },
+  { id: "review", label: "Review and create" },
 ] as const;
 
 const draftKey = "maintenance-work-order-create-draft-v1";
@@ -242,8 +242,8 @@ export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrder
             </div>
           )}
 
-          {step === 0 && <LocationStep form={form} update={update} rooms={homeRooms} wards={homeWards} />}
-          {step === 1 && <IssueStep form={form} update={update} possibleMatches={possibleMatches} assets={homeAssets} />}
+          {step === 0 && <IssueStep form={form} update={update} possibleMatches={possibleMatches} assets={homeAssets} />}
+          {step === 1 && <LocationStep form={form} update={update} rooms={homeRooms} wards={homeWards} />}
           {step === 2 && <RiskStep form={form} update={update} updateRisk={updateRisk} risk={risk} minimumPriority={minimumPriority} />}
           {step === 3 && <ReviewStep form={form} update={update} canAssign={canAssign} users={homeUsers} risk={risk} workOrder={workOrder} />}
         </CardContent>
@@ -453,6 +453,10 @@ function RiskStep({ form, update, updateRisk, risk, minimumPriority }: { form: F
 }
 
 function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form: FormState; update: Updater; canAssign: boolean; users: ReturnType<typeof useCare>["users"]; risk: ReturnType<typeof calculateMaintenanceRisk>; workOrder?: MaintenanceWorkOrder }) {
+  const care = useCare();
+  const location = workOrderLocationLabel({ homeId: form.homeId, wardId: form.wardId, roomId: form.roomId, exactLocation: form.exactLocation } as MaintenanceWorkOrder, care);
+  const asset = care.maintenanceAssets.find((item) => item.id === form.assetId)?.assetName;
+  const assigned = users.find((item) => item.id === form.assignedUserId)?.name || "Unassigned";
   return (
     <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="grid gap-4 md:grid-cols-2">
@@ -482,15 +486,15 @@ function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form:
           </Field>
         )}
       </div>
-      <Summary title="Review">
+      <Summary title="Work Order Summary">
         <div className="space-y-2">
-          <p className="font-semibold">{form.title || "Untitled Work Order"}</p>
-          <p>{form.description || "No description entered yet."}</p>
-          <p>Priority: {workOrderPriorityLabel(form.priority)}</p>
-          <p>Risk: {risk?.calculatedLevel || "LOW"} ({risk?.score || 4})</p>
-          <p>Response target: {form.requiredResponseAt ? new Date(form.requiredResponseAt).toLocaleString() : "Not set"}</p>
-          <p>Due date: {form.dueAt ? new Date(form.dueAt).toLocaleString() : "Not set"}</p>
-          <p>Status after save: {mode === "create" && form.assignedUserId ? "Assigned" : workOrder?.status || "Open"}</p>
+          <p><span className="text-muted-foreground">Issue</span><br /><strong>{form.title || "Not entered yet"}</strong></p>
+          <p><span className="text-muted-foreground">Location</span><br />{location}</p>
+          <p><span className="text-muted-foreground">Asset</span><br />{asset || "No asset linked"}</p>
+          <p><span className="text-muted-foreground">Priority</span><br />{workOrderPriorityLabel(form.priority)} · Risk {risk?.calculatedLevel || "LOW"}</p>
+          <p><span className="text-muted-foreground">Assigned to</span><br />{assigned}</p>
+          <p><span className="text-muted-foreground">Due</span><br />{form.dueAt ? new Date(form.dueAt).toLocaleString() : "Not set"}</p>
+          <p className="font-medium text-primary">Ready to {workOrder ? "save" : "create"}</p>
         </div>
       </Summary>
     </section>
@@ -604,8 +608,8 @@ function cleanText(value?: string) {
 
 function errorsForStep(errors: Record<string, string>, step: number) {
   const groups = [
-    ["homeId", "roomId", "wardId"],
     ["type", "source", "category", "title", "description"],
+    ["homeId", "roomId", "wardId"],
     ["priority", "riskAssessment", "immediateControlSummary", "areaRestrictionDetails", "manualOverrideReason"],
     ["dueAt", "requiredResponseAt", "assignedUserId"],
   ];

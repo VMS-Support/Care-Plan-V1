@@ -1964,6 +1964,8 @@ export interface Facility {
   name: string;
   status: "active" | "inactive";
   timezone?: string;
+  /** Configured resident capacity. Admission is blocked once active residents reach this value. */
+  bedCapacity?: number;
   createdAt: string;
   updatedAt?: string;
   createdBy: string;

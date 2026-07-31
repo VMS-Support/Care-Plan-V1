@@ -307,13 +307,13 @@ const nav: NavItem[] = [
 const maintenanceNav: NavItem[] = [
   { to: "/maintenance", label: "Overview", icon: Home, exact: true },
   { to: "/maintenance/work-orders", label: "Work Orders", icon: ClipboardList, capability: "maintenance.work_orders.view" },
-  { to: "/maintenance/planned-maintenance", label: "Planned Maintenance", icon: CalendarDays, capability: "permission.manage" },
-  { to: "/maintenance/assets", label: "Assets", icon: Package, capability: "permission.manage" },
-  { to: "/maintenance/safety-compliance", label: "Safety & Compliance", icon: ShieldCheck, capability: "permission.manage" },
-  { to: "/maintenance/housekeeping", label: "Housekeeping", icon: UsersRound, capability: "permission.manage" },
-  { to: "/maintenance/certificates", label: "Certificates", icon: BadgeCheck, capability: "permission.manage" },
+  { to: "/maintenance/planned-maintenance", label: "Planned Jobs", icon: CalendarDays, capability: "permission.manage" },
+  { to: "/maintenance/assets", label: "Equipment & Assets", icon: Package, capability: "permission.manage" },
+  { to: "/maintenance/safety-compliance", label: "Safety Checks", icon: ShieldCheck, capability: "permission.manage" },
+  { to: "/maintenance/housekeeping", label: "Cleaning & Housekeeping", icon: UsersRound, capability: "permission.manage" },
+  { to: "/maintenance/certificates", label: "Certificates & Documents", icon: BadgeCheck, capability: "permission.manage" },
   { to: "/maintenance/contractors", label: "Contractors", icon: HardHat, capability: "maintenance.contractors.register.view" },
-  { to: "/maintenance/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck, capability: "permission.manage" },
+  { to: "/maintenance/corrective-actions", label: "Follow-up Actions", icon: ClipboardCheck, capability: "permission.manage" },
   { to: "/maintenance/rooms-locations", label: "Rooms & Locations", icon: MapPin, capability: "permission.manage" },
   { to: "/maintenance/reports", label: "Reports", icon: BarChart3, capability: "permission.manage" },
   { to: "/maintenance/settings", label: "Settings", icon: Settings, capability: "permission.manage" },
@@ -569,13 +569,16 @@ export function AppShell() {
         <SidebarInner />
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar />
-          <main className="flex-1 pb-20 md:pb-8">
-            <Outlet />
-          </main>
+          <ShellMain />
         </div>
         <MobileNav />
         <Toaster richColors position="top-right" />
       </div>
     </CareProvider>
   );
+}
+
+function ShellMain() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return <main className={cn("flex-1 pb-20 md:pb-8", pathname.startsWith("/maintenance") && "maintenance-experience")}><Outlet /></main>;
 }

@@ -551,6 +551,14 @@ import {
   type StrengthPreferenceState,
 } from "./residentStrengthPreferences";
 import type { RltTimelineTagState } from "./rltTimeline";
+
+function assertResidentCapacity(state: { facilities: Facility[]; residents: Resident[] }, facilityId: string, isBecomingActive: boolean, excludingResidentId?: string) {
+  if (!isBecomingActive) return;
+  const capacity = state.facilities.find((facility) => facility.id === facilityId)?.bedCapacity;
+  if (capacity === undefined) return;
+  const occupied = state.residents.filter((resident) => resident.id !== excludingResidentId && (resident.facilityId || facilityId) === facilityId && resident.status === "active" && !resident.deletedAt).length;
+  if (occupied >= capacity) throw new Error(`This Nursing Home is at full capacity (${occupied} of ${capacity} beds occupied). A resident must be discharged or a bed added before another resident can be made active.`);
+}
 import { EMPTY_RESIDENT_PROFILE_STATE, updateResidentProfile, type ResidentProfileState, type UpdateResidentProfileInput } from "./residentProfile";
 import {
   EMPTY_FLEXIBLE_CARE_ACTION_STATE,
@@ -4009,6 +4017,7 @@ interface CareCtx extends Store {
   // residents
   addResident: (r: Omit<Resident, "id" | "photoSeed">) => Resident;
   updateResident: (id: string, patch: Partial<Resident>) => void;
+  updateFacilityBedCapacity: (facilityId: string, bedCapacity: number) => void;
   updateResidentProfile: (id: string, input: UpdateResidentProfileInput) => void;
   softDeleteResident: (id: string, reason?: string) => number;
   addNextOfKin: (residentId: string, nok: Omit<NextOfKin, "id">) => void;
@@ -6011,6 +6020,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({ ...s, staffProbations: s.staffProbations.map((probation) => probation.id === id ? next : probation), probationEvents: [{ id: `probation-event-${uid()}`, type: eventType, probationId: next.id, staffMemberId: next.staffMemberId, employmentRecordId: next.employmentRecordId, nursingHomeId: next.nursingHomeId, safeStatus: next.status, actorUserAccountId: currentUser.id, occurredAt: now, correlationId: `probation-complete-${id}-${now}` }, ...(s.probationEvents || [])] }));
       },
       addResident: (r) => {
+        assertResidentCapacity(store, r.facilityId || activeFacilityId, r.status === "active");
         const id = `R-${String(store.residents.length + 1).padStart(4, "0")}`;
         const resident: Resident = { ...r, id, photoSeed: r.firstName + r.lastName };
         setStore((s) => ({ ...s, residents: [...s.residents, resident] }));
@@ -6023,6 +6033,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
         return resident;
       },
       updateResident: (id, patch) => {
+        const current = store.residents.find((resident) => resident.id === id);
+        if (!current) throw new Error("Resident not found.");
+        const nextFacilityId = patch.facilityId || current.facilityId || activeFacilityId;
+        assertResidentCapacity(store, nextFacilityId, patch.status === "active" && current.status !== "active", id);
         setStore((s) => ({
           ...s,
           residents: s.residents.map((r) => (r.id === id ? { ...r, ...patch } : r)),
@@ -6033,6 +6047,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
           action: "Updated resident",
           entity: id,
         });
+      },
+      updateFacilityBedCapacity: (facilityId, bedCapacity) => {
+        if (!Number.isInteger(bedCapacity) || bedCapacity < 0) throw new Error("Enter a whole number of beds (zero or more).");
+        const activeResidents = store.residents.filter((resident) => resident.id && (resident.facilityId || activeFacilityId) === facilityId && resident.status === "active" && !resident.deletedAt).length;
+        if (bedCapacity < activeResidents) throw new Error(`Capacity cannot be lower than the ${activeResidents} active residents currently in this Nursing Home.`);
+        setStore((state) => ({ ...state, facilities: state.facilities.map((facility) => facility.id === facilityId ? { ...facility, bedCapacity, updatedAt: new Date().toISOString() } : facility) }));
+        logAudit({ user: currentUserName, role: currentRole, action: "Updated Nursing Home bed capacity", entity: facilityId });
       },
       updateResidentProfile: (id, input) => {
         const now = new Date().toISOString();

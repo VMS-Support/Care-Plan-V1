@@ -34,6 +34,7 @@ const tabs: Array<{ value: Tab; label: string }> = [
   { value: "reports", label: "Reports" },
   { value: "settings", label: "Settings" },
 ];
+const primaryTabs: Tab[] = ["overview", "schedule", "tasks", "readiness", "completed"];
 
 function HousekeepingRoute() {
   const care = useCare();
@@ -46,6 +47,7 @@ function HousekeepingRoute() {
   const [scheduleDialog, setScheduleDialog] = useState(false);
   const [exceptionDialog, setExceptionDialog] = useState<{ open: boolean; taskId?: string }>({ open: false });
   const [message, setMessage] = useState("");
+  const [showMore, setShowMore] = useState(false);
 
   const metrics = useMemo(() => housekeepingDashboardMetrics({
     templates: care.housekeepingTemplates,
@@ -55,7 +57,7 @@ function HousekeepingRoute() {
     inspections: care.housekeepingQualityInspections,
     audits: care.housekeepingCleaningAudits,
     readiness: care.housekeepingRoomReadiness,
-    today: new Date("2026-07-22T09:00:00.000Z"),
+    today: new Date(),
   }), [care.housekeepingTemplates, care.housekeepingSchedules, care.housekeepingTasks, care.housekeepingExceptions, care.housekeepingQualityInspections, care.housekeepingCleaningAudits, care.housekeepingRoomReadiness]);
 
   const filteredTasks = care.housekeepingTasks
@@ -98,9 +100,10 @@ function HousekeepingRoute() {
       </section>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs.map((item) => (
+        {tabs.filter((item) => primaryTabs.includes(item.value) || showMore || tab === item.value).map((item) => (
           <button key={item.value} onClick={() => setTab(item.value)} className={cn("whitespace-nowrap rounded-md border px-3 py-2 text-sm", tab === item.value ? "border-blue-600 bg-blue-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50")}>{item.label}</button>
         ))}
+        <button type="button" onClick={() => setShowMore((value) => !value)} className="whitespace-nowrap rounded-md border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">{showMore ? "Show fewer" : "More options"}</button>
       </div>
 
       <div className="flex flex-col gap-2 md:flex-row">
@@ -187,7 +190,7 @@ function SettingsPanel({ care, action }: { care: ReturnType<typeof useCare>; act
 }
 
 function TaskList({ title, tasks, onSelect, empty }: { title: string; tasks: HousekeepingTask[]; onSelect: (id: string) => void; empty: string }) {
-  return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="space-y-2">{tasks.length === 0 ? <Empty text={empty} /> : tasks.map((task) => <button key={task.id} onClick={() => onSelect(task.id)} className="w-full rounded-lg border bg-white p-3 text-left hover:bg-slate-50"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-medium">{task.title}</div><div className="text-xs text-muted-foreground">{task.taskNumber} - {task.locationLabel || task.roomId} - {task.dueDate} {task.dueTime}</div></div><div className="flex gap-2"><Badge>{cleaningTypeLabel(task.cleaningType)}</Badge><Badge className={statusClass(housekeepingDueStatus(task, new Date("2026-07-22T09:00:00.000Z")))}>{housekeepingStatusLabel(housekeepingDueStatus(task, new Date("2026-07-22T09:00:00.000Z")))}</Badge></div></div></button>)}</CardContent></Card>;
+  return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="space-y-2">{tasks.length === 0 ? <Empty text={empty} /> : tasks.map((task) => <button key={task.id} onClick={() => onSelect(task.id)} className="w-full rounded-lg border bg-white p-3 text-left hover:bg-slate-50"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-medium">{task.title}</div><div className="text-xs text-muted-foreground">{task.taskNumber} - {task.locationLabel || task.roomId} - {task.dueDate} {task.dueTime}</div></div><div className="flex gap-2"><Badge>{cleaningTypeLabel(task.cleaningType)}</Badge><Badge className={statusClass(housekeepingDueStatus(task, new Date()))}>{housekeepingStatusLabel(housekeepingDueStatus(task, new Date()))}</Badge></div></div></button>)}</CardContent></Card>;
 }
 
 function TaskDialog({ open, onOpenChange, care, action }: { open: boolean; onOpenChange: (open: boolean) => void; care: ReturnType<typeof useCare>; action: (fn: () => void, success: string) => void }) {
