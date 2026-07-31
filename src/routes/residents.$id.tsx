@@ -347,6 +347,7 @@ function ResidentDetail() {
     timelineEvents,
     auditLogs,
     notes,
+    dailyCareRecords,
     alerts,
     clinicalAlerts,
     tasks,
@@ -641,6 +642,9 @@ function ResidentDetail() {
   const clinicalSnapshotAssessments = latestAssessmentsByType(rA);
   const rADeleted = assessments.filter((a) => a.residentId === id && a.status === "deleted");
   const rN = notes.filter((n) => n.residentId === id);
+  const rDailyCare = dailyCareRecords
+    .filter((record) => record.residentId === id && record.status !== "entered_in_error")
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
   const rAlerts = alerts.filter(
     (a) => a.residentId === id && isActionRequiredAlert(a) && !a.resolvedAt,
   );
@@ -2483,6 +2487,28 @@ function ResidentDetail() {
         </TabsContent>
 
         <TabsContent value="notes" className="space-y-2">
+          {rDailyCare.map((record) => (
+            <Card key={record.id} className="border-primary/20 bg-primary/[0.02]">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-medium">{record.occurredAt.slice(0, 10)}</span>
+                  <Badge className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">
+                    Daily Care
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {record.careType.replaceAll("_", " ")}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {record.outcome.replaceAll("_", " ")}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm">{record.notes || record.outcomeSummary}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Recorded at {record.occurredAt.slice(11, 16)}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
           {rN.map((n) => (
             <Card key={n.id}>
               <CardContent className="p-4">
@@ -2526,6 +2552,11 @@ function ResidentDetail() {
               </CardContent>
             </Card>
           ))}
+          {rDailyCare.length === 0 && rN.length === 0 && (
+            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No Daily Notes or Daily Care records have been recorded yet.
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="interventions" className="space-y-4">
