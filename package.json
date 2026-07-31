@@ -10,7 +10,6 @@
     "build:dev": "vite build --mode development",
     "build:pages": "vite build --config vite.pages.config.ts",
     "postbuild:pages": "node scripts/prepare-pages-dist.mjs",
-    "build:vercel": "vite build --config vite.vercel.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "predeploy": "npm run build:pages",
     "deploy": "gh-pages -d dist",
