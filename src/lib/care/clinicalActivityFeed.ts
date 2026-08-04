@@ -36,6 +36,45 @@ export interface ClinicalActivityEntry {
   readOnly: boolean;
 }
 
+export interface ResidentHandoverActivity {
+  eventId: string;
+  residentId: string;
+  occurredAt: string;
+  eventType: ClinicalActivityKind;
+  title: string;
+  summary: string;
+  recordedBy?: string;
+  sourceModule: string;
+  sourceRecordId: string;
+  sourceRoute?: string;
+}
+
+/** A deliberately thin adapter over the existing clinical activity projection. */
+export function getResidentHandoverActivity(input: {
+  activity: ClinicalActivityEntry[];
+  residentId: string;
+  from: string;
+  to: string;
+}): ResidentHandoverActivity[] {
+  const from = Date.parse(input.from);
+  const to = Date.parse(input.to);
+  return input.activity
+    .filter((entry) => entry.residentId === input.residentId && Date.parse(entry.occurredAt) >= from && Date.parse(entry.occurredAt) <= to)
+    .map((entry) => ({
+      eventId: entry.id,
+      residentId: entry.residentId,
+      occurredAt: entry.occurredAt,
+      eventType: entry.kind,
+      title: entry.title,
+      summary: entry.summary,
+      recordedBy: entry.recordedBy,
+      sourceModule: entry.source,
+      sourceRecordId: entry.sourceId,
+      sourceRoute: entry.sourceRoute,
+    }))
+    .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.eventId.localeCompare(right.eventId));
+}
+
 const titleCase = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 function activityKindFor(event: TimelineEvent): ClinicalActivityKind | null {
@@ -91,6 +130,12 @@ export function projectClinicalActivityFeed(input: {
     }
     return null;
   };
+  const carePlanTitleForEvent = (event: TimelineEvent) => {
+    const carePlanId = carePlanIdForEvent(event);
+    const carePlan = input.carePlanProblems?.find((item) => item.id === carePlanId);
+    if (!carePlan) return undefined;
+    return carePlan.carePlanName?.trim() || carePlan.customCategoryLabel?.trim() || carePlan.problemStatement.trim();
+  };
   const entries: ClinicalActivityEntry[] = [
     ...input.notes
       .filter((note) => inScope(note.residentId, note.facilityId))
@@ -145,12 +190,13 @@ export function projectClinicalActivityFeed(input: {
       .flatMap((event) => {
         const kind = activityKindFor(event);
         if (!kind) return [];
+        const carePlanTitle = kind === "care_plan" ? carePlanTitleForEvent(event) : undefined;
         return [{
           id: `timeline-event:${event.id}`,
           facilityId: event.facilityId,
           residentId: event.residentId,
           kind,
-          title: event.title,
+          title: carePlanTitle ? `${carePlanTitle} — ${event.title}` : event.title,
           summary: event.description || "Clinical activity recorded.",
           occurredAt: event.createdAt,
           date: event.createdAt,

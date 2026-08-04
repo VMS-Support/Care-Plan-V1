@@ -66,6 +66,7 @@ import { Route as MaintenanceContractorsRouteImport } from './routes/maintenance
 import { Route as MaintenanceCertificatesRouteImport } from './routes/maintenance.certificates'
 import { Route as MaintenanceAssetsRouteImport } from './routes/maintenance.assets'
 import { Route as InspectionResidentIdRouteImport } from './routes/inspection.$residentId'
+import { Route as HandoversGenerateRouteImport } from './routes/handovers_.generate'
 import { Route as ChartsResidentIdRouteImport } from './routes/charts.$residentId'
 import { Route as AssessmentsReassessmentRouteImport } from './routes/assessments.reassessment'
 import { Route as AssessmentsAssessmentIdRouteImport } from './routes/assessments.$assessmentId'
@@ -103,6 +104,7 @@ import { Route as MaintenanceCertificatesExpiredRouteImport } from './routes/mai
 import { Route as MaintenanceCertificatesDueSoonRouteImport } from './routes/maintenance.certificates.due-soon'
 import { Route as MaintenanceCertificatesArchivedRouteImport } from './routes/maintenance.certificates.archived'
 import { Route as MaintenanceCertificatesIdRouteImport } from './routes/maintenance.certificates.$id'
+import { Route as HandoversGeneratedHandoverIdRouteImport } from './routes/handovers_.generated.$handoverId'
 import { Route as AssessmentsNewResidentIdRouteImport } from './routes/assessments.new.$residentId'
 import { Route as MaintenanceWorkOrdersWorkOrderIdEditRouteImport } from './routes/maintenance.work-orders.$workOrderId.edit'
 import { Route as MaintenanceCorrectiveActionsIdEditRouteImport } from './routes/maintenance.corrective-actions.$id.edit'
@@ -399,6 +401,11 @@ const InspectionResidentIdRoute = InspectionResidentIdRouteImport.update({
   path: '/inspection/$residentId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HandoversGenerateRoute = HandoversGenerateRouteImport.update({
+  id: '/handovers_/generate',
+  path: '/handovers/generate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChartsResidentIdRoute = ChartsResidentIdRouteImport.update({
   id: '/charts/$residentId',
   path: '/charts/$residentId',
@@ -614,6 +621,12 @@ const MaintenanceCertificatesIdRoute =
     path: '/$id',
     getParentRoute: () => MaintenanceCertificatesRoute,
   } as any)
+const HandoversGeneratedHandoverIdRoute =
+  HandoversGeneratedHandoverIdRouteImport.update({
+    id: '/handovers_/generated/$handoverId',
+    path: '/handovers/generated/$handoverId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AssessmentsNewResidentIdRoute =
   AssessmentsNewResidentIdRouteImport.update({
     id: '/new/$residentId',
@@ -682,6 +695,7 @@ export interface FileRoutesByFullPath {
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
+  '/handovers/generate': typeof HandoversGenerateRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
@@ -713,6 +727,7 @@ export interface FileRoutesByFullPath {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/handovers/generated/$handoverId': typeof HandoversGeneratedHandoverIdRoute
   '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
   '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
   '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
@@ -782,6 +797,7 @@ export interface FileRoutesByTo {
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
+  '/handovers/generate': typeof HandoversGenerateRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
@@ -813,6 +829,7 @@ export interface FileRoutesByTo {
   '/assessments': typeof AssessmentsIndexRoute
   '/residents': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/handovers/generated/$handoverId': typeof HandoversGeneratedHandoverIdRoute
   '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
   '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
   '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
@@ -885,6 +902,7 @@ export interface FileRoutesById {
   '/assessments/$assessmentId': typeof AssessmentsAssessmentIdRoute
   '/assessments/reassessment': typeof AssessmentsReassessmentRoute
   '/charts/$residentId': typeof ChartsResidentIdRoute
+  '/handovers_/generate': typeof HandoversGenerateRoute
   '/inspection/$residentId': typeof InspectionResidentIdRoute
   '/maintenance/assets': typeof MaintenanceAssetsRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
@@ -916,6 +934,7 @@ export interface FileRoutesById {
   '/assessments/': typeof AssessmentsIndexRoute
   '/residents/': typeof ResidentsIndexRoute
   '/assessments/new/$residentId': typeof AssessmentsNewResidentIdRoute
+  '/handovers_/generated/$handoverId': typeof HandoversGeneratedHandoverIdRoute
   '/maintenance/certificates/$id': typeof MaintenanceCertificatesIdRouteWithChildren
   '/maintenance/certificates/archived': typeof MaintenanceCertificatesArchivedRoute
   '/maintenance/certificates/due-soon': typeof MaintenanceCertificatesDueSoonRoute
@@ -989,6 +1008,7 @@ export interface FileRouteTypes {
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
     | '/charts/$residentId'
+    | '/handovers/generate'
     | '/inspection/$residentId'
     | '/maintenance/assets'
     | '/maintenance/certificates'
@@ -1020,6 +1040,7 @@ export interface FileRouteTypes {
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
+    | '/handovers/generated/$handoverId'
     | '/maintenance/certificates/$id'
     | '/maintenance/certificates/archived'
     | '/maintenance/certificates/due-soon'
@@ -1089,6 +1110,7 @@ export interface FileRouteTypes {
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
     | '/charts/$residentId'
+    | '/handovers/generate'
     | '/inspection/$residentId'
     | '/maintenance/assets'
     | '/maintenance/certificates'
@@ -1120,6 +1142,7 @@ export interface FileRouteTypes {
     | '/assessments'
     | '/residents'
     | '/assessments/new/$residentId'
+    | '/handovers/generated/$handoverId'
     | '/maintenance/certificates/$id'
     | '/maintenance/certificates/archived'
     | '/maintenance/certificates/due-soon'
@@ -1191,6 +1214,7 @@ export interface FileRouteTypes {
     | '/assessments/$assessmentId'
     | '/assessments/reassessment'
     | '/charts/$residentId'
+    | '/handovers_/generate'
     | '/inspection/$residentId'
     | '/maintenance/assets'
     | '/maintenance/certificates'
@@ -1222,6 +1246,7 @@ export interface FileRouteTypes {
     | '/assessments/'
     | '/residents/'
     | '/assessments/new/$residentId'
+    | '/handovers_/generated/$handoverId'
     | '/maintenance/certificates/$id'
     | '/maintenance/certificates/archived'
     | '/maintenance/certificates/due-soon'
@@ -1292,6 +1317,7 @@ export interface RootRouteChildren {
   VisitorsRoute: typeof VisitorsRoute
   VitalsRoute: typeof VitalsRouteWithChildren
   ChartsResidentIdRoute: typeof ChartsResidentIdRoute
+  HandoversGenerateRoute: typeof HandoversGenerateRoute
   InspectionResidentIdRoute: typeof InspectionResidentIdRoute
   WorkforceAgencyRoute: typeof WorkforceAgencyRoute
   WorkforceCompetenciesRoute: typeof WorkforceCompetenciesRoute
@@ -1305,6 +1331,7 @@ export interface RootRouteChildren {
   WorkforceStaffRoute: typeof WorkforceStaffRouteWithChildren
   WorkforceTrainingRoute: typeof WorkforceTrainingRoute
   WorkforceVisaDocumentsRoute: typeof WorkforceVisaDocumentsRoute
+  HandoversGeneratedHandoverIdRoute: typeof HandoversGeneratedHandoverIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1708,6 +1735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InspectionResidentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/handovers_/generate': {
+      id: '/handovers_/generate'
+      path: '/handovers/generate'
+      fullPath: '/handovers/generate'
+      preLoaderRoute: typeof HandoversGenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/charts/$residentId': {
       id: '/charts/$residentId'
       path: '/charts/$residentId'
@@ -1966,6 +2000,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/maintenance/certificates/$id'
       preLoaderRoute: typeof MaintenanceCertificatesIdRouteImport
       parentRoute: typeof MaintenanceCertificatesRoute
+    }
+    '/handovers_/generated/$handoverId': {
+      id: '/handovers_/generated/$handoverId'
+      path: '/handovers/generated/$handoverId'
+      fullPath: '/handovers/generated/$handoverId'
+      preLoaderRoute: typeof HandoversGeneratedHandoverIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/assessments/new/$residentId': {
       id: '/assessments/new/$residentId'
@@ -2339,6 +2380,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitorsRoute: VisitorsRoute,
   VitalsRoute: VitalsRouteWithChildren,
   ChartsResidentIdRoute: ChartsResidentIdRoute,
+  HandoversGenerateRoute: HandoversGenerateRoute,
   InspectionResidentIdRoute: InspectionResidentIdRoute,
   WorkforceAgencyRoute: WorkforceAgencyRoute,
   WorkforceCompetenciesRoute: WorkforceCompetenciesRoute,
@@ -2352,6 +2394,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkforceStaffRoute: WorkforceStaffRouteWithChildren,
   WorkforceTrainingRoute: WorkforceTrainingRoute,
   WorkforceVisaDocumentsRoute: WorkforceVisaDocumentsRoute,
+  HandoversGeneratedHandoverIdRoute: HandoversGeneratedHandoverIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
