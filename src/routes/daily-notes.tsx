@@ -13,9 +13,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Mic, Activity, AlertCircle, Check, ChevronsUpDown, Eye, Search, X } from "lucide-react";
+import { Mic, AlertCircle, Check, ChevronsUpDown, Eye, Search, X } from "lucide-react";
 import { DAILY_NOTE_CATEGORY_OPTIONS, DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS } from "@/lib/care/types";
 import type { CarePlanProblem, DailyNote, Resident } from "@/lib/care/types";
+import { projectClinicalActivityFeed } from "@/lib/care/clinicalActivityFeed";
 
 export const Route = createFileRoute("/daily-notes")({
   head: () => ({ meta: [{ title: "Daily Notes — CarePath" }] }),
@@ -395,7 +396,7 @@ function NewNote() {
 }
 
 function DailyNotesPage() {
-  const { notes, dailyCareRecords, residents, carePlanProblems, currentUser, currentUserName } = useCare();
+  const { notes, dailyCareRecords, timelineEvents, residents, carePlanProblems, problemEvaluations, problemReviews, currentUser, currentUserName, activeFacilityId } = useCare();
   const [search, setSearch] = useState("");
   const [residentFilter, setResidentFilter] = useState("all");
   const [wingFilter, setWingFilter] = useState("all");
@@ -407,27 +408,11 @@ function DailyNotesPage() {
   const [dateTo, setDateTo] = useState("");
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState(1);
-  const [selectedNote, setSelectedNote] = useState<(DailyNote & { source?: "daily_note" | "daily_care"; careType?: string; outcome?: string }) | null>(null);
+  const [selectedNote, setSelectedNote] = useState<DailyNote | null>(null);
 
   const allNotes = useMemo(
-    () => [
-      ...notes.map((note) => ({ ...note, source: "daily_note" as const })),
-      ...dailyCareRecords
-        .filter((record) => record.status !== "entered_in_error")
-        .map((record) => ({
-          id: `daily-care-${record.id}`,
-          residentId: String(record.residentId),
-          date: record.occurredAt,
-          staff: String(record.recordedByStaffMemberId || "Daily Care"),
-          shift: "morning" as const,
-          category: "general" as const,
-          observation: record.notes || record.outcomeSummary || "Daily Care recorded.",
-          source: "daily_care" as const,
-          careType: record.careType,
-          outcome: record.outcome,
-        })),
-    ],
-    [dailyCareRecords, notes],
+    () => projectClinicalActivityFeed({ notes, dailyCareRecords, timelineEvents, carePlanProblems, problemEvaluations, problemReviews, facilityId: activeFacilityId }),
+    [activeFacilityId, carePlanProblems, dailyCareRecords, notes, problemEvaluations, problemReviews, timelineEvents],
   );
 
   const residentById = useMemo(() => new Map(residents.map((resident) => [resident.id, resident])), [residents]);
@@ -441,7 +426,7 @@ function DailyNotesPage() {
     [residents],
   );
   const staffOptions = useMemo(
-    () => Array.from(new Set(allNotes.map((note) => note.staff).filter(Boolean))).sort(),
+    () => Array.from(new Set(allNotes.map((note) => note.recordedBy).filter(Boolean) as string[])).sort(),
     [allNotes],
   );
 
@@ -488,7 +473,7 @@ function DailyNotesPage() {
     return allNotes
       .filter((note) => {
         const resident = residentById.get(note.residentId);
-        const noteDate = note.date.slice(0, 10);
+        const noteDate = note.occurredAt.slice(0, 10);
         if (residentFilter !== "all" && note.residentId !== residentFilter) return false;
         if (wingFilter === "my_residents") {
           const isMine =
@@ -501,8 +486,8 @@ function DailyNotesPage() {
         }
         if (roomFilter !== "all" && resident?.roomNumber !== roomFilter) return false;
         if (shiftFilter !== "all" && note.shift !== shiftFilter) return false;
-        if (recordedByFilter !== "all" && note.staff !== recordedByFilter) return false;
-        if (categoryFilter !== "all" && noteCategory(note) !== categoryFilter) return false;
+        if (recordedByFilter !== "all" && note.recordedBy !== recordedByFilter) return false;
+        if (categoryFilter !== "all" && note.kind !== categoryFilter) return false;
         if (dateFrom && noteDate < dateFrom) return false;
         if (dateTo && noteDate > dateTo) return false;
         if (query) {
@@ -510,21 +495,16 @@ function DailyNotesPage() {
             resident?.firstName,
             resident?.lastName,
             resident?.roomNumber,
-            note.staff,
+            note.recordedBy,
             note.shift,
-            note.observation,
-            note.behaviour,
-            note.additionalNotes,
-            note.mood,
-            note.foodIntake,
-            note.fluidIntake,
-            note.sleep,
+            note.title,
+            note.summary,
           ].filter(Boolean).join(" ").toLowerCase();
           if (!haystack.includes(query)) return false;
         }
         return true;
       })
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   }, [allNotes, categoryFilter, currentUser.assignedWings, currentUserName, dateFrom, dateTo, recordedByFilter, residentById, residentFilter, roomFilter, search, shiftFilter, wingFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredNotes.length / pageSize));
@@ -597,11 +577,15 @@ function DailyNotesPage() {
             <Select value={categoryFilter} onValueChange={(value) => { setCategoryFilter(value); resetPage(); }}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                <SelectItem value="intervention">From intervention</SelectItem>
-                {DAILY_NOTE_CATEGORY_OPTIONS.map((category) => (
-                  <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
-                ))}
+                <SelectItem value="all">All activity</SelectItem>
+                <SelectItem value="daily_note">Manual notes</SelectItem>
+                <SelectItem value="daily_care">Daily care</SelectItem>
+                <SelectItem value="assessment">Assessments</SelectItem>
+                <SelectItem value="care_plan">Care plans</SelectItem>
+                <SelectItem value="vital">Vital signs</SelectItem>
+                <SelectItem value="observation">Observations</SelectItem>
+                <SelectItem value="incident">Incidents</SelectItem>
+                <SelectItem value="mdt">MDT notes</SelectItem>
               </SelectContent>
             </Select>
             <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); resetPage(); }} aria-label="Date from" />
@@ -622,7 +606,7 @@ function DailyNotesPage() {
         {pagedNotes.map((note) => {
           const resident = residentById.get(note.residentId);
           const residentName = resident ? `${resident.firstName} ${resident.lastName}` : "Unknown resident";
-          const relatedProblem = carePlanProblemById.get(note.carePlanId || note.linkedProblemId || "");
+          const relatedProblem = carePlanProblemById.get(note.carePlanId || "");
           const relatedLabel = carePlanLabel(relatedProblem);
           return (
             <Card key={note.id}>
@@ -634,21 +618,11 @@ function DailyNotesPage() {
                         {residentName}
                       </Link>
                       <Badge variant="outline" className="text-[10px]">Room {resident?.roomNumber || "-"}</Badge>
-                      <Badge variant="outline" className="text-[10px] capitalize">{note.shift}</Badge>
-                      {note.source === "daily_care" ? (
-                        <>
-                          <Badge className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">Daily Care</Badge>
-                          <Badge variant="outline" className="text-[10px] capitalize">{note.careType?.replaceAll("_", " ")}</Badge>
-                          <Badge variant="outline" className="text-[10px] capitalize">{note.outcome?.replaceAll("_", " ")}</Badge>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px]">{categoryLabel(noteCategory(note))}</Badge>
-                      )}
-                      {note.linkedInterventionId && (
-                        <Badge variant="outline" className="text-[10px] bg-info/10 text-info border-info/30 gap-1">
-                          <Activity className="h-2.5 w-2.5" /> From intervention
-                        </Badge>
-                      )}
+                      {note.shift && <Badge variant="outline" className="text-[10px] capitalize">{note.shift}</Badge>}
+                      <Badge variant={note.readOnly ? undefined : "outline"} className={note.readOnly ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/10" : ""}>
+                        {note.kind === "daily_note" ? "Manual Note" : note.kind.replaceAll("_", " ")}
+                      </Badge>
+                      {note.readOnly && <Badge variant="outline" className="text-[10px]">Automatic</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(note.date).toLocaleString("en-GB")} · {note.staff}
@@ -666,7 +640,8 @@ function DailyNotesPage() {
                         </Link>
                       </div>
                     )}
-                    <p className="text-sm mt-2 line-clamp-2">{notePreview(note)}</p>
+                    {note.readOnly && <p className="text-sm mt-2 font-medium">{note.title}</p>}
+                    <p className="text-sm mt-1 line-clamp-2">{note.readOnly ? note.summary : notePreview(note)}</p>
                     {hasStructuredValues(note) && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
                         {isRecordedValue(note.mood) && <span>Mood: {displayValue(note.mood)}</span>}
@@ -677,9 +652,13 @@ function DailyNotesPage() {
                       </div>
                     )}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedNote(note)}>
-                    <Eye className="h-3.5 w-3.5 mr-1" /> View Note
-                  </Button>
+                  {note.kind === "daily_note" ? (
+                    <Button size="sm" variant="outline" onClick={() => setSelectedNote(notes.find((item) => item.id === note.sourceId) || null)}>
+                      <Eye className="h-3.5 w-3.5 mr-1" /> View Note
+                    </Button>
+                  ) : note.sourceRoute ? (
+                    <a href={note.sourceRoute} className="inline-flex"><Button size="sm" variant="outline"><Eye className="h-3.5 w-3.5 mr-1" /> View Original Record</Button></a>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

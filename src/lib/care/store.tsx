@@ -4452,6 +4452,8 @@ interface CareCtx extends Store {
   addProblemEvaluation: (
     input: Omit<ProblemEvaluation, "id" | "evaluatorId" | "evaluatorName" | "role" | "date"> & {
       date?: string;
+      /** A composite review keeps its evaluation in history but emits one clinical feed event. */
+      suppressTimelineEvent?: boolean;
     },
   ) => ProblemEvaluation;
   addProblemReview: (
@@ -11622,22 +11624,23 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
 
       addProblemEvaluation: (input) => {
+        const { suppressTimelineEvent, ...evaluationInput } = input;
         const item: ProblemEvaluation = {
-          ...input,
+          ...evaluationInput,
           id: newId("eval"),
-          date: input.date || new Date().toISOString(),
+          date: evaluationInput.date || new Date().toISOString(),
           evaluatorId: currentUser.id,
           evaluatorName: currentUserName,
           role: currentRole,
         };
-        const prob = store.carePlanProblems.find((p) => p.id === input.problemId);
-        const ev: TimelineEvent | null = prob
+        const prob = store.carePlanProblems.find((p) => p.id === evaluationInput.problemId);
+        const ev: TimelineEvent | null = prob && !suppressTimelineEvent
           ? {
               id: newId("tle"),
               residentId: prob.residentId,
               type: "careplan.evaluated",
-              title: `Evaluation: ${input.progress}`,
-              description: input.summary,
+              title: `Evaluation: ${evaluationInput.progress}`,
+              description: evaluationInput.summary,
               createdAt: item.date,
               createdBy: currentUserName,
               role: currentRole,
@@ -11652,20 +11655,20 @@ export function CareProvider({ children }: { children: ReactNode }) {
           problemHistory: [
             {
               id: newId("hist"),
-              problemId: input.problemId,
+              problemId: evaluationInput.problemId,
               timestamp: item.date,
               userId: currentUser.id,
               userName: currentUserName,
               role: currentRole,
               action: "evaluation_added",
-              newValue: input.progress,
+              newValue: evaluationInput.progress,
             },
             ...s.problemHistory,
           ],
           // bump evaluation date
-          carePlanProblems: input.nextEvaluationDate
+          carePlanProblems: evaluationInput.nextEvaluationDate
             ? s.carePlanProblems.map((p) =>
-                p.id === input.problemId ? { ...p, evaluationDate: input.nextEvaluationDate! } : p,
+                p.id === evaluationInput.problemId ? { ...p, evaluationDate: evaluationInput.nextEvaluationDate! } : p,
               )
             : s.carePlanProblems,
         }));
@@ -11673,7 +11676,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           user: currentUserName,
           role: currentRole,
           action: "Added evaluation",
-          entity: input.problemId,
+          entity: evaluationInput.problemId,
         });
         return item;
       },
@@ -11869,7 +11872,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           title: `Vital signs recorded`,
           description: `${vitalAuditSummary(item).summary} · Recorded by ${currentUserName}`,
           linkedRecordId: item.id,
-          linkedRecordKind: "observation" as any,
+          linkedRecordKind: "vital" as any,
           createdAt: now,
           createdBy: currentUserName,
           role: currentRole,
@@ -12133,6 +12136,22 @@ export function CareProvider({ children }: { children: ReactNode }) {
             ...s,
             clinicalObservations,
             clinicalAlerts: reconcileClinicalAlerts(s.clinicalAlerts, input.residentId, seeds, now.toISOString()),
+            timelineEvents: [
+              {
+                id: uid(),
+                facilityId: resident?.facilityId || activeFacilityId,
+                residentId: input.residentId,
+                type: "chart.observation",
+                title: `${input.kind.replace(/_/g, " ")} observation recorded`,
+                description: input.notes || "Clinical observation recorded.",
+                linkedRecordId: item.id,
+                linkedRecordKind: "clinical_observation",
+                createdAt: now.toISOString(),
+                createdBy: currentUserName,
+                role: currentRole,
+              },
+              ...s.timelineEvents,
+            ],
           };
         });
         logAudit({

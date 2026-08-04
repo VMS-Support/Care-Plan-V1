@@ -81,6 +81,7 @@ import { getResidentContacts } from "@/lib/care/residentContacts";
 import { getResidentDocuments } from "@/lib/care/residentDocuments";
 import { getResidentAdministrativeDetails } from "@/lib/care/residentAdministrativeDetails";
 import { projectResidentRltTimeline } from "@/lib/care/rltTimeline";
+import { projectClinicalActivityFeed } from "@/lib/care/clinicalActivityFeed";
 import { AddDailyNoteModal } from "@/components/resident/modals/AddDailyNoteModal";
 import { AddInterventionModal } from "@/components/resident/modals/AddInterventionModal";
 import { AddInterventionCompletionModal } from "@/components/resident/modals/AddInterventionCompletionModal";
@@ -645,6 +646,16 @@ function ResidentDetail() {
   const rDailyCare = dailyCareRecords
     .filter((record) => record.residentId === id && record.status !== "entered_in_error")
     .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+  const rClinicalActivity = projectClinicalActivityFeed({
+    notes,
+    dailyCareRecords,
+    timelineEvents,
+    carePlanProblems,
+    problemEvaluations,
+    problemReviews,
+    residentId: id,
+    facilityId: r.facilityId || activeFacilityId,
+  });
   const rAlerts = alerts.filter(
     (a) => a.residentId === id && isActionRequiredAlert(a) && !a.resolvedAt,
   );
@@ -1291,6 +1302,7 @@ function ResidentDetail() {
       progress: evaluationDraft.progress as any,
       recommendations: evaluationDraft.recommendations || undefined,
       nextEvaluationDate: evaluationDraft.nextEvaluationDate || undefined,
+      suppressTimelineEvent: true,
     });
 
     const reviewStatusAction = [
@@ -2487,33 +2499,11 @@ function ResidentDetail() {
         </TabsContent>
 
         <TabsContent value="notes" className="space-y-2">
-          {rDailyCare.map((record) => (
-            <Card key={record.id} className="border-primary/20 bg-primary/[0.02]">
-              <CardContent className="p-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">{record.occurredAt.slice(0, 10)}</span>
-                  <Badge className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">
-                    Daily Care
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] capitalize">
-                    {record.careType.replaceAll("_", " ")}
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] capitalize">
-                    {record.outcome.replaceAll("_", " ")}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-sm">{record.notes || record.outcomeSummary}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Recorded at {record.occurredAt.slice(11, 16)}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-          {rN.map((n) => (
-            <Card key={n.id}>
+          {rClinicalActivity.map((entry) => (
+            <Card key={entry.id}>
               <CardContent className="p-4">
                 {(() => {
-                  const relatedProblem = carePlanProblems.find((plan) => plan.id === (n.carePlanId || n.linkedProblemId));
+                  const relatedProblem = carePlanProblems.find((plan) => plan.id === entry.carePlanId);
                   const relatedLabel = relatedProblem
                     ? `${getRltDomainForCarePlanProblem(relatedProblem)?.title || relatedProblem.category.replace(/_/g, " ")} · ${relatedProblem.problemStatement}`
                     : undefined;
@@ -2531,30 +2521,23 @@ function ResidentDetail() {
                   ) : null;
                 })()}
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{n.date.slice(0, 10)}</span>
-                  <Badge variant="outline" className="text-[10px] capitalize">
-                    {n.shift}
+                  <span className="font-medium">{entry.occurredAt.slice(0, 10)}</span>
+                  {entry.shift && <Badge variant="outline" className="text-[10px] capitalize">{entry.shift}</Badge>}
+                  <Badge variant={entry.readOnly ? undefined : "outline"} className={entry.readOnly ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/10" : ""}>
+                    {entry.kind === "daily_note" ? "Manual Note" : entry.kind.replaceAll("_", " ")}
                   </Badge>
-                  <Badge variant="outline" className="text-[10px]">
-                    {dailyNoteCategoryLabel(n)}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{n.staff}</span>
+                  {entry.readOnly && <Badge variant="outline" className="text-[10px]">Automatic</Badge>}
+                  {entry.recordedBy && <span className="text-xs text-muted-foreground">{entry.recordedBy}</span>}
                 </div>
-                <p className="text-sm mt-1">{n.observation}</p>
-                {dailyNoteHasStructuredValues(n) && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground mt-2">
-                    {n.mood && <span>Mood: {dailyNoteValue(n.mood)}</span>}
-                    {n.foodIntake && <span>Food: {dailyNoteValue(n.foodIntake)}</span>}
-                    {n.fluidIntake && <span>Fluids: {dailyNoteValue(n.fluidIntake)}</span>}
-                    {n.sleep && <span>Sleep: {dailyNoteValue(n.sleep)}</span>}
-                  </div>
-                )}
+                <p className="text-sm mt-2 font-medium">{entry.title}</p>
+                <p className="text-sm mt-1">{entry.summary}</p>
+                {entry.sourceRoute && <a href={entry.sourceRoute} className="mt-2 inline-block text-xs font-medium text-primary hover:underline">View original record</a>}
               </CardContent>
             </Card>
           ))}
-          {rDailyCare.length === 0 && rN.length === 0 && (
+          {rClinicalActivity.length === 0 && (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No Daily Notes or Daily Care records have been recorded yet.
+              No daily notes or clinical activity have been recorded yet.
             </div>
           )}
         </TabsContent>

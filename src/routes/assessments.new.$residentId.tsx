@@ -33,7 +33,7 @@ function NewAssessment() {
   const scale = uniformScale(type);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
-  const [reviewDate, setReviewDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+  const [reviewDate, setReviewDate] = useState("");
   const [nextReassessmentDate, setNextReassessmentDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -54,6 +54,19 @@ function NewAssessment() {
     setResponsiblePerson("");
     setClinicalReviewTargetDate("");
   }, [type]);
+
+  const latestSameTypeAssessment = useMemo(
+    () => assessments
+      .filter((assessment) => assessment.residentId === residentId && assessment.type === type && assessment.status === "completed" && !assessment.deletedAt)
+      .sort((left, right) => (right.version || 1) - (left.version || 1) || right.date.localeCompare(left.date))[0],
+    [assessments, residentId, type],
+  );
+
+  // A reassessment should begin with the date the previous completed version
+  // was performed. New assessment types remain blank for staff to complete.
+  useEffect(() => {
+    setReviewDate(latestSameTypeAssessment?.date.slice(0, 10) || "");
+  }, [latestSameTypeAssessment?.date, latestSameTypeAssessment?.id]);
 
   const result = useMemo(() => scoreAssessment(type, scores), [type, scores]);
   const currentAssessments = useMemo(
