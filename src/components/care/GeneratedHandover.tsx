@@ -91,6 +91,8 @@ export function GenerateHandover() {
         preferredName: r.preferredName,
         room: r.roomNumber,
         residentIdentifier: r.residentNumber,
+        residentDateOfBirth: r.dob,
+        residentPhotoUrl: r.photoUrl,
         shiftSummary: "",
         nextShiftNotes: "",
         sortOrder: index + 1,

@@ -34,6 +34,8 @@ export interface GeneratedHandoverResidentSection {
   room?: string;
   wing?: string;
   residentIdentifier?: string;
+  residentDateOfBirth?: string;
+  residentPhotoUrl?: string;
   shiftSummary: string;
   nextShiftNotes: string;
   sortOrder: number;
