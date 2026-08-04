@@ -1240,7 +1240,7 @@ function ResidentDetail() {
     rA.forEach((a) => entityModuleMap.set(a.id, "Assessments"));
     rProblems.forEach((p) => entityModuleMap.set(p.id, "Nursing Care Plans"));
     rProblemInterventions.forEach((i) => entityModuleMap.set(i.id, "Care Actions"));
-    rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Reviews"));
+    rProblemEvaluations.forEach((e) => entityModuleMap.set(e.id, "Evaluations"));
     rTasks.forEach((t) => entityModuleMap.set(t.id, "Actions"));
     rIncidents.forEach((i) => entityModuleMap.set(i.id, "Incidents"));
     rMDT.forEach((m) => entityModuleMap.set(m.id, "MDT"));
@@ -1585,7 +1585,7 @@ function ResidentDetail() {
         evaluationDraft.revisionReason ||
           evaluationDraft.recommendations ||
           evaluationDraft.summary ||
-          "Archived from care plan review",
+          "Archived from care plan evaluation",
       );
     } else if (reviewStatusAction) {
       updateProblem(
@@ -1601,7 +1601,7 @@ function ResidentDetail() {
             ? { riskLevel: "resolved" as const }
             : {}),
         },
-        `Status changed to ${reviewStatusAction.replace(/_/g, " ")} from care plan review`,
+        `Status changed to ${reviewStatusAction.replace(/_/g, " ")} from care plan evaluation`,
       );
     }
 
@@ -3929,7 +3929,7 @@ function ResidentDetail() {
               ["assessments", "Assessments"],
               ["careplans", "Nursing Care Plans"],
               ["interventions", "Care Actions"],
-              ["evaluations", "Reviews"],
+              ["evaluations", "Evaluations"],
               ["incidents", "Incidents"],
               ["mdt", "MDT"],
               ["tasks", "Actions"],
@@ -4463,7 +4463,7 @@ function ResidentDetail() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Reviews</CardTitle>
+                  <CardTitle className="text-base">Evaluations</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex justify-end">
@@ -4471,7 +4471,7 @@ function ResidentDetail() {
                       size="sm"
                       onClick={() => openAddEvaluationForProblem(selectedProblem.id)}
                     >
-                      Add Review
+                      Add Evaluation
                     </Button>
                   </div>
                   {selectedProblemEvaluations.map((evl) => (
@@ -4716,7 +4716,7 @@ function ResidentDetail() {
       <Dialog open={evaluationOpen} onOpenChange={setEvaluationOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Review</DialogTitle>
+            <DialogTitle>Add Evaluation</DialogTitle>
             <DialogDescription>
               {selectedProblem
                 ? `Resident and nursing care plan are pre-linked: ${selectedProblem.problemStatement}`
@@ -4934,7 +4934,7 @@ function ResidentDetail() {
                   />
                 </div>
                 <div>
-                  <Label>Care Plan Review Date</Label>
+                  <Label>Care Plan Evaluation Date</Label>
                   <Input
                     type="date"
                     value={evaluationDraft.revisionReviewDate}
@@ -4951,7 +4951,7 @@ function ResidentDetail() {
             <Button variant="outline" onClick={() => setEvaluationOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitEvaluation}>Save Review</Button>
+            <Button onClick={submitEvaluation}>Save Evaluation</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

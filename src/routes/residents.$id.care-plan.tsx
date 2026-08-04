@@ -487,7 +487,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
           </Section>
         )}
 
-        {/* Evaluations / Reviews */}
+        {/* Evaluations */}
         {(evals.length > 0 || reviews.length > 0) && (
           <div className="grid md:grid-cols-2 gap-3">
             {evals.length > 0 && (
@@ -511,7 +511,7 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
             {reviews.length > 0 && (
               <div className="text-xs space-y-1">
                 <div className="font-medium uppercase tracking-wide text-muted-foreground">
-                  Formal Reviews ({reviews.length})
+                  Formal Evaluations ({reviews.length})
                 </div>
                 {reviews.slice(0, 3).map((rv) => (
                   <div key={rv.id} className="border rounded p-2">
@@ -980,7 +980,7 @@ function LogInterventionDialog({
   );
 }
 
-// ============ Review / Review / Review & Update / Resolve ============
+// ============ Evaluation / Update / Resolve ============
 
 function ReviewDialog({ problemId }: { problemId: string }) {
   const { addProblemEvaluation } = useCare();
@@ -995,12 +995,12 @@ function ReviewDialog({ problemId }: { problemId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          Review
+          Evaluate
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Care Plan Review</DialogTitle>
+          <DialogTitle>Care Plan Evaluation</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -1130,7 +1130,7 @@ function FormalReviewDialog({ problemId }: { problemId: string }) {
                 comments,
                 nextReviewDate: nextReview,
               });
-              toast.success("Review recorded");
+              toast.success("Evaluation recorded");
               setOpen(false);
               setComments("");
             }}
@@ -1166,11 +1166,11 @@ function ReviewUpdateDialog({ problem }: { problem: CarePlanProblem }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">Review & Update</Button>
+        <Button size="sm">Evaluate & Update</Button>
       </DialogTrigger>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Review & Update Problem</DialogTitle>
+          <DialogTitle>Evaluate & Update Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>

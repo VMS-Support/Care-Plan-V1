@@ -249,16 +249,16 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          Review
+          Evaluate
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Review Nursing Care Plan</DialogTitle>
+          <DialogTitle>Evaluate Nursing Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Review summary</Label>
+            <Label>Evaluation summary</Label>
             <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -325,7 +325,7 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
                 nextEvaluationDate,
               });
               if (statusAction === "archived") {
-                archiveProblem(problemId, summary || "Archived from care plan review");
+                archiveProblem(problemId, summary || "Archived from care plan evaluation");
               } else if (statusAction !== "none") {
                 updateProblem(
                   problemId,
@@ -337,10 +337,10 @@ function ProblemEvaluateDialog({ problemId }: { problemId: string }) {
                       ? { riskLevel: "resolved" as const }
                       : {}),
                   },
-                  `Status changed to ${statusAction.replace("_", " ")} from care plan review`,
+                  `Status changed to ${statusAction.replace("_", " ")} from care plan evaluation`,
                 );
               }
-              toast.success("Review recorded");
+              toast.success("Evaluation recorded");
               setSummary("");
               setStatusAction("none");
               setOpen(false);
@@ -380,11 +380,11 @@ function ProblemEvaluationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Review Care Plan</DialogTitle>
+          <DialogTitle>Evaluate Care Plan</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Review summary</Label>
+            <Label>Evaluation summary</Label>
             <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -452,7 +452,7 @@ function ProblemEvaluationDialog({
                 nextEvaluationDate,
               });
               if (statusAction === "archived") {
-                archiveProblem(problemId, summary || "Archived from care plan review");
+                archiveProblem(problemId, summary || "Archived from care plan evaluation");
               } else if (statusAction !== "none") {
                 updateProblem(
                   problemId,
@@ -464,10 +464,10 @@ function ProblemEvaluationDialog({
                       ? { riskLevel: "resolved" as const }
                       : {}),
                   },
-                  `Status changed to ${statusAction.replace("_", " ")} from care plan review`,
+                  `Status changed to ${statusAction.replace("_", " ")} from care plan evaluation`,
                 );
               }
-              toast.success("Review recorded");
+              toast.success("Evaluation recorded");
               setSummary("");
               setStatusAction("none");
               onOpenChange(false);
