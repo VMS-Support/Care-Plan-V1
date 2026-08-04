@@ -395,7 +395,7 @@ function NewNote() {
 }
 
 function DailyNotesPage() {
-  const { notes, residents, carePlanProblems, currentUser, currentUserName } = useCare();
+  const { notes, dailyCareRecords, residents, carePlanProblems, currentUser, currentUserName } = useCare();
   const [search, setSearch] = useState("");
   const [residentFilter, setResidentFilter] = useState("all");
   const [wingFilter, setWingFilter] = useState("all");
@@ -407,7 +407,28 @@ function DailyNotesPage() {
   const [dateTo, setDateTo] = useState("");
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState(1);
-  const [selectedNote, setSelectedNote] = useState<DailyNote | null>(null);
+  const [selectedNote, setSelectedNote] = useState<(DailyNote & { source?: "daily_note" | "daily_care"; careType?: string; outcome?: string }) | null>(null);
+
+  const allNotes = useMemo(
+    () => [
+      ...notes.map((note) => ({ ...note, source: "daily_note" as const })),
+      ...dailyCareRecords
+        .filter((record) => record.status !== "entered_in_error")
+        .map((record) => ({
+          id: `daily-care-${record.id}`,
+          residentId: String(record.residentId),
+          date: record.occurredAt,
+          staff: String(record.recordedByStaffMemberId || "Daily Care"),
+          shift: "morning" as const,
+          category: "general" as const,
+          observation: record.notes || record.outcomeSummary || "Daily Care recorded.",
+          source: "daily_care" as const,
+          careType: record.careType,
+          outcome: record.outcome,
+        })),
+    ],
+    [dailyCareRecords, notes],
+  );
 
   const residentById = useMemo(() => new Map(residents.map((resident) => [resident.id, resident])), [residents]);
   const carePlanProblemById = useMemo(() => new Map(carePlanProblems.map((plan) => [plan.id, plan])), [carePlanProblems]);
@@ -420,8 +441,8 @@ function DailyNotesPage() {
     [residents],
   );
   const staffOptions = useMemo(
-    () => Array.from(new Set(notes.map((note) => note.staff).filter(Boolean))).sort(),
-    [notes],
+    () => Array.from(new Set(allNotes.map((note) => note.staff).filter(Boolean))).sort(),
+    [allNotes],
   );
 
   const resetPage = () => setPage(1);
@@ -464,7 +485,7 @@ function DailyNotesPage() {
 
   const filteredNotes = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return notes
+    return allNotes
       .filter((note) => {
         const resident = residentById.get(note.residentId);
         const noteDate = note.date.slice(0, 10);
@@ -504,7 +525,7 @@ function DailyNotesPage() {
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [categoryFilter, currentUser.assignedWings, currentUserName, dateFrom, dateTo, notes, recordedByFilter, residentById, residentFilter, roomFilter, search, shiftFilter, wingFilter]);
+  }, [allNotes, categoryFilter, currentUser.assignedWings, currentUserName, dateFrom, dateTo, recordedByFilter, residentById, residentFilter, roomFilter, search, shiftFilter, wingFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredNotes.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -517,7 +538,7 @@ function DailyNotesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Daily Notes</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {filteredNotes.length} shown · {notes.length} notes recorded
+            {filteredNotes.length} shown · {allNotes.length} records recorded
           </p>
         </div>
         <NewNote />
@@ -614,7 +635,15 @@ function DailyNotesPage() {
                       </Link>
                       <Badge variant="outline" className="text-[10px]">Room {resident?.roomNumber || "-"}</Badge>
                       <Badge variant="outline" className="text-[10px] capitalize">{note.shift}</Badge>
-                      <Badge variant="outline" className="text-[10px]">{categoryLabel(noteCategory(note))}</Badge>
+                      {note.source === "daily_care" ? (
+                        <>
+                          <Badge className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">Daily Care</Badge>
+                          <Badge variant="outline" className="text-[10px] capitalize">{note.careType?.replaceAll("_", " ")}</Badge>
+                          <Badge variant="outline" className="text-[10px] capitalize">{note.outcome?.replaceAll("_", " ")}</Badge>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">{categoryLabel(noteCategory(note))}</Badge>
+                      )}
                       {note.linkedInterventionId && (
                         <Badge variant="outline" className="text-[10px] bg-info/10 text-info border-info/30 gap-1">
                           <Activity className="h-2.5 w-2.5" /> From intervention

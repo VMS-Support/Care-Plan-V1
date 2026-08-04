@@ -33,7 +33,6 @@ function NewAssessment() {
   const scale = uniformScale(type);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
-  const [recommendations, setRecommendations] = useState("");
   const [reviewDate, setReviewDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
   const [nextReassessmentDate, setNextReassessmentDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -50,7 +49,6 @@ function NewAssessment() {
   useEffect(() => {
     setScores({});
     setNotes("");
-    setRecommendations("");
     setFurtherClinicalReviewRequired("no");
     setReviewAction("");
     setResponsiblePerson("");
@@ -94,7 +92,7 @@ function NewAssessment() {
       residentId, type, date: new Date().toISOString(),
       assessor: currentUserName, assessorRole: currentRole,
       scores, totalScore: result.totalScore, interpretation: result.interpretation, riskLevel: result.riskLevel,
-      notes, recommendations,
+      notes,
       status: draft ? "draft" : "completed",
       reviewDate, nextReassessmentDate,
       templateMetadata: { ...assessmentMeta[type].template },
@@ -109,7 +107,6 @@ function NewAssessment() {
     else setSubmittedAssessmentName(assessmentMeta[type].name);
     setScores({});
     setNotes("");
-    setRecommendations("");
   }
 
   function createAnotherAssessment() {
@@ -253,16 +250,12 @@ function NewAssessment() {
                 </div>}
               </div>}
               <div>
-                <Label className="text-sm">{type === "gds15" ? "Clinical recommendations" : "Clinical Recommendations"}</Label>
-                <Textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} placeholder="Recommended actions, referrals, care plan items…" className="mt-2" />
-              </div>
-              <div>
                 <Label className="text-sm">{type === "gds15" ? "Assessor note (optional)" : "Notes"}</Label>
                 <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Clinical observations, follow-up…" className="mt-2" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm">Review Date</Label>
+                  <Label className="text-sm">Last Review Date</Label>
                   <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} className="mt-2" />
                 </div>
                 <div>
