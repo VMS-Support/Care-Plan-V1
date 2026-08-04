@@ -2,30 +2,467 @@ import { useState, type ReactNode } from "react";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCare } from "@/lib/care/store";
-import type { CarePlanProblem, FrequencyType, ProblemCategory, ProblemRiskLevel, RltDomainId } from "@/lib/care/types";
+import type {
+  CarePlanProblem,
+  FrequencyType,
+  ProblemCategory,
+  ProblemRiskLevel,
+  RltDomainId,
+} from "@/lib/care/types";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  calculateCarePlanReviewDate,
+  formatReviewInterval,
+  isValidReviewInterval,
+  normalizedReviewInterval,
+  type CarePlanReviewIntervalUnit,
+} from "@/lib/care/carePlanReviewInterval";
 
-const plus = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+const today = () => new Date().toISOString().slice(0, 10);
 const risks: ProblemRiskLevel[] = ["low", "moderate", "high", "very_high"];
-const frequencies: Array<{ value: FrequencyType; label: string }> = [{ value: "per_shift", label: "Per shift" }, { value: "daily", label: "Daily" }, { value: "twice_daily", label: "Twice daily" }, { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }];
-type ScheduledTask = { id: string; name: string; frequencyType: FrequencyType; startDate: string; startTime: string; endDate: string };
-type CareActionDraft = { id: string; heading: string; description: string; scheduledTasks: ScheduledTask[] };
-type Props = { residentId?: string; initialRltDomainId?: RltDomainId; trigger?: ReactNode; buttonLabel?: string; onCreated?: (problem: CarePlanProblem) => void; currentDependencyLevel?: unknown };
+const frequencies: Array<{ value: FrequencyType; label: string }> = [
+  { value: "per_shift", label: "Per shift" },
+  { value: "daily", label: "Daily" },
+  { value: "twice_daily", label: "Twice daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+type ScheduledTask = {
+  id: string;
+  name: string;
+  frequencyType: FrequencyType;
+  startDate: string;
+  startTime: string;
+  endDate: string;
+};
+type CareActionDraft = {
+  id: string;
+  heading: string;
+  description: string;
+  scheduledTasks: ScheduledTask[];
+};
+type Props = {
+  residentId?: string;
+  initialRltDomainId?: RltDomainId;
+  trigger?: ReactNode;
+  buttonLabel?: string;
+  onCreated?: (problem: CarePlanProblem) => void;
+  currentDependencyLevel?: unknown;
+};
 
-export function CreateCarePlanDialog({ residentId: fixed, trigger, buttonLabel = "New Nursing Care Plan", onCreated }: Props) {
-  const care = useCare(); const templates = care.carePlanTemplates || [];
-  const [open, setOpen] = useState(false), [residentId, setResidentId] = useState(fixed || ""), [templateId, setTemplateId] = useState(""), [risk, setRisk] = useState<ProblemRiskLevel>("high"), [goal, setGoal] = useState(""), [reviewDate, setReviewDate] = useState(plus(90)), [actions, setActions] = useState<CareActionDraft[]>([]);
-  const resident = care.residents.find((item) => item.id === (fixed || residentId)); const template = templates.find((item) => item.id === templateId); const token = (value: string) => value.replaceAll("#NAMEHERE", resident ? `${resident.firstName} ${resident.lastName}` : "#NAMEHERE");
-  const task = (): ScheduledTask => ({ id: `task-${Date.now()}-${Math.random()}`, name: "", frequencyType: "daily", startDate: new Date().toISOString().slice(0, 10), startTime: "08:00", endDate: reviewDate });
-  const action = (): CareActionDraft => ({ id: `action-${Date.now()}-${Math.random()}`, heading: "", description: "", scheduledTasks: [] });
-  const updateAction = (id: string, patch: Partial<CareActionDraft>) => setActions((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
-  const updateTask = (actionId: string, taskId: string, patch: Partial<ScheduledTask>) => setActions((items) => items.map((item) => item.id === actionId ? { ...item, scheduledTasks: item.scheduledTasks.map((scheduled) => scheduled.id === taskId ? { ...scheduled, ...patch } : scheduled) } : item));
-  const choose = (id: string) => { setTemplateId(id); const selected = templates.find((item) => item.id === id); if (!selected) return; const nextReview = selected.nextReviewDate || plus((selected.reviewIntervalMonths || 3) * 30); setGoal(token(selected.aimGoal)); setReviewDate(nextReview); setActions(selected.actions.map((item) => ({ ...action(), id: item.id, heading: token(item.heading) }))); };
-  const save = () => { const valid = actions.filter((item) => item.heading.trim()); if (!(fixed || residentId) || !template || !goal.trim() || !valid.length) return toast.error("Select a template and resident; goal and at least one care action are required."); try { const problem = care.addProblem({ residentId: fixed || residentId, category: "custom" as ProblemCategory, customCategoryLabel: template.name, carePlanTemplateId: template.id, carePlanName: token(template.name), problemStatement: token(template.name), riskLevel: risk, reviewDate, evaluationDate: reviewDate, initialPlan: { statement: goal, targetDate: reviewDate }, initialCareActions: valid }); toast.success("Nursing Care Plan created."); setOpen(false); onCreated?.(problem); } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to create care plan."); } };
-  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild>{trigger || <Button><Plus className="mr-1 h-4 w-4" />{buttonLabel}</Button>}</DialogTrigger><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Create Nursing Care Plan</DialogTitle></DialogHeader><div className="space-y-4"><div><Label>Select Care Plan Template *</Label><Select value={templateId} onValueChange={choose}><SelectTrigger><SelectValue placeholder="Choose Care Plan Template" /></SelectTrigger><SelectContent>{templates.filter((item) => item.active && item.facilityId === care.activeFacilityId).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div><div><Label>Resident *</Label>{fixed ? <Input readOnly value={resident ? `${resident.firstName} ${resident.lastName}` : "Resident"} /> : <Select value={residentId} onValueChange={setResidentId}><SelectTrigger><SelectValue placeholder="Choose resident" /></SelectTrigger><SelectContent>{care.residents.map((item) => <SelectItem key={item.id} value={item.id}>{item.firstName} {item.lastName}</SelectItem>)}</SelectContent></Select>}</div><div><Label>Risk Level *</Label><Select value={risk} onValueChange={(value) => setRisk(value as ProblemRiskLevel)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{risks.map((item) => <SelectItem key={item} value={item}>{item.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></div><div><Label>Care Plan Goal</Label><Textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} /></div><div><Label>Care Actions</Label>{actions.map((item) => <div key={item.id} className="mt-2 rounded border p-3"><div className="flex gap-1"><Input className="font-medium" value={item.heading} onChange={(event) => updateAction(item.id, { heading: event.target.value })} placeholder="Care action heading" /><Button type="button" size="icon" variant="outline" title="Add scheduled task under this heading" onClick={() => updateAction(item.id, { scheduledTasks: [...item.scheduledTasks, task()] })}><CalendarClock className="h-4 w-4" /></Button><Button type="button" size="icon" variant="ghost" title="Remove care action" onClick={() => setActions((items) => items.filter((action) => action.id !== item.id))}><Trash2 className="h-4 w-4" /></Button></div><Textarea className="mt-2" value={item.description} onChange={(event) => updateAction(item.id, { description: event.target.value })} placeholder="Care action details" />{item.scheduledTasks.length > 0 && <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3"><p className="text-sm font-medium">Scheduled tasks under this heading</p>{item.scheduledTasks.map((scheduled) => <div key={scheduled.id} className="rounded-md bg-muted/40 p-3"><div className="flex gap-2"><Input value={scheduled.name} onChange={(event) => updateTask(item.id, scheduled.id, { name: event.target.value })} placeholder="Scheduled task name" /><Button type="button" size="icon" variant="ghost" title="Remove scheduled task" onClick={() => updateAction(item.id, { scheduledTasks: item.scheduledTasks.filter((task) => task.id !== scheduled.id) })}><Trash2 className="h-4 w-4" /></Button></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><div><Label>Frequency</Label><Select value={scheduled.frequencyType} onValueChange={(value) => updateTask(item.id, scheduled.id, { frequencyType: value as FrequencyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{frequencies.map((frequency) => <SelectItem key={frequency.value} value={frequency.value}>{frequency.label}</SelectItem>)}</SelectContent></Select></div><div><Label>Start date</Label><Input type="date" value={scheduled.startDate} onChange={(event) => updateTask(item.id, scheduled.id, { startDate: event.target.value })} /></div><div><Label>Start time</Label><Input type="time" value={scheduled.startTime} onChange={(event) => updateTask(item.id, scheduled.id, { startTime: event.target.value })} /></div><div><Label>End date</Label><Input type="date" value={scheduled.endDate} onChange={(event) => updateTask(item.id, scheduled.id, { endDate: event.target.value })} /></div></div></div>)}</div>}</div>)}<Button type="button" className="mt-2" size="sm" variant="outline" onClick={() => setActions((items) => [...items, action()])}><Plus className="mr-1 h-4 w-4" />Add Care Action</Button></div><div><Label>Next Review Date</Label><Input type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save}>Create Nursing Care Plan</Button></DialogFooter></DialogContent></Dialog>;
+export function CreateCarePlanDialog({
+  residentId: fixed,
+  trigger,
+  buttonLabel = "New Nursing Care Plan",
+  onCreated,
+}: Props) {
+  const care = useCare();
+  const templates = care.carePlanTemplates || [];
+  const [open, setOpen] = useState(false),
+    [residentId, setResidentId] = useState(fixed || ""),
+    [templateId, setTemplateId] = useState(""),
+    [risk, setRisk] = useState<ProblemRiskLevel>("high"),
+    [goal, setGoal] = useState(""),
+    [startDate, setStartDate] = useState(today()),
+    [intervalValue, setIntervalValue] = useState(3),
+    [intervalUnit, setIntervalUnit] = useState<CarePlanReviewIntervalUnit>("months"),
+    [reviewDate, setReviewDate] = useState(calculateCarePlanReviewDate(today(), 3, "months")),
+    [reviewDateManuallyOverridden, setReviewDateManuallyOverridden] = useState(false),
+    [actions, setActions] = useState<CareActionDraft[]>([]);
+  const resident = care.residents.find((item) => item.id === (fixed || residentId));
+  const template = templates.find((item) => item.id === templateId);
+  const token = (value: string) =>
+    value.replaceAll(
+      "#NAMEHERE",
+      resident ? `${resident.firstName} ${resident.lastName}` : "#NAMEHERE",
+    );
+  const task = (): ScheduledTask => ({
+    id: `task-${Date.now()}-${Math.random()}`,
+    name: "",
+    frequencyType: "daily",
+    startDate,
+    startTime: "08:00",
+    endDate: reviewDate,
+  });
+  const action = (): CareActionDraft => ({
+    id: `action-${Date.now()}-${Math.random()}`,
+    heading: "",
+    description: "",
+    scheduledTasks: [],
+  });
+  const updateAction = (id: string, patch: Partial<CareActionDraft>) =>
+    setActions((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  const updateTask = (actionId: string, taskId: string, patch: Partial<ScheduledTask>) =>
+    setActions((items) =>
+      items.map((item) =>
+        item.id === actionId
+          ? {
+              ...item,
+              scheduledTasks: item.scheduledTasks.map((scheduled) =>
+                scheduled.id === taskId ? { ...scheduled, ...patch } : scheduled,
+              ),
+            }
+          : item,
+      ),
+    );
+  const choose = (id: string) => {
+    setTemplateId(id);
+    const selected = templates.find((item) => item.id === id);
+    if (!selected) return;
+    const interval = normalizedReviewInterval(selected);
+    const nextReview = calculateCarePlanReviewDate(startDate, interval.value, interval.unit);
+    setIntervalValue(interval.value);
+    setIntervalUnit(interval.unit);
+    setGoal(token(selected.aimGoal));
+    setReviewDate(nextReview);
+    setReviewDateManuallyOverridden(false);
+    setActions(
+      selected.actions.map((item) => ({ ...action(), id: item.id, heading: token(item.heading) })),
+    );
+  };
+  const recalculate = (date: string, value: number, unit: CarePlanReviewIntervalUnit) => {
+    setReviewDate(calculateCarePlanReviewDate(date, value, unit));
+    setReviewDateManuallyOverridden(false);
+  };
+  const save = () => {
+    const valid = actions.filter((item) => item.heading.trim());
+    if (!(fixed || residentId) || !template || !goal.trim() || !valid.length)
+      return toast.error(
+        "Select a template and resident; goal and at least one care action are required.",
+      );
+    if (!startDate || !isValidReviewInterval(intervalValue, intervalUnit))
+      return toast.error("Enter a valid start date and positive whole-number review interval.");
+    if (!reviewDate || reviewDate <= startDate)
+      return toast.error("Next Review Date must be after the Care Plan Start Date.");
+    try {
+      const problem = care.addProblem({
+        residentId: fixed || residentId,
+        category: "custom" as ProblemCategory,
+        customCategoryLabel: template.name,
+        carePlanTemplateId: template.id,
+        carePlanName: token(template.name),
+        problemStatement: token(template.name),
+        riskLevel: risk,
+        startDate,
+        reviewIntervalValue: intervalValue,
+        reviewIntervalUnit: intervalUnit,
+        reviewDateManuallyOverridden,
+        reviewDate,
+        evaluationDate: reviewDate,
+        initialPlan: { statement: goal, targetDate: reviewDate },
+        initialCareActions: valid,
+      });
+      toast.success("Nursing Care Plan created.");
+      setOpen(false);
+      onCreated?.(problem);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create care plan.");
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button>
+            <Plus className="mr-1 h-4 w-4" />
+            {buttonLabel}
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create Nursing Care Plan</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Select Care Plan Template *</Label>
+            <Select value={templateId} onValueChange={choose}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose Care Plan Template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates
+                  .filter((item) => item.active && item.facilityId === care.activeFacilityId)
+                  .map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Resident *</Label>
+            {fixed ? (
+              <Input
+                readOnly
+                value={resident ? `${resident.firstName} ${resident.lastName}` : "Resident"}
+              />
+            ) : (
+              <Select value={residentId} onValueChange={setResidentId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose resident" />
+                </SelectTrigger>
+                <SelectContent>
+                  {care.residents.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.firstName} {item.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Care Plan Start Date *</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(event) => {
+                  const date = event.target.value;
+                  setStartDate(date);
+                  recalculate(date, intervalValue, intervalUnit);
+                }}
+              />
+            </div>
+            <div>
+              <Label>Next Review Date *</Label>
+              <Input
+                type="date"
+                value={reviewDate}
+                onChange={(event) => {
+                  setReviewDate(event.target.value);
+                  setReviewDateManuallyOverridden(true);
+                }}
+              />
+              {reviewDateManuallyOverridden && (
+                <p className="mt-1 text-xs text-amber-700">Manually overridden</p>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label>Review Every *</Label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={intervalValue}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setIntervalValue(value);
+                  recalculate(startDate, value, intervalUnit);
+                }}
+              />
+              <Select
+                value={intervalUnit}
+                onValueChange={(value) => {
+                  const unit = value as CarePlanReviewIntervalUnit;
+                  setIntervalUnit(unit);
+                  recalculate(startDate, intervalValue, unit);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">Days</SelectItem>
+                  <SelectItem value="weeks">Weeks</SelectItem>
+                  <SelectItem value="months">Months</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatReviewInterval(intervalValue || 0, intervalUnit)} from the Care Plan Start
+              Date.
+            </p>
+          </div>
+          <div>
+            <Label>Risk Level *</Label>
+            <Select value={risk} onValueChange={(value) => setRisk(value as ProblemRiskLevel)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {risks.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item.replaceAll("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Care Plan Goal</Label>
+            <Textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={3} />
+          </div>
+          <div>
+            <Label>Care Actions</Label>
+            {actions.map((item) => (
+              <div key={item.id} className="mt-2 rounded border p-3">
+                <div className="flex gap-1">
+                  <Input
+                    className="font-medium"
+                    value={item.heading}
+                    onChange={(event) => updateAction(item.id, { heading: event.target.value })}
+                    placeholder="Care action heading"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    title="Add scheduled task under this heading"
+                    onClick={() =>
+                      updateAction(item.id, { scheduledTasks: [...item.scheduledTasks, task()] })
+                    }
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    title="Remove care action"
+                    onClick={() =>
+                      setActions((items) => items.filter((action) => action.id !== item.id))
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Textarea
+                  className="mt-2"
+                  value={item.description}
+                  onChange={(event) => updateAction(item.id, { description: event.target.value })}
+                  placeholder="Care action details"
+                />
+                {item.scheduledTasks.length > 0 && (
+                  <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3">
+                    <p className="text-sm font-medium">Scheduled tasks under this heading</p>
+                    {item.scheduledTasks.map((scheduled) => (
+                      <div key={scheduled.id} className="rounded-md bg-muted/40 p-3">
+                        <div className="flex gap-2">
+                          <Input
+                            value={scheduled.name}
+                            onChange={(event) =>
+                              updateTask(item.id, scheduled.id, { name: event.target.value })
+                            }
+                            placeholder="Scheduled task name"
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            title="Remove scheduled task"
+                            onClick={() =>
+                              updateAction(item.id, {
+                                scheduledTasks: item.scheduledTasks.filter(
+                                  (task) => task.id !== scheduled.id,
+                                ),
+                              })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <Label>Frequency</Label>
+                            <Select
+                              value={scheduled.frequencyType}
+                              onValueChange={(value) =>
+                                updateTask(item.id, scheduled.id, {
+                                  frequencyType: value as FrequencyType,
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {frequencies.map((frequency) => (
+                                  <SelectItem key={frequency.value} value={frequency.value}>
+                                    {frequency.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Start date</Label>
+                            <Input
+                              type="date"
+                              value={scheduled.startDate}
+                              onChange={(event) =>
+                                updateTask(item.id, scheduled.id, { startDate: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>Start time</Label>
+                            <Input
+                              type="time"
+                              value={scheduled.startTime}
+                              onChange={(event) =>
+                                updateTask(item.id, scheduled.id, { startTime: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>End date</Label>
+                            <Input
+                              type="date"
+                              value={scheduled.endDate}
+                              onChange={(event) =>
+                                updateTask(item.id, scheduled.id, { endDate: event.target.value })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              className="mt-2"
+              size="sm"
+              variant="outline"
+              onClick={() => setActions((items) => [...items, action()])}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Care Action
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={save}>Create Nursing Care Plan</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

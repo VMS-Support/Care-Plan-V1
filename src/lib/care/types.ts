@@ -93,11 +93,41 @@ export type EmploymentContractType =
   | "locum"
   | "volunteer"
   | "other";
-export type EmploymentHomeAssignmentType = "primary" | "secondary" | "temporary_cover" | "secondment" | "floating" | "other";
-export type StaffHomeAssignmentType = "primary" | "secondary" | "temporary" | "agency_cover" | "floating" | "secondment" | "other";
-export type EmploymentAssignmentStatus = "planned" | "active" | "suspended" | "ended" | "cancelled" | "entered_in_error";
-export type EffectiveHomeAssignmentState = "future" | "current" | "temporarily_suspended" | "ended" | "invalid";
-export type EmploymentRoleAssignmentType = "primary" | "secondary" | "acting" | "temporary_cover" | "development" | "other";
+export type EmploymentHomeAssignmentType =
+  | "primary"
+  | "secondary"
+  | "temporary_cover"
+  | "secondment"
+  | "floating"
+  | "other";
+export type StaffHomeAssignmentType =
+  | "primary"
+  | "secondary"
+  | "temporary"
+  | "agency_cover"
+  | "floating"
+  | "secondment"
+  | "other";
+export type EmploymentAssignmentStatus =
+  | "planned"
+  | "active"
+  | "suspended"
+  | "ended"
+  | "cancelled"
+  | "entered_in_error";
+export type EffectiveHomeAssignmentState =
+  | "future"
+  | "current"
+  | "temporarily_suspended"
+  | "ended"
+  | "invalid";
+export type EmploymentRoleAssignmentType =
+  | "primary"
+  | "secondary"
+  | "acting"
+  | "temporary_cover"
+  | "development"
+  | "other";
 export type RegistrationStatus =
   | "active"
   | "expiring"
@@ -105,9 +135,24 @@ export type RegistrationStatus =
   | "suspended"
   | "not_required"
   | "unknown";
-export type ProfessionalRegistrationStatus = "draft" | "current" | "expired" | "suspended" | "revoked" | "entered_in_error";
-export type ProfessionalRegistrationVerificationStatus = "not_submitted" | "submitted" | "verified" | "failed" | "unable_to_verify" | "stale";
-export type StaffImmigrationRecordType = "visa" | "irish_residence_permission" | "employment_permit";
+export type ProfessionalRegistrationStatus =
+  | "draft"
+  | "current"
+  | "expired"
+  | "suspended"
+  | "revoked"
+  | "entered_in_error";
+export type ProfessionalRegistrationVerificationStatus =
+  | "not_submitted"
+  | "submitted"
+  | "verified"
+  | "failed"
+  | "unable_to_verify"
+  | "stale";
+export type StaffImmigrationRecordType =
+  | "visa"
+  | "irish_residence_permission"
+  | "employment_permit";
 export type StaffImmigrationRecordStatus =
   | "draft"
   | "pending_verification"
@@ -163,21 +208,115 @@ export type StaffDocumentVerificationStatus =
   | "failed"
   | "unable_to_verify"
   | "verification_expired";
-export type StaffImmigrationComplianceStatus = "compliant" | "attention_required" | "missing_required" | "not_assessed" | "not_required";
+export type StaffImmigrationComplianceStatus =
+  | "compliant"
+  | "attention_required"
+  | "missing_required"
+  | "not_assessed"
+  | "not_required";
 export type TrainingCourseStatus = "draft" | "active" | "inactive" | "retired" | "entered_in_error";
-export type TrainingDeliveryMethod = "classroom" | "online" | "blended" | "practical" | "external_provider" | "self_directed" | "other";
-export type TrainingRenewalFrequency = "one_off" | "annual" | "every_two_years" | "every_three_years" | "custom_months" | "no_expiry";
-export type TrainingRequirementTarget = "all_staff" | "role" | "employment_category" | "contract_type" | "nursing_home" | "ward" | "individual_staff_member";
-export type StaffTrainingAssignmentStatus = "not_started" | "assigned" | "in_progress" | "completed" | "overdue" | "expired" | "exempt" | "cancelled" | "entered_in_error";
-export type TrainingCompletionStatus = "draft" | "pending_verification" | "verified" | "verification_failed" | "superseded" | "entered_in_error";
-export type StaffTrainingComplianceStatus = "compliant" | "due_soon" | "overdue" | "expired" | "not_started" | "in_progress" | "pending_verification" | "verification_failed" | "exempt" | "not_required" | "unable_to_determine";
+export type TrainingDeliveryMethod =
+  | "classroom"
+  | "online"
+  | "blended"
+  | "practical"
+  | "external_provider"
+  | "self_directed"
+  | "other";
+export type TrainingRenewalFrequency =
+  | "one_off"
+  | "annual"
+  | "every_two_years"
+  | "every_three_years"
+  | "custom_months"
+  | "no_expiry";
+export type TrainingRequirementTarget =
+  | "all_staff"
+  | "role"
+  | "employment_category"
+  | "contract_type"
+  | "nursing_home"
+  | "ward"
+  | "individual_staff_member";
+export type StaffTrainingAssignmentStatus =
+  | "not_started"
+  | "assigned"
+  | "in_progress"
+  | "completed"
+  | "overdue"
+  | "expired"
+  | "exempt"
+  | "cancelled"
+  | "entered_in_error";
+export type TrainingCompletionStatus =
+  | "draft"
+  | "pending_verification"
+  | "verified"
+  | "verification_failed"
+  | "superseded"
+  | "entered_in_error";
+export type StaffTrainingComplianceStatus =
+  | "compliant"
+  | "due_soon"
+  | "overdue"
+  | "expired"
+  | "not_started"
+  | "in_progress"
+  | "pending_verification"
+  | "verification_failed"
+  | "exempt"
+  | "not_required"
+  | "unable_to_determine";
 export type CompetencyDefinitionStatus = "draft" | "active" | "inactive" | "retired";
-export type CompetencyCategory = "clinical" | "medication" | "equipment" | "care" | "safety" | "operational" | "management" | "other";
-export type CompetencyRequirementTarget = "all_staff" | "role" | "employment_category" | "nursing_home" | "ward" | "individual_staff_member";
-export type CompetencyValidationStatus = "draft" | "pending_validation" | "competent" | "competent_with_supervision" | "not_yet_competent" | "expired" | "suspended" | "revoked" | "superseded" | "entered_in_error";
-export type StaffCompetencyComplianceStatus = "competent" | "competent_with_supervision" | "due_soon" | "expired" | "missing_required" | "not_yet_competent" | "pending_validation" | "not_required" | "unable_to_determine";
-export type WardCompetencyRequirementLevel = "mandatory_for_assignment" | "mandatory_for_independent_work" | "recommended" | "minimum_shift_coverage";
-export type StaffingEstablishmentStatus = "draft" | "submitted_for_approval" | "approved" | "superseded" | "retired" | "entered_in_error";
+export type CompetencyCategory =
+  | "clinical"
+  | "medication"
+  | "equipment"
+  | "care"
+  | "safety"
+  | "operational"
+  | "management"
+  | "other";
+export type CompetencyRequirementTarget =
+  | "all_staff"
+  | "role"
+  | "employment_category"
+  | "nursing_home"
+  | "ward"
+  | "individual_staff_member";
+export type CompetencyValidationStatus =
+  | "draft"
+  | "pending_validation"
+  | "competent"
+  | "competent_with_supervision"
+  | "not_yet_competent"
+  | "expired"
+  | "suspended"
+  | "revoked"
+  | "superseded"
+  | "entered_in_error";
+export type StaffCompetencyComplianceStatus =
+  | "competent"
+  | "competent_with_supervision"
+  | "due_soon"
+  | "expired"
+  | "missing_required"
+  | "not_yet_competent"
+  | "pending_validation"
+  | "not_required"
+  | "unable_to_determine";
+export type WardCompetencyRequirementLevel =
+  | "mandatory_for_assignment"
+  | "mandatory_for_independent_work"
+  | "recommended"
+  | "minimum_shift_coverage";
+export type StaffingEstablishmentStatus =
+  | "draft"
+  | "submitted_for_approval"
+  | "approved"
+  | "superseded"
+  | "retired"
+  | "entered_in_error";
 export type StaffingEstablishmentVersionId = string;
 export type StaffingEstablishmentLineId = string;
 export type WardCompetencyRequirementId = string;
@@ -217,17 +356,77 @@ export type RecruitmentVacancyStatus =
   | "closed_unfilled"
   | "entered_in_error";
 export type VacancyEmploymentBasis = "headcount" | "fte" | "hours";
-export type RecruitmentCandidateStatus = "applied" | "screening" | "shortlisted" | "interviewing" | "preferred" | "offer_sent" | "offer_accepted" | "rejected" | "withdrawn" | "hired";
-export type RecruitmentOfferStatus = "draft" | "approval_required" | "approved" | "sent" | "accepted" | "declined" | "withdrawn" | "expired";
+export type RecruitmentCandidateStatus =
+  | "applied"
+  | "screening"
+  | "shortlisted"
+  | "interviewing"
+  | "preferred"
+  | "offer_sent"
+  | "offer_accepted"
+  | "rejected"
+  | "withdrawn"
+  | "hired";
+export type RecruitmentOfferStatus =
+  | "draft"
+  | "approval_required"
+  | "approved"
+  | "sent"
+  | "accepted"
+  | "declined"
+  | "withdrawn"
+  | "expired";
 export type RosterPeriodId = string;
 export type RosterShiftRequirementId = string;
 export type PlannedShiftId = string;
-export type RosterPeriodStatus = "draft" | "open_for_planning" | "pending_approval" | "approved" | "published" | "locked" | "closed" | "entered_in_error";
-export type RosterShiftRequirementStatus = "draft" | "required" | "partially_filled" | "filled" | "vacant" | "cancelled" | "entered_in_error";
-export type PlannedShiftStatus = "draft" | "planned" | "assigned" | "to_be_confirmed" | "confirmed" | "published" | "vacant" | "cancelled" | "replaced" | "entered_in_error";
+export type RosterPeriodStatus =
+  | "draft"
+  | "open_for_planning"
+  | "pending_approval"
+  | "approved"
+  | "published"
+  | "locked"
+  | "closed"
+  | "entered_in_error";
+export type RosterShiftRequirementStatus =
+  | "draft"
+  | "required"
+  | "partially_filled"
+  | "filled"
+  | "vacant"
+  | "cancelled"
+  | "entered_in_error";
+export type PlannedShiftStatus =
+  | "draft"
+  | "planned"
+  | "assigned"
+  | "to_be_confirmed"
+  | "confirmed"
+  | "published"
+  | "vacant"
+  | "cancelled"
+  | "replaced"
+  | "entered_in_error";
 export type StaffLeaveRecordId = string;
-export type StaffLeaveType = "annual_leave" | "sick_leave" | "maternity_leave" | "paternity_leave" | "compassionate_leave" | "study_leave" | "unpaid_leave" | "career_break" | "other";
-export type StaffLeaveStatus = "draft" | "requested" | "approved" | "rejected" | "cancelled" | "returned" | "extended" | "entered_in_error";
+export type StaffLeaveType =
+  | "annual_leave"
+  | "sick_leave"
+  | "maternity_leave"
+  | "paternity_leave"
+  | "compassionate_leave"
+  | "study_leave"
+  | "unpaid_leave"
+  | "career_break"
+  | "other";
+export type StaffLeaveStatus =
+  | "draft"
+  | "requested"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "returned"
+  | "extended"
+  | "entered_in_error";
 export type AgencyCompanyId = string;
 export type AgencyWorkerId = string;
 export type AgencyRateAgreementId = string;
@@ -235,19 +434,77 @@ export type AgencyShiftAssignmentId = string;
 export type AgencyTimesheetId = string;
 export type AgencySpendAlertPolicyId = string;
 export type AgencyCompanyStatus = "active" | "suspended" | "inactive" | "entered_in_error";
-export type AgencyWorkerStatus = "active" | "temporarily_unavailable" | "blocked" | "inactive" | "entered_in_error";
-export type AgencyRateType = "standard" | "night" | "weekend" | "bank_holiday" | "overtime" | "specialist" | "other";
-export type AgencyShiftAssignmentStatus = "requested" | "proposed" | "confirmed" | "worked" | "cancelled" | "no_show" | "entered_in_error";
-export type AgencyTimesheetStatus = "draft" | "submitted" | "pending_approval" | "approved" | "rejected" | "disputed" | "cancelled" | "entered_in_error";
-export type AgencySpendThresholdBasis = "absolute_amount" | "percentage_of_staffing_budget" | "percentage_of_total_workforce_cost" | "percentage_change_from_previous_period" | "agency_wte_percentage" | "combined";
+export type AgencyWorkerStatus =
+  | "active"
+  | "temporarily_unavailable"
+  | "blocked"
+  | "inactive"
+  | "entered_in_error";
+export type AgencyRateType =
+  | "standard"
+  | "night"
+  | "weekend"
+  | "bank_holiday"
+  | "overtime"
+  | "specialist"
+  | "other";
+export type AgencyShiftAssignmentStatus =
+  | "requested"
+  | "proposed"
+  | "confirmed"
+  | "worked"
+  | "cancelled"
+  | "no_show"
+  | "entered_in_error";
+export type AgencyTimesheetStatus =
+  | "draft"
+  | "submitted"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "disputed"
+  | "cancelled"
+  | "entered_in_error";
+export type AgencySpendThresholdBasis =
+  | "absolute_amount"
+  | "percentage_of_staffing_budget"
+  | "percentage_of_total_workforce_cost"
+  | "percentage_change_from_previous_period"
+  | "agency_wte_percentage"
+  | "combined";
 export type StaffProbationId = string;
 export type StaffProbationReviewId = string;
 export type StaffProbationExtensionId = string;
 export type ProbationReviewSchedulePolicyId = string;
-export type StaffProbationStatus = "draft" | "active" | "extended" | "completed" | "failed" | "cancelled" | "entered_in_error";
-export type StaffProbationReviewStatus = "scheduled" | "due" | "overdue" | "completed" | "cancelled" | "entered_in_error";
-export type StaffProbationOutcome = "continue" | "extend" | "complete_passed" | "complete_failed" | "cancel";
-export type DashboardMetricAvailability = "available" | "partially_available" | "not_configured" | "source_module_unavailable" | "permission_restricted" | "error" | "unable_to_determine";
+export type StaffProbationStatus =
+  | "draft"
+  | "active"
+  | "extended"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "entered_in_error";
+export type StaffProbationReviewStatus =
+  | "scheduled"
+  | "due"
+  | "overdue"
+  | "completed"
+  | "cancelled"
+  | "entered_in_error";
+export type StaffProbationOutcome =
+  | "continue"
+  | "extend"
+  | "complete_passed"
+  | "complete_failed"
+  | "cancel";
+export type DashboardMetricAvailability =
+  | "available"
+  | "partially_available"
+  | "not_configured"
+  | "source_module_unavailable"
+  | "permission_restricted"
+  | "error"
+  | "unable_to_determine";
 export type SafeStaffingReadinessStatus = "safe" | "attention" | "gap" | "unable_to_determine";
 export type WardCompetencyStatus = "approved" | "supervised_only" | "not_approved" | "expired";
 export type PermissionScopeType =
@@ -404,7 +661,17 @@ export interface EmploymentRecord {
   payrollId?: string;
   primaryNursingHomeId?: NursingHomeId;
   primaryRoleKey?: string;
-  employmentCategory?: "clinical" | "care" | "management" | "administration" | "housekeeping" | "maintenance" | "catering" | "allied_health" | "medical" | "other";
+  employmentCategory?:
+    | "clinical"
+    | "care"
+    | "management"
+    | "administration"
+    | "housekeeping"
+    | "maintenance"
+    | "catering"
+    | "allied_health"
+    | "medical"
+    | "other";
   sourceReference?: string;
   notes?: string;
   isPrimaryEmployment?: boolean;
@@ -731,7 +998,14 @@ export interface StaffDocument {
   lastVerifiedAt?: string;
   verifiedByUserAccountId?: UserAccountId;
   verifiedByStaffMemberId?: StaffMemberId;
-  verificationMethod?: "original_seen" | "certified_copy" | "issuing_body_check" | "official_portal" | "employer_confirmation" | "manual_review" | "other";
+  verificationMethod?:
+    | "original_seen"
+    | "certified_copy"
+    | "issuing_body_check"
+    | "official_portal"
+    | "employer_confirmation"
+    | "manual_review"
+    | "other";
   verificationReference?: string;
   linkedProfessionalRegistrationId?: ProfessionalRegistrationId;
   linkedVisaRecordId?: StaffVisaRecordId;
@@ -842,7 +1116,13 @@ export interface TrainingRenewalRule {
 }
 
 export interface TrainingInitialDueRule {
-  dueFrom: "employment_start" | "role_assignment_start" | "home_assignment_start" | "ward_assignment_start" | "assignment_created" | "explicit_date";
+  dueFrom:
+    | "employment_start"
+    | "role_assignment_start"
+    | "home_assignment_start"
+    | "ward_assignment_start"
+    | "assignment_created"
+    | "explicit_date";
   offsetDays?: number;
   explicitDate?: string;
 }
@@ -852,7 +1132,15 @@ export interface TrainingCourse {
   code: string;
   title: string;
   description?: string;
-  category: "mandatory" | "clinical" | "safety" | "governance" | "management" | "induction" | "professional_development" | "other";
+  category:
+    | "mandatory"
+    | "clinical"
+    | "safety"
+    | "governance"
+    | "management"
+    | "induction"
+    | "professional_development"
+    | "other";
   mandatoryByDefault: boolean;
   deliveryMethods: TrainingDeliveryMethod[];
   defaultRenewalFrequency?: TrainingRenewalFrequency;
@@ -930,7 +1218,14 @@ export interface StaffTrainingAssignment {
   cancelledAt?: string;
   cancelledByUserAccountId?: UserAccountId;
   cancelledByStaffMemberId?: StaffMemberId;
-  cancellationCategory?: "assigned_in_error" | "no_longer_required" | "employment_ended" | "course_replaced" | "duplicate_assignment" | "staff_role_changed" | "other";
+  cancellationCategory?:
+    | "assigned_in_error"
+    | "no_longer_required"
+    | "employment_ended"
+    | "course_replaced"
+    | "duplicate_assignment"
+    | "staff_role_changed"
+    | "other";
   cancellationReason?: string;
   previousStatusBeforeCancellation?: StaffTrainingAssignmentStatus;
   courseRemainsApplicable?: boolean;
@@ -943,7 +1238,14 @@ export interface StaffTrainingAssignment {
   exemptionApprovedByUserAccountId?: UserAccountId;
   exemptionApprovedAt?: string;
   latestCompletionId?: StaffTrainingCompletionId;
-  source: "requirement" | "manual" | "induction" | "role_change" | "home_assignment" | "ward_assignment" | "other";
+  source:
+    | "requirement"
+    | "manual"
+    | "induction"
+    | "role_change"
+    | "home_assignment"
+    | "ward_assignment"
+    | "other";
   createdAt: string;
   updatedAt: string;
 }
@@ -1142,7 +1444,10 @@ export interface WardCompetencyRequirement {
 
 export interface WardCompetencyRequirementEvent {
   id: string;
-  type: "WardCompetencyRequirementCreated" | "WardCompetencyRequirementUpdated" | "WardCompetencyCoverageChanged";
+  type:
+    | "WardCompetencyRequirementCreated"
+    | "WardCompetencyRequirementUpdated"
+    | "WardCompetencyCoverageChanged";
   wardCompetencyRequirementId: WardCompetencyRequirementId | string;
   nursingHomeId: NursingHomeId | string;
   wardId: WardId | string;
@@ -1233,7 +1538,15 @@ export interface RecruitmentAdvertisingSource {
   id: RecruitmentAdvertisingSourceId;
   code: string;
   name: string;
-  category: "company_website" | "job_board" | "social_media" | "agency" | "referral" | "internal" | "local_advertising" | "other";
+  category:
+    | "company_website"
+    | "job_board"
+    | "social_media"
+    | "agency"
+    | "referral"
+    | "internal"
+    | "local_advertising"
+    | "other";
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -1271,7 +1584,14 @@ export interface RecruitmentVacancy {
   resultingStaffMemberId?: StaffMemberId;
   resultingEmploymentRecordId?: EmploymentRecordId;
   hiringManagerStaffMemberId?: StaffMemberId;
-  sourceReason: "establishment_vacancy" | "replacement" | "new_service" | "temporary_cover" | "leave_cover" | "growth" | "other";
+  sourceReason:
+    | "establishment_vacancy"
+    | "replacement"
+    | "new_service"
+    | "temporary_cover"
+    | "leave_cover"
+    | "growth"
+    | "other";
   sourceReference?: string;
   notes?: string;
   createdAt: string;
@@ -1341,7 +1661,12 @@ export interface RecruitmentEvent {
   wardId?: WardId | string;
   roleKey?: string;
   status?: RecruitmentVacancyStatus | RecruitmentCandidateStatus | RecruitmentOfferStatus;
-  quantities?: { positionsRequired?: number; positionsFilled?: number; fteRequired?: number; fteFilled?: number };
+  quantities?: {
+    positionsRequired?: number;
+    positionsFilled?: number;
+    fteRequired?: number;
+    fteFilled?: number;
+  };
   plannedStartDate?: string;
   actorUserAccountId: UserAccountId | string;
   occurredAt: string;
@@ -1403,7 +1728,12 @@ export interface PlannedShift {
   replacementForShiftId?: PlannedShiftId;
   cancelledAt?: string;
   cancellationReason?: string;
-  readiness?: { homeAssignment: "ok" | "warning"; professionalRegistration: "ok" | "warning" | "not_required"; competency: "ok" | "warning" | "unknown"; leaveConflict: boolean };
+  readiness?: {
+    homeAssignment: "ok" | "warning";
+    professionalRegistration: "ok" | "warning" | "not_required";
+    competency: "ok" | "warning" | "unknown";
+    leaveConflict: boolean;
+  };
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -1413,7 +1743,17 @@ export interface PlannedShift {
 
 export interface RosterEvent {
   id: string;
-  type: "RosterPeriodCreated" | "RosterRequirementChanged" | "RosterShiftAdded" | "RosterStaffAssigned" | "RosterShiftConfirmed" | "RosterShiftMarkedVacant" | "RosterAssignmentReplaced" | "RosterShiftCancelled" | "RosterPublished" | "RosterLocked";
+  type:
+    | "RosterPeriodCreated"
+    | "RosterRequirementChanged"
+    | "RosterShiftAdded"
+    | "RosterStaffAssigned"
+    | "RosterShiftConfirmed"
+    | "RosterShiftMarkedVacant"
+    | "RosterAssignmentReplaced"
+    | "RosterShiftCancelled"
+    | "RosterPublished"
+    | "RosterLocked";
   rosterPeriodId: RosterPeriodId | string;
   rosterShiftRequirementId?: RosterShiftRequirementId | string;
   plannedShiftId?: PlannedShiftId | string;
@@ -1442,7 +1782,11 @@ export interface StaffLeaveRecord {
   partialDay?: "none" | "morning" | "afternoon" | "custom";
   expectedReturnDate?: string;
   actualReturnDate?: string;
-  rosterImpact?: { createsVacantShift: boolean; impactedPlannedShiftIds?: PlannedShiftId[]; notes?: string };
+  rosterImpact?: {
+    createsVacantShift: boolean;
+    impactedPlannedShiftIds?: PlannedShiftId[];
+    notes?: string;
+  };
   confidentialReason?: string;
   notes?: string;
   requestedAt?: string;
@@ -1460,7 +1804,15 @@ export interface StaffLeaveRecord {
 
 export interface StaffLeaveEvent {
   id: string;
-  type: "StaffLeaveCreated" | "StaffLeaveSubmitted" | "StaffLeaveApproved" | "StaffLeaveRejected" | "StaffLeaveCancelled" | "StaffLeaveExtended" | "StaffLeaveReturnRecorded" | "StaffLeaveEnteredInError";
+  type:
+    | "StaffLeaveCreated"
+    | "StaffLeaveSubmitted"
+    | "StaffLeaveApproved"
+    | "StaffLeaveRejected"
+    | "StaffLeaveCancelled"
+    | "StaffLeaveExtended"
+    | "StaffLeaveReturnRecorded"
+    | "StaffLeaveEnteredInError";
   staffLeaveRecordId: StaffLeaveRecordId | string;
   staffMemberId: StaffMemberId | string;
   employmentRecordId?: EmploymentRecordId | string;
@@ -1615,7 +1967,17 @@ export interface AgencySpendAlertPolicy {
 
 export interface AgencyEvent {
   id: string;
-  type: "AgencyCompanyCreated" | "AgencyWorkerCreated" | "AgencyWorkerAssignedToShift" | "AgencyTimesheetSubmitted" | "AgencyTimesheetApproved" | "AgencySpendChanged" | "AgencyWteChanged" | "AgencySpendThresholdExceeded" | "AgencyWorkerNoShow" | "AgencyRecordEnteredInError";
+  type:
+    | "AgencyCompanyCreated"
+    | "AgencyWorkerCreated"
+    | "AgencyWorkerAssignedToShift"
+    | "AgencyTimesheetSubmitted"
+    | "AgencyTimesheetApproved"
+    | "AgencySpendChanged"
+    | "AgencyWteChanged"
+    | "AgencySpendThresholdExceeded"
+    | "AgencyWorkerNoShow"
+    | "AgencyRecordEnteredInError";
   agencyCompanyId?: AgencyCompanyId | string;
   agencyWorkerId?: AgencyWorkerId | string;
   agencyShiftAssignmentId?: AgencyShiftAssignmentId | string;
@@ -1696,7 +2058,15 @@ export interface StaffProbationExtension {
 
 export interface ProbationEvent {
   id: string;
-  type: "StaffProbationCreated" | "ProbationReviewScheduled" | "ProbationReviewCompleted" | "StaffProbationExtended" | "StaffProbationCompleted" | "StaffProbationFailed" | "ProbationReviewOverdue" | "ProbationRecordEnteredInError";
+  type:
+    | "StaffProbationCreated"
+    | "ProbationReviewScheduled"
+    | "ProbationReviewCompleted"
+    | "StaffProbationExtended"
+    | "StaffProbationCompleted"
+    | "StaffProbationFailed"
+    | "ProbationReviewOverdue"
+    | "ProbationRecordEnteredInError";
   probationId: StaffProbationId | string;
   probationReviewId?: StaffProbationReviewId | string;
   staffMemberId: StaffMemberId | string;
@@ -2393,8 +2763,20 @@ export interface PlannedMaintenanceOccurrence {
   generatedBy?: string;
 }
 
-export type MaintenanceAssetCondition = "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Out of Service";
-export type MaintenanceAssetStatus = "Active" | "Inactive" | "Retired" | "Disposed" | "Lost" | "Archived";
+export type MaintenanceAssetCondition =
+  | "Excellent"
+  | "Good"
+  | "Fair"
+  | "Poor"
+  | "Critical"
+  | "Out of Service";
+export type MaintenanceAssetStatus =
+  | "Active"
+  | "Inactive"
+  | "Retired"
+  | "Disposed"
+  | "Lost"
+  | "Archived";
 export type MaintenanceAssetOperationalStatus =
   | "Operational"
   | "Under Maintenance"
@@ -2561,16 +2943,60 @@ export type SafetyChecklistResponseType =
   | "PHOTO_CONFIRMATION"
   | "CERTIFICATE_CONFIRMATION"
   | "SIGNATURE_CONFIRMATION";
-export type SafetyEvidenceType = "PHOTO" | "DOCUMENT" | "CERTIFICATE" | "READING" | "SIGNATURE" | "VIDEO" | "OTHER";
-export type SafetyOccurrenceStatus = "SCHEDULED" | "DUE_SOON" | "DUE_TODAY" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "COMPLETED" | "FAILED" | "OVERDUE" | "SKIPPED" | "CANCELLED";
-export type SafetyInspectionStatus = "DRAFT" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
+export type SafetyEvidenceType =
+  | "PHOTO"
+  | "DOCUMENT"
+  | "CERTIFICATE"
+  | "READING"
+  | "SIGNATURE"
+  | "VIDEO"
+  | "OTHER";
+export type SafetyOccurrenceStatus =
+  | "SCHEDULED"
+  | "DUE_SOON"
+  | "DUE_TODAY"
+  | "IN_PROGRESS"
+  | "AWAITING_VERIFICATION"
+  | "COMPLETED"
+  | "FAILED"
+  | "OVERDUE"
+  | "SKIPPED"
+  | "CANCELLED";
+export type SafetyInspectionStatus =
+  | "DRAFT"
+  | "IN_PROGRESS"
+  | "AWAITING_VERIFICATION"
+  | "COMPLETED"
+  | "FAILED"
+  | "REJECTED"
+  | "CANCELLED";
 export type SafetyInspectionType = "SCHEDULED" | "AD_HOC" | "FOLLOW_UP" | "REINSPECTION";
 export type SafetyInspectionResult = "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL" | "NOT_COMPLETED";
-export type SafetyResponseResult = "PASS" | "FAIL" | "NOT_APPLICABLE" | "INFORMATION_ONLY" | "UNANSWERED";
+export type SafetyResponseResult =
+  | "PASS"
+  | "FAIL"
+  | "NOT_APPLICABLE"
+  | "INFORMATION_ONLY"
+  | "UNANSWERED";
 export type SafetyVerificationStatus = "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "REJECTED";
-export type SafetyObservationType = "GENERAL" | "DEFECT" | "HAZARD" | "NON_COMPLIANCE" | "DAMAGE" | "MISSING_EVIDENCE" | "READING_OUT_OF_RANGE" | "FOLLOW_UP_REQUIRED" | "OTHER";
+export type SafetyObservationType =
+  | "GENERAL"
+  | "DEFECT"
+  | "HAZARD"
+  | "NON_COMPLIANCE"
+  | "DAMAGE"
+  | "MISSING_EVIDENCE"
+  | "READING_OUT_OF_RANGE"
+  | "FOLLOW_UP_REQUIRED"
+  | "OTHER";
 export type SafetySeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type SafetyCertificateStatus = "DRAFT" | "VALID" | "EXPIRING_SOON" | "EXPIRED" | "REVOKED" | "SUPERSEDED";
+export type SafetyCertificateStatus =
+  | "DRAFT"
+  | "VALID"
+  | "EXPIRING_SOON"
+  | "EXPIRED"
+  | "REVOKED"
+  | "SUPERSEDED";
 export type SafetyVerificationRejectionReason =
   | "INCOMPLETE_CHECKLIST"
   | "INSUFFICIENT_EVIDENCE"
@@ -2875,13 +3301,68 @@ export interface SafetyCertificate {
   updatedAt?: string;
 }
 
-export type MaintenanceCertificateSubjectType = "ASSET" | "WORK_ORDER" | "SAFETY_INSPECTION" | "CONTRACTOR" | "HOME" | "LOCATION" | "OTHER";
+export type MaintenanceCertificateSubjectType =
+  | "ASSET"
+  | "WORK_ORDER"
+  | "SAFETY_INSPECTION"
+  | "CONTRACTOR"
+  | "HOME"
+  | "LOCATION"
+  | "OTHER";
 export type MaintenanceCertificateLifecycleStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
-export type MaintenanceCertificateVersionStatus = "DRAFT" | "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "SUPERSEDED" | "REVOKED" | "ARCHIVED";
-export type MaintenanceCertificateComplianceStatus = "VALID" | "EXPIRING_SOON" | "EXPIRED" | "MISSING" | "REVOKED" | "NOT_APPLICABLE";
-export type MaintenanceCertificateTypeCategory = "SAFETY" | "SERVICE" | "INSPECTION" | "LEGAL" | "INSURANCE" | "CONTRACTOR_CERTIFICATION" | "ASSET_COMPLIANCE" | "CALIBRATION" | "WARRANTY" | "OTHER";
-export type MaintenanceCertificateAttachmentType = "CERTIFICATE_FILE" | "SUPPORTING_DOCUMENT" | "RENEWAL_DOCUMENT" | "ISSUER_CORRESPONDENCE" | "EVIDENCE" | "PHOTO" | "OTHER";
-export type MaintenanceCertificateLinkRelationship = "CERTIFIES" | "SERVICES" | "INSPECTS" | "CALIBRATES" | "WARRANTY_FOR" | "APPLIES_TO" | "ISSUED_FROM" | "REQUIRED_BY" | "EVIDENCE_FOR" | "RENEWED_BY" | "SUPPORTS_COMPLIANCE" | "RELATED_TO" | "HELD_BY" | "ISSUED_BY" | "INSURANCE_FOR" | "CERTIFICATION_FOR" | "PROVIDED_BY" | "OTHER";
+export type MaintenanceCertificateVersionStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "EXPIRING_SOON"
+  | "EXPIRED"
+  | "SUPERSEDED"
+  | "REVOKED"
+  | "ARCHIVED";
+export type MaintenanceCertificateComplianceStatus =
+  | "VALID"
+  | "EXPIRING_SOON"
+  | "EXPIRED"
+  | "MISSING"
+  | "REVOKED"
+  | "NOT_APPLICABLE";
+export type MaintenanceCertificateTypeCategory =
+  | "SAFETY"
+  | "SERVICE"
+  | "INSPECTION"
+  | "LEGAL"
+  | "INSURANCE"
+  | "CONTRACTOR_CERTIFICATION"
+  | "ASSET_COMPLIANCE"
+  | "CALIBRATION"
+  | "WARRANTY"
+  | "OTHER";
+export type MaintenanceCertificateAttachmentType =
+  | "CERTIFICATE_FILE"
+  | "SUPPORTING_DOCUMENT"
+  | "RENEWAL_DOCUMENT"
+  | "ISSUER_CORRESPONDENCE"
+  | "EVIDENCE"
+  | "PHOTO"
+  | "OTHER";
+export type MaintenanceCertificateLinkRelationship =
+  | "CERTIFIES"
+  | "SERVICES"
+  | "INSPECTS"
+  | "CALIBRATES"
+  | "WARRANTY_FOR"
+  | "APPLIES_TO"
+  | "ISSUED_FROM"
+  | "REQUIRED_BY"
+  | "EVIDENCE_FOR"
+  | "RENEWED_BY"
+  | "SUPPORTS_COMPLIANCE"
+  | "RELATED_TO"
+  | "HELD_BY"
+  | "ISSUED_BY"
+  | "INSURANCE_FOR"
+  | "CERTIFICATION_FOR"
+  | "PROVIDED_BY"
+  | "OTHER";
 export type MaintenanceCertificateRequirementRecurrence = PlannedMaintenanceFrequencyType | "none";
 
 export interface MaintenanceCertificateType {
@@ -3103,17 +3584,81 @@ export interface MaintenanceCertificateTimelineEvent {
   createdAt: string;
 }
 
-export type MaintenanceContractorBusinessType = "LIMITED_COMPANY" | "SOLE_TRADER" | "PARTNERSHIP" | "PUBLIC_BODY" | "CHARITY" | "INDEPENDENT_PROFESSIONAL" | "OTHER";
-export type MaintenanceContractorStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "SUSPENDED" | "ARCHIVED";
-export type MaintenanceContractorApprovalStatus = "NOT_REVIEWED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
-export type MaintenanceContractorRestrictionStatus = "NONE" | "RESTRICTED" | "SUSPENDED" | "COMPLIANCE_BLOCKED";
-export type MaintenanceContractorHomeAssociationStatus = "PLANNED" | "ACTIVE" | "INACTIVE" | "RESTRICTED" | "SUSPENDED" | "ARCHIVED";
-export type MaintenanceContractorHomeAccessLevel = "NO_ACCESS" | "BY_APPOINTMENT" | "ESCORTED" | "STANDARD" | "EMERGENCY_ONLY" | "RESTRICTED";
-export type MaintenanceContractorHomeRelationshipType = "TENANT_WIDE" | "HOME_PROVIDER" | "EMERGENCY_PROVIDER" | "PREFERRED" | "OCCASIONAL" | "HISTORICAL" | "OTHER";
-export type MaintenanceContractorNoteType = "GENERAL" | "ADMINISTRATIVE" | "OPERATIONAL" | "COMPLIANCE" | "COMPLIANCE_PREPARATION" | "ACCESS" | "OTHER";
+export type MaintenanceContractorBusinessType =
+  | "LIMITED_COMPANY"
+  | "SOLE_TRADER"
+  | "PARTNERSHIP"
+  | "PUBLIC_BODY"
+  | "CHARITY"
+  | "INDEPENDENT_PROFESSIONAL"
+  | "OTHER";
+export type MaintenanceContractorStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "INACTIVE"
+  | "SUSPENDED"
+  | "ARCHIVED";
+export type MaintenanceContractorApprovalStatus =
+  | "NOT_REVIEWED"
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED";
+export type MaintenanceContractorRestrictionStatus =
+  | "NONE"
+  | "RESTRICTED"
+  | "SUSPENDED"
+  | "COMPLIANCE_BLOCKED";
+export type MaintenanceContractorHomeAssociationStatus =
+  | "PLANNED"
+  | "ACTIVE"
+  | "INACTIVE"
+  | "RESTRICTED"
+  | "SUSPENDED"
+  | "ARCHIVED";
+export type MaintenanceContractorHomeAccessLevel =
+  | "NO_ACCESS"
+  | "BY_APPOINTMENT"
+  | "ESCORTED"
+  | "STANDARD"
+  | "EMERGENCY_ONLY"
+  | "RESTRICTED";
+export type MaintenanceContractorHomeRelationshipType =
+  | "TENANT_WIDE"
+  | "HOME_PROVIDER"
+  | "EMERGENCY_PROVIDER"
+  | "PREFERRED"
+  | "OCCASIONAL"
+  | "HISTORICAL"
+  | "OTHER";
+export type MaintenanceContractorNoteType =
+  | "GENERAL"
+  | "ADMINISTRATIVE"
+  | "OPERATIONAL"
+  | "COMPLIANCE"
+  | "COMPLIANCE_PREPARATION"
+  | "ACCESS"
+  | "OTHER";
 export type MaintenanceContractorNoteVisibility = "INTERNAL" | "RESTRICTED_INTERNAL";
-export type MaintenanceContractorContactRole = "GENERAL" | "MANAGER" | "OPERATIONS" | "SERVICE_COORDINATOR" | "ENGINEER" | "EMERGENCY" | "COMPLIANCE" | "ACCOUNTS" | "ADMINISTRATION" | "OTHER";
-export type MaintenanceContractorServiceAreaType = "REGION" | "COUNTY" | "CITY" | "POSTAL_AREA" | "HOME" | "NATIONWIDE" | "REMOTE" | "OTHER";
+export type MaintenanceContractorContactRole =
+  | "GENERAL"
+  | "MANAGER"
+  | "OPERATIONS"
+  | "SERVICE_COORDINATOR"
+  | "ENGINEER"
+  | "EMERGENCY"
+  | "COMPLIANCE"
+  | "ACCOUNTS"
+  | "ADMINISTRATION"
+  | "OTHER";
+export type MaintenanceContractorServiceAreaType =
+  | "REGION"
+  | "COUNTY"
+  | "CITY"
+  | "POSTAL_AREA"
+  | "HOME"
+  | "NATIONWIDE"
+  | "REMOTE"
+  | "OTHER";
 
 export interface MaintenanceContractor {
   id: string;
@@ -3327,15 +3872,56 @@ export type HousekeepingTaskStatus =
   | "SKIPPED"
   | "OVERDUE";
 export type HousekeepingResult = "PASS" | "PASS_WITH_OBSERVATIONS" | "FAIL" | "NOT_COMPLETED";
-export type HousekeepingResponseResult = "PASS" | "FAIL" | "NOT_APPLICABLE" | "INFORMATION_ONLY" | "UNANSWERED";
+export type HousekeepingResponseResult =
+  | "PASS"
+  | "FAIL"
+  | "NOT_APPLICABLE"
+  | "INFORMATION_ONLY"
+  | "UNANSWERED";
 export type HousekeepingEvidenceType = "PHOTO" | "DOCUMENT" | "SIGNATURE" | "OTHER";
-export type HousekeepingExceptionType = "CLEANING" | "WASTE" | "LINEN" | "ROOM" | "MAINTENANCE" | "SAFETY" | "ACCESS" | "SUPPLY" | "OTHER";
-export type HousekeepingExceptionStatus = "OPEN" | "IN_REVIEW" | "ACTION_REQUIRED" | "RESOLVED" | "CLOSED";
+export type HousekeepingExceptionType =
+  | "CLEANING"
+  | "WASTE"
+  | "LINEN"
+  | "ROOM"
+  | "MAINTENANCE"
+  | "SAFETY"
+  | "ACCESS"
+  | "SUPPLY"
+  | "OTHER";
+export type HousekeepingExceptionStatus =
+  | "OPEN"
+  | "IN_REVIEW"
+  | "ACTION_REQUIRED"
+  | "RESOLVED"
+  | "CLOSED";
 export type HousekeepingSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type HousekeepingAuditType = "ROUTINE_AUDIT" | "RANDOM_AUDIT" | "SUPERVISOR_AUDIT" | "MANAGEMENT_AUDIT" | "FOLLOW_UP_AUDIT";
-export type HousekeepingAuditStatus = "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
-export type HousekeepingQualityInspectionStatus = "PENDING" | "IN_PROGRESS" | "PASSED" | "FAILED" | "AWAITING_REINSPECTION" | "CANCELLED";
-export type HousekeepingReinspectionStatus = "PENDING" | "ASSIGNED" | "IN_PROGRESS" | "PASSED" | "FAILED" | "CANCELLED";
+export type HousekeepingAuditType =
+  | "ROUTINE_AUDIT"
+  | "RANDOM_AUDIT"
+  | "SUPERVISOR_AUDIT"
+  | "MANAGEMENT_AUDIT"
+  | "FOLLOW_UP_AUDIT";
+export type HousekeepingAuditStatus =
+  | "DRAFT"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
+export type HousekeepingQualityInspectionStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "PASSED"
+  | "FAILED"
+  | "AWAITING_REINSPECTION"
+  | "CANCELLED";
+export type HousekeepingReinspectionStatus =
+  | "PENDING"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "PASSED"
+  | "FAILED"
+  | "CANCELLED";
 export type HousekeepingRoomReadinessStatus =
   | "OCCUPIED"
   | "CLEANING_REQUIRED"
@@ -3346,7 +3932,12 @@ export type HousekeepingRoomReadinessStatus =
   | "READY"
   | "OUT_OF_SERVICE"
   | "UNAVAILABLE";
-export type HousekeepingRoomStatusSource = "HOUSEKEEPING_TASK" | "QUALITY_INSPECTION" | "ROOM_READINESS" | "MAINTENANCE_WORK_ORDER" | "MANUAL";
+export type HousekeepingRoomStatusSource =
+  | "HOUSEKEEPING_TASK"
+  | "QUALITY_INSPECTION"
+  | "ROOM_READINESS"
+  | "MAINTENANCE_WORK_ORDER"
+  | "MANUAL";
 
 export interface HousekeepingTemplate {
   id: string;
@@ -3755,7 +4346,14 @@ export type WorkOrderEvidenceType =
   | "CONTRACTOR_EVIDENCE"
   | "OTHER";
 
-export type WorkOrderPhotoCategory = "BEFORE" | "DURING" | "AFTER" | "DAMAGE" | "REPAIR" | "SAFETY_CONTROL" | "OTHER";
+export type WorkOrderPhotoCategory =
+  | "BEFORE"
+  | "DURING"
+  | "AFTER"
+  | "DAMAGE"
+  | "REPAIR"
+  | "SAFETY_CONTROL"
+  | "OTHER";
 export type WorkOrderFileScanStatus = "PENDING" | "CLEAN" | "REJECTED" | "FAILED" | "NOT_AVAILABLE";
 
 export interface WorkOrderAttachment {
@@ -4045,7 +4643,13 @@ export interface BedAssignment {
   endDate?: string;
   endDateTime?: string;
   status: "active" | "ended";
-  reason?: "admission" | "room_move" | "bed_move" | "return_from_absence" | "temporary_assignment" | "other";
+  reason?:
+    | "admission"
+    | "room_move"
+    | "bed_move"
+    | "return_from_absence"
+    | "temporary_assignment"
+    | "other";
   endedReason?:
     | "room_move"
     | "temporary_absence"
@@ -4258,9 +4862,9 @@ export interface Resident {
   preAdmission?: {
     residentType: string;
     referredFrom: string;
-    referralSource?: string;
     proposedAdmissionDate?: string;
     primaryContactName?: string;
+    primaryContactRelationship?: string;
     primaryContactPhone?: string;
     createdAt: string;
     convertedAt?: string;
@@ -4421,8 +5025,15 @@ export const DAILY_NOTE_CATEGORY_OPTIONS = [
 ] as const;
 
 export type DailyNoteCategory = (typeof DAILY_NOTE_CATEGORY_OPTIONS)[number]["value"];
-export type DailyNoteStructuredField = "mood" | "foodIntake" | "fluidIntake" | "sleep" | "behaviour";
-export const DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS: Partial<Record<DailyNoteCategory, readonly DailyNoteStructuredField[]>> = {
+export type DailyNoteStructuredField =
+  | "mood"
+  | "foodIntake"
+  | "fluidIntake"
+  | "sleep"
+  | "behaviour";
+export const DAILY_NOTE_CATEGORY_STRUCTURED_FIELDS: Partial<
+  Record<DailyNoteCategory, readonly DailyNoteStructuredField[]>
+> = {
   nutrition_hydration: ["foodIntake", "fluidIntake"],
   mood_behaviour: ["mood", "behaviour"],
   sleep: ["sleep"],
@@ -4904,7 +5515,13 @@ export type ProblemCategory =
   | "custom";
 
 export type ProblemRiskLevel = "none" | "low" | "moderate" | "high" | "very_high" | "resolved";
-export type ProblemStatus = "active" | "resolved" | "discontinued" | "superseded" | "archived" | "entered_in_error";
+export type ProblemStatus =
+  | "active"
+  | "resolved"
+  | "discontinued"
+  | "superseded"
+  | "archived"
+  | "entered_in_error";
 export type FrequencyType =
   | "once"
   | "per_shift"
@@ -4936,10 +5553,24 @@ export type InterventionOutcome =
 export type CareActionType = "scheduled" | "prn" | "triggered" | "one_off";
 export type CareActionPriority = "routine" | "important" | "urgent" | "critical";
 export type EndOfLifeSymptomType =
-  | "pain" | "breathlessness" | "respiratory_secretions" | "agitation" | "restlessness"
-  | "anxiety" | "nausea" | "vomiting" | "oral_dryness" | "swallowing_difficulty"
-  | "reduced_intake" | "skin_mottling" | "cold_extremities" | "jerking_or_twitching"
-  | "reduced_consciousness" | "urinary_retention" | "constipation" | "other";
+  | "pain"
+  | "breathlessness"
+  | "respiratory_secretions"
+  | "agitation"
+  | "restlessness"
+  | "anxiety"
+  | "nausea"
+  | "vomiting"
+  | "oral_dryness"
+  | "swallowing_difficulty"
+  | "reduced_intake"
+  | "skin_mottling"
+  | "cold_extremities"
+  | "jerking_or_twitching"
+  | "reduced_consciousness"
+  | "urinary_retention"
+  | "constipation"
+  | "other";
 export interface PrnCareActionConfiguration {
   indication: string;
   indications?: string[];
@@ -4959,7 +5590,14 @@ export interface TriggeredCareActionConfiguration {
   triggerRuleIds?: string[];
   triggerConditionSummary: string;
   createWorkItemOnTrigger: boolean;
-  resultingWorkType?: "care_action" | "general_task" | "observation" | "assessment" | "care_plan_review" | "referral" | "documentation";
+  resultingWorkType?:
+    | "care_action"
+    | "general_task"
+    | "observation"
+    | "assessment"
+    | "care_plan_review"
+    | "referral"
+    | "documentation";
   dueOffsetMinutes?: number;
   assignmentPolicy: "ward" | "role" | "team" | "unassigned";
   assignedRoleKey?: string;
@@ -4974,10 +5612,24 @@ export interface OneOffCareActionConfiguration {
   requiresOutcomeRecording: boolean;
   requiresResidentResponse: boolean;
   autoCloseAfterCompletion: boolean;
-  completionEvidenceType?: "clinical_note" | "review" | "referral" | "communication_record" | "document" | "manual_confirmation";
+  completionEvidenceType?:
+    | "clinical_note"
+    | "review"
+    | "referral"
+    | "communication_record"
+    | "document"
+    | "manual_confirmation";
 }
-export interface CareActionCompletionRequirements { outcomeRequired: boolean; residentResponseRequired: boolean; evidenceRequired?: boolean; }
-export interface CareActionVisibilityPolicy { showInCarePlan: boolean; showAtPointOfCare: boolean; sensitive?: boolean; }
+export interface CareActionCompletionRequirements {
+  outcomeRequired: boolean;
+  residentResponseRequired: boolean;
+  evidenceRequired?: boolean;
+}
+export interface CareActionVisibilityPolicy {
+  showInCarePlan: boolean;
+  showAtPointOfCare: boolean;
+  sensitive?: boolean;
+}
 
 export interface ResidentCarePlan {
   id: string;
@@ -5013,6 +5665,10 @@ export interface CarePlanProblem {
   }>;
   createdBy: string;
   createdAt: string;
+  startDate?: string;
+  reviewIntervalValue?: number;
+  reviewIntervalUnit?: import("./carePlanReviewInterval").CarePlanReviewIntervalUnit;
+  reviewDateManuallyOverridden?: boolean;
   evaluationDate: string; // YYYY-MM-DD
   reviewDate: string; // YYYY-MM-DD
   notes?: string;
@@ -5087,8 +5743,26 @@ export interface ProblemIntervention {
   discontinuedReason?: string;
 }
 
-export interface CarePlanTemplateAction { id: string; heading: string; sortOrder: number; }
-export interface CarePlanTemplate { id: string; facilityId: string; name: string; aimGoal: string; actions: CarePlanTemplateAction[]; reviewIntervalMonths?: number; nextReviewDate?: string; active: boolean; createdAt: string; createdBy: string; updatedAt: string; }
+export interface CarePlanTemplateAction {
+  id: string;
+  heading: string;
+  sortOrder: number;
+}
+export interface CarePlanTemplate {
+  id: string;
+  facilityId: string;
+  name: string;
+  aimGoal: string;
+  actions: CarePlanTemplateAction[];
+  reviewIntervalValue?: number;
+  reviewIntervalUnit?: import("./carePlanReviewInterval").CarePlanReviewIntervalUnit;
+  /** Legacy templates are interpreted as months. */ reviewIntervalMonths?: number;
+  nextReviewDate?: string;
+  active: boolean;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+}
 
 export interface ProblemInterventionLog {
   id: string;

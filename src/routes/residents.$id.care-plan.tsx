@@ -3,11 +3,18 @@ import { useMemo, useState } from "react";
 import { useCare } from "@/lib/care/store";
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import {
-  CATEGORY_LABELS, RISK_COLORS, PREDEFINED_GOALS, frequencyLabel,
+  CATEGORY_LABELS,
+  RISK_COLORS,
+  PREDEFINED_GOALS,
+  frequencyLabel,
 } from "@/lib/care/problems";
 import { getRltDomainForCarePlanProblem } from "@/lib/care/rlt";
 import type {
-  CarePlanProblem, FrequencyType, ProblemCategory, ProblemRiskLevel, Role,
+  CarePlanProblem,
+  FrequencyType,
+  ProblemCategory,
+  ProblemRiskLevel,
+  Role,
 } from "@/lib/care/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,17 +22,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft, Plus, CheckCircle2, History, Target, Activity,
-  CalendarClock, FileCheck2, Sparkles, X, Trash2, PlayCircle,
+  ArrowLeft,
+  Plus,
+  CheckCircle2,
+  History,
+  Target,
+  Activity,
+  CalendarClock,
+  FileCheck2,
+  Sparkles,
+  X,
+  Trash2,
+  PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  calculateCarePlanReviewDate,
+  formatReviewInterval,
+  type CarePlanReviewIntervalUnit,
+} from "@/lib/care/carePlanReviewInterval";
 
 const ASSIGNED_ROLES: Array<{ value: Role; label: string }> = [
   { value: "carer", label: "Carer" },
@@ -40,11 +73,33 @@ export const Route = createFileRoute("/residents/$id/care-plan")({
 });
 
 const CATEGORY_OPTIONS: ProblemCategory[] = [
-  "pressure", "falls", "nutrition", "pain", "behaviour", "continence",
-  "mobility", "cognition", "communication", "personal_care", "mental_health",
-  "social", "sleep", "medication", "end_of_life", "skin", "safeguarding", "custom",
+  "pressure",
+  "falls",
+  "nutrition",
+  "pain",
+  "behaviour",
+  "continence",
+  "mobility",
+  "cognition",
+  "communication",
+  "personal_care",
+  "mental_health",
+  "social",
+  "sleep",
+  "medication",
+  "end_of_life",
+  "skin",
+  "safeguarding",
+  "custom",
 ];
-const RISK_OPTIONS: ProblemRiskLevel[] = ["none", "low", "moderate", "high", "very_high", "resolved"];
+const RISK_OPTIONS: ProblemRiskLevel[] = [
+  "none",
+  "low",
+  "moderate",
+  "high",
+  "very_high",
+  "resolved",
+];
 
 function todayPlus(days: number) {
   return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -53,30 +108,50 @@ function todayPlus(days: number) {
 function ResidentCarePlanPage() {
   const { id } = Route.useParams();
   const {
-    residents, residentCarePlans, carePlanProblems, problemPlans,
-    problemInterventions, problemInterventionLogs, problemEvaluations,
-    problemReviews, problemHistory, assessmentSuggestions, assessments,
+    residents,
+    residentCarePlans,
+    carePlanProblems,
+    problemPlans,
+    problemInterventions,
+    problemInterventionLogs,
+    problemEvaluations,
+    problemReviews,
+    problemHistory,
+    assessmentSuggestions,
+    assessments,
   } = useCare();
 
-  const r = residents.find(x => x.id === id);
+  const r = residents.find((x) => x.id === id);
   if (!r) return <div className="p-8">Resident not found.</div>;
 
-  const rcp = residentCarePlans.find(p => p.residentId === id && p.status === "active");
-  const problems = carePlanProblems.filter(p => p.residentId === id);
-  const active = problems.filter(p => p.status === "active");
-  const resolved = problems.filter(p => p.status === "resolved");
-  const pendingSuggestions = assessmentSuggestions.filter(s => s.residentId === id && s.status === "pending");
+  const rcp = residentCarePlans.find((p) => p.residentId === id && p.status === "active");
+  const problems = carePlanProblems.filter((p) => p.residentId === id);
+  const active = problems.filter((p) => p.status === "active");
+  const resolved = problems.filter((p) => p.status === "resolved");
+  const pendingSuggestions = assessmentSuggestions.filter(
+    (s) => s.residentId === id && s.status === "pending",
+  );
 
   const today = new Date().toISOString().slice(0, 10);
-  const dueReview = active.filter(p => p.reviewDate <= today).length;
-  const dueEval = active.filter(p => p.evaluationDate <= today).length;
-  const openInterventions = problemInterventions.filter(i => i.status === "active" && problems.some(p => p.id === i.problemId)).length;
-  const completedRecent = problemInterventionLogs.filter(l => l.residentId === id && l.outcome === "completed" && l.date >= todayPlus(-7)).length;
-  const recentEvals = problemEvaluations.filter(e => problems.some(p => p.id === e.problemId)).slice(0, 5);
+  const dueReview = active.filter((p) => p.reviewDate <= today).length;
+  const dueEval = active.filter((p) => p.evaluationDate <= today).length;
+  const openInterventions = problemInterventions.filter(
+    (i) => i.status === "active" && problems.some((p) => p.id === i.problemId),
+  ).length;
+  const completedRecent = problemInterventionLogs.filter(
+    (l) => l.residentId === id && l.outcome === "completed" && l.date >= todayPlus(-7),
+  ).length;
+  const recentEvals = problemEvaluations
+    .filter((e) => problems.some((p) => p.id === e.problemId))
+    .slice(0, 5);
 
   return (
     <div className="p-4 md:p-8 space-y-5 max-w-7xl">
-      <Link to="/residents/$id" params={{ id: r.id }} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+      <Link
+        to="/residents/$id"
+        params={{ id: r.id }}
+        className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+      >
         <ArrowLeft className="h-4 w-4" /> Back to {r.firstName} {r.lastName}
       </Link>
 
@@ -85,7 +160,13 @@ function ResidentCarePlanPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Resident Care Plan</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {r.firstName} {r.lastName} · Room {r.roomNumber} ·{" "}
-            {rcp ? <>Plan created {rcp.createdAt.slice(0, 10)} by {rcp.createdBy}</> : "No active plan yet"}
+            {rcp ? (
+              <>
+                Plan created {rcp.createdAt.slice(0, 10)} by {rcp.createdBy}
+              </>
+            ) : (
+              "No active plan yet"
+            )}
           </p>
         </div>
         <AddProblemButton residentId={id} />
@@ -107,11 +188,14 @@ function ResidentCarePlanPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-info" />
-              {pendingSuggestions.length} suggested care plan problem{pendingSuggestions.length > 1 ? "s" : ""} from recent assessments
+              {pendingSuggestions.length} suggested care plan problem
+              {pendingSuggestions.length > 1 ? "s" : ""} from recent assessments
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pendingSuggestions.map(s => <SuggestionRow key={s.id} suggestionId={s.id} />)}
+            {pendingSuggestions.map((s) => (
+              <SuggestionRow key={s.id} suggestionId={s.id} />
+            ))}
           </CardContent>
         </Card>
       )}
@@ -124,28 +208,46 @@ function ResidentCarePlanPage() {
 
         <TabsContent value="active" className="space-y-3 mt-3">
           {active.length === 0 && (
-            <p className="text-sm text-muted-foreground">No active problems. Add one or accept a suggestion above.</p>
+            <p className="text-sm text-muted-foreground">
+              No active problems. Add one or accept a suggestion above.
+            </p>
           )}
-          {active.map(p => <ProblemCard key={p.id} problem={p} />)}
+          {active.map((p) => (
+            <ProblemCard key={p.id} problem={p} />
+          ))}
         </TabsContent>
 
         <TabsContent value="resolved" className="space-y-3 mt-3">
           {resolved.length === 0 && (
             <p className="text-sm text-muted-foreground">No resolved problems.</p>
           )}
-          {resolved.map(p => <ProblemCard key={p.id} problem={p} />)}
+          {resolved.map((p) => (
+            <ProblemCard key={p.id} problem={p} />
+          ))}
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function Stat({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "warn" }) {
+function Stat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "warn";
+}) {
   return (
     <Card>
       <CardContent className="p-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className={`text-2xl font-semibold tabular-nums ${tone === "warn" && value > 0 ? "text-warning-foreground" : ""}`}>{value}</div>
+        <div
+          className={`text-2xl font-semibold tabular-nums ${tone === "warn" && value > 0 ? "text-warning-foreground" : ""}`}
+        >
+          {value}
+        </div>
       </CardContent>
     </Card>
   );
@@ -155,7 +257,7 @@ function Stat({ label, value, tone = "default" }: { label: string; value: number
 
 function SuggestionRow({ suggestionId }: { suggestionId: string }) {
   const { assessmentSuggestions, acceptSuggestion, rejectSuggestion } = useCare();
-  const s = assessmentSuggestions.find(x => x.id === suggestionId);
+  const s = assessmentSuggestions.find((x) => x.id === suggestionId);
   const [editing, setEditing] = useState(false);
   const [statement, setStatement] = useState(s?.problemStatement || "");
   const [risk, setRisk] = useState<ProblemRiskLevel>(s?.riskLevel || "moderate");
@@ -165,16 +267,30 @@ function SuggestionRow({ suggestionId }: { suggestionId: string }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap text-xs">
-            <Badge variant="outline" className="capitalize">{CATEGORY_LABELS[s.category]}</Badge>
-            <Badge variant="outline" className={RISK_COLORS[s.riskLevel]}>{s.riskLevel.replace("_", " ")}</Badge>
-            <span className="text-muted-foreground">from {s.assessmentType.replace("_", " ")} assessment</span>
+            <Badge variant="outline" className="capitalize">
+              {CATEGORY_LABELS[s.category]}
+            </Badge>
+            <Badge variant="outline" className={RISK_COLORS[s.riskLevel]}>
+              {s.riskLevel.replace("_", " ")}
+            </Badge>
+            <span className="text-muted-foreground">
+              from {s.assessmentType.replace("_", " ")} assessment
+            </span>
           </div>
           {editing ? (
             <div className="space-y-2 mt-2">
-              <Textarea value={statement} onChange={e => setStatement(e.target.value)} rows={2} />
-              <Select value={risk} onValueChange={v => setRisk(v as ProblemRiskLevel)}>
-                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                <SelectContent>{RISK_OPTIONS.map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>)}</SelectContent>
+              <Textarea value={statement} onChange={(e) => setStatement(e.target.value)} rows={2} />
+              <Select value={risk} onValueChange={(v) => setRisk(v as ProblemRiskLevel)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RISK_OPTIONS.map((o) => (
+                    <SelectItem key={o} value={o} className="capitalize">
+                      {o.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           ) : (
@@ -184,14 +300,42 @@ function SuggestionRow({ suggestionId }: { suggestionId: string }) {
         <div className="flex flex-col gap-1">
           {editing ? (
             <>
-              <Button size="sm" onClick={() => { acceptSuggestion(s.id, { problemStatement: statement, riskLevel: risk }); toast.success("Nursing care plan added to care plan"); }}>Save & Accept</Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  acceptSuggestion(s.id, { problemStatement: statement, riskLevel: risk });
+                  toast.success("Nursing care plan added to care plan");
+                }}
+              >
+                Save & Accept
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
             </>
           ) : (
             <>
-              <Button size="sm" onClick={() => { acceptSuggestion(s.id); toast.success("Nursing care plan added"); }}>Accept</Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
-              <Button size="sm" variant="ghost" onClick={() => { rejectSuggestion(s.id, "Not clinically indicated"); }}>Reject</Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  acceptSuggestion(s.id);
+                  toast.success("Nursing care plan added");
+                }}
+              >
+                Accept
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  rejectSuggestion(s.id, "Not clinically indicated");
+                }}
+              >
+                Reject
+              </Button>
             </>
           )}
         </div>
@@ -204,17 +348,28 @@ function SuggestionRow({ suggestionId }: { suggestionId: string }) {
 
 function ProblemCard({ problem }: { problem: CarePlanProblem }) {
   const {
-    problemPlans, problemInterventions, problemInterventionLogs,
-    problemEvaluations, problemReviews, problemHistory,
+    problemPlans,
+    problemInterventions,
+    problemInterventionLogs,
+    problemEvaluations,
+    problemReviews,
+    problemHistory,
   } = useCare();
   const [showHistory, setShowHistory] = useState(false);
 
-  const goals = problemPlans.filter(g => g.problemId === problem.id && (!g.carePlanId || g.carePlanId === problem.id));
-  const interventions = problemInterventions.filter(i => i.problemId === problem.id && (!i.carePlanId || i.carePlanId === problem.id) && i.status === "active");
-  const evals = problemEvaluations.filter(e => e.problemId === problem.id);
-  const reviews = problemReviews.filter(r => r.problemId === problem.id);
-  const logs = problemInterventionLogs.filter(l => l.problemId === problem.id).slice(0, 5);
-  const history = problemHistory.filter(h => h.problemId === problem.id);
+  const goals = problemPlans.filter(
+    (g) => g.problemId === problem.id && (!g.carePlanId || g.carePlanId === problem.id),
+  );
+  const interventions = problemInterventions.filter(
+    (i) =>
+      i.problemId === problem.id &&
+      (!i.carePlanId || i.carePlanId === problem.id) &&
+      i.status === "active",
+  );
+  const evals = problemEvaluations.filter((e) => e.problemId === problem.id);
+  const reviews = problemReviews.filter((r) => r.problemId === problem.id);
+  const logs = problemInterventionLogs.filter((l) => l.problemId === problem.id).slice(0, 5);
+  const history = problemHistory.filter((h) => h.problemId === problem.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const evalDue = problem.evaluationDate <= today;
@@ -227,16 +382,42 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <Badge variant="outline" className="capitalize">{CATEGORY_LABELS[problem.category]}</Badge>
+              <Badge variant="outline" className="capitalize">
+                {CATEGORY_LABELS[problem.category]}
+              </Badge>
               {rltDomain && <Badge variant="secondary">{rltDomain.shortLabel}</Badge>}
-              <Badge variant="outline" className={RISK_COLORS[problem.riskLevel]}>{problem.riskLevel.replace("_", " ")}</Badge>
-              <Badge variant="outline" className="capitalize">{problem.status}</Badge>
-              {evalDue && problem.status === "active" && <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40">Evaluation due</Badge>}
-              {reviewDue && problem.status === "active" && <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40">Review due</Badge>}
+              <Badge variant="outline" className={RISK_COLORS[problem.riskLevel]}>
+                {problem.riskLevel.replace("_", " ")}
+              </Badge>
+              <Badge variant="outline" className="capitalize">
+                {problem.status}
+              </Badge>
+              {evalDue && problem.status === "active" && (
+                <Badge
+                  variant="outline"
+                  className="bg-warning/15 text-warning-foreground border-warning/40"
+                >
+                  Evaluation due
+                </Badge>
+              )}
+              {reviewDue && problem.status === "active" && (
+                <Badge
+                  variant="outline"
+                  className="bg-warning/15 text-warning-foreground border-warning/40"
+                >
+                  Review due
+                </Badge>
+              )}
             </div>
             <p className="text-sm font-medium">{problem.problemStatement}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Created {problem.createdAt.slice(0, 10)} by {problem.createdBy} · Eval {problem.evaluationDate} · Review {problem.reviewDate}
+              Start {problem.startDate || problem.createdAt.slice(0, 10)} ·{" "}
+              {formatReviewInterval(
+                problem.reviewIntervalValue || 3,
+                problem.reviewIntervalUnit || "months",
+              )}{" "}
+              · Next review {problem.reviewDate}
+              {problem.reviewDateManuallyOverridden ? " (manual)" : ""}
             </p>
           </div>
           {problem.status === "active" && (
@@ -257,11 +438,19 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
         </Section>
 
         {/* Interventions */}
-        <Section icon={<Activity className="h-3.5 w-3.5" />} label={`Interventions (${interventions.length})`}>
-          {interventions.length === 0 && <p className="text-xs text-muted-foreground">No active interventions.</p>}
+        <Section
+          icon={<Activity className="h-3.5 w-3.5" />}
+          label={`Interventions (${interventions.length})`}
+        >
+          {interventions.length === 0 && (
+            <p className="text-xs text-muted-foreground">No active interventions.</p>
+          )}
           <ul className="space-y-1.5">
-            {interventions.map(i => (
-              <li key={i.id} className="flex items-center justify-between gap-2 text-sm border rounded-md p-2">
+            {interventions.map((i) => (
+              <li
+                key={i.id}
+                className="flex items-center justify-between gap-2 text-sm border rounded-md p-2"
+              >
                 <div className="min-w-0">
                   <div className="font-medium">{i.name}</div>
                   <div className="text-xs text-muted-foreground">
@@ -282,12 +471,16 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         {/* Recent logs */}
         {logs.length > 0 && (
-          <Section icon={<FileCheck2 className="h-3.5 w-3.5" />} label={`Recent Completions (${logs.length})`}>
+          <Section
+            icon={<FileCheck2 className="h-3.5 w-3.5" />}
+            label={`Recent Completions (${logs.length})`}
+          >
             <ul className="text-xs space-y-1">
-              {logs.map(l => (
+              {logs.map((l) => (
                 <li key={l.id} className="text-muted-foreground">
-                  {l.date} {l.time} · <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName} ({l.role})
-                  {l.comments && ` — ${l.comments}`}
+                  {l.date} {l.time} ·{" "}
+                  <span className="capitalize">{l.outcome.replace("_", " ")}</span> by {l.staffName}{" "}
+                  ({l.role}){l.comments && ` — ${l.comments}`}
                 </li>
               ))}
             </ul>
@@ -299,22 +492,36 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
           <div className="grid md:grid-cols-2 gap-3">
             {evals.length > 0 && (
               <div className="text-xs space-y-1">
-                <div className="font-medium uppercase tracking-wide text-muted-foreground">Evaluations ({evals.length})</div>
-                {evals.slice(0, 3).map(e => (
+                <div className="font-medium uppercase tracking-wide text-muted-foreground">
+                  Evaluations ({evals.length})
+                </div>
+                {evals.slice(0, 3).map((e) => (
                   <div key={e.id} className="border rounded p-2">
-                    <div className="font-medium">{e.date.slice(0, 10)} · <span className="capitalize">{e.progress.replace("_", " ")}</span></div>
-                    <div className="text-muted-foreground">{e.evaluatorName} — {e.summary}</div>
+                    <div className="font-medium">
+                      {e.date.slice(0, 10)} ·{" "}
+                      <span className="capitalize">{e.progress.replace("_", " ")}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {e.evaluatorName} — {e.summary}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
             {reviews.length > 0 && (
               <div className="text-xs space-y-1">
-                <div className="font-medium uppercase tracking-wide text-muted-foreground">Formal Reviews ({reviews.length})</div>
-                {reviews.slice(0, 3).map(rv => (
+                <div className="font-medium uppercase tracking-wide text-muted-foreground">
+                  Formal Reviews ({reviews.length})
+                </div>
+                {reviews.slice(0, 3).map((rv) => (
                   <div key={rv.id} className="border rounded p-2">
-                    <div className="font-medium">{rv.reviewDate.slice(0, 10)} · <span className="capitalize">{rv.outcome}</span></div>
-                    <div className="text-muted-foreground">{rv.reviewedByName} — {rv.comments}</div>
+                    <div className="font-medium">
+                      {rv.reviewDate.slice(0, 10)} ·{" "}
+                      <span className="capitalize">{rv.outcome}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {rv.reviewedByName} — {rv.comments}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -324,18 +531,28 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         {/* History */}
         <div className="pt-1">
-          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowHistory(v => !v)}>
-            <History className="h-3 w-3 mr-1" /> {showHistory ? "Hide" : "View"} History ({history.length})
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs h-7"
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            <History className="h-3 w-3 mr-1" /> {showHistory ? "Hide" : "View"} History (
+            {history.length})
           </Button>
           {showHistory && (
             <div className="mt-2 border rounded-md p-2 text-xs space-y-1 max-h-64 overflow-auto">
-              {history.map(h => (
+              {history.map((h) => (
                 <div key={h.id} className="border-b last:border-b-0 py-1">
                   <div className="font-medium">
                     {h.timestamp.slice(0, 16).replace("T", " ")} · {h.action.replace(/_/g, " ")}
                   </div>
-                  <div className="text-muted-foreground">{h.userName} ({h.role}){h.reason ? ` — ${h.reason}` : ""}</div>
-                  {h.newValue && <div className="text-muted-foreground italic">{h.newValue.slice(0, 200)}</div>}
+                  <div className="text-muted-foreground">
+                    {h.userName} ({h.role}){h.reason ? ` — ${h.reason}` : ""}
+                  </div>
+                  {h.newValue && (
+                    <div className="text-muted-foreground italic">{h.newValue.slice(0, 200)}</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -344,7 +561,8 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
 
         {problem.status === "resolved" && problem.resolvedReason && (
           <div className="text-xs text-muted-foreground italic border-t pt-2">
-            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} — {problem.resolvedReason}
+            Resolved {problem.resolvedAt?.slice(0, 10)} by {problem.resolvedBy} —{" "}
+            {problem.resolvedReason}
           </div>
         )}
       </CardContent>
@@ -352,10 +570,20 @@ function ProblemCard({ problem }: { problem: CarePlanProblem }) {
   );
 }
 
-function Section({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+function Section({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">{icon} {label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+        {icon} {label}
+      </div>
       {children}
     </div>
   );
@@ -365,47 +593,74 @@ function Section({ icon, label, children }: { icon: React.ReactNode; label: stri
 
 function PlansEditor({ problemId }: { problemId: string }) {
   const { problemPlans, addPlan, updatePlan, removePlan, carePlanProblems } = useCare();
-  const goals = problemPlans.filter(g => g.problemId === problemId && (!g.carePlanId || g.carePlanId === problemId));
-  const problem = carePlanProblems.find(p => p.id === problemId);
+  const goals = problemPlans.filter(
+    (g) => g.problemId === problemId && (!g.carePlanId || g.carePlanId === problemId),
+  );
+  const problem = carePlanProblems.find((p) => p.id === problemId);
   const [newStatement, setNewStatement] = useState("");
   const suggestions = problem ? PREDEFINED_GOALS[problem.category] : [];
 
   return (
     <div className="space-y-1.5">
       {goals.length === 0 && <p className="text-xs text-muted-foreground">No goals yet.</p>}
-      {goals.map(g => (
+      {goals.map((g) => (
         <div key={g.id} className="flex items-center gap-2 text-sm border rounded-md p-2">
-          <Select value={g.status} onValueChange={v => updatePlan(g.id, { status: v as any })}>
-            <SelectTrigger className="w-40 h-7 text-xs"><SelectValue /></SelectTrigger>
+          <Select value={g.status} onValueChange={(v) => updatePlan(g.id, { status: v as any })}>
+            <SelectTrigger className="w-40 h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {["active", "achieved", "partially_achieved", "not_achieved", "discontinued"].map(s => (
-                <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
-              ))}
+              {["active", "achieved", "partially_achieved", "not_achieved", "discontinued"].map(
+                (s) => (
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s.replace(/_/g, " ")}
+                  </SelectItem>
+                ),
+              )}
             </SelectContent>
           </Select>
           <span className="flex-1">{g.statement}</span>
-          <Button size="sm" variant="ghost" onClick={() => removePlan(g.id)}><X className="h-3 w-3" /></Button>
+          <Button size="sm" variant="ghost" onClick={() => removePlan(g.id)}>
+            <X className="h-3 w-3" />
+          </Button>
         </div>
       ))}
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {suggestions.filter(s => !goals.some(g => g.statement === s)).map(s => (
-            <Button key={s} size="sm" variant="outline" className="h-6 text-xs"
-              onClick={() => { addPlan(problemId, s); }}>
-              <Plus className="h-2.5 w-2.5 mr-1" /> {s}
-            </Button>
-          ))}
+          {suggestions
+            .filter((s) => !goals.some((g) => g.statement === s))
+            .map((s) => (
+              <Button
+                key={s}
+                size="sm"
+                variant="outline"
+                className="h-6 text-xs"
+                onClick={() => {
+                  addPlan(problemId, s);
+                }}
+              >
+                <Plus className="h-2.5 w-2.5 mr-1" /> {s}
+              </Button>
+            ))}
         </div>
       )}
       <div className="flex gap-2">
         <Input
-          value={newStatement} onChange={e => setNewStatement(e.target.value)}
-          placeholder="Add custom goal…" className="h-8 text-sm"
+          value={newStatement}
+          onChange={(e) => setNewStatement(e.target.value)}
+          placeholder="Add custom goal…"
+          className="h-8 text-sm"
         />
-        <Button size="sm" disabled={!newStatement.trim()} onClick={() => {
-          addPlan(problemId, newStatement.trim());
-          setNewStatement("");
-        }}><Plus className="h-3 w-3" /></Button>
+        <Button
+          size="sm"
+          disabled={!newStatement.trim()}
+          onClick={() => {
+            addPlan(problemId, newStatement.trim());
+            setNewStatement("");
+          }}
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );
@@ -418,7 +673,12 @@ function AddProblemButton({ residentId }: { residentId: string }) {
     <CreateCarePlanDialog
       residentId={residentId}
       buttonLabel="Add Care Plan from Template"
-      trigger={<Button><Plus className="mr-1 h-4 w-4" />Add from Template</Button>}
+      trigger={
+        <Button>
+          <Plus className="mr-1 h-4 w-4" />
+          Add from Template
+        </Button>
+      }
     />
   );
 }
@@ -443,55 +703,91 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="h-7 mt-1"><Plus className="h-3 w-3 mr-1" /> Add Care Action</Button>
+        <Button size="sm" variant="outline" className="h-7 mt-1">
+          <Plus className="h-3 w-3 mr-1" /> Add Care Action
+        </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Add Care Action</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Add Care Action</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Care action name</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Reposition resident" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Reposition resident"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Frequency type</Label>
-              <Select value={freqType} onValueChange={v => setFreqType(v as FrequencyType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={freqType} onValueChange={(v) => setFreqType(v as FrequencyType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {(["hourly", "daily", "weekly", "monthly", "prn", "custom"] as FrequencyType[]).map(o => (
-                    <SelectItem key={o} value={o} className="capitalize">{o}</SelectItem>
+                  {(
+                    ["hourly", "daily", "weekly", "monthly", "prn", "custom"] as FrequencyType[]
+                  ).map((o) => (
+                    <SelectItem key={o} value={o} className="capitalize">
+                      {o}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             {freqType !== "prn" && freqType !== "custom" && (
               <div>
-                <Label>Every N {freqType === "hourly" ? "hours" : freqType === "daily" ? " per day" : freqType}</Label>
-                <Input type="number" min={1} value={freqValue} onChange={e => setFreqValue(+e.target.value)} />
+                <Label>
+                  Every N{" "}
+                  {freqType === "hourly" ? "hours" : freqType === "daily" ? " per day" : freqType}
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={freqValue}
+                  onChange={(e) => setFreqValue(+e.target.value)}
+                />
               </div>
             )}
           </div>
           <div>
             <Label>Instructions (optional)</Label>
-            <Input value={freqInstr} onChange={e => setFreqInstr(e.target.value)} placeholder="e.g. Every Monday 09:00" />
+            <Input
+              value={freqInstr}
+              onChange={(e) => setFreqInstr(e.target.value)}
+              placeholder="e.g. Every Monday 09:00"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Start date</Label>
-              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div>
               <Label>Start time</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
           </div>
           <div>
             <Label>Role</Label>
-            <Select value={assignedRole} onValueChange={(value) => { setAssignedRole(value as Role); setAssignedStaff("__unassigned"); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={assignedRole}
+              onValueChange={(value) => {
+                setAssignedRole(value as Role);
+                setAssignedStaff("__unassigned");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {ASSIGNED_ROLES.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -499,34 +795,57 @@ function AddInterventionDialog({ problemId }: { problemId: string }) {
           <div>
             <Label>Assigned To</Label>
             <Select value={assignedStaff} onValueChange={setAssignedStaff}>
-              <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Select staff member" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__unassigned">Unassigned</SelectItem>
-                {roleUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                {roleUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button disabled={!name.trim()} onClick={() => {
-            const staff = assignedStaff === "__unassigned" ? undefined : users.find(u => u.id === assignedStaff);
-            addProblemIntervention({
-              problemId, name: name.trim(),
-              frequencyType: freqType,
-              frequencyValue: freqType === "prn" || freqType === "custom" ? undefined : freqValue,
-              frequencyInstructions: freqInstr || undefined,
-              assignedRole,
-              assignedStaffId: staff?.id,
-              assignedStaffName: staff?.name,
-              startDate,
-              startTime,
-              reviewDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-              endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-            });
-            toast.success("Intervention added");
-            setOpen(false); setName(""); setFreqInstr(""); setAssignedRole("nurse"); setAssignedStaff("__unassigned"); setStartDate(new Date().toISOString().slice(0, 10)); setStartTime("08:00");
-          }}>Add</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!name.trim()}
+            onClick={() => {
+              const staff =
+                assignedStaff === "__unassigned"
+                  ? undefined
+                  : users.find((u) => u.id === assignedStaff);
+              addProblemIntervention({
+                problemId,
+                name: name.trim(),
+                frequencyType: freqType,
+                frequencyValue: freqType === "prn" || freqType === "custom" ? undefined : freqValue,
+                frequencyInstructions: freqInstr || undefined,
+                assignedRole,
+                assignedStaffId: staff?.id,
+                assignedStaffName: staff?.name,
+                startDate,
+                startTime,
+                reviewDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+                endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+              });
+              toast.success("Intervention added");
+              setOpen(false);
+              setName("");
+              setFreqInstr("");
+              setAssignedRole("nurse");
+              setAssignedStaff("__unassigned");
+              setStartDate(new Date().toISOString().slice(0, 10));
+              setStartTime("08:00");
+            }}
+          >
+            Add
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -539,15 +858,35 @@ function DiscontinueButton({ interventionId }: { interventionId: string }) {
   const [reason, setReason] = useState("");
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Trash2 className="h-3 w-3" /></Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Discontinue care action</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason…" />
+        <DialogHeader>
+          <DialogTitle>Discontinue care action</DialogTitle>
+        </DialogHeader>
+        <Textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Reason…"
+        />
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="destructive" disabled={!reason.trim()} onClick={() => {
-            discontinueProblemIntervention(interventionId, reason); setOpen(false); toast.success("Discontinued");
-          }}>Discontinue</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!reason.trim()}
+            onClick={() => {
+              discontinueProblemIntervention(interventionId, reason);
+              setOpen(false);
+              toast.success("Discontinued");
+            }}
+          >
+            Discontinue
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -556,50 +895,85 @@ function DiscontinueButton({ interventionId }: { interventionId: string }) {
 
 // ============ Log care action ============
 
-function LogInterventionDialog({ interventionId, interventionName }: { interventionId: string; interventionName: string }) {
+function LogInterventionDialog({
+  interventionId,
+  interventionName,
+}: {
+  interventionId: string;
+  interventionName: string;
+}) {
   const { logProblemIntervention } = useCare();
   const [open, setOpen] = useState(false);
-  const [outcome, setOutcome] = useState<"completed" | "partially_completed" | "missed" | "refused" | "escalated">("completed");
+  const [outcome, setOutcome] = useState<
+    "completed" | "partially_completed" | "missed" | "refused" | "escalated"
+  >("completed");
   const [response, setResponse] = useState("");
   const [comments, setComments] = useState("");
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="h-7"><PlayCircle className="h-3 w-3 mr-1" /> Log</Button>
+        <Button size="sm" className="h-7">
+          <PlayCircle className="h-3 w-3 mr-1" /> Log
+        </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Log care action: {interventionName}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Log care action: {interventionName}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Outcome</Label>
-            <Select value={outcome} onValueChange={v => setOutcome(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={outcome} onValueChange={(v) => setOutcome(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {["completed", "partially_completed", "missed", "refused", "escalated"].map(o => (
-                  <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>
+                {["completed", "partially_completed", "missed", "refused", "escalated"].map((o) => (
+                  <SelectItem key={o} value={o} className="capitalize">
+                    {o.replace("_", " ")}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Resident response</Label>
-            <Input value={response} onChange={e => setResponse(e.target.value)} placeholder="e.g. Settled, accepted care" />
+            <Input
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+              placeholder="e.g. Settled, accepted care"
+            />
           </div>
           <div>
             <Label>Comments</Label>
-            <Textarea value={comments} onChange={e => setComments(e.target.value)} rows={2} />
+            <Textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Will appear under Problem, Timeline, Daily Notes, and the Compliance dashboard automatically.
+            Will appear under Problem, Timeline, Daily Notes, and the Compliance dashboard
+            automatically.
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
-            logProblemIntervention({ interventionId, outcome, residentResponse: response, comments });
-            toast.success("Care action logged");
-            setOpen(false); setResponse(""); setComments(""); setOutcome("completed");
-          }}>Save Log</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              logProblemIntervention({
+                interventionId,
+                outcome,
+                residentResponse: response,
+                comments,
+              });
+              toast.success("Care action logged");
+              setOpen(false);
+              setResponse("");
+              setComments("");
+              setOutcome("completed");
+            }}
+          >
+            Save Log
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -613,45 +987,86 @@ function ReviewDialog({ problemId }: { problemId: string }) {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState("");
   const [goalsMet, setPlansMet] = useState<"yes" | "partial" | "no">("partial");
-  const [progress, setProgress] = useState<"improved" | "stable" | "deteriorated" | "resolved" | "requires_revision">("stable");
+  const [progress, setProgress] = useState<
+    "improved" | "stable" | "deteriorated" | "resolved" | "requires_revision"
+  >("stable");
   const [nextDate, setNextDate] = useState(todayPlus(7));
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" variant="outline">Review</Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          Review
+        </Button>
+      </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Care Plan Review</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Care Plan Review</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Summary</Label>
-            <Textarea value={summary} onChange={e => setSummary(e.target.value)} />
+            <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Plan met?</Label>
-              <Select value={goalsMet} onValueChange={v => setPlansMet(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["yes", "partial", "no"].map(o => <SelectItem key={o} value={o} className="capitalize">{o}</SelectItem>)}</SelectContent>
+              <Select value={goalsMet} onValueChange={(v) => setPlansMet(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["yes", "partial", "no"].map((o) => (
+                    <SelectItem key={o} value={o} className="capitalize">
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div>
               <Label>Progress</Label>
-              <Select value={progress} onValueChange={v => setProgress(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["improved", "stable", "deteriorated", "resolved", "requires_revision"].map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>)}</SelectContent>
+              <Select value={progress} onValueChange={(v) => setProgress(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["improved", "stable", "deteriorated", "resolved", "requires_revision"].map(
+                    (o) => (
+                      <SelectItem key={o} value={o} className="capitalize">
+                        {o.replace("_", " ")}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
               </Select>
             </div>
           </div>
           <div>
             <Label>Next Review of Outcome</Label>
-            <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+            <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button disabled={!summary.trim()} onClick={() => {
-            addProblemEvaluation({ problemId, summary, goalsMet, progress, nextEvaluationDate: nextDate });
-            toast.success("Evaluation recorded"); setOpen(false); setSummary("");
-          }}>Save</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!summary.trim()}
+            onClick={() => {
+              addProblemEvaluation({
+                problemId,
+                summary,
+                goalsMet,
+                progress,
+                nextEvaluationDate: nextDate,
+              });
+              toast.success("Evaluation recorded");
+              setOpen(false);
+              setSummary("");
+            }}
+          >
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -661,37 +1076,67 @@ function ReviewDialog({ problemId }: { problemId: string }) {
 function FormalReviewDialog({ problemId }: { problemId: string }) {
   const { addProblemReview } = useCare();
   const [open, setOpen] = useState(false);
-  const [outcome, setOutcome] = useState<"continue" | "modify" | "escalate" | "resolve" | "refer">("continue");
+  const [outcome, setOutcome] = useState<"continue" | "modify" | "escalate" | "resolve" | "refer">(
+    "continue",
+  );
   const [comments, setComments] = useState("");
   const [nextReview, setNextReview] = useState(todayPlus(90));
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" variant="outline">Review</Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          Review
+        </Button>
+      </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Formal Review</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Formal Review</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Outcome</Label>
-            <Select value={outcome} onValueChange={v => setOutcome(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{["continue", "modify", "escalate", "resolve", "refer"].map(o => <SelectItem key={o} value={o} className="capitalize">{o}</SelectItem>)}</SelectContent>
+            <Select value={outcome} onValueChange={(v) => setOutcome(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["continue", "modify", "escalate", "resolve", "refer"].map((o) => (
+                  <SelectItem key={o} value={o} className="capitalize">
+                    {o}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Comments</Label>
-            <Textarea value={comments} onChange={e => setComments(e.target.value)} />
+            <Textarea value={comments} onChange={(e) => setComments(e.target.value)} />
           </div>
           <div>
             <Label>Next review date</Label>
-            <Input type="date" value={nextReview} onChange={e => setNextReview(e.target.value)} />
+            <Input type="date" value={nextReview} onChange={(e) => setNextReview(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => {
-            addProblemReview({ problemId, reviewDate: new Date().toISOString().slice(0, 10), outcome, comments, nextReviewDate: nextReview });
-            toast.success("Review recorded"); setOpen(false); setComments("");
-          }}>Save</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              addProblemReview({
+                problemId,
+                reviewDate: new Date().toISOString().slice(0, 10),
+                outcome,
+                comments,
+                nextReviewDate: nextReview,
+              });
+              toast.success("Review recorded");
+              setOpen(false);
+              setComments("");
+            }}
+          >
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -703,50 +1148,163 @@ function ReviewUpdateDialog({ problem }: { problem: CarePlanProblem }) {
   const [open, setOpen] = useState(false);
   const [evalDate, setEvalDate] = useState(problem.evaluationDate);
   const [reviewDate, setReviewDate] = useState(problem.reviewDate);
+  const [startDate, setStartDate] = useState(problem.startDate || problem.createdAt.slice(0, 10));
+  const [intervalValue, setIntervalValue] = useState(problem.reviewIntervalValue || 3);
+  const [intervalUnit, setIntervalUnit] = useState<CarePlanReviewIntervalUnit>(
+    problem.reviewIntervalUnit || "months",
+  );
+  const [manualReviewDate, setManualReviewDate] = useState(
+    Boolean(problem.reviewDateManuallyOverridden),
+  );
   const [risk, setRisk] = useState<ProblemRiskLevel>(problem.riskLevel);
   const [statement, setStatement] = useState(problem.problemStatement);
   const [reason, setReason] = useState("");
+  const recalculate = (date: string, value: number, unit: CarePlanReviewIntervalUnit) => {
+    setReviewDate(calculateCarePlanReviewDate(date, value, unit));
+    setManualReviewDate(false);
+  };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm">Review & Update</Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button size="sm">Review & Update</Button>
+      </DialogTrigger>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>Review & Update Problem</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Review & Update Problem</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Problem statement</Label>
-            <Textarea value={statement} onChange={e => setStatement(e.target.value)} rows={2} />
+            <Textarea value={statement} onChange={(e) => setStatement(e.target.value)} rows={2} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Risk level</Label>
-              <Select value={risk} onValueChange={v => setRisk(v as ProblemRiskLevel)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{RISK_OPTIONS.map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace("_", " ")}</SelectItem>)}</SelectContent>
+              <Select value={risk} onValueChange={(v) => setRisk(v as ProblemRiskLevel)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RISK_OPTIONS.map((o) => (
+                    <SelectItem key={o} value={o} className="capitalize">
+                      {o.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div>
               <Label>Next evaluation</Label>
-              <Input type="date" value={evalDate} onChange={e => setEvalDate(e.target.value)} />
+              <Input type="date" value={evalDate} onChange={(e) => setEvalDate(e.target.value)} />
             </div>
             <div>
-              <Label>Next review</Label>
-              <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} />
+              <Label>Care Plan Start Date *</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  recalculate(e.target.value, intervalValue, intervalUnit);
+                }}
+              />
+            </div>
+            <div>
+              <Label>Review Every *</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={intervalValue}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setIntervalValue(value);
+                    recalculate(startDate, value, intervalUnit);
+                  }}
+                />
+                <Select
+                  value={intervalUnit}
+                  onValueChange={(value) => {
+                    const unit = value as CarePlanReviewIntervalUnit;
+                    setIntervalUnit(unit);
+                    recalculate(startDate, intervalValue, unit);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="weeks">Weeks</SelectItem>
+                    <SelectItem value="months">Months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Next review *</Label>
+              <Input
+                type="date"
+                value={reviewDate}
+                onChange={(e) => {
+                  setReviewDate(e.target.value);
+                  setManualReviewDate(true);
+                }}
+              />
+              {manualReviewDate && (
+                <p className="mt-1 text-xs text-amber-700">Manually overridden</p>
+              )}
             </div>
           </div>
           <div>
             <Label>Reason for change (audit)</Label>
-            <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Reassessment shows reduced risk" />
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Reassessment shows reduced risk"
+            />
           </div>
           <p className="text-xs text-muted-foreground">
-            Problem ID and history are preserved. Add or remove interventions and goals directly on the card.
+            Problem ID and history are preserved. Add or remove interventions and goals directly on
+            the card.
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button disabled={!reason.trim()} onClick={() => {
-            updateProblem(problem.id, { problemStatement: statement, riskLevel: risk, evaluationDate: evalDate, reviewDate }, reason);
-            toast.success("Problem updated"); setOpen(false);
-          }}>Save</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!reason.trim()}
+            onClick={() => {
+              if (
+                !startDate ||
+                !Number.isInteger(intervalValue) ||
+                intervalValue <= 0 ||
+                reviewDate <= startDate
+              ) {
+                toast.error("Enter valid dates and a positive whole-number interval.");
+                return;
+              }
+              updateProblem(
+                problem.id,
+                {
+                  problemStatement: statement,
+                  riskLevel: risk,
+                  evaluationDate: evalDate,
+                  startDate,
+                  reviewIntervalValue: intervalValue,
+                  reviewIntervalUnit: intervalUnit,
+                  reviewDate,
+                  reviewDateManuallyOverridden: manualReviewDate,
+                },
+                reason,
+              );
+              toast.success("Problem updated");
+              setOpen(false);
+            }}
+          >
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -765,16 +1323,30 @@ function ResolveDialog({ problemId }: { problemId: string }) {
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Resolve Problem</DialogTitle></DialogHeader>
-        <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Resolution reason (e.g. reassessment normal)…" />
+        <DialogHeader>
+          <DialogTitle>Resolve Problem</DialogTitle>
+        </DialogHeader>
+        <Textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Resolution reason (e.g. reassessment normal)…"
+        />
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button disabled={!reason.trim()} onClick={() => {
-            resolveProblem(problemId, reason); toast.success("Problem resolved"); setOpen(false);
-          }}>Resolve</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!reason.trim()}
+            onClick={() => {
+              resolveProblem(problemId, reason);
+              toast.success("Problem resolved");
+              setOpen(false);
+            }}
+          >
+            Resolve
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-

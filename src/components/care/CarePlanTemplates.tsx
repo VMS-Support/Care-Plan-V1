@@ -3,8 +3,386 @@ import { ArrowDown, ArrowUp, Copy, MoreHorizontal, Plus, Search, Trash2 } from "
 import { toast } from "sonner";
 import { useCare } from "@/lib/care/store";
 import type { CarePlanTemplate } from "@/lib/care/types";
-import { Button } from "@/components/ui/button"; import { Card, CardContent } from "@/components/ui/card"; import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"; import { Input } from "@/components/ui/input"; import { Textarea } from "@/components/ui/textarea"; import { Badge } from "@/components/ui/badge";
-const intervals=[1,2,3,4,6,12]; const label=(months?:number)=>months?`${months} Month${months>1?"s":""}`:"Custom date";
-export function CarePlanTemplates(){const care=useCare();const templates=care.carePlanTemplates||[];const[search,setSearch]=useState("");const[status,setStatus]=useState("active");const[page,setPage]=useState(1);const[editor,setEditor]=useState<CarePlanTemplate|"new"|null>(null);const rows=useMemo(()=>templates.filter(t=>t.facilityId===care.activeFacilityId).filter(t=>status==="all"||status===(t.active?"active":"archived")).filter(t=>`${t.name} ${t.aimGoal}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)),[templates,care.activeFacilityId,status,search]);const size=10;const items=rows.slice((page-1)*size,page*size);const act=(fn:()=>void)=>{try{fn()}catch(e){toast.error(e instanceof Error?e.message:"Unable to complete action.")}};return <div className="space-y-5 p-4 md:p-6"><header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-semibold">Care Plan Templates</h1><p className="text-sm text-muted-foreground">Create and manage reusable Care Plan Templates that can be assigned to residents.</p></div><Button onClick={()=>setEditor("new")}><Plus className="mr-2 h-4 w-4"/>New Care Plan Template</Button></header><Card><CardContent className="pt-6"><div className="mb-4 flex flex-wrap gap-2"><div className="relative min-w-64 flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><Input className="pl-9" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} placeholder="Search Care Plan Templates"/></div><select className="h-9 rounded border bg-background px-3 text-sm" value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="active">Active</option><option value="archived">Archived</option><option value="all">All templates</option></select></div><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="border-b text-left text-xs uppercase text-muted-foreground"><tr>{["Care Plan Name","Goal / Aim","Care Actions","Review Interval","Last Modified","Modified By","Status","Actions"].map(x=><th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{items.map(t=><tr key={t.id} className="border-b"><td className="p-3 font-medium">{t.name}</td><td className="max-w-64 truncate p-3 text-muted-foreground">{t.aimGoal}</td><td className="p-3">{t.actions.length}</td><td className="p-3">{label(t.reviewIntervalMonths)}</td><td className="p-3">{new Date(t.updatedAt).toLocaleDateString()}</td><td className="p-3">{t.createdBy}</td><td className="p-3"><Badge className={t.active?"bg-emerald-100 text-emerald-800":"bg-slate-100 text-slate-700"}>{t.active?"Active":"Archived"}</Badge></td><td className="p-3"><div className="flex gap-1"><Button size="sm" variant="outline" onClick={()=>setEditor(t)}>View / Edit</Button><Button size="icon" variant="ghost" title="Duplicate" onClick={()=>act(()=>{care.createCarePlanTemplate({name:`${t.name} (Copy)`,aimGoal:t.aimGoal,actions:t.actions,reviewIntervalMonths:t.reviewIntervalMonths});toast.success("Template duplicated.")})}><Copy className="h-4 w-4"/></Button><Button size="sm" variant="ghost" onClick={()=>act(()=>{care.updateCarePlanTemplate(t.id,{active:!t.active});toast.success(t.active?"Template archived.":"Template restored.")})}>{t.active?"Archive":"Restore"}</Button><Button size="icon" variant="ghost" title="Delete" onClick={()=>act(()=>{care.deleteCarePlanTemplate(t.id);toast.success("Template deleted.")})}><Trash2 className="h-4 w-4"/></Button></div></td></tr>)}</tbody></table></div>{!items.length&&<p className="py-10 text-center text-sm text-muted-foreground">No Care Plan Templates found.</p>}<div className="mt-4 flex items-center justify-between text-sm"><span>{rows.length} template{rows.length===1?"":"s"}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page===1} onClick={()=>setPage(p=>p-1)}>Previous</Button><Button size="sm" variant="outline" disabled={page*size>=rows.length} onClick={()=>setPage(p=>p+1)}>Next</Button></div></div></CardContent></Card><TemplateDialog key={editor==="new"?"new":editor?.id||"closed"} template={editor==="new"?undefined:editor||undefined} open={Boolean(editor)} onOpenChange={open=>!open&&setEditor(null)}/></div>}
-function TemplateDialog({template,open,onOpenChange}:{template?:CarePlanTemplate;open:boolean;onOpenChange:(open:boolean)=>void}){const care=useCare();const[name,setName]=useState(template?.name||"");const[aim,setAim]=useState(template?.aimGoal||"");const[months,setMonths]=useState(String(template?.reviewIntervalMonths||3));const[actions,setActions]=useState(template?.actions.map(a=>a.heading)||[""]);const move=(i:number,d:number)=>setActions(a=>{const b=[...a],j=i+d;if(j<0||j>=b.length)return b;[b[i],b[j]]=[b[j],b[i]];return b});const save=()=>{const payload={name,aimGoal:aim,actions:actions.map((heading,i)=>({id:template?.actions[i]?.id||"",heading,sortOrder:i+1})),reviewIntervalMonths:Number(months)};try{if(template)care.updateCarePlanTemplate(template.id,payload);else care.createCarePlanTemplate(payload);toast.success(template?"Template updated.":"Template created.");onOpenChange(false)}catch(e){toast.error(e instanceof Error?e.message:"Unable to save template.")}};return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{template?"Edit Care Plan Template":"New Care Plan Template"}</DialogTitle></DialogHeader><div className="space-y-4"><Field label="Care Plan Name *" value={name} onChange={setName}/><div><label className="text-sm font-medium">Care Plan Goal / Aim *</label><Textarea className="mt-1" value={aim} onChange={e=>setAim(e.target.value)} rows={5}/></div><label className="block text-sm font-medium">Default Review Interval<select className="mt-1 h-9 w-full rounded border bg-background px-3" value={months} onChange={e=>setMonths(e.target.value)}>{intervals.map(n=><option key={n} value={n}>{label(n)}</option>)}</select></label><div><div className="mb-2 text-sm font-medium">Care Actions *</div><div className="space-y-2">{actions.map((a,i)=><div key={i} className="flex gap-1"><Input value={a} onChange={e=>setActions(x=>x.map((v,j)=>i===j?e.target.value:v))} placeholder="Care Action Name"/><Button size="icon" variant="ghost" onClick={()=>move(i,-1)}><ArrowUp className="h-4 w-4"/></Button><Button size="icon" variant="ghost" onClick={()=>move(i,1)}><ArrowDown className="h-4 w-4"/></Button><Button size="icon" variant="ghost" onClick={()=>setActions(x=>x.length>1?x.filter((_,j)=>j!==i):x)}><Trash2 className="h-4 w-4"/></Button></div>)}</div><Button className="mt-2" variant="outline" size="sm" onClick={()=>setActions(x=>[...x,""])}><Plus className="mr-1 h-4 w-4"/>Add Care Action</Button></div></div><DialogFooter><Button variant="outline" onClick={()=>onOpenChange(false)}>Cancel</Button><Button onClick={save}>Save Care Plan Template</Button></DialogFooter></DialogContent></Dialog>}
-function Field({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}){return <label className="block text-sm font-medium">{label}<Input className="mt-1" value={value} onChange={e=>onChange(e.target.value)}/></label>}
+import {
+  formatReviewInterval,
+  normalizedReviewInterval,
+  type CarePlanReviewIntervalUnit,
+} from "@/lib/care/carePlanReviewInterval";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+const intervalLabel = (template: CarePlanTemplate) => {
+  const interval = normalizedReviewInterval(template);
+  return formatReviewInterval(interval.value, interval.unit);
+};
+export function CarePlanTemplates() {
+  const care = useCare();
+  const templates = care.carePlanTemplates || [];
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("active");
+  const [page, setPage] = useState(1);
+  const [editor, setEditor] = useState<CarePlanTemplate | "new" | null>(null);
+  const rows = useMemo(
+    () =>
+      templates
+        .filter((t) => t.facilityId === care.activeFacilityId)
+        .filter((t) => status === "all" || status === (t.active ? "active" : "archived"))
+        .filter((t) => `${t.name} ${t.aimGoal}`.toLowerCase().includes(search.toLowerCase()))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [templates, care.activeFacilityId, status, search],
+  );
+  const size = 10;
+  const items = rows.slice((page - 1) * size, page * size);
+  const act = (fn: () => void) => {
+    try {
+      fn();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to complete action.");
+    }
+  };
+  return (
+    <div className="space-y-5 p-4 md:p-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Care Plan Templates</h1>
+          <p className="text-sm text-muted-foreground">
+            Create and manage reusable Care Plan Templates that can be assigned to residents.
+          </p>
+        </div>
+        <Button onClick={() => setEditor("new")}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Care Plan Template
+        </Button>
+      </header>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <div className="relative min-w-64 flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search Care Plan Templates"
+              />
+            </div>
+            <select
+              className="h-9 rounded border bg-background px-3 text-sm"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+              <option value="all">All templates</option>
+            </select>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  {[
+                    "Care Plan Name",
+                    "Goal / Aim",
+                    "Care Actions",
+                    "Review Interval",
+                    "Last Modified",
+                    "Modified By",
+                    "Status",
+                    "Actions",
+                  ].map((x) => (
+                    <th className="p-3" key={x}>
+                      {x}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((t) => (
+                  <tr key={t.id} className="border-b">
+                    <td className="p-3 font-medium">{t.name}</td>
+                    <td className="max-w-64 truncate p-3 text-muted-foreground">{t.aimGoal}</td>
+                    <td className="p-3">{t.actions.length}</td>
+                    <td className="p-3">{intervalLabel(t)}</td>
+                    <td className="p-3">{new Date(t.updatedAt).toLocaleDateString()}</td>
+                    <td className="p-3">{t.createdBy}</td>
+                    <td className="p-3">
+                      <Badge
+                        className={
+                          t.active
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-100 text-slate-700"
+                        }
+                      >
+                        {t.active ? "Active" : "Archived"}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setEditor(t)}>
+                          View / Edit
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Duplicate"
+                          onClick={() =>
+                            act(() => {
+                              care.createCarePlanTemplate({
+                                name: `${t.name} (Copy)`,
+                                aimGoal: t.aimGoal,
+                                actions: t.actions,
+                                reviewIntervalValue: normalizedReviewInterval(t).value,
+                                reviewIntervalUnit: normalizedReviewInterval(t).unit,
+                              });
+                              toast.success("Template duplicated.");
+                            })
+                          }
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            act(() => {
+                              care.updateCarePlanTemplate(t.id, { active: !t.active });
+                              toast.success(t.active ? "Template archived." : "Template restored.");
+                            })
+                          }
+                        >
+                          {t.active ? "Archive" : "Restore"}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Delete"
+                          onClick={() =>
+                            act(() => {
+                              care.deleteCarePlanTemplate(t.id);
+                              toast.success("Template deleted.");
+                            })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!items.length && (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No Care Plan Templates found.
+            </p>
+          )}
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <span>
+              {rows.length} template{rows.length === 1 ? "" : "s"}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page * size >= rows.length}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <TemplateDialog
+        key={editor === "new" ? "new" : editor?.id || "closed"}
+        template={editor === "new" ? undefined : editor || undefined}
+        open={Boolean(editor)}
+        onOpenChange={(open) => !open && setEditor(null)}
+      />
+    </div>
+  );
+}
+function TemplateDialog({
+  template,
+  open,
+  onOpenChange,
+}: {
+  template?: CarePlanTemplate;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const care = useCare();
+  const [name, setName] = useState(template?.name || "");
+  const [aim, setAim] = useState(template?.aimGoal || "");
+  const legacyInterval = normalizedReviewInterval(template || {});
+  const [intervalValue, setIntervalValue] = useState(String(legacyInterval.value));
+  const [intervalUnit, setIntervalUnit] = useState<CarePlanReviewIntervalUnit>(legacyInterval.unit);
+  const [actions, setActions] = useState(template?.actions.map((a) => a.heading) || [""]);
+  const move = (i: number, d: number) =>
+    setActions((a) => {
+      const b = [...a],
+        j = i + d;
+      if (j < 0 || j >= b.length) return b;
+      [b[i], b[j]] = [b[j], b[i]];
+      return b;
+    });
+  const save = () => {
+    const payload = {
+      name,
+      aimGoal: aim,
+      actions: actions.map((heading, i) => ({
+        id: template?.actions[i]?.id || "",
+        heading,
+        sortOrder: i + 1,
+      })),
+      reviewIntervalValue: Number(intervalValue),
+      reviewIntervalUnit: intervalUnit,
+    };
+    try {
+      if (template) care.updateCarePlanTemplate(template.id, payload);
+      else care.createCarePlanTemplate(payload);
+      toast.success(template ? "Template updated." : "Template created.");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Unable to save template.");
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {template ? "Edit Care Plan Template" : "New Care Plan Template"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field label="Care Plan Name *" value={name} onChange={setName} />
+          <div>
+            <label className="text-sm font-medium">Care Plan Goal / Aim *</label>
+            <Textarea
+              className="mt-1"
+              value={aim}
+              onChange={(e) => setAim(e.target.value)}
+              rows={5}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Default Review Interval *</label>
+            <div className="mt-1 grid grid-cols-[1fr_1fr] gap-2">
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={intervalValue}
+                onChange={(event) => setIntervalValue(event.target.value)}
+                aria-label="Review every"
+              />
+              <select
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                value={intervalUnit}
+                onChange={(event) =>
+                  setIntervalUnit(event.target.value as CarePlanReviewIntervalUnit)
+                }
+                aria-label="Review interval unit"
+              >
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The next review date will be calculated from the Care Plan Start Date.
+            </p>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-medium">Care Actions *</div>
+            <div className="space-y-2">
+              {actions.map((a, i) => (
+                <div key={i} className="flex gap-1">
+                  <Input
+                    value={a}
+                    onChange={(e) =>
+                      setActions((x) => x.map((v, j) => (i === j ? e.target.value : v)))
+                    }
+                    placeholder="Care Action Name"
+                  />
+                  <Button size="icon" variant="ghost" onClick={() => move(i, -1)}>
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => move(i, 1)}>
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() =>
+                      setActions((x) => (x.length > 1 ? x.filter((_, j) => j !== i) : x))
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="mt-2"
+              variant="outline"
+              size="sm"
+              onClick={() => setActions((x) => [...x, ""])}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Care Action
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={save}>Save Care Plan Template</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-sm font-medium">
+      {label}
+      <Input className="mt-1" value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}

@@ -6,18 +6,74 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/residents/pre-admissions")({ component: PreAdmissions });
 
-const residentTypes = ["Long-Term Resident", "Short-Term Resident", "Respite", "Convalescence", "Rehabilitation", "Day Care", "Assessment", "Palliative Care", "Other"];
-const referredFromOptions = ["Home", "Acute Hospital", "Community Hospital", "Another Nursing Home", "Assisted Living", "Community", "GP Referral", "Public Health Nurse", "Family Referral", "Hospice", "Other"];
-const referralSources = ["Hospital", "GP", "Public Health Nurse", "Family", "Social Worker", "Community Intervention Team", "Another Nursing Home", "Self Referral", "Other"];
-const empty = { firstName: "", lastName: "", dob: "", gender: "", residentType: "", referredFrom: "", referralSource: "", proposedAdmissionDate: "", primaryContactName: "", primaryContactPhone: "" };
+const residentTypes = [
+  "Long-Term Resident",
+  "Short-Term Resident",
+  "Respite",
+  "Convalescence",
+  "Rehabilitation",
+  "Day Care",
+  "Assessment",
+  "Palliative Care",
+  "Other",
+];
+const referredFromOptions = [
+  "Home",
+  "Acute Hospital",
+  "Community Hospital",
+  "Another Nursing Home",
+  "Assisted Living",
+  "Community",
+  "GP Referral",
+  "Public Health Nurse",
+  "Family Referral",
+  "Hospice",
+  "Other",
+];
+const contactRelationships = [
+  "Spouse / Partner",
+  "Son",
+  "Daughter",
+  "Parent",
+  "Sibling",
+  "Relative",
+  "Friend",
+  "Guardian",
+  "Legal Representative",
+  "Other",
+];
+const empty = {
+  firstName: "",
+  lastName: "",
+  dob: "",
+  gender: "",
+  residentType: "",
+  referredFrom: "",
+  proposedAdmissionDate: "",
+  primaryContactName: "",
+  primaryContactRelationship: "",
+  primaryContactPhone: "",
+};
 
 function PreAdmissions() {
   const { residents, addResident, updateResident, softDeleteResident } = useCare();
@@ -26,21 +82,324 @@ function PreAdmissions() {
   const [editing, setEditing] = useState<Resident | null>(null);
   const [open, setOpen] = useState(false);
   const update = (patch: Partial<typeof empty>) => setForm((current) => ({ ...current, ...patch }));
-  const close = () => { setOpen(false); setEditing(null); setForm(empty); };
+  const close = () => {
+    setOpen(false);
+    setEditing(null);
+    setForm(empty);
+  };
   const startEdit = (resident: Resident) => {
     const pre = resident.preAdmission!;
-    setEditing(resident); setForm({ firstName: resident.firstName, lastName: resident.lastName, dob: resident.dob, gender: resident.gender, residentType: pre.residentType, referredFrom: pre.referredFrom, referralSource: pre.referralSource || "", proposedAdmissionDate: pre.proposedAdmissionDate || "", primaryContactName: pre.primaryContactName || "", primaryContactPhone: pre.primaryContactPhone || "" }); setOpen(true);
+    setEditing(resident);
+    setForm({
+      firstName: resident.firstName,
+      lastName: resident.lastName,
+      dob: resident.dob,
+      gender: resident.gender,
+      residentType: pre.residentType,
+      referredFrom: pre.referredFrom,
+      proposedAdmissionDate: pre.proposedAdmissionDate || "",
+      primaryContactName: pre.primaryContactName || "",
+      primaryContactRelationship: pre.primaryContactRelationship || "",
+      primaryContactPhone: pre.primaryContactPhone || "",
+    });
+    setOpen(true);
   };
   const save = () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.dob || !form.gender || !form.residentType || !form.referredFrom) { toast.error("Please complete all required fields."); return; }
-    const preAdmission = { residentType: form.residentType, referredFrom: form.referredFrom, referralSource: form.referralSource || undefined, proposedAdmissionDate: form.proposedAdmissionDate || undefined, primaryContactName: form.primaryContactName || undefined, primaryContactPhone: form.primaryContactPhone || undefined, createdAt: editing?.preAdmission?.createdAt || new Date().toISOString() };
-    if (editing) { updateResident(editing.id, { firstName: form.firstName.trim(), lastName: form.lastName.trim(), dob: form.dob, gender: form.gender as Resident["gender"], nextOfKin: form.primaryContactName, emergencyContact: form.primaryContactPhone, preAdmission }); toast.success("Pre-admission updated."); }
-    else { addResident({ firstName: form.firstName.trim(), lastName: form.lastName.trim(), dob: form.dob, gender: form.gender as Resident["gender"], roomNumber: "", admissionDate: "", dependencyLevel: "medium", primaryDiagnosis: "", medicalHistory: "", allergies: "", gp: "", consultant: "", nextOfKin: form.primaryContactName, emergencyContact: form.primaryContactPhone, communicationNeeds: "", religion: "", preferredLanguage: "", mentalCapacity: "not_assessed", endOfLife: false, currentMedication: "", status: "pre_admission", preAdmission }); toast.success("Pre-admission saved."); }
+    if (
+      !form.firstName.trim() ||
+      !form.lastName.trim() ||
+      !form.dob ||
+      !form.gender ||
+      !form.residentType ||
+      !form.referredFrom
+    ) {
+      toast.error("Please complete all required fields.");
+      return;
+    }
+    const preAdmission = {
+      residentType: form.residentType,
+      referredFrom: form.referredFrom,
+      proposedAdmissionDate: form.proposedAdmissionDate || undefined,
+      primaryContactName: form.primaryContactName || undefined,
+      primaryContactRelationship: form.primaryContactRelationship || undefined,
+      primaryContactPhone: form.primaryContactPhone || undefined,
+      createdAt: editing?.preAdmission?.createdAt || new Date().toISOString(),
+    };
+    if (editing) {
+      updateResident(editing.id, {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        dob: form.dob,
+        gender: form.gender as Resident["gender"],
+        nextOfKin: form.primaryContactName,
+        emergencyContact: form.primaryContactPhone,
+        preAdmission,
+      });
+      toast.success("Pre-admission updated.");
+    } else {
+      addResident({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        dob: form.dob,
+        gender: form.gender as Resident["gender"],
+        roomNumber: "",
+        admissionDate: "",
+        dependencyLevel: "medium",
+        primaryDiagnosis: "",
+        medicalHistory: "",
+        allergies: "",
+        gp: "",
+        consultant: "",
+        nextOfKin: form.primaryContactName,
+        emergencyContact: form.primaryContactPhone,
+        communicationNeeds: "",
+        religion: "",
+        preferredLanguage: "",
+        mentalCapacity: "not_assessed",
+        endOfLife: false,
+        currentMedication: "",
+        status: "pre_admission",
+        preAdmission,
+      });
+      toast.success("Pre-admission saved.");
+    }
     close();
   };
-  const convert = (resident: Resident) => { if (!window.confirm(`Convert ${resident.firstName} ${resident.lastName} to an active resident?`)) return; const now = new Date().toISOString(); updateResident(resident.id, { status: "active", lifecycleStatus: "active", lifecycleUpdatedAt: now, residentType: "active", presenceStatus: "in_home", admissionDate: now.slice(0, 10), preAdmission: { ...resident.preAdmission!, convertedAt: now } }); toast.success("Resident converted to active."); navigate({ to: "/residents/$id", params: { id: resident.id } }); };
+  const convert = (resident: Resident) => {
+    if (
+      !window.confirm(`Convert ${resident.firstName} ${resident.lastName} to an active resident?`)
+    )
+      return;
+    const now = new Date().toISOString();
+    updateResident(resident.id, {
+      status: "active",
+      lifecycleStatus: "active",
+      lifecycleUpdatedAt: now,
+      residentType: "active",
+      presenceStatus: "in_home",
+      admissionDate: now.slice(0, 10),
+      preAdmission: { ...resident.preAdmission!, convertedAt: now },
+    });
+    toast.success("Resident converted to active.");
+    navigate({ to: "/residents/$id", params: { id: resident.id } });
+  };
   const rows = residents.filter((resident) => resident.status === "pre_admission");
-  return <div className="p-4 md:p-8 space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="flex gap-4 text-sm mb-2"><Link to="/residents" className="text-muted-foreground hover:text-foreground">Active Residents</Link><span className="font-medium text-primary">Pre-Admissions</span></div><h1 className="text-2xl font-semibold">Pre-Admissions</h1><p className="text-sm text-muted-foreground mt-1">Residents being assessed before admission.</p></div><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1.5" />New Pre-Admission</Button></div><Card><CardContent className="p-0 overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground"><tr>{["Resident Name", "Resident Type", "Referred From", "Referral Source", "Proposed Admission", "Current Status", "Created Date", "Actions"].map((head) => <th key={head} className="p-3">{head}</th>)}</tr></thead><tbody>{rows.map((resident) => <tr key={resident.id} className="border-b"><td className="p-3 font-medium">{resident.firstName} {resident.lastName}</td><td className="p-3">{resident.preAdmission?.residentType}</td><td className="p-3">{resident.preAdmission?.referredFrom}</td><td className="p-3">{resident.preAdmission?.referralSource || "—"}</td><td className="p-3">{resident.preAdmission?.proposedAdmissionDate || "—"}</td><td className="p-3"><Badge variant="secondary">Pre-Admission</Badge></td><td className="p-3">{new Date(resident.preAdmission?.createdAt || "").toLocaleDateString()}</td><td className="p-3"><div className="flex gap-1"><Button size="sm" variant="outline" asChild><Link to="/residents/$id" params={{ id: resident.id }}>Open</Link></Button><Button size="icon" variant="ghost" title="Edit" onClick={() => startEdit(resident)}><Pencil className="h-4 w-4" /></Button><Button size="sm" onClick={() => convert(resident)}>Convert to Active Resident</Button><Button size="icon" variant="ghost" title="Delete" onClick={() => { if (window.confirm("Delete this pre-admission?")) { softDeleteResident(resident.id); toast.success("Pre-admission deleted."); } }}><Trash2 className="h-4 w-4" /></Button></div></td></tr>)}</tbody></table>{!rows.length && <p className="p-10 text-center text-sm text-muted-foreground">No pre-admissions found.</p>}</CardContent></Card><Dialog open={open} onOpenChange={(value) => !value && close()}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>{editing ? "Edit Pre-Admission" : "New Pre-Admission"}</DialogTitle></DialogHeader><div className="grid gap-3 md:grid-cols-2"><Field label="First Name *"><Input value={form.firstName} onChange={(e) => update({ firstName: e.target.value })} /></Field><Field label="Last Name *"><Input value={form.lastName} onChange={(e) => update({ lastName: e.target.value })} /></Field><Field label="Date of Birth *"><Input type="date" value={form.dob} onChange={(e) => update({ dob: e.target.value })} /></Field><SelectField label="Gender *" value={form.gender} options={["female", "male", "other"]} onChange={(gender) => update({ gender })} /><SelectField label="Resident Type *" value={form.residentType} options={residentTypes} onChange={(residentType) => update({ residentType })} /><SelectField label="Referred From *" value={form.referredFrom} options={referredFromOptions} onChange={(referredFrom) => update({ referredFrom })} /><SelectField label="Referral Source" value={form.referralSource} options={referralSources} onChange={(referralSource) => update({ referralSource })} /><Field label="Proposed Admission Date"><Input type="date" value={form.proposedAdmissionDate} onChange={(e) => update({ proposedAdmissionDate: e.target.value })} /></Field><Field label="Primary Contact Name"><Input value={form.primaryContactName} onChange={(e) => update({ primaryContactName: e.target.value })} /></Field><Field label="Primary Contact Phone"><Input type="tel" value={form.primaryContactPhone} onChange={(e) => update({ primaryContactPhone: e.target.value })} /></Field></div><DialogFooter><Button variant="outline" onClick={close}>Cancel</Button><Button onClick={save}>Save Pre-Admission</Button></DialogFooter></DialogContent></Dialog></div>;
+  return (
+    <div className="p-4 md:p-8 space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="flex gap-4 text-sm mb-2">
+            <Link to="/residents" className="text-muted-foreground hover:text-foreground">
+              Active Residents
+            </Link>
+            <span className="font-medium text-primary">Pre-Admissions</span>
+          </div>
+          <h1 className="text-2xl font-semibold">Pre-Admissions</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Residents being assessed before admission.
+          </p>
+        </div>
+        <Button onClick={() => setOpen(true)}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          New Pre-Admission
+        </Button>
+      </div>
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[920px] text-sm">
+            <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                {[
+                  "Resident Name",
+                  "Resident Type",
+                  "Referred From",
+                  "Proposed Admission",
+                  "Current Status",
+                  "Created Date",
+                  "Actions",
+                ].map((head) => (
+                  <th key={head} className="p-3">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((resident) => (
+                <tr key={resident.id} className="border-b">
+                  <td className="p-3 font-medium">
+                    {resident.firstName} {resident.lastName}
+                  </td>
+                  <td className="p-3">{resident.preAdmission?.residentType}</td>
+                  <td className="p-3">{resident.preAdmission?.referredFrom}</td>
+                  <td className="p-3">{resident.preAdmission?.proposedAdmissionDate || "—"}</td>
+                  <td className="p-3">
+                    <Badge variant="secondary">Pre-Admission</Badge>
+                  </td>
+                  <td className="p-3">
+                    {new Date(resident.preAdmission?.createdAt || "").toLocaleDateString()}
+                  </td>
+                  <td className="p-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to="/residents/$id" params={{ id: resident.id }}>
+                          Open
+                        </Link>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Edit"
+                        onClick={() => startEdit(resident)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" onClick={() => convert(resident)}>
+                        Convert to Active Resident
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Delete"
+                        onClick={() => {
+                          if (window.confirm("Delete this pre-admission?")) {
+                            softDeleteResident(resident.id);
+                            toast.success("Pre-admission deleted.");
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length && (
+            <p className="p-10 text-center text-sm text-muted-foreground">
+              No pre-admissions found.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={open} onOpenChange={(value) => !value && close()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Pre-Admission" : "New Pre-Admission"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="First Name *">
+              <Input
+                value={form.firstName}
+                onChange={(e) => update({ firstName: e.target.value })}
+              />
+            </Field>
+            <Field label="Last Name *">
+              <Input value={form.lastName} onChange={(e) => update({ lastName: e.target.value })} />
+            </Field>
+            <Field label="Date of Birth *">
+              <Input
+                type="date"
+                value={form.dob}
+                onChange={(e) => update({ dob: e.target.value })}
+              />
+            </Field>
+            <SelectField
+              label="Gender *"
+              value={form.gender}
+              options={["female", "male", "other"]}
+              onChange={(gender) => update({ gender })}
+            />
+            <SelectField
+              label="Resident Type *"
+              value={form.residentType}
+              options={residentTypes}
+              onChange={(residentType) => update({ residentType })}
+            />
+            <SelectField
+              label="Referred From *"
+              value={form.referredFrom}
+              options={referredFromOptions}
+              onChange={(referredFrom) => update({ referredFrom })}
+            />
+            <Field label="Proposed Admission Date">
+              <Input
+                type="date"
+                value={form.proposedAdmissionDate}
+                onChange={(e) => update({ proposedAdmissionDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Primary Contact Name">
+              <Input
+                value={form.primaryContactName}
+                onChange={(e) => update({ primaryContactName: e.target.value })}
+              />
+            </Field>
+            <SelectField
+              label="Contact Relationship"
+              value={form.primaryContactRelationship}
+              options={contactRelationships}
+              onChange={(primaryContactRelationship) => update({ primaryContactRelationship })}
+            />
+            <Field label="Primary Contact Phone">
+              <Input
+                type="tel"
+                value={form.primaryContactPhone}
+                onChange={(e) => update({ primaryContactPhone: e.target.value })}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            <Button onClick={save}>Save Pre-Admission</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-1"><Label>{label}</Label>{children}</div>; }
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) { return <Field label={label}><Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue placeholder="Select option" /></SelectTrigger><SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option === "female" ? "Female" : option === "male" ? "Male" : option === "other" ? "Other" : option}</SelectItem>)}</SelectContent></Select></Field>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field label={label}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option === "female"
+                ? "Female"
+                : option === "male"
+                  ? "Male"
+                  : option === "other"
+                    ? "Other"
+                    : option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}

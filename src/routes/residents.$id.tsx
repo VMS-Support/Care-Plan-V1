@@ -1712,8 +1712,10 @@ function ResidentDetail() {
               <p className="font-medium">{r.preAdmission.referredFrom}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Referral Source</span>
-              <p className="font-medium">{r.preAdmission.referralSource || "Not recorded"}</p>
+              <span className="text-muted-foreground">Contact Relationship</span>
+              <p className="font-medium">
+                {r.preAdmission.primaryContactRelationship || "Not recorded"}
+              </p>
             </div>
             <div>
               <span className="text-muted-foreground">Proposed Admission</span>
