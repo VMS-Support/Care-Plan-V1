@@ -9,10 +9,7 @@ import {
   getRltDomainForCarePlanProblem,
   type RltDomainId,
 } from "@/lib/care/rlt";
-import {
-  carePlanQualityClass,
-  getCarePlanQualityStatus,
-} from "@/lib/care/quality";
+import { carePlanQualityClass, getCarePlanQualityStatus } from "@/lib/care/quality";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -71,11 +68,17 @@ import { ObservationHistory } from "@/components/observations/ObservationHistory
 import { CreateCarePlanDialog } from "@/components/care/CreateCarePlanDialog";
 import { EndOfLifePathwayPanel } from "@/components/care/EndOfLifePathwayPanel";
 import { ResidentHeader } from "@/components/resident/ResidentHeader";
-import { EditResidentProfileDialog, type ResidentProfileEditSection } from "@/components/resident/EditResidentProfileDialog";
+import {
+  EditResidentProfileDialog,
+  type ResidentProfileEditSection,
+} from "@/components/resident/EditResidentProfileDialog";
 import { ResidentDocuments } from "@/components/resident/ResidentDocuments";
 import { ResidentAdministrativeDetails } from "@/components/resident/ResidentAdministrativeDetails";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
-import { CARE_ACTION_TYPE_LABELS, getCanonicalCareActionType } from "@/lib/care/flexibleCareActions";
+import {
+  CARE_ACTION_TYPE_LABELS,
+  getCanonicalCareActionType,
+} from "@/lib/care/flexibleCareActions";
 import { getResidentHeader } from "@/lib/care/residentHeader";
 import { getResidentRltClinicalOverview } from "@/lib/care/rltClinicalOverview";
 import { getResidentContacts } from "@/lib/care/residentContacts";
@@ -130,10 +133,23 @@ export const Route = createFileRoute("/residents/$id")({
   component: ResidentDetail,
 });
 
-type ResidentTimelineModule = "assessments" | "careplans" | "interventions" | "evaluations" | "incidents" | "mdt" | "tasks" | "vitals" | "visitors" | "outings" | "alerts" | "other";
+type ResidentTimelineModule =
+  | "assessments"
+  | "careplans"
+  | "interventions"
+  | "evaluations"
+  | "incidents"
+  | "mdt"
+  | "tasks"
+  | "vitals"
+  | "visitors"
+  | "outings"
+  | "alerts"
+  | "other";
 const timelineModuleForEvent = (event: TimelineEvent): ResidentTimelineModule => {
   if (event.type.startsWith("assessment.")) return "assessments";
-  if (event.type.startsWith("careplan.")) return event.type === "careplan.evaluated" ? "evaluations" : "careplans";
+  if (event.type.startsWith("careplan."))
+    return event.type === "careplan.evaluated" ? "evaluations" : "careplans";
   if (event.type.startsWith("intervention.")) return "interventions";
   if (event.type.startsWith("mdt.")) return "mdt";
   if (event.type.startsWith("task.")) return "tasks";
@@ -152,7 +168,9 @@ function riskColor(level: string) {
   return "bg-success/10 text-success border-success/20";
 }
 
-const DAILY_NOTE_CATEGORY_LABELS = new Map(DAILY_NOTE_CATEGORY_OPTIONS.map((option) => [option.value, option.label]));
+const DAILY_NOTE_CATEGORY_LABELS = new Map(
+  DAILY_NOTE_CATEGORY_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 function dailyNoteCategoryLabel(note: DailyNote) {
   if (note.category) return DAILY_NOTE_CATEGORY_LABELS.get(note.category) || "General";
@@ -403,7 +421,9 @@ function ResidentDetail() {
   const [nokOpen, setNokOpen] = useState(false);
   const [editingNok, setEditingNok] = useState<NextOfKin | null>(null);
   const [profileEditOpen, setProfileEditOpen] = useState(false);
-  const [overviewEditSection, setOverviewEditSection] = useState<ResidentProfileEditSection | undefined>();
+  const [overviewEditSection, setOverviewEditSection] = useState<
+    ResidentProfileEditSection | undefined
+  >();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
@@ -470,7 +490,8 @@ function ResidentDetail() {
   const [auditDialogOpen, setAuditDialogOpen] = useState(false);
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [latestVitalsDialogOpen, setLatestVitalsDialogOpen] = useState(false);
-  const [selectedCarePlanGroupDomainId, setSelectedCarePlanGroupDomainId] = useState<RltDomainId | null>(null);
+  const [selectedCarePlanGroupDomainId, setSelectedCarePlanGroupDomainId] =
+    useState<RltDomainId | null>(null);
   const [activeTab, setActiveTab] = useState<
     | "overview"
     | "activities"
@@ -575,49 +596,190 @@ function ResidentDetail() {
 
   const residentFullName = `${r.firstName} ${r.lastName}`;
   const rltReadCapabilities = [
-    "rlt_overview.view", "rlt_overview.view_risks", "rlt_overview.view_care_plans",
-    "rlt_overview.view_preferences", "rlt_overview.view_sensitive_preferences",
-    "rlt_timeline.view", "rlt_timeline.view_sensitive", "rlt_timeline.view_highly_sensitive",
-    "assessment.view", "careplan.view", "incident.view", "resident_preference.view",
-    "resident_preference.view_sensitive", "resident_preference.view_highly_sensitive",
-  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], {
+    "rlt_overview.view",
+    "rlt_overview.view_risks",
+    "rlt_overview.view_care_plans",
+    "rlt_overview.view_preferences",
+    "rlt_overview.view_sensitive_preferences",
+    "rlt_timeline.view",
+    "rlt_timeline.view_sensitive",
+    "rlt_timeline.view_highly_sensitive",
+    "assessment.view",
+    "careplan.view",
+    "incident.view",
+    "resident_preference.view",
+    "resident_preference.view_sensitive",
+    "resident_preference.view_highly_sensitive",
+  ].filter((capability) =>
+    canAccess(capability as Parameters<typeof canAccess>[0], {
+      nursingHomeId: r.facilityId || activeFacilityId,
+      residentId: r.id,
+    }),
+  );
+  const rltClinicalOverview = getResidentRltClinicalOverview(
+    {
+      residents,
+      dependencyState: rltDependencyState,
+      strengthPreferenceState,
+      carePlanProblems,
+      interventions: problemInterventions,
+      evaluations: problemEvaluations,
+      reviews: problemReviews,
+      assessments,
+      alerts,
+      clinicalAlerts,
+      tasks,
+    },
+    r.id,
+    { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities },
+  );
+  const rltTimelineItems = projectResidentRltTimeline(
+    {
+      residents,
+      assessments,
+      carePlanProblems,
+      interventions: problemInterventions,
+      interventionLogs: problemInterventionLogs,
+      evaluations: problemEvaluations,
+      reviews: problemReviews,
+      problemHistory,
+      dependencyState: rltDependencyState,
+      strengthPreferenceState,
+      endOfLifeState,
+      incidents,
+      alerts,
+      clinicalAlerts,
+      handovers,
+      timelineEvents,
+      manualTagState: rltTimelineTagState,
+    },
+    r.id,
+    { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities },
+  );
+  const residentContactCapabilities = [
+    "resident_contacts.view",
+    "resident_contacts.create",
+    "resident_contacts.edit_relationship",
+    "resident_contacts.set_primary",
+    "resident_contacts.manage_authority",
+    "resident_contacts.view_history",
+    "resident_contacts.edit_contact",
+  ].filter((capability) =>
+    canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }),
+  );
+  if (
+    !residentContactCapabilities.includes("resident_contacts.view") &&
+    canAccess("resident_profile.view", {
+      nursingHomeId: r.facilityId || activeFacilityId,
+      residentId: r.id,
+    })
+  )
+    residentContactCapabilities.push("resident_contacts.view");
+  const residentContacts = getResidentContacts(
+    r,
+    r.facilityId || activeFacilityId,
+    users,
+    residentContactCapabilities,
+  );
+  const residentDocumentCapabilities = [
+    "resident_documents.view",
+    "resident_documents.upload",
+    "resident_documents.edit_metadata",
+    "resident_documents.upload_version",
+    "resident_documents.download",
+    "resident_documents.view_history",
+    "resident_documents.change_status",
+    "resident_documents.delete_draft",
+    "resident_documents.view_sensitive",
+    "resident_documents.view_highly_sensitive",
+    "resident_documents.manage_access",
+    "resident_documents.view_legal",
+    "resident_documents.view_safeguarding",
+    "resident_documents.view_medication",
+  ].filter((capability) =>
+    canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }),
+  );
+  if (
+    !residentDocumentCapabilities.includes("resident_documents.view") &&
+    canAccess("resident_profile.view", {
+      nursingHomeId: r.facilityId || activeFacilityId,
+      residentId: r.id,
+    })
+  )
+    residentDocumentCapabilities.push("resident_documents.view");
+  const administrativeDocumentRows = getResidentDocuments(
+    residentDocumentState,
+    r.id,
+    r.facilityId || activeFacilityId,
+    residentDocumentCapabilities,
+    { category: "all" },
+    { offset: 0, limit: 100 },
+  ).items.filter((item) =>
+    [
+      "administrative",
+      "identity",
+      "insurance_and_funding",
+      "legal_and_consent",
+      "contacts_and_representatives",
+    ].includes(item.document.category),
+  );
+  const residentAdministrationCapabilities = [
+    "resident_administration.view",
+    "resident_administration.edit",
+    "resident_administration.view_identifiers",
+    "resident_administration.edit_identifiers",
+    "resident_administration.view_funding",
+    "resident_administration.edit_funding_metadata",
+    "resident_administration.view_contract",
+    "resident_administration.edit_contract_metadata",
+    "resident_administration.view_insurance",
+    "resident_administration.edit_insurance",
+    "resident_administration.view_property_summary",
+    "resident_administration.view_internal_references",
+  ].filter((capability) =>
+    canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }),
+  );
+  if (
+    !residentAdministrationCapabilities.includes("resident_administration.view") &&
+    canAccess("resident_profile.view", {
+      nursingHomeId: r.facilityId || activeFacilityId,
+      residentId: r.id,
+    })
+  )
+    residentAdministrationCapabilities.push("resident_administration.view");
+  const residentAdministrativeDetails = getResidentAdministrativeDetails({
+    resident: r,
     nursingHomeId: r.facilityId || activeFacilityId,
-    residentId: r.id,
-  }));
-  const rltClinicalOverview = getResidentRltClinicalOverview({
-    residents,
-    dependencyState: rltDependencyState,
-    strengthPreferenceState,
-    carePlanProblems,
-    interventions: problemInterventions,
-    evaluations: problemEvaluations,
-    reviews: problemReviews,
-    assessments,
-    alerts,
-    clinicalAlerts,
-    tasks,
-  }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
-  const rltTimelineItems = projectResidentRltTimeline({
-    residents, assessments, carePlanProblems, interventions: problemInterventions,
-    interventionLogs: problemInterventionLogs, evaluations: problemEvaluations,
-    reviews: problemReviews, problemHistory, dependencyState: rltDependencyState,
-    strengthPreferenceState, endOfLifeState, incidents, alerts, clinicalAlerts,
-    handovers, timelineEvents, manualTagState: rltTimelineTagState,
-  }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: rltReadCapabilities });
-  const residentContactCapabilities = ["resident_contacts.view", "resident_contacts.create", "resident_contacts.edit_relationship", "resident_contacts.set_primary", "resident_contacts.manage_authority", "resident_contacts.view_history", "resident_contacts.edit_contact"].filter((capability) => canAccess(capability, { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
-  if (!residentContactCapabilities.includes("resident_contacts.view") && canAccess("resident_profile.view", { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id })) residentContactCapabilities.push("resident_contacts.view");
-  const residentContacts = getResidentContacts(r, r.facilityId || activeFacilityId, users, residentContactCapabilities);
-  const residentDocumentCapabilities = ["resident_documents.view","resident_documents.upload","resident_documents.edit_metadata","resident_documents.upload_version","resident_documents.download","resident_documents.view_history","resident_documents.change_status","resident_documents.delete_draft","resident_documents.view_sensitive","resident_documents.view_highly_sensitive","resident_documents.manage_access","resident_documents.view_legal","resident_documents.view_safeguarding","resident_documents.view_medication"].filter((capability) => canAccess(capability,{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id}));
-  if(!residentDocumentCapabilities.includes("resident_documents.view")&&canAccess("resident_profile.view",{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id})) residentDocumentCapabilities.push("resident_documents.view");
-  const administrativeDocumentRows=getResidentDocuments(residentDocumentState,r.id,r.facilityId||activeFacilityId,residentDocumentCapabilities,{category:"all"},{offset:0,limit:100}).items.filter((item)=>["administrative","identity","insurance_and_funding","legal_and_consent","contacts_and_representatives"].includes(item.document.category));
-  const residentAdministrationCapabilities=["resident_administration.view","resident_administration.edit","resident_administration.view_identifiers","resident_administration.edit_identifiers","resident_administration.view_funding","resident_administration.edit_funding_metadata","resident_administration.view_contract","resident_administration.edit_contract_metadata","resident_administration.view_insurance","resident_administration.edit_insurance","resident_administration.view_property_summary","resident_administration.view_internal_references"].filter((capability)=>canAccess(capability,{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id}));
-  if(!residentAdministrationCapabilities.includes("resident_administration.view")&&canAccess("resident_profile.view",{nursingHomeId:r.facilityId||activeFacilityId,residentId:r.id})) residentAdministrationCapabilities.push("resident_administration.view");
-  const residentAdministrativeDetails=getResidentAdministrativeDetails({resident:r,nursingHomeId:r.facilityId||activeFacilityId,contacts:residentContacts,documents:administrativeDocumentRows,capabilities:residentAdministrationCapabilities});
+    contacts: residentContacts,
+    documents: administrativeDocumentRows,
+    capabilities: residentAdministrationCapabilities,
+  });
   const residentViewCapabilities = [
-    "resident_profile.view", "resident_profile.edit", "resident_profile.edit_identity", "resident_profile.edit_demographics", "resident_profile.edit_photo", "resident_profile.manage_contacts", "resident_profile.assign_named_nurse", "resident_profile.assign_key_worker", "resident_profile.assign_gp",
-    "resident_clinical_overview.view", "resident_clinical_overview.view_assessments", "resident_clinical_overview.view_risks", "resident_clinical_overview.view_incidents", "resident_clinical_overview.view_medication", "resident_clinical_overview.view_sensitive", "resident_clinical_overview.view_end_of_life",
-    "end_of_life.view", "end_of_life.view_sensitive", "end_of_life.view_highly_sensitive",
-  ].filter((capability) => canAccess(capability as Parameters<typeof canAccess>[0], { nursingHomeId: r.facilityId || activeFacilityId, residentId: r.id }));
+    "resident_profile.view",
+    "resident_profile.edit",
+    "resident_profile.edit_identity",
+    "resident_profile.edit_demographics",
+    "resident_profile.edit_photo",
+    "resident_profile.manage_contacts",
+    "resident_profile.assign_named_nurse",
+    "resident_profile.assign_key_worker",
+    "resident_profile.assign_gp",
+    "resident_clinical_overview.view",
+    "resident_clinical_overview.view_assessments",
+    "resident_clinical_overview.view_risks",
+    "resident_clinical_overview.view_incidents",
+    "resident_clinical_overview.view_medication",
+    "resident_clinical_overview.view_sensitive",
+    "resident_clinical_overview.view_end_of_life",
+    "end_of_life.view",
+    "end_of_life.view_sensitive",
+    "end_of_life.view_highly_sensitive",
+  ].filter((capability) =>
+    canAccess(capability as Parameters<typeof canAccess>[0], {
+      nursingHomeId: r.facilityId || activeFacilityId,
+      residentId: r.id,
+    }),
+  );
   const latestHeaderWeight = [
     ...weights
       .filter((weight) => weight.residentId === r.id)
@@ -627,14 +789,31 @@ function ResidentDetail() {
         recordedBy: weight.staff,
       })),
     ...vitals
-      .filter((vital) => vital.residentId === r.id && !vital.deletedAt && typeof vital.weight === "number")
+      .filter(
+        (vital) =>
+          vital.residentId === r.id && !vital.deletedAt && typeof vital.weight === "number",
+      )
       .map((vital) => ({
         weightKg: vital.weight as number,
         recordedAt: vital.recordedAt || `${vital.date}T${vital.time || "00:00"}:00`,
         recordedBy: vital.recordedByName,
       })),
   ].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
-  const residentHeader = getResidentHeader({ residents, users, wards, rooms, beds, bedAssignments, dependencyState: rltDependencyState, endOfLifeState, contacts: residentContacts }, r.id, { nursingHomeId: r.facilityId || activeFacilityId, capabilities: residentViewCapabilities });
+  const residentHeader = getResidentHeader(
+    {
+      residents,
+      users,
+      wards,
+      rooms,
+      beds,
+      bedAssignments,
+      dependencyState: rltDependencyState,
+      endOfLifeState,
+      contacts: residentContacts,
+    },
+    r.id,
+    { nursingHomeId: r.facilityId || activeFacilityId, capabilities: residentViewCapabilities },
+  );
   const canDeleteResident = currentRole === "don" || currentRole === "cnm";
   const deleteNameMatches = deleteConfirmName.trim() === residentFullName;
 
@@ -667,7 +846,9 @@ function ResidentDetail() {
   const rOutings = outings.filter((x) => x.residentId === id);
   const rVitals = vitals.filter((v) => v.residentId === id);
   const rHandovers = handovers.filter((x) => x.residentId === id);
-  const generatedResidentHandovers = generatedHandoverRepository.listByResident(id).filter((item) => item.status === "draft" || item.status === "finalised");
+  const generatedResidentHandovers = generatedHandoverRepository
+    .listByResident(id)
+    .filter((item) => !item.archived && item.status !== "superseded");
   const rProblems = carePlanProblems.filter((p) => p.residentId === id);
   const activeProblems = rProblems.filter((p) => p.status === "active");
   const groupedActiveCarePlans = useMemo(
@@ -750,10 +931,18 @@ function ResidentDetail() {
   }, [carePlanProblemId]);
 
   const selectedProblemGoals = selectedProblem
-    ? problemGoals.filter((g) => g.problemId === selectedProblem.id && (!g.carePlanId || g.carePlanId === selectedProblem.id))
+    ? problemGoals.filter(
+        (g) =>
+          g.problemId === selectedProblem.id &&
+          (!g.carePlanId || g.carePlanId === selectedProblem.id),
+      )
     : [];
   const selectedProblemInterventions = selectedProblem
-    ? rProblemInterventions.filter((i) => i.problemId === selectedProblem.id && (!i.carePlanId || i.carePlanId === selectedProblem.id))
+    ? rProblemInterventions.filter(
+        (i) =>
+          i.problemId === selectedProblem.id &&
+          (!i.carePlanId || i.carePlanId === selectedProblem.id),
+      )
     : [];
   const selectedCareActionHeadings = selectedProblemInterventions.filter(
     (intervention) => !intervention.parentInterventionId,
@@ -769,7 +958,9 @@ function ResidentDetail() {
     : [];
 
   const linkedDailyNotes = selectedProblem
-    ? rN.filter((n) => n.linkedProblemId === selectedProblem.id || n.carePlanId === selectedProblem.id)
+    ? rN.filter(
+        (n) => n.linkedProblemId === selectedProblem.id || n.carePlanId === selectedProblem.id,
+      )
     : [];
   const linkedMdtNotes = selectedProblem
     ? rMDT.filter((m) => m.linkedCarePlanId === selectedProblem.id)
@@ -800,9 +991,18 @@ function ResidentDetail() {
         problem.id,
         getCarePlanQualityStatus({
           problem,
-          goals: problemGoals.filter((goal) => goal.problemId === problem.id && (!goal.carePlanId || goal.carePlanId === problem.id)),
-          interventions: rProblemInterventions.filter((intervention) => intervention.problemId === problem.id && (!intervention.carePlanId || intervention.carePlanId === problem.id)),
-          evaluations: rProblemEvaluations.filter((evaluation) => evaluation.problemId === problem.id),
+          goals: problemGoals.filter(
+            (goal) =>
+              goal.problemId === problem.id && (!goal.carePlanId || goal.carePlanId === problem.id),
+          ),
+          interventions: rProblemInterventions.filter(
+            (intervention) =>
+              intervention.problemId === problem.id &&
+              (!intervention.carePlanId || intervention.carePlanId === problem.id),
+          ),
+          evaluations: rProblemEvaluations.filter(
+            (evaluation) => evaluation.problemId === problem.id,
+          ),
         }),
       );
     }
@@ -810,7 +1010,9 @@ function ResidentDetail() {
   }, [problemGoals, rProblemEvaluations, rProblemInterventions, rProblems]);
   const allActiveCarePlansComplete =
     activeProblems.length > 0 &&
-    activeProblems.every((problem) => carePlanQualityByProblemId.get(problem.id)?.status === "complete");
+    activeProblems.every(
+      (problem) => carePlanQualityByProblemId.get(problem.id)?.status === "complete",
+    );
 
   const now = new Date();
 
@@ -851,7 +1053,8 @@ function ResidentDetail() {
   }, [activeProblems, clinicalSnapshotAssessments, todayKey]);
 
   const selectedCarePlanGroup =
-    groupedActiveCarePlans.find((group) => group.domain.id === selectedCarePlanGroupDomainId) || null;
+    groupedActiveCarePlans.find((group) => group.domain.id === selectedCarePlanGroupDomainId) ||
+    null;
 
   const taskOps = useMemo(() => {
     const completedToday = rTasks.filter(
@@ -886,7 +1089,9 @@ function ResidentDetail() {
 
   const residentTimelineEntries = useMemo(() => {
     const residentEventRecordIds = new Set(
-      timelineEvents.filter((event) => event.residentId === id && event.linkedRecordId).map((event) => event.linkedRecordId),
+      timelineEvents
+        .filter((event) => event.residentId === id && event.linkedRecordId)
+        .map((event) => event.linkedRecordId),
     );
     const items = [
       ...rA.map((a) => ({
@@ -897,38 +1102,46 @@ function ResidentDetail() {
         summary: `Score ${a.totalScore} (${a.interpretation})`,
         by: a.assessor,
       })),
-      ...rProblems.filter((p) => !residentEventRecordIds.has(p.id)).map((p) => ({
-        id: `cp-${p.id}`,
-        module: "careplans" as const,
-        at: p.createdAt,
-        title: "Care plan problem updated",
-        summary: p.problemStatement,
-        by: p.createdBy,
-      })),
-      ...rProblemInterventions.filter((i) => !residentEventRecordIds.has(i.id)).map((i) => ({
-        id: `int-${i.id}`,
-        module: "interventions" as const,
-        at: i.updatedAt || i.createdAt,
-        title: i.name,
-        summary: `${i.frequencyType.replace(/_/g, " ")} · ${i.status.replace(/_/g, " ")}`,
-        by: i.updatedBy || i.createdBy,
-      })),
-      ...rProblemEvaluations.filter((e) => !residentEventRecordIds.has(e.id)).map((e) => ({
-        id: `eval-${e.id}`,
-        module: "evaluations" as const,
-        at: e.date,
-        title: "Care plan review",
-        summary: `${e.progress.replace(/_/g, " ")} · plan met: ${e.goalsMet}`,
-        by: e.evaluatorName,
-      })),
-      ...rProblemReviews.filter((rev) => !residentEventRecordIds.has(rev.id)).map((rev) => ({
-        id: `rev-${rev.id}`,
-        module: "careplans" as const,
-        at: rev.reviewDate,
-        title: "Care plan review",
-        summary: `${rev.outcome} · ${rev.comments || ""}`,
-        by: rev.reviewedByName,
-      })),
+      ...rProblems
+        .filter((p) => !residentEventRecordIds.has(p.id))
+        .map((p) => ({
+          id: `cp-${p.id}`,
+          module: "careplans" as const,
+          at: p.createdAt,
+          title: "Care plan problem updated",
+          summary: p.problemStatement,
+          by: p.createdBy,
+        })),
+      ...rProblemInterventions
+        .filter((i) => !residentEventRecordIds.has(i.id))
+        .map((i) => ({
+          id: `int-${i.id}`,
+          module: "interventions" as const,
+          at: i.updatedAt || i.createdAt,
+          title: i.name,
+          summary: `${i.frequencyType.replace(/_/g, " ")} · ${i.status.replace(/_/g, " ")}`,
+          by: i.updatedBy || i.createdBy,
+        })),
+      ...rProblemEvaluations
+        .filter((e) => !residentEventRecordIds.has(e.id))
+        .map((e) => ({
+          id: `eval-${e.id}`,
+          module: "evaluations" as const,
+          at: e.date,
+          title: "Care plan review",
+          summary: `${e.progress.replace(/_/g, " ")} · plan met: ${e.goalsMet}`,
+          by: e.evaluatorName,
+        })),
+      ...rProblemReviews
+        .filter((rev) => !residentEventRecordIds.has(rev.id))
+        .map((rev) => ({
+          id: `rev-${rev.id}`,
+          module: "careplans" as const,
+          at: rev.reviewDate,
+          title: "Care plan review",
+          summary: `${rev.outcome} · ${rev.comments || ""}`,
+          by: rev.reviewedByName,
+        })),
       ...rTasks.map((t) => ({
         id: `task-${t.id}`,
         module: "tasks" as const,
@@ -997,8 +1210,9 @@ function ResidentDetail() {
         })),
     ];
 
-    return Array.from(new Map(items.map((item) => [item.id, item])).values())
-      .sort((a, b) => `${b.at}`.localeCompare(`${a.at}`) || a.id.localeCompare(b.id));
+    return Array.from(new Map(items.map((item) => [item.id, item])).values()).sort(
+      (a, b) => `${b.at}`.localeCompare(`${a.at}`) || a.id.localeCompare(b.id),
+    );
   }, [
     rA,
     rProblems,
@@ -1208,8 +1422,7 @@ function ResidentDetail() {
     const notes = editProblemDraft.notes.trim();
     const reason = editProblemDraft.reason.trim();
     const statusChanged = editProblemDraft.status !== selectedProblem.status;
-    const statusRequiresReason =
-      statusChanged && editProblemDraft.status !== "active";
+    const statusRequiresReason = statusChanged && editProblemDraft.status !== "active";
 
     if (!problemStatement) {
       toast.error("Care plan name is required");
@@ -1430,23 +1643,96 @@ function ResidentDetail() {
         latestWeight={latestHeaderWeight}
         canEdit={residentViewCapabilities.includes("resident_profile.edit")}
         onEdit={() => setProfileEditOpen(true)}
-        actions={<>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm">Quick Actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleOpenModal("note")}>Daily Note</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>Record Daily Care</DropdownMenuItem><RecordObservationFlow residentId={r.id} onRecorded={() => setActiveTab("vitals")} trigger={<DropdownMenuItem onSelect={(event) => event.preventDefault()}>Record Observation</DropdownMenuItem>} /><DropdownMenuItem onClick={() => handleOpenModal("intervention")}>Care Action</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("assessment")}>Assessment</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenModal("incident")}>Incident</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-          <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>Timeline</Button>
-        </>}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">Quick Actions</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleOpenModal("note")}>
+                  Daily Note
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenModal("dailyCare")}>
+                  Record Daily Care
+                </DropdownMenuItem>
+                <RecordObservationFlow
+                  residentId={r.id}
+                  onRecorded={() => setActiveTab("vitals")}
+                  trigger={
+                    <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
+                      Record Observation
+                    </DropdownMenuItem>
+                  }
+                />
+                <DropdownMenuItem onClick={() => handleOpenModal("intervention")}>
+                  Care Action
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenModal("assessment")}>
+                  Assessment
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenModal("task")}>Task</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenModal("incident")}>
+                  Incident
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm" onClick={() => setTimelineDialogOpen(true)}>
+              Timeline
+            </Button>
+          </>
+        }
       />
-      <EditResidentProfileDialog resident={r} users={users} canEditSensitiveIdentifiers={residentViewCapabilities.includes("resident_profile.edit_sensitive_identifiers")} section={overviewEditSection} open={profileEditOpen} onOpenChange={(open) => { setProfileEditOpen(open); if (!open) setOverviewEditSection(undefined); }} onSave={(input) => updateResidentProfile(r.id, input)} />
-      {r.preAdmission?.convertedAt && <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Pre-Admission</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-5">
-          <div><span className="text-muted-foreground">Resident Type</span><p className="font-medium">{r.preAdmission.residentType}</p></div>
-          <div><span className="text-muted-foreground">Referred From</span><p className="font-medium">{r.preAdmission.referredFrom}</p></div>
-          <div><span className="text-muted-foreground">Referral Source</span><p className="font-medium">{r.preAdmission.referralSource || "Not recorded"}</p></div>
-          <div><span className="text-muted-foreground">Proposed Admission</span><p className="font-medium">{r.preAdmission.proposedAdmissionDate || "Not recorded"}</p></div>
-          <div><span className="text-muted-foreground">Converted to Active</span><p className="font-medium">{new Date(r.preAdmission.convertedAt).toLocaleDateString()}</p></div>
-          <Button variant="outline" size="sm" className="w-fit" asChild><Link to="/residents/pre-admissions">View Pre-Admission Record</Link></Button>
-        </CardContent>
-      </Card>}
+      <EditResidentProfileDialog
+        resident={r}
+        users={users}
+        canEditSensitiveIdentifiers={residentViewCapabilities.includes(
+          "resident_profile.edit_sensitive_identifiers",
+        )}
+        section={overviewEditSection}
+        open={profileEditOpen}
+        onOpenChange={(open) => {
+          setProfileEditOpen(open);
+          if (!open) setOverviewEditSection(undefined);
+        }}
+        onSave={(input) => updateResidentProfile(r.id, input)}
+      />
+      {r.preAdmission?.convertedAt && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Pre-Admission</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <span className="text-muted-foreground">Resident Type</span>
+              <p className="font-medium">{r.preAdmission.residentType}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Referred From</span>
+              <p className="font-medium">{r.preAdmission.referredFrom}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Referral Source</span>
+              <p className="font-medium">{r.preAdmission.referralSource || "Not recorded"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Proposed Admission</span>
+              <p className="font-medium">
+                {r.preAdmission.proposedAdmissionDate || "Not recorded"}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Converted to Active</span>
+              <p className="font-medium">
+                {new Date(r.preAdmission.convertedAt).toLocaleDateString()}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="w-fit" asChild>
+              <Link to="/residents/pre-admissions">View Pre-Admission Record</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="hidden">
         <CardContent className="p-5 flex flex-col md:flex-row md:items-center gap-5">
@@ -1680,55 +1966,94 @@ function ResidentDetail() {
       </Dialog>
 
       <Collapsible open={residentAssessmentsOpen} onOpenChange={setResidentAssessmentsOpen}>
-      <Card className="border-slate-200 shadow-sm dark:border-slate-800">
-        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="text-teal-600" aria-hidden="true"></span> Resident Assessments
-            </CardTitle>
-            <CollapsibleTrigger asChild>
-              <Button size="sm" variant="ghost" className="shrink-0" aria-label={residentAssessmentsOpen ? "Collapse resident assessments" : "Expand resident assessments"}>
-                {residentAssessmentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <Button size="sm" className="shrink-0" onClick={() => handleOpenModal("assessment")}>
-            <Plus className="mr-1.5 h-4 w-4" /> Add Assessment
-          </Button>
-        </CardHeader>
-        <CollapsibleContent>
-        <CardContent>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {clinicalSnapshotAssessments.map((assessment) => {
-              const meta = assessmentMeta[assessment.type];
-              const isOverdue = Boolean(
-                assessment?.nextReassessmentDate && assessment.nextReassessmentDate < today.toISOString().slice(0, 10),
-              );
-              return (
-                <Link
-                  key={assessment.id}
-                  to="/assessments/$assessmentId"
-                  params={{ assessmentId: assessment.id }}
-                  className="min-h-32 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-950"
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span className="text-teal-600" aria-hidden="true"></span> Resident Assessments
+              </CardTitle>
+              <CollapsibleTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  aria-label={
+                    residentAssessmentsOpen
+                      ? "Collapse resident assessments"
+                      : "Expand resident assessments"
+                  }
                 >
-                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{meta.name}</div>
-                  <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-2xl font-semibold text-slate-950 dark:text-white">{assessment.totalScore}</span>
-                    {meta.max && <span className="text-xs text-muted-foreground">/{meta.max}</span>}
+                  {residentAssessmentsOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <Button size="sm" className="shrink-0" onClick={() => handleOpenModal("assessment")}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add Assessment
+            </Button>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {clinicalSnapshotAssessments.map((assessment) => {
+                  const meta = assessmentMeta[assessment.type];
+                  const isOverdue = Boolean(
+                    assessment?.nextReassessmentDate &&
+                    assessment.nextReassessmentDate < today.toISOString().slice(0, 10),
+                  );
+                  return (
+                    <Link
+                      key={assessment.id}
+                      to="/assessments/$assessmentId"
+                      params={{ assessmentId: assessment.id }}
+                      className="min-h-32 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {meta.name}
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-1">
+                        <span className="text-2xl font-semibold text-slate-950 dark:text-white">
+                          {assessment.totalScore}
+                        </span>
+                        {meta.max && (
+                          <span className="text-xs text-muted-foreground">/{meta.max}</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${riskColor(assessment.riskLevel)}`}
+                        >
+                          {assessment.interpretation}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${isOverdue ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"}`}
+                        >
+                          {isOverdue ? "Overdue" : "Completed"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 text-right text-[11px] text-muted-foreground">
+                        Review{" "}
+                        {assessment.nextReassessmentDate ||
+                          assessment.reviewDate ||
+                          assessment.date}
+                      </div>
+                    </Link>
+                  );
+                })}
+                {clinicalSnapshotAssessments.length === 0 && (
+                  <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">
+                    No assessments have been completed for this resident yet.
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className={`text-[10px] ${riskColor(assessment.riskLevel)}`}>{assessment.interpretation}</Badge>
-                    <Badge variant="outline" className={`text-[10px] ${isOverdue ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"}`}>{isOverdue ? "Overdue" : "Completed"}</Badge>
-                  </div>
-                  <div className="mt-2 text-right text-[11px] text-muted-foreground">Review {assessment.nextReassessmentDate || assessment.reviewDate || assessment.date}</div>
-                </Link>
-              );
-            })}
-            {clinicalSnapshotAssessments.length === 0 && <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">No assessments have been completed for this resident yet.</div>}
-          </div>
-        </CardContent>
-        </CollapsibleContent>
-      </Card>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
       </Collapsible>
 
       <Card>
@@ -1776,13 +2101,18 @@ function ResidentDetail() {
                       className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm dark:bg-muted/30 md:flex-row md:items-center md:justify-between"
                     >
                       <div className="min-w-0">
-                        <div className="line-clamp-1 text-base font-semibold text-foreground">{problem.problemStatement}</div>
+                        <div className="line-clamp-1 text-base font-semibold text-foreground">
+                          {problem.problemStatement}
+                        </div>
                         <div className="mt-1 text-sm text-foreground/80">
                           Review of Outcome {problem.evaluationDate}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${riskColor(problem.riskLevel)}`}
+                        >
                           {problem.riskLevel.replace(/_/g, " ")}
                         </Badge>
                         {carePlanQualityByProblemId.get(problem.id) && (
@@ -1794,7 +2124,11 @@ function ResidentDetail() {
                             {carePlanQualityByProblemId.get(problem.id)!.label}
                           </Badge>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openProblemDetail(problem.id)}
+                        >
                           Open
                         </Button>
                       </div>
@@ -1802,14 +2136,15 @@ function ResidentDetail() {
                   ))}
                   {sortedCarePlans.length > 3 && (
                     <div className="text-xs text-muted-foreground">
-                      +{sortedCarePlans.length - 3} more nursing care plan{sortedCarePlans.length - 3 === 1 ? "" : "s"}
+                      +{sortedCarePlans.length - 3} more nursing care plan
+                      {sortedCarePlans.length - 3 === 1 ? "" : "s"}
                     </div>
                   )}
                 </div>
               </div>
             );
           })}
-          {unmappedActiveCarePlans.length > 0 && (
+          {unmappedActiveCarePlans.length > 0 &&
             unmappedActiveCarePlans
               .slice()
               .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
@@ -1819,13 +2154,18 @@ function ResidentDetail() {
                   className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm dark:bg-muted/30 md:flex-row md:items-center md:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="line-clamp-1 text-base font-semibold text-foreground">{problem.carePlanName || problem.problemStatement}</div>
+                    <div className="line-clamp-1 text-base font-semibold text-foreground">
+                      {problem.carePlanName || problem.problemStatement}
+                    </div>
                     <div className="mt-1 text-sm text-foreground/80">
                       Review due {problem.reviewDate}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className={`text-[10px] ${riskColor(problem.riskLevel)}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${riskColor(problem.riskLevel)}`}
+                    >
                       {problem.riskLevel.replace(/_/g, " ")}
                     </Badge>
                     <Button size="sm" variant="ghost" onClick={() => openProblemDetail(problem.id)}>
@@ -1833,8 +2173,7 @@ function ResidentDetail() {
                     </Button>
                   </div>
                 </div>
-              ))
-          )}
+              ))}
           {allActiveCarePlansComplete && (
             <div className="rounded-md border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">
               All active nursing care plans are complete and up to date.
@@ -1848,7 +2187,7 @@ function ResidentDetail() {
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
-                  <ClipboardList className="h-3 w-3 mr-1" /> Add from Template
+                    <ClipboardList className="h-3 w-3 mr-1" /> Add from Template
                   </Button>
                 }
               />
@@ -1867,7 +2206,8 @@ function ResidentDetail() {
           <DialogHeader>
             <DialogTitle>{selectedCarePlanGroup?.domain.title} Nursing Care Plans</DialogTitle>
             <DialogDescription>
-              Select one nursing care plan to open. Only care plans in this Activity of Living are shown.
+              Select one nursing care plan to open. Only care plans in this Activity of Living are
+              shown.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -1911,7 +2251,9 @@ function ResidentDetail() {
           <section className="space-y-3">
             <div>
               <h3 className="font-medium">Reviews requiring attention</h3>
-              <p className="text-xs text-muted-foreground">Due assessment and care-plan reviews for this resident.</p>
+              <p className="text-xs text-muted-foreground">
+                Due assessment and care-plan reviews for this resident.
+              </p>
             </div>
             {dueResidentReviews.map((review) => (
               <div key={review.id} className="rounded-md border border-warning/30 bg-warning/5 p-3">
@@ -1919,21 +2261,33 @@ function ResidentDetail() {
                   <div className="min-w-0">
                     <div className="text-xs text-muted-foreground">{review.kind}</div>
                     <div className="font-medium">{review.title}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Review due: {review.dueDate}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Review due: {review.dueDate}
+                    </div>
                   </div>
-                  <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-warning-foreground">
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-warning/40 bg-warning/10 text-warning-foreground"
+                  >
                     {review.status}
                   </Badge>
                 </div>
                 <div className="mt-3">
                   {"assessmentId" in review ? (
                     <Button size="sm" variant="outline" asChild>
-                      <Link to="/assessments/$assessmentId" params={{ assessmentId: review.assessmentId }}>
+                      <Link
+                        to="/assessments/$assessmentId"
+                        params={{ assessmentId: review.assessmentId }}
+                      >
                         Open Assessment
                       </Link>
                     </Button>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => openProblemDetail(review.carePlanId)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openProblemDetail(review.carePlanId)}
+                    >
                       Open Care Plan
                     </Button>
                   )}
@@ -1949,95 +2303,102 @@ function ResidentDetail() {
           <section className="space-y-3">
             <div>
               <h3 className="font-medium">Scheduled Care Action Tasks</h3>
-              <p className="text-xs text-muted-foreground">Upcoming and overdue scheduled tasks for this resident.</p>
+              <p className="text-xs text-muted-foreground">
+                Upcoming and overdue scheduled tasks for this resident.
+              </p>
             </div>
-          {upcomingInterventionTasks.map((task) => {
-            const heading = task.intervention.parentInterventionId
-              ? rProblemInterventions.find((item) => item.id === task.intervention.parentInterventionId)
-              : null;
-            const linkedScheduledTask = rTasks.find(
-              (scheduledTask) =>
-                scheduledTask.linkedInterventionId === task.intervention.id &&
-                scheduledTask.status !== "deleted",
-            );
-            // Early scheduled tasks stored their user-entered task name in description.
-            // Prefer it only when it is not the system-generated heading context.
-            const taskName = linkedScheduledTask?.title ||
-              (task.intervention.parentInterventionId &&
-              task.intervention.description &&
-              !task.intervention.description.startsWith("Scheduled task under:")
-                ? task.intervention.description
-                : task.intervention.name);
-            return (
-            <div key={task.intervention.id} className="rounded-md border p-3 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                    <div className="font-medium">{taskName}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {heading
-                        ? `Care action: ${heading.name}`
-                        : linkedScheduledTask
-                          ? `Care action: ${task.intervention.name}`
-                          : task.problem?.problemStatement || "Unlinked care plan problem"}
+            {upcomingInterventionTasks.map((task) => {
+              const heading = task.intervention.parentInterventionId
+                ? rProblemInterventions.find(
+                    (item) => item.id === task.intervention.parentInterventionId,
+                  )
+                : null;
+              const linkedScheduledTask = rTasks.find(
+                (scheduledTask) =>
+                  scheduledTask.linkedInterventionId === task.intervention.id &&
+                  scheduledTask.status !== "deleted",
+              );
+              // Early scheduled tasks stored their user-entered task name in description.
+              // Prefer it only when it is not the system-generated heading context.
+              const taskName =
+                linkedScheduledTask?.title ||
+                (task.intervention.parentInterventionId &&
+                task.intervention.description &&
+                !task.intervention.description.startsWith("Scheduled task under:")
+                  ? task.intervention.description
+                  : task.intervention.name);
+              return (
+                <div key={task.intervention.id} className="rounded-md border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{taskName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {heading
+                          ? `Care action: ${heading.name}`
+                          : linkedScheduledTask
+                            ? `Care action: ${task.intervention.name}`
+                            : task.problem?.problemStatement || "Unlinked care plan problem"}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={statusBadgeClass(task.status)}>
+                      {statusLabel(task.status)}
+                    </Badge>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      Due: {task.dueAt ? task.dueAt.toLocaleString("en-GB") : "Not scheduled"}
+                    </div>
+                    <div>Role: {task.intervention.assignedRole || "Unassigned"}</div>
+                    <div>Assigned To: {task.intervention.assignedStaffName || "Unassigned"}</div>
+                    <div>Progress: {statusLabel(task.status)}</div>
+                  </div>
+
+                  {(task.status === "completed" || task.completion) && (
+                    <p className="text-xs text-muted-foreground">
+                      Completed by{" "}
+                      {task.completion?.staffName || task.intervention.completedBy || "Unknown"}
+                      {task.completion?.role ? ` ${task.completion.role.toUpperCase()}` : ""}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {task.status === "completed" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRecordCompletion(task.intervention)}
+                      >
+                        View Completion
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleRecordCompletion(task.intervention)}
+                          disabled={!rolePermissions.canComplete}
+                        >
+                          Mark Complete
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openProblemDetail(task.intervention.problemId)}
+                        >
+                          Open Care Action
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <Badge variant="outline" className={statusBadgeClass(task.status)}>
-                  {statusLabel(task.status)}
-                </Badge>
+              );
+            })}
+
+            {upcomingInterventionTasks.length === 0 && (
+              <div className="rounded-md border p-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">No upcoming scheduled care actions.</p>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <div>Due: {task.dueAt ? task.dueAt.toLocaleString("en-GB") : "Not scheduled"}</div>
-                <div>Role: {task.intervention.assignedRole || "Unassigned"}</div>
-                <div>Assigned To: {task.intervention.assignedStaffName || "Unassigned"}</div>
-                <div>Progress: {statusLabel(task.status)}</div>
-              </div>
-
-              {(task.status === "completed" || task.completion) && (
-                <p className="text-xs text-muted-foreground">
-                  Completed by{" "}
-                  {task.completion?.staffName || task.intervention.completedBy || "Unknown"}
-                  {task.completion?.role ? ` ${task.completion.role.toUpperCase()}` : ""}
-                </p>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                {task.status === "completed" ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRecordCompletion(task.intervention)}
-                  >
-                    View Completion
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRecordCompletion(task.intervention)}
-                      disabled={!rolePermissions.canComplete}
-                    >
-                      Mark Complete
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openProblemDetail(task.intervention.problemId)}
-                    >
-                      Open Care Action
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-            );
-          })}
-
-          {upcomingInterventionTasks.length === 0 && (
-            <div className="rounded-md border p-6 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">No upcoming scheduled care actions.</p>
-            </div>
-          )}
+            )}
           </section>
         </CardContent>
       </Card>
@@ -2048,16 +2409,18 @@ function ResidentDetail() {
         className="space-y-4"
       >
         <div className="flex items-center gap-2 flex-wrap">
-            <TabsList className="flex-wrap h-auto">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
-              <TabsTrigger value="activities">Care Plans</TabsTrigger>
-              <TabsTrigger value="notes">Daily Notes</TabsTrigger>
-              <TabsTrigger value="vitals">Vitals</TabsTrigger>
-              <TabsTrigger value="incidents">Incidents ({openIncidents.length})</TabsTrigger>
-              <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
-              <TabsTrigger value="nok">Next of Kin ({r.nextOfKinList?.length || 0})</TabsTrigger>
-              <TabsTrigger value="handovers">Handovers ({rHandovers.length + generatedResidentHandovers.length})</TabsTrigger>
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="assessments">Assessments ({rA.length})</TabsTrigger>
+            <TabsTrigger value="activities">Care Plans</TabsTrigger>
+            <TabsTrigger value="notes">Daily Notes</TabsTrigger>
+            <TabsTrigger value="vitals">Vitals</TabsTrigger>
+            <TabsTrigger value="incidents">Incidents ({openIncidents.length})</TabsTrigger>
+            <TabsTrigger value="alerts">Alerts ({openAlertCount})</TabsTrigger>
+            <TabsTrigger value="nok">Next of Kin ({r.nextOfKinList?.length || 0})</TabsTrigger>
+            <TabsTrigger value="handovers">
+              Handovers ({rHandovers.length + generatedResidentHandovers.length})
+            </TabsTrigger>
           </TabsList>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -2090,12 +2453,19 @@ function ResidentDetail() {
             <CardHeader className="flex flex-row items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Current care plans</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">Active care plans for {r.firstName} {r.lastName}.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Active care plans for {r.firstName} {r.lastName}.
+                </p>
               </div>
               <CreateCarePlanDialog
                 residentId={r.id}
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
-                trigger={<Button className="min-h-11"><Plus className="mr-2 h-4 w-4" />Add from Template</Button>}
+                trigger={
+                  <Button className="min-h-11">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add from Template
+                  </Button>
+                }
               />
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2103,18 +2473,43 @@ function ResidentDetail() {
                 .slice()
                 .sort((left, right) => left.reviewDate.localeCompare(right.reviewDate))
                 .map((problem) => (
-                  <div key={problem.id} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                  <div
+                    key={problem.id}
+                    className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
+                  >
                     <div className="min-w-0">
-                      <p className="font-semibold text-base">{problem.carePlanName || problem.problemStatement}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Review due {problem.reviewDate}</p>
+                      <p className="font-semibold text-base">
+                        {problem.carePlanName || problem.problemStatement}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Review due {problem.reviewDate}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={`capitalize ${riskColor(problem.riskLevel)}`}>{problem.riskLevel.replace(/_/g, " ")} risk</Badge>
-                      <Button variant="outline" className="min-h-11" onClick={() => openProblemDetail(problem.id)}>Open care plan</Button>
+                      <Badge
+                        variant="outline"
+                        className={`capitalize ${riskColor(problem.riskLevel)}`}
+                      >
+                        {problem.riskLevel.replace(/_/g, " ")} risk
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() => openProblemDetail(problem.id)}
+                      >
+                        Open care plan
+                      </Button>
                     </div>
                   </div>
                 ))}
-              {!activeProblems.length && <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No active care plans.</p><p className="mt-1 text-sm text-muted-foreground">Use Add from Template to create one for this resident.</p></div>}
+              {!activeProblems.length && (
+                <div className="rounded-lg border border-dashed p-8 text-center">
+                  <p className="font-medium">No active care plans.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Use Add from Template to create one for this resident.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -2134,7 +2529,14 @@ function ResidentDetail() {
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
-            <OverviewCard title="Resident Information" icon={<User2 className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("resident"); setProfileEditOpen(true); }}>
+            <OverviewCard
+              title="Resident Information"
+              icon={<User2 className="h-5 w-5" />}
+              onEdit={() => {
+                setOverviewEditSection("resident");
+                setProfileEditOpen(true);
+              }}
+            >
               <OverviewField label="Preferred Name" value={r.preferredName} />
               <OverviewField label="Date of Birth" value={r.dob} />
               <OverviewField label="Age" value={r.dob ? `${age(r.dob)} years` : undefined} />
@@ -2142,53 +2544,142 @@ function ResidentDetail() {
               <OverviewField label="Marital Status" value={r.maritalStatus} />
               <OverviewField label="Ethnicity" value={r.ethnicity} />
               <OverviewField label="Religion" value={r.religion} />
-              <OverviewField label="Resident Identifier" value={residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers") ? r.residentNumber || r.externalResidentId : undefined} />
-              <OverviewField label="Registration Number" value={residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers") ? r.registrationNumber : undefined} />
+              <OverviewField
+                label="Resident Identifier"
+                value={
+                  residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers")
+                    ? r.residentNumber || r.externalResidentId
+                    : undefined
+                }
+              />
+              <OverviewField
+                label="Registration Number"
+                value={
+                  residentViewCapabilities.includes("resident_profile.view_sensitive_identifiers")
+                    ? r.registrationNumber
+                    : undefined
+                }
+              />
               <OverviewField label="Resident Phone" value={r.phone} />
               <OverviewField label="Email" value={r.email} />
               <OverviewField label="Address" value={r.address} wide />
               <OverviewField label="Admission Date" value={r.admissionDate} />
               <OverviewField label="Admission Type" value={r.admissionType?.replace(/_/g, " ")} />
-              <OverviewField label="Admission Source" value={r.admissionSource?.replace(/_/g, " ")} />
-              <OverviewField label="Current Accommodation Status" value={r.currentAccommodationStatus?.replace(/_/g, " ")} />
-              <OverviewField label="Re-admitted Within 28 Days" value={r.readmittedWithin28Days === undefined ? undefined : r.readmittedWithin28Days ? "Yes" : "No"} />
-              <OverviewField label="Nursing Home / Facility" value={r.facilityId || activeFacilityId} />
+              <OverviewField
+                label="Admission Source"
+                value={r.admissionSource?.replace(/_/g, " ")}
+              />
+              <OverviewField
+                label="Current Accommodation Status"
+                value={r.currentAccommodationStatus?.replace(/_/g, " ")}
+              />
+              <OverviewField
+                label="Re-admitted Within 28 Days"
+                value={
+                  r.readmittedWithin28Days === undefined
+                    ? undefined
+                    : r.readmittedWithin28Days
+                      ? "Yes"
+                      : "No"
+                }
+              />
+              <OverviewField
+                label="Nursing Home / Facility"
+                value={r.facilityId || activeFacilityId}
+              />
               <OverviewField label="Room" value={r.roomNumber} />
               <OverviewField label="Bed" value={r.bed?.bedType?.replace(/_/g, " ")} />
-              <OverviewField label="Dependency Level" value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined} />
+              <OverviewField
+                label="Dependency Level"
+                value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined}
+              />
               <OverviewField label="Support Level" value={r.supportLevel?.replace(/_/g, " ")} />
             </OverviewCard>
 
-            <OverviewCard title="Clinical Summary" icon={<ClipboardList className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("clinical"); setProfileEditOpen(true); }}>
+            <OverviewCard
+              title="Clinical Summary"
+              icon={<ClipboardList className="h-5 w-5" />}
+              onEdit={() => {
+                setOverviewEditSection("clinical");
+                setProfileEditOpen(true);
+              }}
+            >
               <OverviewField label="Primary Diagnosis" value={r.primaryDiagnosis} wide />
               <OverviewField label="Relevant Medical History" value={r.medicalHistory} wide />
-              <OverviewField label="Known Allergies" value={r.allergies} wide emphasis={Boolean(r.allergies)} />
+              <OverviewField
+                label="Known Allergies"
+                value={r.allergies}
+                wide
+                emphasis={Boolean(r.allergies)}
+              />
               <OverviewField label="Mental Capacity" value={r.mentalCapacity?.replace(/_/g, " ")} />
-              <OverviewField label="Resuscitation Status" value={r.dnarStatus === "yes" ? "DNAR recorded" : r.dnarStatus === "no" ? "No DNAR recorded" : undefined} />
-              <OverviewField label="Dependency Level" value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined} />
+              <OverviewField
+                label="Resuscitation Status"
+                value={
+                  r.dnarStatus === "yes"
+                    ? "DNAR recorded"
+                    : r.dnarStatus === "no"
+                      ? "No DNAR recorded"
+                      : undefined
+                }
+              />
+              <OverviewField
+                label="Dependency Level"
+                value={r.dependencyLevel ? `${r.dependencyLevel} dependency` : undefined}
+              />
               <OverviewField label="Communication Needs" value={r.communicationNeeds} wide />
             </OverviewCard>
 
             <OverviewCard title="Medication Summary" icon={<Pill className="h-5 w-5" />}>
               <div className="rounded-lg border border-border bg-muted/20 p-4 text-base leading-6">
                 <p className="font-medium">Medication information is temporarily unavailable.</p>
-                <p className="mt-1 text-muted-foreground">NuLife medication integration is not currently connected for this resident.</p>
-                <Button className="mt-4 min-h-11" variant="outline" onClick={() => toast.info("Medication information will refresh when NuLife is available.")}>Retry</Button>
+                <p className="mt-1 text-muted-foreground">
+                  NuLife medication integration is not currently connected for this resident.
+                </p>
+                <Button
+                  className="mt-4 min-h-11"
+                  variant="outline"
+                  onClick={() =>
+                    toast.info("Medication information will refresh when NuLife is available.")
+                  }
+                >
+                  Retry
+                </Button>
               </div>
             </OverviewCard>
 
-            <OverviewCard title="Bed & Accommodation" icon={<Bed className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("bed"); setProfileEditOpen(true); }}>
+            <OverviewCard
+              title="Bed & Accommodation"
+              icon={<Bed className="h-5 w-5" />}
+              onEdit={() => {
+                setOverviewEditSection("bed");
+                setProfileEditOpen(true);
+              }}
+            >
               <OverviewField label="Facility" value={r.facilityId || activeFacilityId} />
               <OverviewField label="Wing" value={r.wingId} />
               <OverviewField label="Room" value={r.roomNumber} />
               <OverviewField label="Bed Type" value={r.bed?.bedType?.replace(/_/g, " ")} />
-              <OverviewField label="Mattress Type" value={r.bed?.mattressType?.replace(/_/g, " ")} />
+              <OverviewField
+                label="Mattress Type"
+                value={r.bed?.mattressType?.replace(/_/g, " ")}
+              />
               <OverviewField label="Mattress Installed Date" value={r.bed?.installationDate} />
               <OverviewField label="Mattress Review Date" value={r.bed?.reviewDate} />
-              <OverviewField label="Current Accommodation Status" value={r.currentAccommodationStatus?.replace(/_/g, " ")} />
+              <OverviewField
+                label="Current Accommodation Status"
+                value={r.currentAccommodationStatus?.replace(/_/g, " ")}
+              />
             </OverviewCard>
 
-            <OverviewCard title="Healthcare Team" icon={<UserCog className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("team"); setProfileEditOpen(true); }}>
+            <OverviewCard
+              title="Healthcare Team"
+              icon={<UserCog className="h-5 w-5" />}
+              onEdit={() => {
+                setOverviewEditSection("team");
+                setProfileEditOpen(true);
+              }}
+            >
               <OverviewField label="GP" value={r.gp} />
               <OverviewField label="Consultant" value={r.consultant} />
               <OverviewField label="Consultant Specialty" value={r.consultantSpecialty} />
@@ -2197,7 +2688,14 @@ function ResidentDetail() {
               <OverviewField label="Key Worker" value={r.keyWorkers?.keyWorker} />
             </OverviewCard>
 
-            <OverviewCard title="Resident Preferences" icon={<Phone className="h-5 w-5" />} onEdit={() => { setOverviewEditSection("preferences"); setProfileEditOpen(true); }}>
+            <OverviewCard
+              title="Resident Preferences"
+              icon={<Phone className="h-5 w-5" />}
+              onEdit={() => {
+                setOverviewEditSection("preferences");
+                setProfileEditOpen(true);
+              }}
+            >
               <OverviewField label="Preferred Name" value={r.preferredName} />
               <OverviewField label="Preferred Language" value={r.preferredLanguage} />
               <OverviewField label="Communication Needs" value={r.communicationNeeds} wide />
@@ -2271,10 +2769,12 @@ function ResidentDetail() {
                       className="flex items-start gap-3 rounded-md border p-3 text-sm"
                     >
                       <div className="w-20 shrink-0 text-xs text-muted-foreground tabular-nums">
-                        <div>{new Date(`${vital.date}T00:00:00`).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                        })}</div>
+                        <div>
+                          {new Date(`${vital.date}T00:00:00`).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                          })}
+                        </div>
                         <div>{vital.time}</div>
                       </div>
                       <div className="min-w-0 flex-1">
@@ -2492,7 +2992,7 @@ function ResidentDetail() {
                 onCreated={(problem) => openNewlyCreatedProblemDetail(problem.id)}
                 trigger={
                   <Button size="sm">
-                  <ClipboardList className="h-3 w-3 mr-1" /> Create Nursing Care Plan
+                    <ClipboardList className="h-3 w-3 mr-1" /> Create Nursing Care Plan
                   </Button>
                 }
               />
@@ -2505,7 +3005,9 @@ function ResidentDetail() {
             <Card key={entry.id}>
               <CardContent className="p-4">
                 {(() => {
-                  const relatedProblem = carePlanProblems.find((plan) => plan.id === entry.carePlanId);
+                  const relatedProblem = carePlanProblems.find(
+                    (plan) => plan.id === entry.carePlanId,
+                  );
                   const relatedLabel = relatedProblem
                     ? `${getRltDomainForCarePlanProblem(relatedProblem)?.title || relatedProblem.category.replace(/_/g, " ")} · ${relatedProblem.problemStatement}`
                     : undefined;
@@ -2524,16 +3026,40 @@ function ResidentDetail() {
                 })()}
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-medium">{entry.occurredAt.slice(0, 10)}</span>
-                  {entry.shift && <Badge variant="outline" className="text-[10px] capitalize">{entry.shift}</Badge>}
-                  <Badge variant={entry.readOnly ? undefined : "outline"} className={entry.readOnly ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/10" : ""}>
+                  {entry.shift && (
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {entry.shift}
+                    </Badge>
+                  )}
+                  <Badge
+                    variant={entry.readOnly ? undefined : "outline"}
+                    className={
+                      entry.readOnly
+                        ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/10"
+                        : ""
+                    }
+                  >
                     {entry.kind === "daily_note" ? "Manual Note" : entry.kind.replaceAll("_", " ")}
                   </Badge>
-                  {entry.readOnly && <Badge variant="outline" className="text-[10px]">Automatic</Badge>}
-                  {entry.recordedBy && <span className="text-xs text-muted-foreground">{entry.recordedBy}</span>}
+                  {entry.readOnly && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Automatic
+                    </Badge>
+                  )}
+                  {entry.recordedBy && (
+                    <span className="text-xs text-muted-foreground">{entry.recordedBy}</span>
+                  )}
                 </div>
                 <p className="text-sm mt-2 font-medium">{entry.title}</p>
                 <p className="text-sm mt-1">{entry.summary}</p>
-                {entry.sourceRoute && <a href={entry.sourceRoute} className="mt-2 inline-block text-xs font-medium text-primary hover:underline">View original record</a>}
+                {entry.sourceRoute && (
+                  <a
+                    href={entry.sourceRoute}
+                    className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                  >
+                    View original record
+                  </a>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -2569,13 +3095,43 @@ function ResidentDetail() {
                     {orderedProblemInterventions.map((intv) => {
                       const problem = rProblems.find((p) => p.id === intv.problemId);
                       const parentHeading = intv.parentInterventionId
-                        ? rProblemInterventions.find((heading) => heading.id === intv.parentInterventionId)
+                        ? rProblemInterventions.find(
+                            (heading) => heading.id === intv.parentInterventionId,
+                          )
                         : undefined;
                       return (
                         <tr key={intv.id} className="hover:bg-muted/30">
-                          <td className="p-3 font-medium"><div className={`flex flex-wrap items-center gap-2 ${parentHeading ? "pl-5" : ""}`}><span>{parentHeading && " "}{intv.name}</span><Badge variant="outline" className="text-[10px]">{CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}</Badge></div>{parentHeading && <div className="pl-5 pt-0.5 text-[10px] font-normal text-muted-foreground">Under: {parentHeading.name}</div>}</td>
+                          <td className="p-3 font-medium">
+                            <div
+                              className={`flex flex-wrap items-center gap-2 ${parentHeading ? "pl-5" : ""}`}
+                            >
+                              <span>
+                                {parentHeading && " "}
+                                {intv.name}
+                              </span>
+                              <Badge variant="outline" className="text-[10px]">
+                                {CARE_ACTION_TYPE_LABELS[getCanonicalCareActionType(intv)]}
+                              </Badge>
+                            </div>
+                            {parentHeading && (
+                              <div className="pl-5 pt-0.5 text-[10px] font-normal text-muted-foreground">
+                                Under: {parentHeading.name}
+                              </div>
+                            )}
+                          </td>
                           <td className="p-3 text-xs">{problem?.problemStatement || "—"}</td>
-                          <td className="p-3 text-xs">{getCanonicalCareActionType(intv) === "scheduled" ? intv.frequencyType.replace(/_/g, " ") : getCanonicalCareActionType(intv) === "prn" ? intv.prnConfiguration?.indication || "As needed" : getCanonicalCareActionType(intv) === "triggered" ? intv.triggerConfiguration?.triggerConditionSummary || "On defined trigger" : intv.oneOffConfiguration?.dueAt ? new Date(intv.oneOffConfiguration.dueAt).toLocaleString() : "Once, no fixed due time"}</td>
+                          <td className="p-3 text-xs">
+                            {getCanonicalCareActionType(intv) === "scheduled"
+                              ? intv.frequencyType.replace(/_/g, " ")
+                              : getCanonicalCareActionType(intv) === "prn"
+                                ? intv.prnConfiguration?.indication || "As needed"
+                                : getCanonicalCareActionType(intv) === "triggered"
+                                  ? intv.triggerConfiguration?.triggerConditionSummary ||
+                                    "On defined trigger"
+                                  : intv.oneOffConfiguration?.dueAt
+                                    ? new Date(intv.oneOffConfiguration.dueAt).toLocaleString()
+                                    : "Once, no fixed due time"}
+                          </td>
                           <td className="p-3 text-xs">
                             {intv.assignedStaffName || intv.assignedRole || "—"}
                           </td>
@@ -2763,15 +3319,49 @@ function ResidentDetail() {
           {generatedResidentHandovers.map((h) => (
             <Card key={h.id}>
               <CardContent className="p-4 flex items-start justify-between gap-3 flex-wrap">
-                <div><Badge variant="outline" className="mb-2">Generated Shift Handover</Badge><div className="text-sm font-medium capitalize">{h.shiftType} Handover</div><p className="text-xs text-muted-foreground">{new Date(h.periodFrom).toLocaleDateString("en-IE", { dateStyle: "medium" })} · {new Date(h.periodFrom).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}–{new Date(h.periodTo).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}</p><p className="text-xs mt-1">Generated by {h.generatedByName} · Reference: {h.referenceNumber} · Status: <span className="capitalize">{h.status}</span> · {h.residentCount} resident{h.residentCount === 1 ? "" : "s"} included</p></div>
-                <Button size="sm" variant="outline" asChild><Link to="/handovers/generated/$handoverId" params={{ handoverId: h.id }}>View Handover</Link></Button>
+                <div>
+                  <Badge variant="outline" className="mb-2">
+                    Generated Shift Handover
+                  </Badge>
+                  <div className="text-sm font-medium capitalize">
+                    {h.shiftType} Handover · Current Version v{h.versionNumber}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(h.periodFrom).toLocaleDateString("en-IE", { dateStyle: "medium" })} ·{" "}
+                    {new Date(h.periodFrom).toLocaleTimeString("en-IE", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    –
+                    {new Date(h.periodTo).toLocaleTimeString("en-IE", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-xs mt-1">
+                    Generated by {h.generatedByName} · Reference: {h.referenceNumber} · Status:{" "}
+                    <span className="capitalize">{h.status}</span> · {h.residentCount} resident
+                    {h.residentCount === 1 ? "" : "s"} included · PDF available
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" asChild>
+                  <Link
+                    to="/handovers/generated/$handoverId"
+                    params={{ handoverId: h.id }}
+                    search={{ residentId: id } as never}
+                  >
+                    View Handover
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ))}
           {rHandovers.map((h) => (
             <Card key={h.id}>
               <CardContent className="p-4">
-                <Badge variant="outline" className="mb-2">Manual Handover Note</Badge>
+                <Badge variant="outline" className="mb-2">
+                  Manual Handover Note
+                </Badge>
                 <div className="text-sm font-medium capitalize">
                   {h.shift} shift — {h.date}
                 </div>
@@ -2817,7 +3407,9 @@ function ResidentDetail() {
                       value={newNok.relationship}
                       onValueChange={(relationship) => setNewNok({ ...newNok, relationship })}
                     >
-                      <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select relationship" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Spouse / Partner">Spouse / Partner</SelectItem>
                         <SelectItem value="Parent">Parent</SelectItem>
@@ -2956,20 +3548,140 @@ function ResidentDetail() {
           </div>
           <Dialog open={Boolean(editingNok)} onOpenChange={(open) => !open && setEditingNok(null)}>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Edit Next of Kin</DialogTitle></DialogHeader>
-              {editingNok && <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2"><Label htmlFor="edit-nok-name">Name</Label><Input id="edit-nok-name" value={editingNok.name} onChange={(event) => setEditingNok({ ...editingNok, name: event.target.value })} /></div>
-                <div><Label>Relationship</Label><Select value={editingNok.relationship} onValueChange={(relationship) => setEditingNok({ ...editingNok, relationship })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Spouse / Partner">Spouse / Partner</SelectItem><SelectItem value="Parent">Parent</SelectItem><SelectItem value="Son">Son</SelectItem><SelectItem value="Daughter">Daughter</SelectItem><SelectItem value="Sibling">Sibling</SelectItem><SelectItem value="Grandchild">Grandchild</SelectItem><SelectItem value="Niece / Nephew">Niece / Nephew</SelectItem><SelectItem value="Friend">Friend</SelectItem><SelectItem value="Legal representative">Legal representative</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select></div>
-                <div><Label htmlFor="edit-nok-phone">Phone</Label><Input id="edit-nok-phone" type="tel" value={editingNok.phone} onChange={(event) => setEditingNok({ ...editingNok, phone: event.target.value })} /></div>
-                <div><Label htmlFor="edit-nok-mobile">Mobile</Label><Input id="edit-nok-mobile" type="tel" value={editingNok.mobile} onChange={(event) => setEditingNok({ ...editingNok, mobile: event.target.value })} /></div>
-                <div><Label htmlFor="edit-nok-email">Email</Label><Input id="edit-nok-email" type="email" value={editingNok.email} onChange={(event) => setEditingNok({ ...editingNok, email: event.target.value })} /></div>
-                <div className="col-span-2"><Label htmlFor="edit-nok-address">Address</Label><Input id="edit-nok-address" value={editingNok.address} onChange={(event) => setEditingNok({ ...editingNok, address: event.target.value })} /></div>
-                <div className="col-span-2 grid grid-cols-2 gap-2 text-sm">
-                  {([['primaryContact', 'Primary contact'], ['emergencyContact', 'Emergency contact'], ['powerOfAttorney', 'Power of attorney'], ['legalRepresentative', 'Legal representative']] as const).map(([field, label]) => <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={editingNok[field]} onChange={(event) => setEditingNok({ ...editingNok, [field]: event.target.checked })} />{label}</label>)}
+              <DialogHeader>
+                <DialogTitle>Edit Next of Kin</DialogTitle>
+              </DialogHeader>
+              {editingNok && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-nok-name">Name</Label>
+                    <Input
+                      id="edit-nok-name"
+                      value={editingNok.name}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, name: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Relationship</Label>
+                    <Select
+                      value={editingNok.relationship}
+                      onValueChange={(relationship) =>
+                        setEditingNok({ ...editingNok, relationship })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Spouse / Partner">Spouse / Partner</SelectItem>
+                        <SelectItem value="Parent">Parent</SelectItem>
+                        <SelectItem value="Son">Son</SelectItem>
+                        <SelectItem value="Daughter">Daughter</SelectItem>
+                        <SelectItem value="Sibling">Sibling</SelectItem>
+                        <SelectItem value="Grandchild">Grandchild</SelectItem>
+                        <SelectItem value="Niece / Nephew">Niece / Nephew</SelectItem>
+                        <SelectItem value="Friend">Friend</SelectItem>
+                        <SelectItem value="Legal representative">Legal representative</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-nok-phone">Phone</Label>
+                    <Input
+                      id="edit-nok-phone"
+                      type="tel"
+                      value={editingNok.phone}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, phone: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-nok-mobile">Mobile</Label>
+                    <Input
+                      id="edit-nok-mobile"
+                      type="tel"
+                      value={editingNok.mobile}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, mobile: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-nok-email">Email</Label>
+                    <Input
+                      id="edit-nok-email"
+                      type="email"
+                      value={editingNok.email}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, email: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-nok-address">Address</Label>
+                    <Input
+                      id="edit-nok-address"
+                      value={editingNok.address}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, address: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-2 text-sm">
+                    {(
+                      [
+                        ["primaryContact", "Primary contact"],
+                        ["emergencyContact", "Emergency contact"],
+                        ["powerOfAttorney", "Power of attorney"],
+                        ["legalRepresentative", "Legal representative"],
+                      ] as const
+                    ).map(([field, label]) => (
+                      <label key={field} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={editingNok[field]}
+                          onChange={(event) =>
+                            setEditingNok({ ...editingNok, [field]: event.target.checked })
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-nok-notes">Notes</Label>
+                    <Textarea
+                      id="edit-nok-notes"
+                      value={editingNok.notes}
+                      onChange={(event) =>
+                        setEditingNok({ ...editingNok, notes: event.target.value })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="col-span-2"><Label htmlFor="edit-nok-notes">Notes</Label><Textarea id="edit-nok-notes" value={editingNok.notes} onChange={(event) => setEditingNok({ ...editingNok, notes: event.target.value })} /></div>
-              </div>}
-              <DialogFooter><Button variant="outline" onClick={() => setEditingNok(null)}>Cancel</Button><Button onClick={() => { if (!editingNok?.name.trim() || !editingNok.relationship) { toast.error("Name and relationship are required"); return; } updateNextOfKin(r.id, editingNok.id, editingNok); setEditingNok(null); toast.success("Next of kin updated"); }}>Save changes</Button></DialogFooter>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditingNok(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!editingNok?.name.trim() || !editingNok.relationship) {
+                      toast.error("Name and relationship are required");
+                      return;
+                    }
+                    updateNextOfKin(r.id, editingNok.id, editingNok);
+                    setEditingNok(null);
+                    toast.success("Next of kin updated");
+                  }}
+                >
+                  Save changes
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
           {(r.nextOfKinList || []).map((n) => (
@@ -2987,7 +3699,9 @@ function ResidentDetail() {
                     {n.address && <div className="text-xs text-muted-foreground">{n.address}</div>}
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    <Button size="sm" variant="outline" onClick={() => setEditingNok({ ...n })}>Edit</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingNok({ ...n })}>
+                      Edit
+                    </Button>
                     {n.primaryContact && (
                       <Badge variant="default" className="text-[10px]">
                         Primary
@@ -3022,13 +3736,84 @@ function ResidentDetail() {
         <TabsContent value="alerts" className="space-y-4">
           <div>
             <h2 className="text-xl font-semibold">Resident alerts</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Clinical alerts recorded for {r.firstName} {r.lastName} only.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Clinical alerts recorded for {r.firstName} {r.lastName} only.
+            </p>
           </div>
-          <div className="rounded-lg border bg-muted/30 p-4"><span className="text-3xl font-semibold tabular-nums">{openAlertCount}</span><span className="ml-3 text-sm text-muted-foreground">open clinical alert{openAlertCount === 1 ? "" : "s"}</span></div>
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <span className="text-3xl font-semibold tabular-nums">{openAlertCount}</span>
+            <span className="ml-3 text-sm text-muted-foreground">
+              open clinical alert{openAlertCount === 1 ? "" : "s"}
+            </span>
+          </div>
           <Card>
-            <CardHeader><CardTitle className="text-lg">Clinical alerts</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-lg">Clinical alerts</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
-              {rAlerts.length ? rAlerts.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((alert) => <div key={alert.id} className="rounded-lg border p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start"><AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${alert.priority === "critical" || alert.priority === "high" ? "text-destructive" : "text-warning-foreground"}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{alert.title}</p><Badge variant="outline" className={`capitalize ${alert.priority === "critical" || alert.priority === "high" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/40 bg-warning/10 text-warning-foreground"}`}>{alert.priority} priority</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.description}</p><p className="mt-2 text-xs text-muted-foreground">Raised {new Date(alert.createdAt).toLocaleString()}{alert.acknowledged ? ` · Acknowledged by ${alert.acknowledgedBy || "staff"}` : " · Needs acknowledgement"}</p></div><div className="flex shrink-0 gap-2">{!alert.acknowledged && <Button variant="outline" className="min-h-11" onClick={() => { acknowledgeAlert(alert.id); toast.success("Alert acknowledged"); }}>Acknowledge</Button>}<Button variant="outline" className="min-h-11" onClick={() => { resolveAlert(alert.id); toast.success("Alert resolved"); }}>Resolve</Button></div></div></div>) : <div className="rounded-lg border border-dashed p-8 text-center"><p className="font-medium">No open clinical alerts.</p><p className="mt-1 text-sm text-muted-foreground">New alerts will appear here when action is needed.</p></div>}
+              {rAlerts.length ? (
+                rAlerts
+                  .slice()
+                  .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+                  .map((alert) => (
+                    <div key={alert.id} className="rounded-lg border p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                        <AlertTriangle
+                          className={`mt-0.5 h-5 w-5 shrink-0 ${alert.priority === "critical" || alert.priority === "high" ? "text-destructive" : "text-warning-foreground"}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{alert.title}</p>
+                            <Badge
+                              variant="outline"
+                              className={`capitalize ${alert.priority === "critical" || alert.priority === "high" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/40 bg-warning/10 text-warning-foreground"}`}
+                            >
+                              {alert.priority} priority
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Raised {new Date(alert.createdAt).toLocaleString()}
+                            {alert.acknowledged
+                              ? ` · Acknowledged by ${alert.acknowledgedBy || "staff"}`
+                              : " · Needs acknowledgement"}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          {!alert.acknowledged && (
+                            <Button
+                              variant="outline"
+                              className="min-h-11"
+                              onClick={() => {
+                                acknowledgeAlert(alert.id);
+                                toast.success("Alert acknowledged");
+                              }}
+                            >
+                              Acknowledge
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            className="min-h-11"
+                            onClick={() => {
+                              resolveAlert(alert.id);
+                              toast.success("Alert resolved");
+                            }}
+                          >
+                            Resolve
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="rounded-lg border border-dashed p-8 text-center">
+                  <p className="font-medium">No open clinical alerts.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    New alerts will appear here when action is needed.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -3272,7 +4057,9 @@ function ResidentDetail() {
       {/* Modal Components */}
       <RecordDailyCareDialog
         open={modalState.dailyCare}
-        onOpenChange={(open) => open ? handleOpenModal("dailyCare") : handleCloseModal("dailyCare")}
+        onOpenChange={(open) =>
+          open ? handleOpenModal("dailyCare") : handleCloseModal("dailyCare")
+        }
         residentId={r.id}
         nursingHomeId={r.facilityId || operationalContext.nursingHomeId}
         wardId={operationalContext.wardIds[0]}
@@ -3289,26 +4076,48 @@ function ResidentDetail() {
         residentId={r.id}
       />
 
-      <Dialog open={Boolean(scheduleToDelete)} onOpenChange={(open) => { if (!open) setScheduleToDelete(null); }}>
+      <Dialog
+        open={Boolean(scheduleToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setScheduleToDelete(null);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Scheduled Task</DialogTitle>
             <DialogDescription>
-              Delete the schedule for {scheduleToDelete?.name || "this Care Action"}? The Care Action itself will remain available.
+              Delete the schedule for {scheduleToDelete?.name || "this Care Action"}? The Care
+              Action itself will remain available.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label>Reason for deletion *</Label>
-            <Textarea value={scheduleDeleteReason} onChange={(event) => setScheduleDeleteReason(event.target.value)} placeholder="Enter the reason for deleting this scheduled task" />
+            <Textarea
+              value={scheduleDeleteReason}
+              onChange={(event) => setScheduleDeleteReason(event.target.value)}
+              placeholder="Enter the reason for deleting this scheduled task"
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleToDelete(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={!scheduleDeleteReason.trim()} onClick={() => {
-              if (!scheduleToDelete) return;
-              updateProblemIntervention(scheduleToDelete.id, { isScheduled: false }, scheduleDeleteReason.trim());
-              toast.success("Scheduled task deleted");
-              setScheduleToDelete(null);
-            }}>Delete Scheduled Task</Button>
+            <Button variant="outline" onClick={() => setScheduleToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!scheduleDeleteReason.trim()}
+              onClick={() => {
+                if (!scheduleToDelete) return;
+                updateProblemIntervention(
+                  scheduleToDelete.id,
+                  { isScheduled: false },
+                  scheduleDeleteReason.trim(),
+                );
+                toast.success("Scheduled task deleted");
+                setScheduleToDelete(null);
+              }}
+            >
+              Delete Scheduled Task
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3421,11 +4230,7 @@ function ResidentDetail() {
             <div className="space-y-4">
               {rolePermissions.canEdit && (
                 <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={openEditProblemDialog}
-                  >
+                  <Button size="sm" variant="outline" onClick={openEditProblemDialog}>
                     Edit Care Plan
                   </Button>
                 </div>
@@ -3435,7 +4240,10 @@ function ResidentDetail() {
                   <CardTitle className="text-base">Nursing Care Plan</CardTitle>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-2 text-sm">
-                  <Row label="Care Plan Name" value={selectedProblem.carePlanName || selectedProblem.problemStatement} />
+                  <Row
+                    label="Care Plan Name"
+                    value={selectedProblem.carePlanName || selectedProblem.problemStatement}
+                  />
                   <Row label="Risk level" value={selectedProblem.riskLevel.replace(/_/g, " ")} />
                   <Row label="Created by" value={selectedProblem.createdBy} />
                   <Row label="Created on" value={selectedProblem.createdAt.slice(0, 10)} />
@@ -3449,7 +4257,9 @@ function ResidentDetail() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="whitespace-pre-wrap text-sm">
-                    {selectedProblemGoals.find((goal) => goal.status === "active")?.statement || selectedProblem.notes || "No care plan aim or goal recorded."}
+                    {selectedProblemGoals.find((goal) => goal.status === "active")?.statement ||
+                      selectedProblem.notes ||
+                      "No care plan aim or goal recorded."}
                   </p>
                 </CardContent>
               </Card>
@@ -3468,87 +4278,183 @@ function ResidentDetail() {
                     </Button>
                   </div>
                   {selectedProblemInterventions.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No care actions have been added.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No care actions have been added.
+                    </p>
                   )}
                   {selectedCareActionHeadings.map((intv) => {
                     const childScheduledTasks = selectedProblemInterventions.filter(
                       (task) => task.parentInterventionId === intv.id,
                     );
-                    const legacyScheduledTaskCount = rTasks.filter((task) => task.linkedInterventionId === intv.id && task.status !== "deleted").length;
-                    const ownScheduledTaskCount = Math.max(intv.isScheduled ? 1 : 0, legacyScheduledTaskCount);
+                    const legacyScheduledTaskCount = rTasks.filter(
+                      (task) => task.linkedInterventionId === intv.id && task.status !== "deleted",
+                    ).length;
+                    const ownScheduledTaskCount = Math.max(
+                      intv.isScheduled ? 1 : 0,
+                      legacyScheduledTaskCount,
+                    );
                     const scheduledTaskCount = childScheduledTasks.length + ownScheduledTaskCount;
-                    return <details key={intv.id} className="rounded-md border">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
-                        <div className="min-w-0">
-                          <div className="font-medium">{intv.name}</div>
-                          {(intv.description || intv.notes) && (
-                            <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                              {intv.description || intv.notes}
+                    return (
+                      <details key={intv.id} className="rounded-md border">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                          <div className="min-w-0">
+                            <div className="font-medium">{intv.name}</div>
+                            {(intv.description || intv.notes) && (
+                              <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                                {intv.description || intv.notes}
+                              </div>
+                            )}
+                            {scheduledTaskCount > 0 && (
+                              <div className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                                ({scheduledTaskCount} scheduled task
+                                {scheduledTaskCount === 1 ? "" : "s"})
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Badge variant="outline" className="text-[10px]">
+                              {intv.status.replace(/_/g, " ")}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                handleEditIntervention(intv);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                        </summary>
+                        <div className="space-y-3 border-t p-3 text-sm">
+                          <div>
+                            <div className="text-xs font-medium text-muted-foreground">
+                              Care action details
                             </div>
-                          )}
-                          {scheduledTaskCount > 0 && <div className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                            ({scheduledTaskCount} scheduled task{scheduledTaskCount === 1 ? "" : "s"})
-                          </div>}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Badge variant="outline" className="text-[10px]">
-                            {intv.status.replace(/_/g, " ")}
-                          </Badge>
-                          <Button size="sm" variant="outline" onClick={(event) => { event.preventDefault(); handleEditIntervention(intv); }}>
-                            Edit
-                          </Button>
-                        </div>
-                      </summary>
-                      <div className="space-y-3 border-t p-3 text-sm">
-                        <div>
-                          <div className="text-xs font-medium text-muted-foreground">Care action details</div>
-                          <p className="mt-1 whitespace-pre-wrap">{intv.description || intv.notes || "No additional instructions recorded."}</p>
-                        </div>
-                        <div className="grid gap-2 text-xs sm:grid-cols-3">
-                          <span>Assigned: {intv.assignedStaffName || intv.assignedRole || "Unassigned"}</span>
-                          {intv.isScheduled && <span>Start: {intv.startDate}{intv.startTime ? ` at ${intv.startTime}` : ""}</span>}
-                          <span>Review: {intv.reviewDate || "Not set"}</span>
-                        </div>
+                            <p className="mt-1 whitespace-pre-wrap">
+                              {intv.description ||
+                                intv.notes ||
+                                "No additional instructions recorded."}
+                            </p>
+                          </div>
+                          <div className="grid gap-2 text-xs sm:grid-cols-3">
+                            <span>
+                              Assigned:{" "}
+                              {intv.assignedStaffName || intv.assignedRole || "Unassigned"}
+                            </span>
+                            {intv.isScheduled && (
+                              <span>
+                                Start: {intv.startDate}
+                                {intv.startTime ? ` at ${intv.startTime}` : ""}
+                              </span>
+                            )}
+                            <span>Review: {intv.reviewDate || "Not set"}</span>
+                          </div>
                           <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
                             <div className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
                               <Calendar className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                               Scheduled Tasks
                             </div>
-                          <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">Tasks listed here belong to this care action heading.</p>
-                          {childScheduledTasks.map((task) => (
-                            <div key={task.id} className="mt-3 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900">
-                              <div>
-                                <div className="text-base font-semibold text-slate-800 dark:text-slate-100">{task.name}</div>
-                                <div className="mt-1 text-slate-600 dark:text-slate-300">{task.frequencyType.replace(/_/g, " ")} · {task.startDate}{task.startTime ? ` at ${task.startTime}` : ""}</div>
+                            <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+                              Tasks listed here belong to this care action heading.
+                            </p>
+                            {childScheduledTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="mt-3 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                              >
+                                <div>
+                                  <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                                    {task.name}
+                                  </div>
+                                  <div className="mt-1 text-slate-600 dark:text-slate-300">
+                                    {task.frequencyType.replace(/_/g, " ")} · {task.startDate}
+                                    {task.startTime ? ` at ${task.startTime}` : ""}
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-10 px-3 font-semibold"
+                                    onClick={() => handleEditIntervention(task)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-10 w-10 text-destructive"
+                                    title="Delete scheduled task"
+                                    onClick={() => {
+                                      setScheduleToDelete(task);
+                                      setScheduleDeleteReason("");
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <Button size="sm" variant="outline" className="min-h-10 px-3 font-semibold" onClick={() => handleEditIntervention(task)}>Edit</Button>
-                                <Button size="icon" variant="outline" className="h-10 w-10 text-destructive" title="Delete scheduled task" onClick={() => { setScheduleToDelete(task); setScheduleDeleteReason(""); }}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                            ))}
+                            {ownScheduledTaskCount > 0 && (
+                              <div className="mt-2 flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs">
+                                <span>{intv.frequencyType.replace(/_/g, " ")} schedule</span>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setSelectedIntervention(intv);
+                                      setSelectedCareActionId(intv.id);
+                                      setModalState((prev) => ({ ...prev, intervention: true }));
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    title="Delete scheduled task"
+                                    onClick={() => {
+                                      setScheduleToDelete(intv);
+                                      setScheduleDeleteReason("");
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                          {ownScheduledTaskCount > 0 && <div className="mt-2 flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs">
-                            <span>{intv.frequencyType.replace(/_/g, " ")} schedule</span>
-                            <div className="flex items-center gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>Edit</Button>
-                              <Button size="icon" variant="ghost" title="Delete scheduled task" onClick={() => { setScheduleToDelete(intv); setScheduleDeleteReason(""); }}>
-                                <Trash2 className="h-4 w-4" />
+                            )}
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedIntervention(null);
+                                  setPresetInterventionProblemId(selectedProblem.id);
+                                  setSelectedCareActionId(intv.id);
+                                  setModalState((prev) => ({ ...prev, intervention: true }));
+                                }}
+                              >
+                                Add Schedule Task
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedIntervention(intv);
+                                  setSelectedCareActionId(intv.id);
+                                  setModalState((prev) => ({ ...prev, intervention: true }));
+                                }}
+                              >
+                                Edit Schedule
                               </Button>
                             </div>
-                          </div>}
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(null); setPresetInterventionProblemId(selectedProblem.id); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
-                              Add Schedule Task
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedIntervention(intv); setSelectedCareActionId(intv.id); setModalState((prev) => ({ ...prev, intervention: true })); }}>
-                              Edit Schedule
-                            </Button>
                           </div>
                         </div>
-                      </div>
-                    </details>;
+                      </details>
+                    );
                   })}
                 </CardContent>
               </Card>
@@ -3599,19 +4505,25 @@ function ResidentDetail() {
                     .map((note) => (
                       <details key={note.id} className="rounded-md border p-2 text-sm">
                         <summary className="cursor-pointer list-none">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{new Date(note.date).toLocaleString("en-GB")}</span>
-                          <Badge variant="outline" className="text-[10px] capitalize">
-                            {note.shift}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{note.staff}</span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-sm">
-                          {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
-                        </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">
+                              {new Date(note.date).toLocaleString("en-GB")}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] capitalize">
+                              {note.shift}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{note.staff}</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm">
+                            {[note.observation, note.behaviour, note.additionalNotes]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </p>
                         </summary>
                         <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">
-                          {[note.observation, note.behaviour, note.additionalNotes].filter(Boolean).join(" ")}
+                          {[note.observation, note.behaviour, note.additionalNotes]
+                            .filter(Boolean)
+                            .join(" ")}
                         </p>
                       </details>
                     ))}
@@ -3740,9 +4652,8 @@ function ResidentDetail() {
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">
-                Use Archived / Inactive to remove a plan from active care. Use Entered in
-                Error / Delete only when the record should be hidden from active use but
-                retained for audit.
+                Use Archived / Inactive to remove a plan from active care. Use Entered in Error /
+                Delete only when the record should be hidden from active use but retained for audit.
               </p>
             </div>
             <div className="md:col-span-2">
@@ -4102,7 +5013,8 @@ function EditOverviewDialog({
   onSave: (patch: Partial<Resident>) => void;
 }) {
   const [draft, setDraft] = useState(() => overviewDraft(resident));
-  const update = (patch: Partial<OverviewDraft>) => setDraft((current) => ({ ...current, ...patch }));
+  const update = (patch: Partial<OverviewDraft>) =>
+    setDraft((current) => ({ ...current, ...patch }));
 
   const save = () => {
     onSave({
@@ -4117,21 +5029,25 @@ function EditOverviewDialog({
       communicationNeeds: draft.communicationNeeds.trim(),
       religion: draft.religion.trim(),
       preferredLanguage: draft.preferredLanguage.trim(),
-      bed: draft.bedType || draft.mattressType || draft.installationDate || draft.reviewDate
-        ? {
-            bedType: (draft.bedType || "standard") as NonNullable<Resident["bed"]>["bedType"],
-            mattressType: (draft.mattressType || "foam") as NonNullable<Resident["bed"]>["mattressType"],
-            installationDate: draft.installationDate,
-            reviewDate: draft.reviewDate,
-          }
-        : undefined,
-      keyWorkers: draft.namedNurse || draft.namedCarer || draft.keyWorker
-        ? {
-            namedNurse: draft.namedNurse.trim(),
-            namedCarer: draft.namedCarer.trim(),
-            keyWorker: draft.keyWorker.trim(),
-          }
-        : undefined,
+      bed:
+        draft.bedType || draft.mattressType || draft.installationDate || draft.reviewDate
+          ? {
+              bedType: (draft.bedType || "standard") as NonNullable<Resident["bed"]>["bedType"],
+              mattressType: (draft.mattressType || "foam") as NonNullable<
+                Resident["bed"]
+              >["mattressType"],
+              installationDate: draft.installationDate,
+              reviewDate: draft.reviewDate,
+            }
+          : undefined,
+      keyWorkers:
+        draft.namedNurse || draft.namedCarer || draft.keyWorker
+          ? {
+              namedNurse: draft.namedNurse.trim(),
+              namedCarer: draft.namedCarer.trim(),
+              keyWorker: draft.keyWorker.trim(),
+            }
+          : undefined,
     });
     onOpenChange(false);
   };
@@ -4147,20 +5063,40 @@ function EditOverviewDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Overview Details</DialogTitle>
-          <DialogDescription>All fields are optional and can be completed over time.</DialogDescription>
+          <DialogDescription>
+            All fields are optional and can be completed over time.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-5">
           <OverviewSection title="Clinical">
-            <Field label="Primary diagnosis" value={draft.primaryDiagnosis} onChange={(v) => update({ primaryDiagnosis: v })} />
-            <Field label="Known allergies" value={draft.allergies} onChange={(v) => update({ allergies: v })} />
+            <Field
+              label="Primary diagnosis"
+              value={draft.primaryDiagnosis}
+              onChange={(v) => update({ primaryDiagnosis: v })}
+            />
+            <Field
+              label="Known allergies"
+              value={draft.allergies}
+              onChange={(v) => update({ allergies: v })}
+            />
             <div className="md:col-span-2">
               <Label>Medical history</Label>
-              <Textarea value={draft.medicalHistory} onChange={(e) => update({ medicalHistory: e.target.value })} />
+              <Textarea
+                value={draft.medicalHistory}
+                onChange={(e) => update({ medicalHistory: e.target.value })}
+              />
             </div>
             <div>
               <Label>Mental capacity</Label>
-              <Select value={draft.mentalCapacity} onValueChange={(value) => update({ mentalCapacity: value as Resident["mentalCapacity"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={draft.mentalCapacity}
+                onValueChange={(value) =>
+                  update({ mentalCapacity: value as Resident["mentalCapacity"] })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="has_capacity">Has capacity</SelectItem>
                   <SelectItem value="lacks_capacity">Lacks capacity</SelectItem>
@@ -4171,33 +5107,100 @@ function EditOverviewDialog({
             </div>
             <div className="md:col-span-2">
               <Label>Medication</Label>
-              <Textarea value={draft.currentMedication} onChange={(e) => update({ currentMedication: e.target.value })} />
+              <Textarea
+                value={draft.currentMedication}
+                onChange={(e) => update({ currentMedication: e.target.value })}
+              />
             </div>
           </OverviewSection>
           <OverviewSection title="Bed Management">
-            <OverviewSelect label="Bed type" value={draft.bedType} onChange={(v) => update({ bedType: v as any })} options={[["standard","Standard"],["low","Low"],["profiling","Profiling"],["bariatric","Bariatric"]]} />
-            <OverviewSelect label="Mattress" value={draft.mattressType} onChange={(v) => update({ mattressType: v as any })} options={[["foam","Foam"],["dynamic","Dynamic"],["air_mattress","Air Mattress"],["pressure_relieving","Pressure-relieving mattress"]]} />
-            <Field label="Installed date" type="date" value={draft.installationDate} onChange={(v) => update({ installationDate: v })} />
-            <Field label="Review date" type="date" value={draft.reviewDate} onChange={(v) => update({ reviewDate: v })} />
+            <OverviewSelect
+              label="Bed type"
+              value={draft.bedType}
+              onChange={(v) => update({ bedType: v as any })}
+              options={[
+                ["standard", "Standard"],
+                ["low", "Low"],
+                ["profiling", "Profiling"],
+                ["bariatric", "Bariatric"],
+              ]}
+            />
+            <OverviewSelect
+              label="Mattress"
+              value={draft.mattressType}
+              onChange={(v) => update({ mattressType: v as any })}
+              options={[
+                ["foam", "Foam"],
+                ["dynamic", "Dynamic"],
+                ["air_mattress", "Air Mattress"],
+                ["pressure_relieving", "Pressure-relieving mattress"],
+              ]}
+            />
+            <Field
+              label="Installed date"
+              type="date"
+              value={draft.installationDate}
+              onChange={(v) => update({ installationDate: v })}
+            />
+            <Field
+              label="Review date"
+              type="date"
+              value={draft.reviewDate}
+              onChange={(v) => update({ reviewDate: v })}
+            />
           </OverviewSection>
           <OverviewSection title="Key Workers">
-            <Field label="Named Nurse" value={draft.namedNurse} onChange={(v) => update({ namedNurse: v })} />
-            <Field label="Named Carer" value={draft.namedCarer} onChange={(v) => update({ namedCarer: v })} />
-            <Field label="Key Worker" value={draft.keyWorker} onChange={(v) => update({ keyWorker: v })} />
+            <Field
+              label="Named Nurse"
+              value={draft.namedNurse}
+              onChange={(v) => update({ namedNurse: v })}
+            />
+            <Field
+              label="Named Carer"
+              value={draft.namedCarer}
+              onChange={(v) => update({ namedCarer: v })}
+            />
+            <Field
+              label="Key Worker"
+              value={draft.keyWorker}
+              onChange={(v) => update({ keyWorker: v })}
+            />
           </OverviewSection>
           <OverviewSection title="GP / Consultant">
             <Field label="GP" value={draft.gp} onChange={(v) => update({ gp: v })} />
-            <Field label="Consultant" value={draft.consultant} onChange={(v) => update({ consultant: v })} />
-            <Field label="Emergency contact" value={draft.emergencyContact} onChange={(v) => update({ emergencyContact: v })} />
+            <Field
+              label="Consultant"
+              value={draft.consultant}
+              onChange={(v) => update({ consultant: v })}
+            />
+            <Field
+              label="Emergency contact"
+              value={draft.emergencyContact}
+              onChange={(v) => update({ emergencyContact: v })}
+            />
           </OverviewSection>
           <OverviewSection title="Preferences">
-            <Field label="Communication" value={draft.communicationNeeds} onChange={(v) => update({ communicationNeeds: v })} />
-            <Field label="Religion" value={draft.religion} onChange={(v) => update({ religion: v })} />
-            <Field label="Preferred language" value={draft.preferredLanguage} onChange={(v) => update({ preferredLanguage: v })} />
+            <Field
+              label="Communication"
+              value={draft.communicationNeeds}
+              onChange={(v) => update({ communicationNeeds: v })}
+            />
+            <Field
+              label="Religion"
+              value={draft.religion}
+              onChange={(v) => update({ religion: v })}
+            />
+            <Field
+              label="Preferred language"
+              value={draft.preferredLanguage}
+              onChange={(v) => update({ preferredLanguage: v })}
+            />
           </OverviewSection>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button onClick={save}>Save details</Button>
         </DialogFooter>
       </DialogContent>
@@ -4208,7 +5211,9 @@ function EditOverviewDialog({
 function OverviewSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
       <div className="grid md:grid-cols-2 gap-3">{children}</div>
     </section>
   );
@@ -4248,9 +5253,15 @@ function OverviewSelect({
     <div>
       <Label>{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+        <SelectTrigger>
+          <SelectValue placeholder="Not recorded" />
+        </SelectTrigger>
         <SelectContent>
-          {options.map(([optionValue, label]) => <SelectItem key={optionValue} value={optionValue}>{label}</SelectItem>)}
+          {options.map(([optionValue, label]) => (
+            <SelectItem key={optionValue} value={optionValue}>
+              {label}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     </div>
@@ -4290,7 +5301,17 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OverviewCard({ title, icon, onEdit, children }: { title: string; icon: ReactNode; onEdit?: () => void; children: ReactNode }) {
+function OverviewCard({
+  title,
+  icon,
+  onEdit,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  onEdit?: () => void;
+  children: ReactNode;
+}) {
   return (
     <Card className="border-border shadow-sm">
       <CardHeader className="flex min-h-16 flex-row items-center justify-between gap-3 border-b pb-3">
@@ -4298,14 +5319,30 @@ function OverviewCard({ title, icon, onEdit, children }: { title: string; icon: 
           {icon}
           {title}
         </CardTitle>
-        {onEdit && <Button size="sm" variant="outline" className="min-h-11" onClick={onEdit}>Edit</Button>}
+        {onEdit && (
+          <Button size="sm" variant="outline" className="min-h-11" onClick={onEdit}>
+            Edit
+          </Button>
+        )}
       </CardHeader>
-      <CardContent className="grid gap-x-6 gap-y-4 pt-5 text-base sm:grid-cols-2">{children}</CardContent>
+      <CardContent className="grid gap-x-6 gap-y-4 pt-5 text-base sm:grid-cols-2">
+        {children}
+      </CardContent>
     </Card>
   );
 }
 
-function OverviewField({ label, value, wide = false, emphasis = false }: { label: string; value?: string; wide?: boolean; emphasis?: boolean }) {
+function OverviewField({
+  label,
+  value,
+  wide = false,
+  emphasis = false,
+}: {
+  label: string;
+  value?: string;
+  wide?: boolean;
+  emphasis?: boolean;
+}) {
   if (!value?.trim()) return null;
   return (
     <div className={wide ? "sm:col-span-2" : undefined}>

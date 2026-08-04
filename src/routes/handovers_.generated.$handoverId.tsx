@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GeneratedHandoverView } from "@/components/care/GeneratedHandover";
+import { ManagedGeneratedHandoverView } from "@/components/care/ManagedGeneratedHandover";
 
 export const Route = createFileRoute("/handovers_/generated/$handoverId")({
   head: () => ({ meta: [{ title: "Generated Handover — CarePath" }] }),
@@ -8,5 +8,5 @@ export const Route = createFileRoute("/handovers_/generated/$handoverId")({
 
 function Page() {
   const { handoverId } = Route.useParams();
-  return <GeneratedHandoverView handoverId={handoverId} />;
+  return <ManagedGeneratedHandoverView handoverId={handoverId} />;
 }
