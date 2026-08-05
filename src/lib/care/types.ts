@@ -3847,7 +3847,15 @@ export interface SafetyInspectionVerification {
   version: number;
 }
 
-export type HousekeepingCleaningType = "ROUTINE" | "DEEP" | "ENHANCED" | "TERMINAL";
+export type HousekeepingCleaningType =
+  | "ROUTINE"
+  | "DEEP"
+  | "ENHANCED"
+  | "TERMINAL"
+  | "ROOM_READINESS"
+  | "EQUIPMENT"
+  | "SPILL_RESPONSE"
+  | "QUALITY_INSPECTION";
 export type HousekeepingTemplateStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
 export type HousekeepingChecklistResponseType =
   | "PASS_FAIL"
@@ -3949,6 +3957,9 @@ export interface HousekeepingTemplate {
   description?: string;
   cleaningType: HousekeepingCleaningType;
   applicableLocationTypes?: string[];
+  defaultLocationId?: string;
+  defaultAssignedUserId?: string;
+  defaultAssignedTeamId?: string;
   applicableRoomTypes?: string[];
   estimatedDurationMinutes: number;
   defaultFrequencyType: PlannedMaintenanceFrequencyType;
@@ -3961,6 +3972,10 @@ export interface HousekeepingTemplate {
   roomReadinessRequired: boolean;
   verificationRequired: boolean;
   supervisorSignOffRequired: boolean;
+  highRisk?: boolean;
+  markAllCompleteDisabled?: boolean;
+  commentsRequiredForFailures?: boolean;
+  correctiveActionRequiredForFailures?: boolean;
   instructions?: string;
   safetyPrecautions?: string;
   active: boolean;
@@ -3999,6 +4014,9 @@ export interface HousekeepingTemplateItem {
   failureRequiresObservation: boolean;
   failureRequiresPhoto: boolean;
   failureRequiresException: boolean;
+  supervisorApprovalRequired?: boolean;
+  highRisk?: boolean;
+  bulkCompletionEligible?: boolean;
   failureSeverity: HousekeepingSeverity;
   displayOrder: number;
   helpText?: string;
@@ -4080,6 +4098,15 @@ export interface HousekeepingTask {
   overallResult: HousekeepingResult;
   completionNotes?: string;
   cleanerDeclarationAccepted?: boolean;
+  supervisorSignOffRequired?: boolean;
+  supervisorSignedOffBy?: string;
+  supervisorSignedOffAt?: string;
+  supervisorSignOffResult?: "APPROVED" | "REJECTED" | "REINSPECTION_REQUIRED";
+  supervisorComment?: string;
+  markAllCompleteUsed?: boolean;
+  markAllCompleteBy?: string;
+  markAllCompleteAt?: string;
+  markAllCompleteConfirmationText?: string;
   version: number;
   createdBy: string;
   createdAt: string;
@@ -4107,6 +4134,10 @@ export interface HousekeepingTaskResponse {
   failureRequiresPhoto: boolean;
   failureRequiresException: boolean;
   notApplicableReasonRequired: boolean;
+  allowNotApplicable?: boolean;
+  supervisorApprovalRequired?: boolean;
+  highRisk?: boolean;
+  bulkCompletionEligible?: boolean;
 }
 
 export interface HousekeepingEvidence {

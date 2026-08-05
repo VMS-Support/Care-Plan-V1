@@ -327,6 +327,7 @@ import {
 import {
   createHousekeepingResponsesFromTemplate,
   evaluateHousekeepingTask,
+  markAllHousekeepingResponses,
   nextHousekeepingDueDate,
   responseResultFromHousekeepingValue,
   validateHousekeepingSchedule,
@@ -3075,7 +3076,7 @@ function seedHousekeepingData() {
   const templates: HousekeepingTemplate[] = [
     housekeepingTemplate(
       "hk-template-routine-bedroom",
-      "Routine Bedroom Cleaning",
+      "Daily Resident Bedroom Clean",
       "HK-ROUTINE-BEDROOM",
       "ROUTINE",
       "Daily bedroom and bathroom cleaning.",
@@ -3088,7 +3089,7 @@ function seedHousekeepingData() {
     ),
     housekeepingTemplate(
       "hk-template-deep-bedroom",
-      "Bedroom Deep Clean",
+      "Weekly Resident Bedroom Deep Clean",
       "HK-DEEP-BEDROOM",
       "DEEP",
       "Full bedroom deep clean with photo evidence.",
@@ -3101,7 +3102,7 @@ function seedHousekeepingData() {
     ),
     housekeepingTemplate(
       "hk-template-enhanced-touchpoints",
-      "Enhanced High-Touch Cleaning",
+      "Isolation or Outbreak Enhanced Clean",
       "HK-ENHANCED-TOUCH",
       "ENHANCED",
       "Additional high-touch cleaning for elevated environmental risk.",
@@ -3114,7 +3115,7 @@ function seedHousekeepingData() {
     ),
     housekeepingTemplate(
       "hk-template-terminal-room",
-      "Terminal Room Cleaning",
+      "Discharge / Transfer / Terminal Clean",
       "HK-TERMINAL-ROOM",
       "TERMINAL",
       "Terminal cleaning before a room is returned to service.",
@@ -3126,6 +3127,130 @@ function seedHousekeepingData() {
       true,
     ),
   ];
+  const additionalTemplateDefinitions: Array<
+    [
+      string,
+      string,
+      HousekeepingCleaningType,
+      string,
+      PlannedMaintenanceFrequencyType,
+      boolean,
+      boolean,
+    ]
+  > = [
+    [
+      "ensuite",
+      "Resident Ensuite / Bathroom Clean",
+      "ROUTINE",
+      "Resident Ensuite",
+      "daily",
+      false,
+      false,
+    ],
+    [
+      "communal-bathroom",
+      "Communal Bathroom / Toilet",
+      "ROUTINE",
+      "Communal Bathroom",
+      "daily",
+      false,
+      false,
+    ],
+    [
+      "dining",
+      "Dining Room — Before and After Meals",
+      "ROUTINE",
+      "Dining Room",
+      "daily",
+      false,
+      false,
+    ],
+    [
+      "lounge",
+      "Lounge and Communal Areas",
+      "ROUTINE",
+      "Lounge / Communal Area",
+      "daily",
+      false,
+      false,
+    ],
+    [
+      "corridors",
+      "Corridors, Reception and Entrances",
+      "ROUTINE",
+      "Corridor / Reception / Entrance",
+      "daily",
+      false,
+      false,
+    ],
+    [
+      "readiness",
+      "Room Readiness / New Admission",
+      "ROOM_READINESS",
+      "Resident Bedroom",
+      "custom_days",
+      false,
+      true,
+    ],
+    [
+      "sluice",
+      "Sluice / Dirty Utility Room",
+      "ROUTINE",
+      "Sluice / Dirty Utility",
+      "daily",
+      false,
+      false,
+    ],
+    ["laundry", "Laundry Room", "ROUTINE", "Laundry Room", "daily", false, false],
+    ["equipment", "Shared Equipment Cleaning", "EQUIPMENT", "Equipment", "daily", false, false],
+    [
+      "spill",
+      "Body-Fluid Spill Response",
+      "SPILL_RESPONSE",
+      "Configurable",
+      "custom_days",
+      true,
+      true,
+    ],
+    [
+      "quality",
+      "Housekeeping Quality Inspection",
+      "QUALITY_INSPECTION",
+      "Whole Nursing Home / Selected Areas",
+      "weekly",
+      true,
+      true,
+    ],
+  ];
+  additionalTemplateDefinitions.forEach(
+    ([key, name, type, location, frequency, highRisk, signOff]) => {
+      const template = housekeepingTemplate(
+        `hk-template-${key}`,
+        name,
+        `HK-${key.toUpperCase()}`,
+        type,
+        `${name} reusable cleaning checklist.`,
+        frequency,
+        1,
+        45,
+        name.includes("Readiness") || highRisk,
+        signOff,
+        name.includes("Readiness"),
+      );
+      template.applicableLocationTypes = [location];
+      template.highRisk = highRisk;
+      template.markAllCompleteDisabled = highRisk;
+      template.supervisorSignOffRequired = signOff;
+      templates.push(template);
+    },
+  );
+  templates.find((item) => item.name === "Isolation or Outbreak Enhanced Clean")!.highRisk = true;
+  templates.find(
+    (item) => item.name === "Isolation or Outbreak Enhanced Clean",
+  )!.markAllCompleteDisabled = true;
+  templates.find(
+    (item) => item.name === "Discharge / Transfer / Terminal Clean",
+  )!.supervisorSignOffRequired = true;
   const sections: HousekeepingTemplateSection[] = [];
   const items: HousekeepingTemplateItem[] = [];
   const addSection = (templateId: string, name: string, order: number) => {
@@ -6717,6 +6842,15 @@ interface CareCtx extends Store {
       observation?: string;
       notApplicableReason?: string;
     },
+  ) => void;
+  markAllHousekeepingTaskResponses: (
+    taskId: string,
+    confirmationText: string,
+  ) => { completed: number; restricted: string[] };
+  signOffHousekeepingTask: (
+    taskId: string,
+    result: "APPROVED" | "REJECTED" | "REINSPECTION_REQUIRED",
+    comment?: string,
   ) => void;
   addHousekeepingEvidence: (input: {
     taskId?: string;
@@ -14564,6 +14698,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
           safetyPrecautions: input.safetyPrecautions?.trim() || "",
           applicableAssetCategoryIds: input.applicableAssetCategoryIds || [],
           applicableLocationTypes: input.applicableLocationTypes || [],
+          defaultLocationId: input.defaultLocationId,
+          defaultAssignedUserId: input.defaultAssignedUserId,
+          defaultAssignedTeamId: input.defaultAssignedTeamId,
           effectiveFrom: input.effectiveFrom || new Date().toISOString().slice(0, 10),
           effectiveTo: input.effectiveTo,
           createdBy: currentUserName,
@@ -17802,6 +17939,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }));
       },
       createHousekeepingTemplate: (input) => {
+        if (input.items && (!input.items.length || input.items.some((item) => !item.label?.trim()))) throw new Error("Add at least one named checklist item.");
+        const itemNames = (input.items || []).map((item) => item.label?.trim().toLowerCase()).filter(Boolean);
+        if (new Set(itemNames).size !== itemNames.length) throw new Error("Checklist item names must be unique within a template.");
         const validation = validateHousekeepingTemplate(input);
         if (!validation.valid)
           throw new Error(
@@ -17832,6 +17972,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
           roomReadinessRequired: Boolean(input.roomReadinessRequired),
           verificationRequired: Boolean(input.verificationRequired),
           supervisorSignOffRequired: Boolean(input.supervisorSignOffRequired),
+          highRisk: Boolean(input.highRisk),
+          markAllCompleteDisabled: Boolean(input.markAllCompleteDisabled || input.highRisk),
+          commentsRequiredForFailures: input.commentsRequiredForFailures ?? true,
+          correctiveActionRequiredForFailures: Boolean(input.correctiveActionRequiredForFailures),
           instructions: input.instructions,
           safetyPrecautions: input.safetyPrecautions,
           active: input.active ?? input.status === "ACTIVE",
@@ -17883,6 +18027,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
               failureRequiresObservation: item.failureRequiresObservation ?? true,
               failureRequiresPhoto: item.failureRequiresPhoto ?? false,
               failureRequiresException: item.failureRequiresException ?? false,
+              supervisorApprovalRequired: item.supervisorApprovalRequired ?? false,
+              highRisk: item.highRisk ?? false,
+              bulkCompletionEligible: item.bulkCompletionEligible ?? true,
               failureSeverity: item.failureSeverity || "MEDIUM",
               displayOrder: index + 1,
               helpText: item.helpText,
@@ -17937,8 +18084,10 @@ export function CareProvider({ children }: { children: ReactNode }) {
           items: store.housekeepingTemplateItems.filter((item) => item.templateId === id),
         });
       },
-      activateHousekeepingTemplate: (id) =>
-        api.updateHousekeepingTemplate(id, { active: true, status: "ACTIVE" }),
+      activateHousekeepingTemplate: (id) => {
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, housekeepingTemplates: s.housekeepingTemplates.map((item) => item.id === id ? { ...item, active: true, status: "ACTIVE", archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: now } : item) }));
+      },
       deactivateHousekeepingTemplate: (id) =>
         api.updateHousekeepingTemplate(id, { active: false, status: "INACTIVE" }),
       archiveHousekeepingTemplate: (id, reason) => {
@@ -18131,6 +18280,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           photoEvidenceRequired: template.photoEvidenceRequired,
           minimumPhotoCount: template.minimumPhotoCount,
           verificationRequired: template.verificationRequired,
+          supervisorSignOffRequired: template.supervisorSignOffRequired,
           overallResult: "NOT_COMPLETED",
           cleanerDeclarationAccepted: false,
           version: 1,
@@ -18237,6 +18387,90 @@ export function CareProvider({ children }: { children: ReactNode }) {
               : item,
           ),
         })),
+      markAllHousekeepingTaskResponses: (taskId, confirmationText) => {
+        if (confirmationText !== "I confirm all listed tasks have been completed.")
+          throw new Error("Confirm that all listed tasks have been completed.");
+        const task = store.housekeepingTasks.find((item) => item.id === taskId);
+        if (!task) throw new Error("Housekeeping task not found.");
+        const template = store.housekeepingTemplates.find((item) => item.id === task.templateId);
+        if (!template) throw new Error("Cleaning template not found.");
+        const now = new Date().toISOString();
+        const currentResponses = store.housekeepingTaskResponses.filter(
+          (item) => item.taskId === taskId,
+        );
+        const result = markAllHousekeepingResponses({
+          template,
+          responses: currentResponses,
+          user: currentUserName,
+          now,
+        });
+        const byId = new Map(result.responses.map((item) => [item.id, item]));
+        setStore((s) => ({
+          ...s,
+          housekeepingTaskResponses: s.housekeepingTaskResponses.map(
+            (item) => byId.get(item.id) || item,
+          ),
+          housekeepingTasks: s.housekeepingTasks.map((item) =>
+            item.id === taskId
+              ? {
+                  ...item,
+                  markAllCompleteUsed: true,
+                  markAllCompleteBy: currentUserName,
+                  markAllCompleteAt: now,
+                  markAllCompleteConfirmationText: confirmationText,
+                  updatedBy: currentUserName,
+                  updatedAt: now,
+                  version: item.version + 1,
+                }
+              : item,
+          ),
+          auditLogs: [
+            {
+              id: uid(),
+              facilityId: task.homeId,
+              user: currentUserName,
+              role: currentRole,
+              action: "Housekeeping Mark All Complete used",
+              entity: taskId,
+              entityType: "housekeeping_task",
+              timestamp: now,
+              after: JSON.stringify({ completed: result.completed, restricted: result.restricted }),
+            },
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return { completed: result.completed, restricted: result.restricted };
+      },
+      signOffHousekeepingTask: (taskId, result, comment) => {
+        const task = store.housekeepingTasks.find((item) => item.id === taskId);
+        if (!task) throw new Error("Housekeeping task not found.");
+        if (task.completedBy === currentUserName || task.startedBy === currentUserName)
+          throw new Error("You cannot sign off your own cleaning work.");
+        const now = new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          housekeepingTasks: s.housekeepingTasks.map((item) =>
+            item.id === taskId
+              ? {
+                  ...item,
+                  supervisorSignedOffBy: currentUserName,
+                  supervisorSignedOffAt: now,
+                  supervisorSignOffResult: result,
+                  supervisorComment: comment,
+                  status:
+                    result === "REINSPECTION_REQUIRED"
+                      ? "AWAITING_REINSPECTION"
+                      : result === "REJECTED"
+                        ? "FAILED"
+                        : item.status,
+                  updatedBy: currentUserName,
+                  updatedAt: now,
+                  version: item.version + 1,
+                }
+              : item,
+          ),
+        }));
+      },
       addHousekeepingEvidence: (input) => {
         const evidence: HousekeepingEvidence = {
           id: `hk-evidence-${uid()}`,
