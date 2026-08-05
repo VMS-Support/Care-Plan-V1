@@ -108,6 +108,34 @@ test("certificate-required inspections require a certificate before completion",
   assert.equal(withCertificate.canComplete, true);
 });
 
+test("failed inspection items enforce comments, photographs, immediate action and corrective work orders", () => {
+  const failed = response({
+    result: "FAIL",
+    failureRequiresObservation: true,
+    failureRequiresPhoto: true,
+    correctiveActionRequired: true,
+  });
+  const blockedObservation = observation({
+    responseId: failed.id,
+    description: "",
+    immediateActionTaken: undefined,
+    correctiveWorkOrderId: undefined,
+  });
+  const result = evaluateSafetyInspection({
+    inspection: safetyInspection({ declarationAccepted: true }),
+    responses: [failed],
+    observations: [blockedObservation],
+    evidence: [],
+    requirements: [],
+  });
+
+  assert.equal(result.canComplete, false);
+  assert.ok(result.blockers.some((item) => item.includes("Add failure comment")));
+  assert.ok(result.blockers.some((item) => item.includes("Attach failure photograph")));
+  assert.ok(result.blockers.some((item) => item.includes("Record immediate action")));
+  assert.ok(result.blockers.some((item) => item.includes("Create or link corrective Work Order")));
+});
+
 test("dashboard metrics and next due dates use shared Safety & Compliance rules", () => {
   assert.equal(nextSafetyDueDate("2026-07-22", "weekly", 2), "2026-08-05");
   assert.equal(nextSafetyDueDate("2026-07-22", "monthly", 1), "2026-08-22");
@@ -301,6 +329,8 @@ function observation(overrides: Partial<SafetyInspectionObservation> = {}): Safe
     severity: "HIGH",
     immediateActionRequired: true,
     correctiveActionRequired: true,
+    immediateActionTaken: "Isolated the panel and notified the manager.",
+    correctiveWorkOrderId: "work-order-1",
     createdBy: "Tester",
     createdAt: "2026-07-22T08:10:00.000Z",
     updatedBy: "Tester",

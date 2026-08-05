@@ -340,7 +340,7 @@ const maintenanceNav: NavItem[] = [
   },
   {
     to: "/maintenance/planned-maintenance",
-    label: "Planned Jobs",
+    label: "Planned Maintenance",
     icon: CalendarDays,
     capability: "permission.manage",
   },
@@ -348,12 +348,6 @@ const maintenanceNav: NavItem[] = [
     to: "/maintenance/assets-rooms-beds",
     label: "Assets, Rooms & Beds",
     icon: Package,
-    capability: "permission.manage",
-  },
-  {
-    to: "/maintenance/safety-compliance",
-    label: "Safety Checks",
-    icon: ShieldCheck,
     capability: "permission.manage",
   },
   {

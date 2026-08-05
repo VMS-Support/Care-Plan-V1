@@ -2577,6 +2577,8 @@ export interface MaintenanceWorkOrder {
   plannedMaintenanceScheduleId?: string;
   plannedMaintenanceTemplateId?: string;
   plannedMaintenanceOccurrenceId?: string;
+  safetyInspectionId?: string;
+  safetyInspectionResponseId?: string;
   reportedByUserId: string;
   reportedAt: string;
   reporterNameSnapshot?: string;
@@ -2733,6 +2735,11 @@ export interface PlannedMaintenanceSchedule {
   pausedAt?: string;
   pausedBy?: string;
   pauseReason?: string;
+  resumeAt?: string;
+  resumedAt?: string;
+  resumedBy?: string;
+  catchUpPolicy?: "SKIP_MISSED" | "NEXT_ONLY" | "ALL_MISSED";
+  contractorId?: string;
   frequencyType: PlannedMaintenanceFrequencyType;
   frequencyValue: number;
   generateDaysBeforeDue: number;
@@ -2761,6 +2768,21 @@ export interface PlannedMaintenanceOccurrence {
   cancelledReason?: string;
   generatedAt?: string;
   generatedBy?: string;
+  dueTime?: string;
+  templateSnapshot?: {
+    templateId: string;
+    name: string;
+    version: number;
+    description: string;
+    checklist: Array<{ id: string; label: string; mandatory: boolean; displayOrder: number }>;
+    evidenceRequirements: MaintenanceTemplateEvidenceType[];
+    certificateRequired: boolean;
+    verificationRequired: boolean;
+  };
+  responsibilitySnapshot?: { teamId: string };
+  subjectSnapshot?: { assetId: string; assetName?: string; locationLabel?: string };
+  checklistResponses?: Array<{ itemId: string; result: "PASS" | "FAIL" | "UNANSWERED"; comment?: string; answeredBy?: string; answeredAt?: string }>;
+  bulkCompletion?: { idempotencyKey: string; userId: string; userName: string; completedAt: string; confirmationText: string; eligibleCount: number; excludedCount: number };
 }
 
 export type MaintenanceAssetCondition =
@@ -3133,6 +3155,11 @@ export interface SafetyInspectionSchedule {
   pausedAt?: string;
   pausedBy?: string;
   pauseReason?: string;
+  resumeAt?: string;
+  resumedAt?: string;
+  resumedBy?: string;
+  catchUpPolicy?: "SKIP_MISSED" | "NEXT_ONLY" | "ALL_MISSED";
+  contractorId?: string;
   priority: MaintenanceWorkOrderPriority;
   autoCreateInspection: boolean;
   autoCreateCorrectiveWorkOrder: boolean;
@@ -3160,6 +3187,17 @@ export interface SafetyInspectionOccurrence {
   priority: MaintenanceWorkOrderPriority;
   assignedTeamId?: string;
   assignedUserId?: string;
+  contractorId?: string;
+  contractorComplianceSnapshot?: {
+    contractorId: string;
+    contractorName: string;
+    approvalStatus: string;
+    insuranceStatus: string;
+    certificationStatus: string;
+    tradeMatch: boolean;
+    checkedAt: string;
+    checkedBy: string;
+  };
   inspectionId?: string;
   workOrderId?: string;
   generatedAt: string;
@@ -3216,6 +3254,20 @@ export interface SafetyInspection {
   createdAt: string;
   updatedAt: string;
   version: number;
+  originalInspectionId?: string;
+  originalInspectionNumber?: string;
+  originalFailedResponseIds?: string[];
+  linkedWorkOrderIds?: string[];
+  linkedCorrectiveActionIds?: string[];
+  assignedReinspectorId?: string;
+  reinspectionDueDate?: string;
+  reinspectionStartedAt?: string;
+  reinspectionCompletedAt?: string;
+  reinspectionComments?: string;
+  furtherActionRequired?: boolean;
+  furtherWorkRequired?: string;
+  furtherWorkDueDate?: string;
+  restrictionRemainsActive?: boolean;
 }
 
 export interface SafetyInspectionResponse {
@@ -3234,6 +3286,12 @@ export interface SafetyInspectionResponse {
   failureSeverity: SafetySeverity;
   correctiveActionRequired: boolean;
   evidenceRequired: boolean;
+  failureRequiresObservation?: boolean;
+  failureRequiresPhoto?: boolean;
+  minValue?: number;
+  maxValue?: number;
+  unit?: string;
+  readingOutOfRange?: boolean;
   answeredBy?: string;
   answeredAt?: string;
   displayOrder: number;
@@ -3252,10 +3310,32 @@ export interface SafetyInspectionObservation {
   immediateActionTaken?: string;
   correctiveActionRequired: boolean;
   correctiveWorkOrderId?: string;
+  correctiveActionId?: string;
   createdBy: string;
   createdAt: string;
   updatedBy?: string;
   updatedAt?: string;
+}
+
+export interface SafetyRestriction {
+  id: string;
+  tenantId: string;
+  homeId: string;
+  inspectionId: string;
+  responseId: string;
+  subjectType: "ASSET" | "ROOM" | "BED";
+  subjectId: string;
+  restrictionType: string;
+  reason: string;
+  immediateControl: string;
+  workOrderId?: string;
+  correctiveActionId?: string;
+  appliedBy: string;
+  appliedAt: string;
+  active: boolean;
+  clearedBy?: string;
+  clearedAt?: string;
+  returnToServiceReference?: string;
 }
 
 export interface SafetyInspectionEvidence {

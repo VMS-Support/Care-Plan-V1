@@ -235,6 +235,28 @@ export function calculateNextDueDate(schedule: PlannedMaintenanceSchedule, occur
   return active?.dueDate || schedule.nextDueDate || schedule.startDate;
 }
 
+export function plannedOccurrenceSnapshot(params: {
+  schedule: PlannedMaintenanceSchedule;
+  template: MaintenanceTemplate;
+  checklist: MaintenanceTemplateChecklist[];
+  evidence: MaintenanceTemplateEvidence[];
+}) {
+  return {
+    templateSnapshot: {
+      templateId: params.template.id,
+      name: params.template.name,
+      version: 1,
+      description: params.template.description,
+      checklist: [...params.checklist].sort((a, b) => a.displayOrder - b.displayOrder).map((item) => ({ id: item.id, label: item.item, mandatory: item.mandatory, displayOrder: item.displayOrder })),
+      evidenceRequirements: params.evidence.map((item) => item.evidenceType),
+      certificateRequired: params.evidence.some((item) => item.evidenceType === "Certificate"),
+      verificationRequired: params.template.verificationRequired,
+    },
+    responsibilitySnapshot: { teamId: params.schedule.responsibleTeamId },
+    subjectSnapshot: { assetId: params.schedule.assetId, assetName: params.schedule.assetName, locationLabel: params.schedule.locationLabel },
+  } satisfies Partial<PlannedMaintenanceOccurrence>;
+}
+
 export function validateTemplateInput(input: Partial<MaintenanceTemplate> & { checklist?: Partial<MaintenanceTemplateChecklist>[]; evidence?: MaintenanceTemplateEvidenceType[] }) {
   const fieldErrors: Record<string, string> = {};
   if (!input.name?.trim()) fieldErrors.name = "Enter a template name.";

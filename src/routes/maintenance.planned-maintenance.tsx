@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -379,30 +379,46 @@ function TemplateDialog({ open, template, onOpenChange }: { open: boolean; templ
 
 function ScheduleDialog({ open, schedule, assets, templates, onOpenChange }: { open: boolean; schedule?: PlannedMaintenanceSchedule; assets: ReturnType<typeof buildPlannedMaintenanceAssets>; templates: MaintenanceTemplate[]; onOpenChange: (open: boolean) => void }) {
   const care = useCare();
-  const [step, setStep] = useState(1);
   const [form, setForm] = useState<Partial<PlannedMaintenanceSchedule>>(() => scheduleForm(schedule, templates));
-  useMemo(() => { setStep(1); setForm(scheduleForm(schedule, templates)); }, [schedule, templates]);
+  const [error, setError] = useState("");
+  useEffect(() => { if (open) { setForm(scheduleForm(schedule, templates)); setError(""); } }, [open, schedule, templates]);
   const selectedTemplate = templates.find((item) => item.id === form.templateId);
+  const selectedAsset = assets.find((item) => item.id === form.assetId);
+  const missing = [!form.assetId && "asset or location", !form.templateId && "maintenance template", !form.responsibleTeamId && "responsible team", !form.startDate && "start date"].filter(Boolean) as string[];
+  const invalidEndDate = Boolean(form.endDate && form.startDate && form.endDate < form.startDate);
   const submit = () => {
-    if (schedule) care.updatePlannedMaintenanceSchedule(schedule.id, form);
-    else care.createPlannedMaintenanceSchedule(form);
-    onOpenChange(false);
+    if (missing.length) { setError(`Complete the required fields: ${missing.join(", ")}.`); return; }
+    if (invalidEndDate) { setError("End date cannot be earlier than the start date."); return; }
+    try {
+      const next = { ...form, assetName: selectedAsset?.name, locationLabel: selectedAsset?.locationLabel, nextDueDate: form.startDate };
+      if (schedule) care.updatePlannedMaintenanceSchedule(schedule.id, next);
+      else care.createPlannedMaintenanceSchedule(next);
+      onOpenChange(false);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "Unable to save this schedule.");
+    }
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader><DialogTitle>{schedule ? "Edit Schedule" : "Schedule Builder"}</DialogTitle><DialogDescription>Step {step} of 6</DialogDescription></DialogHeader>
-        <div className="flex gap-1">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className={cn("h-1 flex-1 rounded", item <= step ? "bg-blue-600" : "bg-muted")} />)}</div>
-        {step === 1 && <Field label="Asset"><Select value={form.assetId || ""} onChange={(assetId) => setForm({ ...form, assetId })} options={assets.map((asset) => ({ value: asset.id, label: `${asset.name} - ${asset.locationLabel}` }))} /></Field>}
-        {step === 2 && <Field label="Maintenance Template"><Select value={form.templateId || ""} onChange={(templateId) => { const template = templates.find((item) => item.id === templateId); setForm({ ...form, templateId, frequencyType: template?.frequencyType, frequencyValue: template?.frequencyValue }); }} options={templates.map((template) => ({ value: template.id, label: `${template.name} - ${frequencyLabel(template.frequencyType, template.frequencyValue)} - ${template.estimatedDurationMinutes} min${template.verificationRequired ? " - Verification" : ""}` }))} /></Field>}
-        {step === 3 && <Field label="Frequency"><FrequencyInputs form={form} setForm={setForm} /></Field>}
-        {step === 4 && <Field label="Responsible Team"><Select value={form.responsibleTeamId || ""} onChange={(responsibleTeamId) => setForm({ ...form, responsibleTeamId })} options={PLANNED_MAINTENANCE_TEAMS.map((team) => ({ value: team.id, label: team.name }))} /></Field>}
-        {step === 5 && <div className="grid gap-3 md:grid-cols-3"><Field label="Start Date"><Input type="date" value={form.startDate || ""} onChange={(e) => setForm({ ...form, startDate: e.target.value, nextDueDate: e.target.value })} /></Field><Field label="End Date"><Input type="date" value={form.endDate || ""} onChange={(e) => setForm({ ...form, endDate: e.target.value || undefined })} /></Field><Field label="Generate Days Before Due"><Input type="number" value={form.generateDaysBeforeDue ?? 7} onChange={(e) => setForm({ ...form, generateDaysBeforeDue: Number(e.target.value) })} /></Field></div>}
-        {step === 6 && <div className="rounded-md border p-4 text-sm"><div className="font-semibold">Review Schedule</div><p className="mt-2">Template: {selectedTemplate?.name}</p><p>Asset: {assets.find((item) => item.id === form.assetId)?.name}</p><p>Frequency: {frequencyLabel(form.frequencyType, form.frequencyValue)}</p><p>Team: {teamLabel(form.responsibleTeamId)}</p><p>Start: {form.startDate || "Not selected"}</p><p>Generate: {form.generateDaysBeforeDue ?? 7} days before due</p></div>}
-        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="outline" disabled={step <= 1} onClick={() => setStep(step - 1)}>Back</Button>{step < 6 ? <Button onClick={() => setStep(step + 1)}>Next</Button> : <Button onClick={submit}>{schedule ? "Save Schedule" : "Create Schedule"}</Button>}</DialogFooter>
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+        <DialogHeader><DialogTitle>{schedule ? "Edit Maintenance Schedule" : "Create Maintenance Schedule"}</DialogTitle><DialogDescription>Choose what needs maintaining, how often it should happen, and who is responsible.</DialogDescription></DialogHeader>
+        {templates.length === 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>No active maintenance templates are available.</strong><p className="mt-1">Create or activate a Maintenance Template before creating a schedule.</p></div> : <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="space-y-5">
+            <section className="space-y-3 rounded-lg border p-4"><div><h3 className="font-semibold">Maintenance details</h3><p className="text-sm text-muted-foreground">Select the item or location and the work template.</p></div><Field label="Asset or location *"><Select value={form.assetId || ""} onChange={(assetId) => { setForm({ ...form, assetId }); setError(""); }} options={assets.map((asset) => ({ value: asset.id, label: `${asset.name}${asset.locationLabel ? ` — ${asset.locationLabel}` : ""}` }))} /></Field><Field label="Maintenance template *"><Select value={form.templateId || ""} onChange={(templateId) => { const template = templates.find((item) => item.id === templateId); setForm({ ...form, templateId, frequencyType: template?.frequencyType, frequencyValue: template?.frequencyValue }); setError(""); }} options={templates.map((template) => ({ value: template.id, label: template.name }))} /></Field>{selectedTemplate && <div className="rounded-md bg-muted/50 p-3 text-sm"><div>{selectedTemplate.description}</div><div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{selectedTemplate.estimatedDurationMinutes} minutes</span><span>•</span><span>{categoryLabel(selectedTemplate.category)}</span>{selectedTemplate.verificationRequired && <><span>•</span><span>Verification required</span></>}</div></div>}</section>
+            <section className="space-y-3 rounded-lg border p-4"><div><h3 className="font-semibold">Timing and responsibility</h3><p className="text-sm text-muted-foreground">The first task will be due on the start date.</p></div><div className="grid gap-3 sm:grid-cols-2"><Field label="Frequency *"><FrequencyInputs form={form} setForm={setForm} /></Field><Field label="Responsible team *"><Select value={form.responsibleTeamId || ""} onChange={(responsibleTeamId) => { setForm({ ...form, responsibleTeamId }); setError(""); }} options={PLANNED_MAINTENANCE_TEAMS.map((team) => ({ value: team.id, label: team.name }))} /></Field><Field label="Start date *"><Input type="date" value={form.startDate || ""} onChange={(e) => { setForm({ ...form, startDate: e.target.value, nextDueDate: e.target.value }); setError(""); }} /></Field><Field label="End date (optional)"><Input type="date" min={form.startDate} value={form.endDate || ""} onChange={(e) => { setForm({ ...form, endDate: e.target.value || undefined }); setError(""); }} /></Field></div>{invalidEndDate && <p className="text-sm text-destructive">End date must be on or after the start date.</p>}</section>
+            <section className="space-y-2 rounded-lg border p-4"><Field label="Prepare task this many days before it is due"><Input className="max-w-40" type="number" min={0} max={365} value={form.generateDaysBeforeDue ?? 7} onChange={(e) => setForm({ ...form, generateDaysBeforeDue: Math.max(0, Number(e.target.value)) })} /></Field><p className="text-xs text-muted-foreground">For example, 7 means the task becomes available one week before its due date.</p></section>
+          </div>
+          <aside className="h-fit space-y-3 rounded-lg border bg-muted/30 p-4"><h3 className="font-semibold">Schedule summary</h3><SummaryRow label="Asset or location" value={selectedAsset?.name || "Not selected"} /><SummaryRow label="Template" value={selectedTemplate?.name || "Not selected"} /><SummaryRow label="Repeats" value={form.frequencyType ? frequencyLabel(form.frequencyType, form.frequencyValue) : "Not selected"} /><SummaryRow label="Responsible team" value={teamLabel(form.responsibleTeamId) || "Not selected"} /><SummaryRow label="First due" value={form.startDate ? formatDate(form.startDate) : "Not selected"} /><SummaryRow label="Ends" value={form.endDate ? formatDate(form.endDate) : "No end date"} /></aside>
+        </div>}
+        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{error}</div>}
+        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={templates.length === 0 || missing.length > 0 || invalidEndDate} onClick={submit}>{schedule ? "Save Changes" : "Create Schedule"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="border-b pb-2 text-sm last:border-0 last:pb-0"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-0.5 font-medium">{value}</div></div>;
 }
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
@@ -458,8 +474,7 @@ function templateForm(template: MaintenanceTemplate | undefined, care: ReturnTyp
 }
 
 function scheduleForm(schedule: PlannedMaintenanceSchedule | undefined, templates: MaintenanceTemplate[]): Partial<PlannedMaintenanceSchedule> {
-  const template = templates[0];
-  return schedule ? { ...schedule } : { templateId: template?.id, frequencyType: template?.frequencyType || "monthly", frequencyValue: template?.frequencyValue || 1, responsibleTeamId: "maintenance-team", startDate: dateOnly(new Date()), nextDueDate: dateOnly(new Date()), generateDaysBeforeDue: 7, active: true };
+  return schedule ? { ...schedule } : { templateId: undefined, frequencyType: "monthly", frequencyValue: 1, responsibleTeamId: "maintenance-team", startDate: dateOnly(new Date()), nextDueDate: dateOnly(new Date()), generateDaysBeforeDue: 7, active: true };
 }
 
 function searchable(values: unknown[], search: string) {

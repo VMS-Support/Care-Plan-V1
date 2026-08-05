@@ -23,6 +23,10 @@ import {
   type BedReferenceData,
   type BedReferenceItem,
 } from "@/domain/maintenance/bedReferenceData";
+import {
+  loadPlannedComplianceSettings,
+  savePlannedComplianceSettings,
+} from "@/domain/maintenance/plannedCompliance";
 
 export const Route = createFileRoute("/maintenance/settings")({
   head: () => ({ meta: [{ title: "Maintenance Settings - NuCare" }] }),
@@ -34,6 +38,7 @@ function MaintenanceSettings() {
   const [tab, setTab] = useState("categories");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any>();
+  const [plannedComplianceSettings, setPlannedComplianceSettings] = useState(() => loadPlannedComplianceSettings());
   const facility = care.facilities.find((item) => item.id === care.activeFacilityId);
   const [bedCapacity, setBedCapacity] = useState(() => String(facility?.bedCapacity ?? ""));
   const activeResidents = care.residents.filter(
@@ -86,6 +91,7 @@ function MaintenanceSettings() {
           <TabsTrigger value="templates">Task Templates</TabsTrigger>
           <TabsTrigger value="reference">Reference Data</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="planned-compliance">Planned & Compliance</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === "capacity" && (
@@ -139,6 +145,27 @@ function MaintenanceSettings() {
         </Card>
       )}
       {tab === "bed-types" && <BedTypeSettings />}
+      {tab === "planned-compliance" && (
+        <Card>
+          <CardHeader><CardTitle>Planned & Compliance Defaults</CardTitle></CardHeader>
+          <CardContent className="max-w-2xl space-y-4">
+            <p className="text-sm text-muted-foreground">Organisation defaults used by the unified calendar, schedule generation and verification workflows.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><Label>Due Soon period (days)</Label><Input className="mt-1" type="number" min="1" max="90" value={plannedComplianceSettings.dueSoonDays} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, dueSoonDays: Number(event.target.value) })} /></div>
+              <div><Label>Default generation lead time (days)</Label><Input className="mt-1" type="number" min="0" max="365" value={plannedComplianceSettings.generationLeadDays} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, generationLeadDays: Number(event.target.value) })} /></div>
+            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.defaultVerificationRequired} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, defaultVerificationRequired: event.target.checked })} />Require verification by default</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.separationOfDuties} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, separationOfDuties: event.target.checked })} />Enforce separation of duties where supported</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.independentSafetyVerification} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, independentSafetyVerification: event.target.checked })} />Require independent verification for safety checks</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.independentHighRiskVerification} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, independentHighRiskVerification: event.target.checked })} />Require independent verification for high-risk failures</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.differentReinspector} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, differentReinspector: event.target.checked })} />Require a different reinspector</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.managementStatutoryVerification} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, managementStatutoryVerification: event.target.checked })} />Require management verification for statutory inspections</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.sameUserLowRiskMaintenanceVerification} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, sameUserLowRiskMaintenanceVerification: event.target.checked })} />Allow same-user verification for low-risk routine maintenance</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plannedComplianceSettings.independentReturnToService} onChange={(event) => setPlannedComplianceSettings({ ...plannedComplianceSettings, independentReturnToService: event.target.checked })} />Require independent Return to Service approval</label>
+            <Button onClick={() => { savePlannedComplianceSettings(plannedComplianceSettings); toast.success("Planned & Compliance settings saved."); }}>Save defaults</Button>
+          </CardContent>
+        </Card>
+      )}
       {tab === "categories" && (
         <Card>
           <CardHeader>

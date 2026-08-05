@@ -127,6 +127,11 @@ export function createSafetyResponsesFromTemplate(inspectionId: string, items: S
       failureSeverity: item.failureSeverity,
       correctiveActionRequired: item.failureTriggersCorrectiveAction,
       evidenceRequired: item.failureRequiresEvidence || item.failureRequiresPhoto,
+      failureRequiresObservation: item.failureRequiresObservation,
+      failureRequiresPhoto: item.failureRequiresPhoto,
+      minValue: item.minValue,
+      maxValue: item.maxValue,
+      unit: item.unit,
       answeredBy: undefined,
       answeredAt: undefined,
       displayOrder: item.displayOrder,
@@ -145,12 +150,22 @@ export function evaluateSafetyInspection(params: {
   const failedResponses = params.responses.filter((item) => item.result === "FAIL");
   const unansweredMandatory = params.responses.filter((item) => item.mandatory && item.result === "UNANSWERED");
   const missingObservation = params.responses.filter((item) => item.result === "FAIL" && item.correctiveActionRequired && !params.observations.some((obs) => obs.responseId === item.id));
+  const missingFailureComment = params.responses.filter((item) => item.result === "FAIL" && item.failureRequiresObservation && !item.observation?.trim() && !params.observations.some((obs) => obs.responseId === item.id && obs.description.trim()));
+  const missingFailurePhoto = params.responses.filter((item) => item.result === "FAIL" && item.failureRequiresPhoto && !activeEvidence.some((evidence) => evidence.responseId === item.id && evidence.evidenceType === "PHOTO"));
+  const missingImmediateAction = params.observations.filter((item) => item.immediateActionRequired && !item.immediateActionTaken?.trim());
+  const missingCorrectiveWorkOrder = params.observations.filter((item) => item.correctiveActionRequired && !item.correctiveWorkOrderId);
+  const invalidReadings = params.responses.filter((item) => item.readingOutOfRange && item.result !== "FAIL");
   const missingEvidence = params.requirements.filter((req) => req.mandatory && activeEvidence.filter((item) => item.evidenceType === req.evidenceType).length < req.minimumCount);
   const criticalObservation = params.observations.some((item) => item.severity === "CRITICAL");
   const missingCertificate = params.inspection.certificateRequired && !params.certificate;
   const blockers = [
     ...unansweredMandatory.map((item) => `Answer mandatory item: ${item.questionLabelSnapshot}`),
     ...missingObservation.map((item) => `Record observation for failed item: ${item.questionLabelSnapshot}`),
+    ...missingFailureComment.map((item) => `Add failure comment: ${item.questionLabelSnapshot}`),
+    ...missingFailurePhoto.map((item) => `Attach failure photograph: ${item.questionLabelSnapshot}`),
+    ...missingImmediateAction.map((item) => `Record immediate action: ${item.description}`),
+    ...missingCorrectiveWorkOrder.map((item) => `Create or link corrective Work Order: ${item.description}`),
+    ...invalidReadings.map((item) => `Out-of-range reading must remain failed: ${item.questionLabelSnapshot}`),
     ...missingEvidence.map((item) => `Attach required evidence: ${item.label}`),
     ...(missingCertificate ? ["Attach the required certificate."] : []),
   ];

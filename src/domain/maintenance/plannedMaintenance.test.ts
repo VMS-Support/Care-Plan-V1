@@ -6,6 +6,7 @@ import {
   buildGeneratedWorkOrderInput,
   generateOccurrencesForSchedule,
   occurrenceStatus,
+  plannedOccurrenceSnapshot,
   validateScheduleInput,
   validateTemplateInput,
 } from "./plannedMaintenance.ts";
@@ -48,6 +49,25 @@ test("generated Work Order input carries planned maintenance references", () => 
   assert.equal(input.type, "PREVENTIVE");
   assert.equal(input.plannedMaintenanceOccurrenceId, occurrence.id);
   assert.equal(input.verificationRequired, true);
+});
+
+test("planned occurrence snapshots remain independent of later template edits", () => {
+  const template = templateRecord({ name: "Original test", description: "Original instructions" });
+  const schedule = scheduleRecord({ templateId: template.id });
+  const snapshot = plannedOccurrenceSnapshot({
+    schedule,
+    template,
+    checklist: [{ id: "c1", templateId: template.id, displayOrder: 1, item: "Original check", mandatory: true }],
+    evidence: [{ id: "e1", templateId: template.id, evidenceType: "Photo" }],
+  });
+
+  template.name = "Edited test";
+  template.description = "Edited instructions";
+
+  assert.equal(snapshot.templateSnapshot?.name, "Original test");
+  assert.equal(snapshot.templateSnapshot?.description, "Original instructions");
+  assert.equal(snapshot.templateSnapshot?.checklist[0]?.label, "Original check");
+  assert.deepEqual(snapshot.templateSnapshot?.evidenceRequirements, ["Photo"]);
 });
 
 test("occurrence status separates due soon, due today and overdue", () => {
