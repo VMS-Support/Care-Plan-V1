@@ -17,6 +17,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import type { Resident } from "@/lib/care/types";
 import { QuickPreAdmissionDialog } from "@/components/resident/QuickPreAdmissionDialog";
+import { AccommodationSelector } from "@/components/maintenance/AccommodationSelector";
 
 export const Route = createFileRoute("/residents/")({
   head: () => ({ meta: [{ title: "Residents — CarePath" }] }),
@@ -55,7 +56,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 function NewResidentDialog() {
-  const { addResident, rooms } = useCare();
+  const { addResident, rooms, activeFacilityId, assignResidentToMaintenanceBed } = useCare();
   const navigate = useNavigate();
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [preAdmissionOpen, setPreAdmissionOpen] = useState(false);
@@ -68,6 +69,9 @@ function NewResidentDialog() {
     gender: "" as Resident["gender"] | "",
     roomId: "",
     roomNumber: "",
+    nursingHomeId: activeFacilityId,
+    wingId: "",
+    bedId: "",
     primaryDiagnosis: "",
     preferredName: "",
     externalResidentId: "",
@@ -111,6 +115,9 @@ function NewResidentDialog() {
       gender: "",
       roomId: "",
       roomNumber: "",
+      nursingHomeId: activeFacilityId,
+      wingId: "",
+      bedId: "",
       primaryDiagnosis: "",
       preferredName: "",
       externalResidentId: "",
@@ -147,13 +154,14 @@ function NewResidentDialog() {
   };
 
   const submit = () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.dob || !form.gender || !form.roomId) {
-      toast.error("First name, last name, date of birth, gender and room are required.");
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.dob || !form.gender) {
+      toast.error("First name, last name, date of birth and gender are required.");
       return;
     }
 
     const nok = form.nextOfKinName.trim()
       ? [{
+          id: `nok-${Date.now()}`,
           name: form.nextOfKinName.trim(),
           relationship: form.nextOfKinRelationship.trim(),
           phone: form.nextOfKinPhone.trim(),
@@ -218,10 +226,19 @@ function NewResidentDialog() {
           }
         : undefined,
     });
+    if (form.bedId) {
+      try {
+        assignResidentToMaintenanceBed(form.bedId, resident.id, new Date().toISOString());
+      } catch (error) {
+        toast.error(`Resident created, but the Bed could not be assigned: ${error instanceof Error ? error.message : "Select another eligible Bed."}`);
+        navigate({ to: "/residents/$id", params: { id: resident.id }, search: { carePlanId: undefined, carePlanProblemId: undefined } });
+        return;
+      }
+    }
     toast.success("Resident admitted successfully.");
     setOpen(false);
     reset();
-    navigate({ to: "/residents/$id", params: { id: resident.id } });
+    navigate({ to: "/residents/$id", params: { id: resident.id }, search: { carePlanId: undefined, carePlanProblemId: undefined } });
   };
 
   return (
@@ -257,25 +274,9 @@ function NewResidentDialog() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Room *</Label>
-            <Select
-              value={form.roomId}
-              onValueChange={(value) => {
-                const room = rooms.find((candidate) => candidate.id === value);
-                update({ roomId: value, roomNumber: room?.number || "" });
-              }}
-            >
-              <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
-              <SelectContent>
-                {rooms.map((room) => (
-                  <SelectItem key={room.id} value={room.id}>Room {room.number}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div><Label>Primary Diagnosis</Label><Input value={form.primaryDiagnosis} onChange={e => update({ primaryDiagnosis: e.target.value })} /></div>
         </div>
+        <div className="mt-4"><AccommodationSelector value={{nursingHomeId:form.nursingHomeId,wingId:form.wingId,roomId:form.roomId,bedId:form.bedId}} onChange={(value)=>{const room=rooms.find(candidate=>String(candidate.id)===value.roomId);update({...value,roomNumber:room?.number||""})}} /></div>
 
         <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="mt-4 rounded-md border">
           <CollapsibleTrigger asChild>

@@ -236,7 +236,7 @@ const PAIN: ModuleSpec = {
     const recent = obs.filter(o => !o.deletedAt).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)).slice(0, 3);
     if (recent.length === 0) return out;
     if (recent.length >= 2 && recent.every(o => (num(o.data.score) ?? 0) >= 7)) {
-      out.push({ severity: "critical", title: "Persistent severe pain", message: ", recommendation: "Urgent pain review — escalate to GP.", sourceId: recent[0].id });
+      out.push({ severity: "critical", title: "Persistent severe pain", message: "Repeated severe pain scores recorded.", recommendation: "Urgent pain review — escalate to GP.", sourceId: recent[0].id });
     } else if ((num(recent[0].data.score) ?? 0) >= 7) {
       out.push({ severity: "warning", title: `Pain score ${recent[0].data.score}/10`, message: "Severe pain recorded.", recommendation: "Review pain management plan.", sourceId: recent[0].id });
     }
@@ -401,12 +401,12 @@ const WOUND: ModuleSpec = {
   columns: [
     { key: "type", label: "Type", render: o => String(o.data.woundType ?? "—").replace("_", " ") },
     { key: "location", label: "Location", render: o => o.data.location ?? "—" },
-    { key: "size", label: "Size (L , render: o => `${o.data.length ?? "?"}${o.data.width ?? "?"}${o.data.depth ?? "?"}` },
+    { key: "size", label: "Size (L × W × D cm)", render: o => `${o.data.length ?? "?"} × ${o.data.width ?? "?"} × ${o.data.depth ?? "?"}` },
     { key: "exudate", label: "Exudate", render: o => o.data.exudate ?? "—" },
     { key: "dressing", label: "Dressing", render: o => o.data.dressing ?? "—" },
   ],
   trends: [
-    { key: "area", label: "Wound Area", unit: "cm, extract: o => {
+    { key: "area", label: "Wound Area", unit: "cm²", extract: o => {
       const l = num(o.data.length); const w = num(o.data.width);
       return l && w ? +(l * w).toFixed(2) : undefined;
     } },

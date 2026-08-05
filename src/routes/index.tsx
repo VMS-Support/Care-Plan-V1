@@ -4,6 +4,7 @@ import { useCare, age } from "@/lib/care/store";
 import { isActionableClinicalAlert, isActionRequiredAlert } from "@/lib/care/alerts";
 import { complianceForResident } from "@/lib/care/vitals";
 import { getDonDashboard, type DonDashboardMetric } from "@/domain/dashboards/don/donDashboardReadModel";
+import { calculateBedOccupancy } from "@/domain/maintenance/bedOccupancy";
 import {
   endOfCurrentShift,
   getUpcomingScheduledInterventions,
@@ -735,6 +736,7 @@ function DonDashboard() {
     () => getDonDashboard({ care, reportingDate, generatedAt: lastRefreshedAt.toISOString() }),
     [care, reportingDate, lastRefreshedAt],
   );
+  const bedOccupancy = useMemo(() => { const rooms=care.rooms.filter(r=>String(r.facilityId||r.nursingHomeId||care.activeFacilityId)===care.activeFacilityId); return calculateBedOccupancy({beds:care.beds,assignments:care.bedAssignments,rooms,residents:care.residents,wings:care.wings,workOrders:care.maintenanceWorkOrders,safetyInspections:care.safetyInspections,registeredCapacity:activeFacility.bedCapacity||0}); }, [care, activeFacility]);
   const firstName = currentUser.name.split(" ")[0] || "there";
   const dateLabel = formatDonDate(reportingDate);
   const timeLabel = clock.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
@@ -798,6 +800,13 @@ function DonDashboard() {
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          <Link to="/maintenance/bed-occupancy" className="rounded-[8px] bg-white p-6 shadow-[0_8px_18px_rgba(10,31,68,0.08)] focus-visible:ring-2 focus-visible:ring-[#174f91]">
+            <div className="flex items-center gap-3"><Bed className="h-6 w-6 text-[#174f91]"/><h2 className="text-base font-semibold">Bed Occupancy</h2></div>
+            <div className="mt-5 text-3xl font-bold">{bedOccupancy.occupied} of {bedOccupancy.registeredCapacity}</div>
+            <div className="mt-2 text-base">Registered Occupancy: <strong>{bedOccupancy.registeredPercentage}%</strong></div>
+            <div className="mt-3 text-sm text-[#566477]">{bedOccupancy.occupied} of {bedOccupancy.operationalCapacity} operational beds occupied · {bedOccupancy.operationalPercentage}%</div>
+            <div className="mt-5 border-t pt-3 text-sm font-medium text-[#0b4f93]">View occupancy details →</div>
+          </Link>
           <DonGaugeCard icon={Pill} metric={dashboard.complianceCards[0]} link="View Medication" />
           <DonGaugeCard icon={ClipboardList} metric={dashboard.complianceCards[1]} link="View Care Plans" />
           <DonGaugeCard icon={ShieldCheck} metric={dashboard.complianceCards[2]} link="View Assessments" />

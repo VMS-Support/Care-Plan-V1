@@ -4631,6 +4631,15 @@ export interface Room {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  maximumBedSpaces?: number;
+  operationalStatus?:
+    | "not_checked"
+    | "inspection_in_progress"
+    | "ready"
+    | "blocked"
+    | "occupied"
+    | "temporarily_unavailable"
+    | "out_of_service";
 }
 
 export interface Ward {
@@ -4652,11 +4661,52 @@ export interface Bed {
   label: string;
   active: boolean;
   status?: "available" | "occupied" | "reserved" | "out_of_service";
+  identifier?: string;
+  assetId?: string;
+  operationalStatus?:
+    | "operational"
+    | "restricted_use"
+    | "under_maintenance"
+    | "blocked"
+    | "out_of_service"
+    | "replacement_due"
+    | "disposed";
+  occupancyStatus?: "available" | "occupied" | "reserved" | "temporarily_unavailable";
+  readinessStatus?:
+    | "not_checked"
+    | "cleaning_required"
+    | "cleaning_in_progress"
+    | "awaiting_inspection"
+    | "ready"
+    | "failed"
+    | "reinspection_required";
+  condition?: "excellent" | "good" | "fair" | "poor" | "unserviceable" | "unknown";
+  reservationReason?: string;
+  reservedResidentId?: string;
+  reservedFrom?: string;
+  reservedUntil?: string;
+  restrictionReason?: string;
+  version?: number;
   bedType?: BedType | string;
   mattressType?: MattressType | string;
   installedDate?: string;
   reviewDate?: string;
   notes?: string;
+  returnToService?: {
+    requestedBy: string;
+    requestedAt: string;
+    workCompletedBy?: string;
+    approvedBy: string;
+    approvedAt: string;
+    approvalComment: string;
+    workOrderId?: string;
+    inspectionId?: string;
+    cleaningTaskId?: string;
+    readinessInspectionId?: string;
+    photoIds: string[];
+    documentIds: string[];
+    supervisorVerified: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }

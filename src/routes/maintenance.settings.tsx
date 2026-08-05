@@ -4,31 +4,487 @@ import { Archive, ClipboardList, Edit, Plus, Settings2, Tags } from "lucide-reac
 import { useCare } from "@/lib/care/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+  DEFAULT_BED_REFERENCE_DATA,
+  loadBedReferenceData,
+  saveBedReferenceData,
+  type BedReferenceData,
+  type BedReferenceItem,
+} from "@/domain/maintenance/bedReferenceData";
 
-export const Route = createFileRoute("/maintenance/settings")({ head: () => ({ meta: [{ title: "Maintenance Settings - NuCare" }] }), component: MaintenanceSettings });
+export const Route = createFileRoute("/maintenance/settings")({
+  head: () => ({ meta: [{ title: "Maintenance Settings - NuCare" }] }),
+  component: MaintenanceSettings,
+});
 
 function MaintenanceSettings() {
-  const care = useCare(); const [tab, setTab] = useState("categories"); const [search, setSearch] = useState(""); const [editing, setEditing] = useState<any>(); const facility = care.facilities.find((item) => item.id === care.activeFacilityId); const [bedCapacity, setBedCapacity] = useState(() => String(facility?.bedCapacity ?? "")); const activeResidents = care.residents.filter((resident) => (resident.facilityId || care.activeFacilityId) === care.activeFacilityId && resident.status === "active" && !resident.deletedAt).length;
+  const care = useCare();
+  const [tab, setTab] = useState("categories");
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<any>();
+  const facility = care.facilities.find((item) => item.id === care.activeFacilityId);
+  const [bedCapacity, setBedCapacity] = useState(() => String(facility?.bedCapacity ?? ""));
+  const activeResidents = care.residents.filter(
+    (resident) =>
+      (resident.facilityId || care.activeFacilityId) === care.activeFacilityId &&
+      resident.status === "active" &&
+      !resident.deletedAt,
+  ).length;
   const canManage = care.canAccess("permission.manage", { nursingHomeId: care.activeFacilityId });
-  const categories = useMemo(() => care.maintenanceAssetCategories.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase())), [care.maintenanceAssetCategories, search]);
-  if (!canManage) return <div className="p-6 text-sm">You do not have access to Maintenance Settings.</div>;
-  return <div className="space-y-5 p-4 md:p-8"><div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold tracking-tight">Maintenance Settings</h1><p className="text-sm text-muted-foreground">Configure reusable maintenance master data. Changes do not alter historical operational records.</p></div>{tab === "categories" && <Button onClick={() => setEditing({ name: "", description: "", colour: "#2563eb", icon: "package", active: true })}><Plus className="mr-2 h-4 w-4"/>Add category</Button>}</div>
-    <Tabs value={tab} onValueChange={setTab}><TabsList className="h-auto flex-wrap"><TabsTrigger value="capacity">Bed Capacity</TabsTrigger><TabsTrigger value="categories">Categories</TabsTrigger><TabsTrigger value="certificates">Certificate Types</TabsTrigger><TabsTrigger value="templates">Task Templates</TabsTrigger><TabsTrigger value="reference">Reference Data</TabsTrigger><TabsTrigger value="notifications">Notifications</TabsTrigger></TabsList></Tabs>
-    {tab === "capacity" && <Card><CardHeader><CardTitle>Resident Bed Capacity</CardTitle></CardHeader><CardContent className="max-w-xl space-y-4"><p className="text-sm text-muted-foreground">Set the total number of resident beds for {facility?.name || "this Nursing Home"}. Once all beds are occupied, ORITAS will prevent another resident from being made active.</p><div className="grid gap-3 sm:grid-cols-2"><div><Label>Total resident beds</Label><Input className="mt-1" type="number" min="0" step="1" value={bedCapacity} onChange={(event) => setBedCapacity(event.target.value)} /></div><div className="rounded-md border bg-muted/30 p-3 text-sm"><div className="text-muted-foreground">Active residents</div><div className="mt-1 text-2xl font-semibold">{activeResidents}{facility?.bedCapacity !== undefined ? ` / ${facility.bedCapacity}` : ""}</div></div></div><Button onClick={() => { try { care.updateFacilityBedCapacity(care.activeFacilityId, Number(bedCapacity)); toast.success("Bed capacity saved. Active admissions will now respect this limit."); } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to save bed capacity."); } }}>Save bed capacity</Button></CardContent></Card>}
-    {tab === "categories" && <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><CardTitle className="flex items-center gap-2"><Tags className="h-5 w-5"/>Asset & Maintenance Categories</CardTitle><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search categories" className="w-64"/></div></CardHeader><CardContent><SettingsTable rows={categories} onEdit={setEditing} onArchive={(id) => { care.archiveMaintenanceAssetCategory(id, "Archived from Maintenance Settings"); toast.success("Category archived."); }} onRestore={(id) => { care.restoreMaintenanceAssetCategory(id); toast.success("Category restored."); }}/></CardContent></Card>}
-    {tab === "certificates" && <ConfigList icon={ClipboardList} title="Certificate Types" description="Certificate type rules, validity periods and reminders are managed through the existing certificate configuration." rows={care.maintenanceCertificateTypes.map((item) => `${item.name} · ${item.active ? "Active" : "Inactive"}`)} link="/maintenance/certificates/types" linkLabel="Manage certificate types"/>}
-    {tab === "templates" && <ConfigList icon={ClipboardList} title="Task Templates" description="Existing housekeeping templates retain their own versioning, instructions, evidence requirements and audit history." rows={care.housekeepingTemplates.map((item) => `${item.name} · ${item.status}`)} link="/maintenance/housekeeping" linkLabel="Manage housekeeping templates"/>}
-    {tab === "reference" && <ConfigList icon={Settings2} title="Reference Data" description="Asset categories, certificate types and service-specific configuration are the reference data currently available in the Maintenance module." rows={["Asset categories", "Certificate types", "Housekeeping templates"]} />}
-    {tab === "notifications" && <ConfigList icon={Settings2} title="Maintenance Notifications" description="Notification delivery uses the shared ORITAS notification infrastructure. Additional maintenance event rules can be added when the shared notification-rule configuration is available." rows={["Work-order and certificate events use existing notifications", "No separate notification data has been duplicated"]} />}
-    <CategoryDialog item={editing} onOpenChange={(open) => !open && setEditing(undefined)} onSave={(input) => { try { if (input.id) care.updateMaintenanceAssetCategory(input.id, input); else care.createMaintenanceAssetCategory(input); setEditing(undefined); toast.success("Category saved."); } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to save category."); } }}/>
-  </div>;
+  const categories = useMemo(
+    () =>
+      care.maintenanceAssetCategories.filter((item) =>
+        `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase()),
+      ),
+    [care.maintenanceAssetCategories, search],
+  );
+  if (!canManage)
+    return <div className="p-6 text-sm">You do not have access to Maintenance Settings.</div>;
+  return (
+    <div className="space-y-5 p-4 md:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Maintenance Settings</h1>
+          <p className="text-sm text-muted-foreground">
+            Configure reusable maintenance master data. Changes do not alter historical operational
+            records.
+          </p>
+        </div>
+        {tab === "categories" && (
+          <Button
+            onClick={() =>
+              setEditing({
+                name: "",
+                description: "",
+                colour: "#2563eb",
+                icon: "package",
+                active: true,
+              })
+            }
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add category
+          </Button>
+        )}
+      </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="categories">Categories</TabsTrigger>
+          <TabsTrigger value="certificates">Certificate Types</TabsTrigger>
+          <TabsTrigger value="templates">Task Templates</TabsTrigger>
+          <TabsTrigger value="reference">Reference Data</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {tab === "capacity" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resident Bed Capacity</CardTitle>
+          </CardHeader>
+          <CardContent className="max-w-xl space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Set the total number of resident beds for {facility?.name || "this Nursing Home"}.
+              Once all beds are occupied, ORITAS will prevent another resident from being made
+              active.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Total resident beds</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={bedCapacity}
+                  onChange={(event) => setBedCapacity(event.target.value)}
+                />
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="text-muted-foreground">Active residents</div>
+                <div className="mt-1 text-2xl font-semibold">
+                  {activeResidents}
+                  {facility?.bedCapacity !== undefined ? ` / ${facility.bedCapacity}` : ""}
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={() => {
+                try {
+                  care.updateFacilityBedCapacity(care.activeFacilityId, Number(bedCapacity));
+                  toast.success(
+                    "Bed capacity saved. Active admissions will now respect this limit.",
+                  );
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Unable to save bed capacity.",
+                  );
+                }
+              }}
+            >
+              Save bed capacity
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      {tab === "bed-types" && <BedTypeSettings />}
+      {tab === "categories" && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <Tags className="h-5 w-5" />
+                Asset & Maintenance Categories
+              </CardTitle>
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search categories"
+                className="w-64"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <SettingsTable
+              rows={categories}
+              onEdit={setEditing}
+              onArchive={(id) => {
+                care.archiveMaintenanceAssetCategory(id, "Archived from Maintenance Settings");
+                toast.success("Category archived.");
+              }}
+              onRestore={(id) => {
+                care.restoreMaintenanceAssetCategory(id);
+                toast.success("Category restored.");
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+      {tab === "certificates" && (
+        <ConfigList
+          icon={ClipboardList}
+          title="Certificate Types"
+          description="Certificate type rules, validity periods and reminders are managed through the existing certificate configuration."
+          rows={care.maintenanceCertificateTypes.map(
+            (item) => `${item.name} · ${item.active ? "Active" : "Inactive"}`,
+          )}
+          link="/maintenance/certificates/types"
+          linkLabel="Manage certificate types"
+        />
+      )}
+      {tab === "templates" && (
+        <ConfigList
+          icon={ClipboardList}
+          title="Task Templates"
+          description="Existing housekeeping templates retain their own versioning, instructions, evidence requirements and audit history."
+          rows={care.housekeepingTemplates.map((item) => `${item.name} · ${item.status}`)}
+          link="/maintenance/housekeeping"
+          linkLabel="Manage housekeeping templates"
+        />
+      )}
+      {tab === "reference" && (
+        <ConfigList
+          icon={Settings2}
+          title="Reference Data"
+          description="Asset categories, certificate types and service-specific configuration are the reference data currently available in the Maintenance module."
+          rows={["Asset categories", "Certificate types", "Housekeeping templates"]}
+        />
+      )}
+      {tab === "notifications" && (
+        <ConfigList
+          icon={Settings2}
+          title="Maintenance Notifications"
+          description="Notification delivery uses the shared ORITAS notification infrastructure. Additional maintenance event rules can be added when the shared notification-rule configuration is available."
+          rows={[
+            "Work-order and certificate events use existing notifications",
+            "No separate notification data has been duplicated",
+          ]}
+        />
+      )}
+      <CategoryDialog
+        item={editing}
+        onOpenChange={(open) => !open && setEditing(undefined)}
+        onSave={(input) => {
+          try {
+            if (input.id) care.updateMaintenanceAssetCategory(input.id, input);
+            else care.createMaintenanceAssetCategory(input);
+            setEditing(undefined);
+            toast.success("Category saved.");
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Unable to save category.");
+          }
+        }}
+      />
+    </div>
+  );
 }
-function SettingsTable({ rows, onEdit, onArchive, onRestore }: any) { return <div className="overflow-auto"><table className="w-full text-sm"><thead className="border-b bg-muted/40"><tr><th className="p-3 text-left">Name</th><th className="p-3 text-left">Description</th><th className="p-3 text-left">Status</th><th className="p-3 text-left">Sort Order</th><th className="p-3 text-right">Actions</th></tr></thead><tbody>{rows.map((item: any) => <tr key={item.id} className="border-b"><td className="p-3 font-medium">{item.name}</td><td className="p-3 text-muted-foreground">{item.description || "—"}</td><td className="p-3">{item.active ? "Active" : "Archived"}</td><td className="p-3">{item.displayOrder}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => onEdit(item)}><Edit className="mr-1 h-3.5 w-3.5"/>Edit</Button>{item.active ? <Button size="sm" variant="outline" onClick={() => onArchive(item.id)}><Archive className="mr-1 h-3.5 w-3.5"/>Archive</Button> : <Button size="sm" variant="outline" onClick={() => onRestore(item.id)}>Restore</Button>}</td></tr>)}{!rows.length && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No categories match this search.</td></tr>}</tbody></table></div>; }
-function CategoryDialog({ item, onOpenChange, onSave }: any) { const [value, setValue] = useState<any>(); const source = item || value; if (item && value?.id !== item.id) setValue(item); return <Dialog open={!!item} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{item?.id ? "Edit category" : "Add category"}</DialogTitle></DialogHeader>{source && <div className="space-y-3"><div><Label>Name</Label><Input className="mt-1" value={source.name} onChange={(e) => setValue({ ...source, name: e.target.value })}/></div><div><Label>Description</Label><Textarea className="mt-1" value={source.description || ""} onChange={(e) => setValue({ ...source, description: e.target.value })}/></div><div><Label>Sort order</Label><Input className="mt-1" type="number" value={source.displayOrder || ""} onChange={(e) => setValue({ ...source, displayOrder: Number(e.target.value) })}/></div></div>}<DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!source?.name?.trim()} onClick={() => onSave(source)}>Save</Button></DialogFooter></DialogContent></Dialog>; }
-function ConfigList({ icon: Icon, title, description, rows, link, linkLabel }: any) { return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5"/>{title}</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">{description}</p><div className="mt-4 divide-y rounded border">{rows.map((row: string) => <div key={row} className="p-3 text-sm">{row}</div>)}</div>{link && <Button asChild className="mt-4"><Link to={link as any}>{linkLabel}</Link></Button>}</CardContent></Card>; }
+function BedTypeSettings() {
+  const [data, setData] = useState<BedReferenceData>(() => loadBedReferenceData());
+  const [kind, setKind] = useState<keyof BedReferenceData>("bedTypes");
+  const [editing, setEditing] = useState<BedReferenceItem>();
+  const rows = [...data[kind]].sort((a, b) => a.displayOrder - b.displayOrder);
+  const commit = (next: BedReferenceData) => {
+    setData(next);
+    saveBedReferenceData(next);
+  };
+  const save = (row: BedReferenceItem) => {
+    const list = data[kind].some((x) => x.id === row.id)
+      ? data[kind].map((x) => (x.id === row.id ? row : x))
+      : [...data[kind], row];
+    commit({ ...data, [kind]: list });
+    setEditing(undefined);
+    toast.success("Reference type saved.");
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Bed and Mattress Types</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Archived types remain visible on existing bed records but cannot be selected for new
+              beds.
+            </p>
+          </div>
+          <Button
+            onClick={() =>
+              setEditing({
+                id: `custom-${Date.now()}`,
+                name: "",
+                active: true,
+                displayOrder: rows.length + 1,
+              })
+            }
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add type
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex gap-2">
+          <Button
+            variant={kind === "bedTypes" ? "default" : "outline"}
+            onClick={() => setKind("bedTypes")}
+          >
+            Bed Types
+          </Button>
+          <Button
+            variant={kind === "mattressTypes" ? "default" : "outline"}
+            onClick={() => setKind("mattressTypes")}
+          >
+            Mattress Types
+          </Button>
+        </div>
+        <SettingsTable
+          rows={rows.map((r) => ({
+            ...r,
+            description: kind === "bedTypes" ? "Bed type" : "Mattress type",
+          }))}
+          onEdit={setEditing}
+          onArchive={(id: string) =>
+            commit({
+              ...data,
+              [kind]: data[kind].map((x) => (x.id === id ? { ...x, active: false } : x)),
+            })
+          }
+          onRestore={(id: string) =>
+            commit({
+              ...data,
+              [kind]: data[kind].map((x) => (x.id === id ? { ...x, active: true } : x)),
+            })
+          }
+        />
+        <Button className="mt-4" variant="ghost" onClick={() => commit(DEFAULT_BED_REFERENCE_DATA)}>
+          Restore suggested defaults
+        </Button>
+        <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(undefined)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editing?.name ? "Edit" : "Add"} {kind === "bedTypes" ? "bed" : "mattress"} type
+              </DialogTitle>
+            </DialogHeader>
+            {editing && (
+              <div className="space-y-3">
+                <div>
+                  <Label>Name</Label>
+                  <Input
+                    value={editing.name}
+                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Display order</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={editing.displayOrder}
+                    onChange={(e) =>
+                      setEditing({ ...editing, displayOrder: Number(e.target.value) })
+                    }
+                  />
+                </div>
+                <label className="flex gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editing.active}
+                    onChange={(e) => setEditing({ ...editing, active: e.target.checked })}
+                  />
+                  Active
+                </label>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(undefined)}>
+                Cancel
+              </Button>
+              <Button disabled={!editing?.name.trim()} onClick={() => editing && save(editing)}>
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+function SettingsTable({ rows, onEdit, onArchive, onRestore }: any) {
+  return (
+    <div className="overflow-auto">
+      <table className="w-full text-sm">
+        <thead className="border-b bg-muted/40">
+          <tr>
+            <th className="p-3 text-left">Name</th>
+            <th className="p-3 text-left">Description</th>
+            <th className="p-3 text-left">Status</th>
+            <th className="p-3 text-left">Sort Order</th>
+            <th className="p-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item: any) => (
+            <tr key={item.id} className="border-b">
+              <td className="p-3 font-medium">{item.name}</td>
+              <td className="p-3 text-muted-foreground">{item.description || "—"}</td>
+              <td className="p-3">{item.active ? "Active" : "Archived"}</td>
+              <td className="p-3">{item.displayOrder}</td>
+              <td className="p-3 text-right space-x-2">
+                <Button size="sm" variant="outline" onClick={() => onEdit(item)}>
+                  <Edit className="mr-1 h-3.5 w-3.5" />
+                  Edit
+                </Button>
+                {item.active ? (
+                  <Button size="sm" variant="outline" onClick={() => onArchive(item.id)}>
+                    <Archive className="mr-1 h-3.5 w-3.5" />
+                    Archive
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => onRestore(item.id)}>
+                    Restore
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr>
+              <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                No categories match this search.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function CategoryDialog({ item, onOpenChange, onSave }: any) {
+  const [value, setValue] = useState<any>();
+  const source = item || value;
+  if (item && value?.id !== item.id) setValue(item);
+  return (
+    <Dialog open={!!item} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{item?.id ? "Edit category" : "Add category"}</DialogTitle>
+        </DialogHeader>
+        {source && (
+          <div className="space-y-3">
+            <div>
+              <Label>Name</Label>
+              <Input
+                className="mt-1"
+                value={source.name}
+                onChange={(e) => setValue({ ...source, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                className="mt-1"
+                value={source.description || ""}
+                onChange={(e) => setValue({ ...source, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Sort order</Label>
+              <Input
+                className="mt-1"
+                type="number"
+                value={source.displayOrder || ""}
+                onChange={(e) => setValue({ ...source, displayOrder: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={!source?.name?.trim()} onClick={() => onSave(source)}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function ConfigList({ icon: Icon, title, description, rows, link, linkLabel }: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Icon className="h-5 w-5" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="mt-4 divide-y rounded border">
+          {rows.map((row: string) => (
+            <div key={row} className="p-3 text-sm">
+              {row}
+            </div>
+          ))}
+        </div>
+        {link && (
+          <Button asChild className="mt-4">
+            <Link to={link as any}>{linkLabel}</Link>
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

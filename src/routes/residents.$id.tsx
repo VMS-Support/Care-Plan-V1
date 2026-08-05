@@ -74,6 +74,7 @@ import {
 } from "@/components/resident/EditResidentProfileDialog";
 import { ResidentDocuments } from "@/components/resident/ResidentDocuments";
 import { ResidentAdministrativeDetails } from "@/components/resident/ResidentAdministrativeDetails";
+import { ResidentAccommodationDialog } from "@/components/resident/ResidentAccommodationDialog";
 import { RltClinicalWorkspace } from "@/components/care/RltClinicalWorkspace";
 import {
   CARE_ACTION_TYPE_LABELS,
@@ -416,6 +417,10 @@ function ResidentDetail() {
     recordDailyCare,
   } = useCare();
   const r = residents.find((x) => x.id === id);
+  const activeBedAssignment = bedAssignments.find(
+    (assignment) => assignment.residentId === id && assignment.status === "active" && !assignment.endDate && !assignment.endDateTime,
+  );
+  const assignedBed = beds.find((bed) => String(bed.id) === String(activeBedAssignment?.bedId));
 
   // Modal state
   const [nokOpen, setNokOpen] = useState(false);
@@ -1683,6 +1688,10 @@ function ResidentDetail() {
           </>
         }
       />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 text-base">
+        <div><div className="font-semibold">Current Bed</div><div className="text-muted-foreground">{assignedBed ? `${assignedBed.identifier || assignedBed.label} · ${assignedBed.label}` : "Bed not yet assigned"}</div></div>
+        {assignedBed ? <Button variant="outline" asChild><Link to="/maintenance/beds/$bedId" params={{ bedId: String(assignedBed.id) }}>View Bed Profile</Link></Button> : <ResidentAccommodationDialog residentId={id} />}
+      </div>
       <EditResidentProfileDialog
         resident={r}
         users={users}

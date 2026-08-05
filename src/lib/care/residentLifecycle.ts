@@ -297,18 +297,45 @@ export function getOccupancyByWard(state: ResidentLifecycleState, wardId: WardId
   };
 }
 
-function endActiveBedAssignment<T extends ResidentLifecycleState>(
+export function releaseResidentBed<T extends ResidentLifecycleState>(
   store: T,
   residentId: string,
   at: string,
   endedReason: NonNullable<BedAssignment["endedReason"]>,
 ) {
+  // Idempotency boundary: a repeated/stale release may only end the assignment that existed at
+  // effectiveAt. It must never end a later re-admission or transfer assignment.
+  const active = store.bedAssignments.find(
+    (assignment) =>
+      assignment.residentId === residentId &&
+      assignment.status === "active" &&
+      (assignment.startDateTime || `${assignment.startDate}T00:00:00.000Z`) <= at,
+  );
+  if (!active) return store;
   return {
     ...store,
     bedAssignments: store.bedAssignments.map((assignment) =>
-      assignment.residentId === residentId && assignment.status === "active"
+      assignment.id === active.id
         ? { ...assignment, status: "ended" as const, endDateTime: at, endDate: at.slice(0, 10), endedReason, updatedAt: at }
         : assignment,
+    ),
+    beds: store.beds.map((bed) =>
+      bed.id === active.bedId
+        ? {
+            ...bed,
+            occupancyStatus: "temporarily_unavailable" as const,
+            status: "available" as const,
+            readinessStatus: "cleaning_required" as const,
+            restrictionReason:
+              endedReason === "deceased"
+                ? "Terminal clean required"
+                : endedReason === "discharge"
+                  ? "Discharge clean required"
+                  : "Transfer clean required",
+            version: (bed.version || 1) + 1,
+            updatedAt: at,
+          }
+        : bed,
     ),
   };
 }
@@ -353,7 +380,9 @@ export function startTemporaryAbsence<T extends ResidentLifecycleState>(
       ...store.absenceEpisodes,
     ],
   } as T;
-  if (!input.bedHeld) next = endActiveBedAssignment(next, residentId, input.startDateTime, "temporary_absence") as T;
+  // Hospital/temporary absence holds the current bed unless an authorised workflow explicitly
+  // records bedHeld=false under the Nursing Home's policy.
+  if (input.bedHeld === false) next = releaseResidentBed(next, residentId, input.startDateTime, "temporary_absence") as T;
   return { ok: true, store: next };
 }
 
@@ -412,7 +441,7 @@ export function returnResidentFromAbsence<T extends ResidentLifecycleState>(
         admissionId: absence.admissionId,
         nursingHomeId: absence.nursingHomeId,
         wardId: ward?.id,
-        roomId: room?.id,
+        roomId: room?.id ? asRoomId(String(room.id)) : undefined,
         bedId: input.bedId,
         startDate: input.actualReturnDateTime.slice(0, 10),
         startDateTime: input.actualReturnDateTime,
@@ -453,7 +482,7 @@ export function dischargeResident<T extends ResidentLifecycleState>(
   const admission = getActiveAdmission(store, residentId);
   if (!admission) return { ok: false, store, error: "Active admission required for discharge." };
   const at = `${input.actualEndDate}T00:00:00.000Z`;
-  const next = endActiveBedAssignment(store, residentId, at, "discharge");
+  const next = releaseResidentBed(store, residentId, at, "discharge");
   return {
     ok: true,
     store: {
@@ -494,7 +523,7 @@ export function markResidentDeceased<T extends ResidentLifecycleState>(
 ): LifecycleTransitionResult<T> {
   const admission = getActiveAdmission(store, residentId);
   const at = `${input.deceasedDate}T00:00:00.000Z`;
-  const next = endActiveBedAssignment(store, residentId, at, "deceased");
+  const next = releaseResidentBed(store, residentId, at, "deceased");
   return {
     ok: true,
     store: {
@@ -532,7 +561,7 @@ export function moveResidentBed<T extends ResidentLifecycleState>(
   if ((room.nursingHomeId || room.facilityId) !== admission.nursingHomeId) return { ok: false, store, error: "Cannot assign resident to bed in another nursing home." };
   const occupied = store.bedAssignments.some((assignment) => assignment.bedId === input.bedId && assignment.status === "active" && assignment.residentId !== residentId);
   if (occupied) return { ok: false, store, error: "Bed already has an active resident assignment." };
-  const ended = endActiveBedAssignment(store, residentId, input.startDateTime, input.reason === "room_move" ? "room_move" : "other");
+  const ended = releaseResidentBed(store, residentId, input.startDateTime, input.reason === "room_move" ? "room_move" : "other");
   return {
     ok: true,
     store: {

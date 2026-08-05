@@ -47,19 +47,40 @@ import { Input } from "@/components/ui/input";
 import { UserMenu } from "@/components/care/UserMenu";
 import { OperationalContextSwitcher } from "@/components/care/OperationalContextSwitcher";
 
-type CapabilityCheck = (capability: string, resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean }) => boolean;
+type CapabilityCheck = (
+  capability: string,
+  resource?: { nursingHomeId?: string; wardId?: string; residentId?: string; sensitive?: boolean },
+) => boolean;
 type NavItem = {
   to: any;
   label: string;
   icon: any;
   exact?: boolean;
   capability?: string;
-  visible?: (canAccess: CapabilityCheck, currentRole: ReturnType<typeof useCare>["currentRole"]) => boolean;
+  visible?: (
+    canAccess: CapabilityCheck,
+    currentRole: ReturnType<typeof useCare>["currentRole"],
+  ) => boolean;
 };
 type AppModule = "care" | "maintenance" | "workforce";
-const moduleForPath = (pathname: string): AppModule => pathname.startsWith("/maintenance") ? "maintenance" : pathname.startsWith("/workforce") || pathname.startsWith("/staff-management") || pathname.startsWith("/training-dashboard") ? "workforce" : "care";
-const moduleLanding: Record<AppModule, string> = { care: "/", maintenance: "/maintenance", workforce: "/staff-management" };
-const moduleLabels: Record<AppModule, string> = { care: "Care Planning", maintenance: "Maintenance", workforce: "Workforce Management" };
+const moduleForPath = (pathname: string): AppModule =>
+  pathname.startsWith("/maintenance")
+    ? "maintenance"
+    : pathname.startsWith("/workforce") ||
+        pathname.startsWith("/staff-management") ||
+        pathname.startsWith("/training-dashboard")
+      ? "workforce"
+      : "care";
+const moduleLanding: Record<AppModule, string> = {
+  care: "/",
+  maintenance: "/maintenance",
+  workforce: "/staff-management",
+};
+const moduleLabels: Record<AppModule, string> = {
+  care: "Care Planning",
+  maintenance: "Maintenance",
+  workforce: "Workforce Management",
+};
 
 function openAlertCounts({
   alerts,
@@ -280,7 +301,12 @@ const nav: NavItem[] = [
     icon: ClipboardList,
     capability: "careplan.view",
   },
-  { to: "/care-plan-templates", label: "Care Plan Templates", icon: ClipboardList, capability: "careplan.view" },
+  {
+    to: "/care-plan-templates",
+    label: "Care Plan Templates",
+    icon: ClipboardList,
+    capability: "careplan.view",
+  },
   { to: "/daily-notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/handovers", label: "Handovers", icon: UserCheck },
   {
@@ -306,17 +332,66 @@ const nav: NavItem[] = [
 
 const maintenanceNav: NavItem[] = [
   { to: "/maintenance", label: "Overview", icon: Home, exact: true },
-  { to: "/maintenance/work-orders", label: "Work Orders", icon: ClipboardList, capability: "maintenance.work_orders.view" },
-  { to: "/maintenance/planned-maintenance", label: "Planned Jobs", icon: CalendarDays, capability: "permission.manage" },
-  { to: "/maintenance/assets", label: "Equipment & Assets", icon: Package, capability: "permission.manage" },
-  { to: "/maintenance/safety-compliance", label: "Safety Checks", icon: ShieldCheck, capability: "permission.manage" },
-  { to: "/maintenance/housekeeping", label: "Cleaning & Housekeeping", icon: UsersRound, capability: "permission.manage" },
-  { to: "/maintenance/certificates", label: "Certificates & Documents", icon: BadgeCheck, capability: "permission.manage" },
-  { to: "/maintenance/contractors", label: "Contractors", icon: HardHat, capability: "maintenance.contractors.register.view" },
-  { to: "/maintenance/corrective-actions", label: "Follow-up Actions", icon: ClipboardCheck, capability: "permission.manage" },
-  { to: "/maintenance/rooms-locations", label: "Rooms & Locations", icon: MapPin, capability: "permission.manage" },
-  { to: "/maintenance/reports", label: "Reports", icon: BarChart3, capability: "permission.manage" },
-  { to: "/maintenance/settings", label: "Settings", icon: Settings, capability: "permission.manage" },
+  {
+    to: "/maintenance/work-orders",
+    label: "Work Orders",
+    icon: ClipboardList,
+    capability: "maintenance.work_orders.view",
+  },
+  {
+    to: "/maintenance/planned-maintenance",
+    label: "Planned Jobs",
+    icon: CalendarDays,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/assets-rooms-beds",
+    label: "Assets, Rooms & Beds",
+    icon: Package,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/safety-compliance",
+    label: "Safety Checks",
+    icon: ShieldCheck,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/housekeeping",
+    label: "Cleaning & Housekeeping",
+    icon: UsersRound,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/certificates",
+    label: "Certificates & Documents",
+    icon: BadgeCheck,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/contractors",
+    label: "Contractors",
+    icon: HardHat,
+    capability: "maintenance.contractors.register.view",
+  },
+  {
+    to: "/maintenance/corrective-actions",
+    label: "Follow-up Actions",
+    icon: ClipboardCheck,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/reports",
+    label: "Reports",
+    icon: BarChart3,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/settings",
+    label: "Settings",
+    icon: Settings,
+    capability: "permission.manage",
+  },
 ];
 
 function SidebarInner() {
@@ -365,12 +440,24 @@ function SidebarInner() {
   const visibleWorkforce = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
-  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view") || canAccess("maintenance.contractors.register.view");
+  const canViewMaintenance =
+    canAccess("permission.manage") ||
+    canAccess("maintenance.work_orders.view") ||
+    canAccess("maintenance.contractors.register.view");
   const visibleMaintenance = maintenanceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
-  const moduleNav = activeModule === "maintenance" ? visibleMaintenance : activeModule === "workforce" ? visibleWorkforce : visible;
-  const availableModules: AppModule[] = ["care", ...(canViewMaintenance && visibleMaintenance.length ? ["maintenance" as const] : []), ...(visibleWorkforce.length ? ["workforce" as const] : [])];
+  const moduleNav =
+    activeModule === "maintenance"
+      ? visibleMaintenance
+      : activeModule === "workforce"
+        ? visibleWorkforce
+        : visible;
+  const availableModules: AppModule[] = [
+    "care",
+    ...(canViewMaintenance && visibleMaintenance.length ? ["maintenance" as const] : []),
+    ...(visibleWorkforce.length ? ["workforce" as const] : []),
+  ];
   const switchModule = (module: AppModule) => {
     setModuleMenuOpen(false);
     setActiveModule(module);
@@ -382,7 +469,11 @@ function SidebarInner() {
       <div className="px-5 py-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2.5" aria-label="ORITAS Care Solutions">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#16213f]">
-            <HeartHandshake className="h-7 w-7 text-[#5372f3]" strokeWidth={2.3} aria-hidden="true" />
+            <HeartHandshake
+              className="h-7 w-7 text-[#5372f3]"
+              strokeWidth={2.3}
+              aria-hidden="true"
+            />
           </div>
           <div className="leading-none">
             <div className="text-xl font-bold tracking-[0.08em] text-white">ORITAS</div>
@@ -392,10 +483,36 @@ function SidebarInner() {
           </div>
         </div>
         <div className="relative mt-4">
-          <button type="button" onClick={() => setModuleMenuOpen((open) => !open)} aria-expanded={moduleMenuOpen} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/60 px-3 text-sm font-medium hover:bg-sidebar-accent">
-            <span>{moduleLabels[activeModule]}</span><ChevronDown className={cn("h-4 w-4 transition-transform", moduleMenuOpen && "rotate-180")} />
+          <button
+            type="button"
+            onClick={() => setModuleMenuOpen((open) => !open)}
+            aria-expanded={moduleMenuOpen}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/60 px-3 text-sm font-medium hover:bg-sidebar-accent"
+          >
+            <span>{moduleLabels[activeModule]}</span>
+            <ChevronDown
+              className={cn("h-4 w-4 transition-transform", moduleMenuOpen && "rotate-180")}
+            />
           </button>
-          {moduleMenuOpen && <div className="absolute left-0 right-0 top-12 z-50 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-lg">{availableModules.map((module) => <button key={module} type="button" onClick={() => switchModule(module)} className={cn("flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm", module === activeModule ? "bg-sidebar-primary text-sidebar-primary-foreground" : "hover:bg-sidebar-accent")}>{moduleLabels[module]}</button>)}</div>}
+          {moduleMenuOpen && (
+            <div className="absolute left-0 right-0 top-12 z-50 rounded-lg border border-sidebar-border bg-sidebar p-1 shadow-lg">
+              {availableModules.map((module) => (
+                <button
+                  key={module}
+                  type="button"
+                  onClick={() => switchModule(module)}
+                  className={cn(
+                    "flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm",
+                    module === activeModule
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "hover:bg-sidebar-accent",
+                  )}
+                >
+                  {moduleLabels[module]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
@@ -445,13 +562,17 @@ function SidebarInner() {
 
 function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const current = [...maintenanceNav, ...workforceNav, ...nav].find((n) => (n.exact ? pathname === n.to : pathname.startsWith(n.to)));
+  const current = [...maintenanceNav, ...workforceNav, ...nav].find((n) =>
+    n.exact ? pathname === n.to : pathname.startsWith(n.to),
+  );
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur border-b">
       <div className="flex min-h-14 items-center gap-3 px-4 py-2 md:px-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm md:text-base">{current?.label ?? "Dashboard"}</span>
+            <span className="font-semibold text-sm md:text-base">
+              {current?.label ?? "Dashboard"}
+            </span>
           </div>
         </div>
         <div className="flex-1" />
@@ -460,7 +581,10 @@ function TopBar() {
           <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
           <Input placeholder="Search…" className="pl-8 h-9" />
         </div>
-        <button className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground" aria-label="Notifications">
+        <button
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          aria-label="Notifications"
+        >
           <Bell className="h-4 w-4" />
         </button>
         <UserMenu />
@@ -507,14 +631,19 @@ function MobileNav() {
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole))
     .filter((i) => currentRole !== "group_owner" || !groupOwnerHidden.has(i.to))
-    .filter((i) => currentRole !== "don" || !donHidden.has(i.to))
+    .filter((i) => currentRole !== "don" || !donHidden.has(i.to));
   const workforceVisible = workforceNav
     .filter((i) => !i.capability || canAccess(i.capability))
     .filter((i) => !i.visible || i.visible(canAccess, currentRole));
-  const canViewMaintenance = canAccess("permission.manage") || canAccess("maintenance.work_orders.view") || canAccess("maintenance.contractors.register.view");
+  const canViewMaintenance =
+    canAccess("permission.manage") ||
+    canAccess("maintenance.work_orders.view") ||
+    canAccess("maintenance.contractors.register.view");
   const visibleMobile = [
     ...visible,
-    ...(canViewMaintenance ? [{ to: "/maintenance", label: "Maintenance", icon: Wrench } as NavItem] : []),
+    ...(canViewMaintenance
+      ? [{ to: "/maintenance", label: "Maintenance", icon: Wrench } as NavItem]
+      : []),
     ...workforceVisible,
   ].slice(0, 5);
   return (
@@ -580,5 +709,14 @@ export function AppShell() {
 
 function ShellMain() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  return <main className={cn("flex-1 pb-20 md:pb-8", pathname.startsWith("/maintenance") && "maintenance-experience")}><Outlet /></main>;
+  return (
+    <main
+      className={cn(
+        "flex-1 pb-20 md:pb-8",
+        pathname.startsWith("/maintenance") && "maintenance-experience",
+      )}
+    >
+      <Outlet />
+    </main>
+  );
 }

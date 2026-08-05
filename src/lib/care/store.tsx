@@ -468,6 +468,7 @@ import {
   isResidentRespite,
   migrateResidentLifecycle,
 } from "./residentLifecycle";
+import { canAssignBed } from "@/domain/maintenance/bedOccupancy";
 import {
   canAccess,
   createStaffAccessContext,
@@ -1178,15 +1179,44 @@ const WINGS_SEED: Wing[] = [
 const UNITS_SEED: Unit[] = WINGS_SEED.map((w) => ({ id: `u-${w.id}`, wingId: w.id, name: w.name }));
 
 function seedRooms(): Room[] {
-  const rooms: Room[] = [];
-  WINGS_SEED.forEach((w, wi) => {
-    const start = wi * 10 + 1;
-    for (let i = 0; i < 12; i++) {
-      const num = String(start + i);
-      rooms.push({ id: `r-${w.id}-${num}`, wingId: w.id, unitId: `u-${w.id}`, number: num });
-    }
-  });
-  return rooms;
+  const now = "2026-07-21T08:30:00.000Z";
+  return ["1", "3", "7", "11"].map((number) => ({
+    id: `r-w-oak-${number}`,
+    nursingHomeId: BALLYMORE_FACILITY_ID as Room["nursingHomeId"],
+    facilityId: BALLYMORE_FACILITY_ID,
+    wingId: "w-oak",
+    unitId: "u-w-oak",
+    number,
+    roomNumber: number,
+    name: `Room ${number}`,
+    active: true,
+    roomType: "single",
+    maximumBedSpaces: 1,
+    operationalStatus: "ready",
+    createdAt: now,
+    updatedAt: now,
+  }));
+}
+
+function seedBeds(): Bed[] {
+  const now = "2026-07-21T08:30:00.000Z";
+  return ["1", "3", "7", "11"].map((number) => ({
+    id: `demo-bed-oak-${number}` as Bed["id"],
+    roomId: `r-w-oak-${number}` as Bed["roomId"],
+    label: "Bed A",
+    identifier: `${number}-A`,
+    active: true,
+    status: "available",
+    operationalStatus: "operational",
+    occupancyStatus: "available",
+    readinessStatus: "ready",
+    condition: "good",
+    bedType: "standard",
+    mattressType: "foam",
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  }));
 }
 
 function seedMaintenanceWorkOrders(): MaintenanceWorkOrder[] {
@@ -5256,7 +5286,7 @@ function seedData() {
     units,
     rooms,
     wards: [] as Ward[],
-    beds: [] as Bed[],
+    beds: seedBeds(),
     bedAssignments: [] as BedAssignment[],
     admissions: [] as Admission[],
     absenceEpisodes: [] as AbsenceEpisode[],
@@ -5474,7 +5504,7 @@ function seedData() {
     outings,
     handovers,
     maintenanceAssetCategories: seedMaintenanceAssetCategories(),
-    maintenanceAssets: [] as MaintenanceAsset[],
+    maintenanceAssets: seedMaintenanceAssets(),
     maintenanceAssetDocuments: [] as MaintenanceAssetDocument[],
     maintenanceAssetPhotos: [] as MaintenanceAssetPhoto[],
     maintenanceAssetLocationHistory: [] as MaintenanceAssetLocationHistory[],
@@ -5763,7 +5793,15 @@ function normalizeFacilities(store: Store, defaultFacilityId = BALLYMORE_FACILIT
   let normalized: Store = {
     ...store,
     enterprises: store.enterprises?.length ? store.enterprises : ENTERPRISES_SEED,
-    facilities: FACILITIES_SEED,
+    facilities: [
+      ...FACILITIES_SEED.map((seedFacility) => ({
+        ...seedFacility,
+        ...store.facilities?.find((facility) => facility.id === seedFacility.id),
+      })),
+      ...(store.facilities || []).filter(
+        (facility) => !FACILITIES_SEED.some((seedFacility) => seedFacility.id === facility.id),
+      ),
+    ],
     assessmentRequirements: mergeDefaultRiskAssessmentRequirements(
       (store as Store & { assessmentRequirements?: AssessmentRequirementRecord[] })
         .assessmentRequirements,
@@ -6064,6 +6102,37 @@ function loadInitialStore(readPersistedStore = typeof window !== "undefined"): S
     }
 
     const parsed = JSON.parse(raw) as Partial<Store>;
+    // Replace the former bulk demo inventory while retaining records created by users.
+    const demoRoomIds = new Set(base.rooms.map((room) => String(room.id)));
+    const isLegacyGeneratedRoom = (id: string) =>
+      /^r-w-(oak|maple|ash|willow|memory|respite)-\d+$/.test(id);
+    const customRooms = (parsed.rooms || []).filter(
+      (room) => !isLegacyGeneratedRoom(String(room.id)),
+    );
+    parsed.rooms = [...base.rooms, ...customRooms];
+
+    const demoBedIds = new Set(base.beds.map((bed) => String(bed.id)));
+    const customBeds = (parsed.beds || []).filter((bed) => {
+      const id = String(bed.id);
+      return !demoBedIds.has(id) && !/^(demo-bed-|bed-seed-|maintenance-bed-seed-)/.test(id);
+    });
+    parsed.beds = [...base.beds, ...customBeds];
+
+    const demoAssetIds = new Set(base.maintenanceAssets.map((asset) => String(asset.id)));
+    parsed.maintenanceAssets = [
+      ...base.maintenanceAssets,
+      ...(parsed.maintenanceAssets || []).filter(
+        (asset) => !demoAssetIds.has(String(asset.id)),
+      ),
+    ];
+
+    const demoRooms = base.rooms;
+    parsed.residents = (parsed.residents || []).map((resident, index) => {
+      const roomId = String(resident.roomId || "");
+      if (!isLegacyGeneratedRoom(roomId) || demoRoomIds.has(roomId)) return resident;
+      const room = demoRooms[index % demoRooms.length];
+      return { ...resident, roomId: String(room.id), roomNumber: room.number };
+    });
     delete (parsed as any).carePlans;
     delete (parsed as any).carePlanEvaluations;
     delete (parsed as any).carePlanReviews;
@@ -6926,7 +6995,17 @@ interface CareCtx extends Store {
     id: string,
     input: Partial<
       Pick<Room, "number" | "name" | "roomType" | "notes" | "active" | "wingId" | "unitId">
+      & Pick<Room, "maximumBedSpaces" | "operationalStatus">
     >,
+  ) => void;
+  createMaintenanceBed: (input: Pick<Bed, "roomId" | "label"> & Partial<Bed>) => Bed;
+  updateMaintenanceBed: (id: string, input: Partial<Bed>, expectedVersion?: number) => void;
+  deleteMaintenanceBed: (id: string, reason: string) => void;
+  assignResidentToMaintenanceBed: (bedId: string, residentId: string, at: string) => void;
+  releaseMaintenanceBed: (bedId: string, reason: string, at: string) => void;
+  reserveMaintenanceBed: (
+    bedId: string,
+    input: { reason: string; residentId?: string; reservedFrom: string; reservedUntil?: string },
   ) => void;
   addMaintenanceWorkOrder: (input: CreateWorkOrderInput) => MaintenanceWorkOrder;
   createCorrectiveAction: (
@@ -17939,9 +18018,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
         }));
       },
       createHousekeepingTemplate: (input) => {
-        if (input.items && (!input.items.length || input.items.some((item) => !item.label?.trim()))) throw new Error("Add at least one named checklist item.");
-        const itemNames = (input.items || []).map((item) => item.label?.trim().toLowerCase()).filter(Boolean);
-        if (new Set(itemNames).size !== itemNames.length) throw new Error("Checklist item names must be unique within a template.");
+        if (input.items && (!input.items.length || input.items.some((item) => !item.label?.trim())))
+          throw new Error("Add at least one named checklist item.");
+        const itemNames = (input.items || [])
+          .map((item) => item.label?.trim().toLowerCase())
+          .filter(Boolean);
+        if (new Set(itemNames).size !== itemNames.length)
+          throw new Error("Checklist item names must be unique within a template.");
         const validation = validateHousekeepingTemplate(input);
         if (!validation.valid)
           throw new Error(
@@ -18086,7 +18169,22 @@ export function CareProvider({ children }: { children: ReactNode }) {
       },
       activateHousekeepingTemplate: (id) => {
         const now = new Date().toISOString();
-        setStore((s) => ({ ...s, housekeepingTemplates: s.housekeepingTemplates.map((item) => item.id === id ? { ...item, active: true, status: "ACTIVE", archivedAt: undefined, archivedBy: undefined, updatedBy: currentUserName, updatedAt: now } : item) }));
+        setStore((s) => ({
+          ...s,
+          housekeepingTemplates: s.housekeepingTemplates.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  active: true,
+                  status: "ACTIVE",
+                  archivedAt: undefined,
+                  archivedBy: undefined,
+                  updatedBy: currentUserName,
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        }));
       },
       deactivateHousekeepingTemplate: (id) =>
         api.updateHousekeepingTemplate(id, { active: false, status: "INACTIVE" }),
@@ -19029,6 +19127,326 @@ export function CareProvider({ children }: { children: ReactNode }) {
             ...s.auditLogs,
           ].slice(0, 500),
         }));
+      },
+      createMaintenanceBed: (input) => {
+        const room = store.rooms.find(
+          (item) =>
+            String(item.id) === String(input.roomId) &&
+            String(item.facilityId || item.nursingHomeId || activeFacilityId) === activeFacilityId,
+        );
+        if (!room) throw new Error("Select a managed room in this Nursing Home.");
+        const activeBeds = store.beds.filter(
+          (item) => String(item.roomId) === String(room.id) && item.active,
+        );
+        if (room.maximumBedSpaces && activeBeds.length >= room.maximumBedSpaces)
+          throw new Error("This room has reached its maximum bed-space capacity.");
+        const identifier =
+          input.identifier?.trim() ||
+          `${room.number}-${input.label.trim().replace(/\s+/g, "-").toUpperCase()}`;
+        if (
+          store.beds.some(
+            (item) =>
+              item.identifier?.toLowerCase() === identifier.toLowerCase() &&
+              store.rooms.some(
+                (candidate) =>
+                  String(candidate.id) === String(item.roomId) &&
+                  String(candidate.facilityId || candidate.nursingHomeId || activeFacilityId) ===
+                    activeFacilityId,
+              ),
+          )
+        )
+          throw new Error("Bed identifier must be unique within the Nursing Home.");
+        const now = new Date().toISOString();
+        const bed: Bed = {
+          id: `bed-${uid()}` as Bed["id"],
+          roomId: room.id as Bed["roomId"],
+          label: input.label.trim(),
+          identifier,
+          active: true,
+          status: "available",
+          operationalStatus: "operational",
+          occupancyStatus: "available",
+          readinessStatus: "not_checked",
+          condition: "unknown",
+          bedType: input.bedType || "standard",
+          mattressType: input.mattressType || "foam",
+          assetId: input.assetId,
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setStore((s) => ({
+          ...s,
+          beds: [...s.beds, bed],
+          auditLogs: [
+            {
+              id: uid(),
+              facilityId: activeFacilityId,
+              user: currentUserName,
+              role: currentRole,
+              action: "Bed created",
+              entity: String(bed.id),
+              entityType: "maintenance_bed",
+              timestamp: now,
+              after: JSON.stringify(bed),
+            },
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+        return bed;
+      },
+      updateMaintenanceBed: (id, input, expectedVersion) => {
+        const current = store.beds.find((item) => String(item.id) === id);
+        if (!current) throw new Error("Bed not found.");
+        if (expectedVersion !== undefined && (current.version || 1) !== expectedVersion)
+          throw new Error("This bed was updated by another user. Refresh and try again.");
+        if (input.condition === "unserviceable" && !input.restrictionReason?.trim())
+          throw new Error("Enter a reason when a bed is unserviceable.");
+        const next = {
+          ...current,
+          ...input,
+          ...(input.condition === "unserviceable"
+            ? {
+                operationalStatus: "out_of_service" as const,
+                occupancyStatus: "temporarily_unavailable" as const,
+              }
+            : {}),
+          version: (current.version || 1) + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        const currentAssignment = store.bedAssignments.find(
+          (assignment) =>
+            String(assignment.bedId) === id &&
+            assignment.status === "active" &&
+            !assignment.endDate &&
+            !assignment.endDateTime,
+        );
+        if (currentAssignment && next.occupancyStatus !== "occupied")
+          throw new Error("Release the resident assignment before changing this bed from Occupied.");
+        if (!currentAssignment && next.occupancyStatus === "occupied")
+          throw new Error("A bed can only become Occupied through the resident accommodation workflow.");
+        if (
+          next.occupancyStatus === "available" &&
+          (next.operationalStatus !== "operational" ||
+            next.readinessStatus !== "ready" ||
+            next.condition === "unserviceable")
+        )
+          throw new Error("An Available bed must be Operational, Ready and serviceable.");
+        if (
+          next.occupancyStatus === "available" &&
+          ["blocked", "under_maintenance", "out_of_service", "disposed"].includes(
+            next.operationalStatus || "",
+          )
+        )
+          throw new Error("A blocked, under-maintenance or out-of-service bed cannot be Available.");
+        if (next.occupancyStatus === "available") {
+          const room = store.rooms.find((item) => String(item.id) === String(next.roomId));
+          if (
+            !canAssignBed(
+              next,
+              room,
+              store.bedAssignments,
+              store.maintenanceWorkOrders,
+              store.safetyInspections,
+            )
+          )
+            throw new Error(
+              "This bed cannot be made Available until all room, maintenance, inspection, cleaning and verification blockers are cleared.",
+            );
+        }
+        setStore((s) => ({
+          ...s,
+          beds: s.beds.map((item) => (String(item.id) === id ? next : item)),
+          auditLogs: [
+            {
+              id: uid(),
+              facilityId: activeFacilityId,
+              user: currentUserName,
+              role: currentRole,
+              action: "Bed updated",
+              entity: id,
+              entityType: "maintenance_bed",
+              timestamp: next.updatedAt,
+              before: JSON.stringify(current),
+              after: JSON.stringify(next),
+            },
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      deleteMaintenanceBed: (id, reason) => {
+        const current = store.beds.find((item) => String(item.id) === id);
+        if (!current) throw new Error("Bed not found.");
+        if (!reason.trim()) throw new Error("Enter a reason for deleting this bed.");
+        const currentAssignment = store.bedAssignments.find(
+          (assignment) =>
+            String(assignment.bedId) === id &&
+            !assignment.endDate &&
+            !assignment.endDateTime &&
+            ["active", "reserved"].includes(assignment.status),
+        );
+        if (currentAssignment)
+          throw new Error("This bed cannot be deleted while it is occupied or reserved. Release the assignment first.");
+        if (!current.active) return;
+        const now = new Date().toISOString();
+        const deleted = {
+          ...current,
+          active: false,
+          status: "temporarily_unavailable" as const,
+          occupancyStatus: "temporarily_unavailable" as const,
+          operationalStatus: "out_of_service" as const,
+          restrictionReason: reason.trim(),
+          version: (current.version || 1) + 1,
+          updatedAt: now,
+        };
+        setStore((s) => ({
+          ...s,
+          beds: s.beds.map((item) => (String(item.id) === id ? deleted : item)),
+          auditLogs: [
+            {
+              id: uid(),
+              facilityId: activeFacilityId,
+              user: currentUserName,
+              role: currentRole,
+              action: "Bed deleted",
+              entity: id,
+              entityType: "maintenance_bed",
+              timestamp: now,
+              before: JSON.stringify(current),
+              after: JSON.stringify({ ...deleted, deletionReason: reason.trim() }),
+            },
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      assignResidentToMaintenanceBed: (bedId, residentId, at) => {
+        const bed = store.beds.find((item) => String(item.id) === bedId);
+        const room = bed && store.rooms.find((item) => String(item.id) === String(bed.roomId));
+        const resident = store.residents.find((item) => item.id === residentId);
+        if (
+          !bed ||
+          !room ||
+          !resident ||
+          String(room.facilityId || room.nursingHomeId || activeFacilityId) !== activeFacilityId ||
+          String(resident.facilityId || activeFacilityId) !== activeFacilityId
+        )
+          throw new Error("Resident and bed must belong to this Nursing Home.");
+        if (!canAssignBed(bed, room, store.bedAssignments, store.maintenanceWorkOrders, store.safetyInspections))
+          throw new Error("This bed is no longer assignable. Review its availability and safety restrictions.");
+        if (
+          store.bedAssignments.some(
+            (item) =>
+              item.status === "active" &&
+              (String(item.bedId) === bedId || item.residentId === residentId),
+          )
+        )
+          throw new Error("This bed was assigned by another user. Select another available bed.");
+        const now = at || new Date().toISOString();
+        const assignment: BedAssignment = {
+          id: `bed-assignment-${uid()}` as BedAssignment["id"],
+          bedId: bed.id,
+          residentId,
+          nursingHomeId: activeFacilityId as BedAssignment["nursingHomeId"],
+          roomId: room.id as BedAssignment["roomId"],
+          startDate: now.slice(0, 10),
+          startDateTime: now,
+          status: "active",
+          reason: "bed_move",
+          createdAt: now,
+          updatedAt: now,
+          createdBy: currentUser.id,
+        };
+        setStore((s) => ({
+          ...s,
+          beds: s.beds.map((item) =>
+            String(item.id) === bedId
+              ? {
+                  ...item,
+                  occupancyStatus: "occupied",
+                  status: "occupied",
+                  version: (item.version || 1) + 1,
+                  updatedAt: now,
+                }
+              : item,
+          ),
+          bedAssignments: [assignment, ...s.bedAssignments],
+          residents: s.residents.map((item) =>
+            item.id === residentId
+              ? {
+                  ...item,
+                  roomId: room.id,
+                  roomNumber: room.number,
+                  wingId: room.wingId,
+                  unitId: room.unitId,
+                }
+              : item,
+          ),
+          auditLogs: [
+            {
+              id: uid(),
+              facilityId: activeFacilityId,
+              user: currentUserName,
+              role: currentRole,
+              action: "Resident assigned to bed",
+              entity: bedId,
+              entityType: "maintenance_bed",
+              timestamp: now,
+              after: JSON.stringify({ residentId }),
+            },
+            ...s.auditLogs,
+          ].slice(0, 500),
+        }));
+      },
+      releaseMaintenanceBed: (bedId, reason, at) => {
+        if (!reason.trim()) throw new Error("Enter a release reason.");
+        const now = at || new Date().toISOString();
+        setStore((s) => ({
+          ...s,
+          bedAssignments: s.bedAssignments.map((item) =>
+            String(item.bedId) === bedId && item.status === "active"
+              ? {
+                  ...item,
+                  status: "ended",
+                  endDate: now.slice(0, 10),
+                  endDateTime: now,
+                  endedReason: "other",
+                  assignmentReason: reason,
+                  updatedAt: now,
+                }
+              : item,
+          ),
+          beds: s.beds.map((item) =>
+            String(item.id) === bedId
+              ? {
+                  ...item,
+                  occupancyStatus: "temporarily_unavailable",
+                  readinessStatus: "cleaning_required",
+                  status: "available",
+                  version: (item.version || 1) + 1,
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        }));
+      },
+      reserveMaintenanceBed: (bedId, input) => {
+        if (!input.reason.trim()) throw new Error("Enter a reservation reason.");
+        const bed = store.beds.find((item) => String(item.id) === bedId);
+        const room = bed && store.rooms.find((item) => String(item.id) === String(bed.roomId));
+        if (!bed || !canAssignBed(bed, room, store.bedAssignments, store.maintenanceWorkOrders, store.safetyInspections))
+          throw new Error("Only an assignable bed can be reserved.");
+        api.updateMaintenanceBed(
+          bedId,
+          {
+            occupancyStatus: "reserved",
+            status: "reserved",
+            reservationReason: input.reason,
+            reservedResidentId: input.residentId,
+            reservedFrom: input.reservedFrom,
+            reservedUntil: input.reservedUntil,
+          },
+          bed.version || 1,
+        );
       },
       createCorrectiveAction: (input) => {
         const now = new Date().toISOString();
