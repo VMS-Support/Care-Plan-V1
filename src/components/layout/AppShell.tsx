@@ -55,6 +55,7 @@ type NavItem = {
   label: string;
   icon: any;
   exact?: boolean;
+  activePrefixes?: string[];
   capability?: string;
   visible?: (
     canAccess: CapabilityCheck,
@@ -330,35 +331,31 @@ const nav: NavItem[] = [
 ];
 
 const maintenanceNav: NavItem[] = [
-  { to: "/maintenance", label: "Overview", icon: Home, exact: true },
+  { to: "/maintenance", label: "Today", icon: Home, exact: true },
   {
     to: "/maintenance/work",
     label: "Work",
     icon: ClipboardCheck,
-    visible: (canAccess) => canAccess("maintenance.work_orders.view") || canAccess("permission.manage"),
-  },
-  {
-    to: "/maintenance/work-orders",
-    label: "Work Orders",
-    icon: ClipboardList,
-    capability: "maintenance.work_orders.view",
+    activePrefixes: ["/maintenance/work", "/maintenance/work-orders", "/maintenance/report-issue"],
+    visible: (canAccess) =>
+      canAccess("maintenance.work_orders.view") || canAccess("permission.manage"),
   },
   {
     to: "/maintenance/planned-maintenance",
-    label: "Planned Maintenance",
+    label: "Planned & Compliance",
     icon: CalendarDays,
+    capability: "permission.manage",
+  },
+  {
+    to: "/maintenance/housekeeping",
+    label: "Housekeeping",
+    icon: UsersRound,
     capability: "permission.manage",
   },
   {
     to: "/maintenance/assets-rooms-beds",
     label: "Assets, Rooms & Beds",
     icon: Package,
-    capability: "permission.manage",
-  },
-  {
-    to: "/maintenance/housekeeping",
-    label: "Cleaning & Housekeeping",
-    icon: UsersRound,
     capability: "permission.manage",
   },
   {
@@ -513,7 +510,9 @@ function SidebarInner() {
       </div>
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
         {moduleNav.map((item) => {
-          const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+          const active = item.exact
+            ? pathname === item.to
+            : (item.activePrefixes || [item.to]).some((prefix) => pathname.startsWith(prefix));
           const Icon = item.icon;
           return (
             <Link
@@ -645,7 +644,9 @@ function MobileNav() {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar text-sidebar-foreground border-t border-sidebar-border flex justify-around py-1.5">
       {visibleMobile.map((item) => {
-        const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+        const active = item.exact
+          ? pathname === item.to
+          : (item.activePrefixes || [item.to]).some((prefix) => pathname.startsWith(prefix));
         const Icon = item.icon;
         return (
           <Link

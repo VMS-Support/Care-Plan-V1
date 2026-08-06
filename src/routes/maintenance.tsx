@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { MaintenanceHousekeepingDashboard } from "@/components/maintenance/MaintenanceHousekeepingDashboard";
 
 export const Route = createFileRoute("/maintenance")({
-  head: () => ({ meta: [{ title: "Maintenance Overview - NuCare" }] }),
+  head: () => ({ meta: [{ title: "Maintenance Today - ORITAS" }] }),
   component: MaintenanceRoute,
 });
 

@@ -1,47 +1,430 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, Box, CalendarDays, CheckCircle2, ClipboardList, FileText, ShieldCheck, Wrench } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  BedDouble,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  DoorOpen,
+  FileWarning,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
+import { useCare } from "@/lib/care/store";
+import { maintenanceTodayProjection } from "@/domain/maintenance/maintenanceToday";
+import type { UnifiedWorkItem } from "@/domain/maintenance/unifiedWork";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useCare } from "@/lib/care/store";
-import { workOrderDashboardMetrics, workOrderPriorityLabel, workOrderStatusLabel } from "@/domain/maintenance/workOrders";
-import { assetDashboardMetrics } from "@/domain/maintenance/assets";
-import { certificateDashboardMetrics } from "@/domain/maintenance/certificates";
-import { correctiveActionIsOverdue } from "@/domain/maintenance/correctiveActions";
 
 export function MaintenanceHousekeepingDashboard() {
   const care = useCare();
-  const workOrders = care.maintenanceWorkOrders.filter((item) => item.homeId === care.activeFacilityId && !item.archivedAt);
-  const workOrderMetrics = workOrderDashboardMetrics(workOrders);
-  const assets = care.maintenanceAssets.filter((item) => item.homeId === care.activeFacilityId && !item.archivedAt);
-  const assetMetrics = assetDashboardMetrics({ assets, categories: care.maintenanceAssetCategories, workOrders, schedules: care.plannedMaintenanceSchedules, occurrences: care.plannedMaintenanceOccurrences });
-  const certificateMetrics = certificateDashboardMetrics({ certificates: care.maintenanceCertificates.filter((item) => !item.homeId || item.homeId === care.activeFacilityId), versions: care.maintenanceCertificateVersions, types: care.maintenanceCertificateTypes, attachments: care.maintenanceCertificateAttachments, requirements: care.maintenanceCertificateRequirements, assets });
-  const corrective = care.correctiveActions.filter((item) => item.homeId === care.activeFacilityId && !["CLOSED", "CANCELLED"].includes(item.status));
-  const facility = care.facilities.find((item) => item.id === care.activeFacilityId)?.name || "Current Nursing Home";
-  const currentOrders = workOrders.filter((item) => !["COMPLETED", "VERIFIED", "CLOSED", "CANCELLED", "ENTERED_IN_ERROR"].includes(item.status)).sort((a, b) => (a.dueAt || "9999").localeCompare(b.dueAt || "9999")).slice(0, 6);
-
-  if (care.currentRole !== "don" && care.currentRole !== "group_owner") return <div className="p-6"><Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Maintenance & Housekeeping is available to authorised users only.</CardContent></Card></div>;
-
-  return <div className="space-y-5 bg-[#f5f8fc] p-4 text-[#071832] md:p-6">
-    <header><h1 className="text-2xl font-bold tracking-tight">Maintenance & Housekeeping</h1><p className="mt-1 text-sm text-[#536176]">Live operational overview for {facility}.</p></header>
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-      <Kpi icon={Wrench} title="Open Work Orders" value={workOrderMetrics.open} detail={`High priority: ${workOrderMetrics.high}`} to="/maintenance/work-orders?preset=active" tone="red" />
-      <Kpi icon={AlertTriangle} title="Overdue Work Orders" value={workOrderMetrics.overdue} detail="Require attention" to="/maintenance/work-orders?preset=overdue" tone="red" />
-      <Kpi icon={CalendarDays} title="Preventive Maintenance Due" value={assetMetrics.upcomingPlannedMaintenance} detail="Next 30 days" to="/maintenance/planned-maintenance" tone="amber" />
-      <Kpi icon={Box} title="Assets Out of Service" value={assetMetrics.outOfService} detail={`Operational: ${assetMetrics.operationalAssets}`} to="/maintenance/assets" tone="purple" />
-      <Kpi icon={FileText} title="Certificates Expiring Soon" value={certificateMetrics.dueSoon} detail={`Expired: ${certificateMetrics.expired}`} to="/maintenance/certificates/due-soon" tone="amber" />
-      <Kpi icon={ShieldCheck} title="Open Corrective Actions" value={corrective.length} detail={`Overdue: ${corrective.filter(correctiveActionIsOverdue).length}`} to="/maintenance/corrective-actions" tone="teal" />
-      <Kpi icon={CheckCircle2} title="Total Assets" value={assetMetrics.totalAssets} detail={`Warranty expiring: ${assetMetrics.warrantyExpiring}`} to="/maintenance/assets" tone="green" />
-    </section>
-    <section className="grid gap-4 xl:grid-cols-2">
-      <Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Work Orders by Status</CardTitle><Link to="/maintenance/work-orders" className="text-sm font-medium text-primary hover:underline">View all</Link></CardHeader><CardContent className="space-y-1"><StatusLink label="Open" value={workOrderMetrics.open} to="/maintenance/work-orders?status=OPEN" /><StatusLink label="In Progress" value={workOrderMetrics.inProgress} to="/maintenance/work-orders?status=IN_PROGRESS" /><StatusLink label="On Hold" value={workOrderMetrics.onHold} to="/maintenance/work-orders?status=ON_HOLD" /><StatusLink label="Completed" value={workOrderMetrics.completed} to="/maintenance/work-orders?preset=completed" /><StatusLink label="Cancelled" value={workOrderMetrics.cancelled} to="/maintenance/work-orders?preset=cancelled" /></CardContent></Card>
-      <Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Assets by Condition</CardTitle><Link to="/maintenance/assets" className="text-sm font-medium text-primary hover:underline">Open asset register</Link></CardHeader><CardContent className="space-y-1">{assetMetrics.byCondition.filter((item) => item.value > 0).map((item) => <div key={item.label} className="flex items-center justify-between border-b py-2 text-sm last:border-0"><span>{item.label}</span><span className="font-semibold">{item.value}</span></div>)}{assetMetrics.byCondition.every((item) => item.value === 0) && <p className="py-4 text-sm text-muted-foreground">No assets have been recorded for this Nursing Home.</p>}</CardContent></Card>
-    </section>
-    <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle>Work Orders Requiring Attention</CardTitle><p className="mt-1 text-sm font-normal text-muted-foreground">Live active Work Orders, ordered by due date.</p></div><Link to="/maintenance/work-orders?preset=active" className="text-sm font-medium text-primary hover:underline">View all active</Link></CardHeader><CardContent>{currentOrders.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No active Work Orders for this Nursing Home.</p> : <div className="divide-y">{currentOrders.map((item) => <Link key={item.id} to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: item.id }} className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-muted/50"><div><div className="font-medium">{item.title}</div><div className="text-xs text-muted-foreground">{item.workOrderNumber} · Due {item.dueAt ? new Date(item.dueAt).toLocaleDateString("en-IE") : "not set"}</div></div><div className="flex gap-2"><Badge variant="outline">{workOrderPriorityLabel(item.priority)}</Badge><Badge variant="secondary">{workOrderStatusLabel(item.status)}</Badge></div></Link>)}</div>}</CardContent></Card>
-  </div>;
+  const authorised = care.facilities.filter(
+    (home) =>
+      care.canAccess("maintenance.work_orders.view", { nursingHomeId: home.id }) ||
+      care.canAccess("maintenance.work_orders.create", { nursingHomeId: home.id }) ||
+      care.canAccess("permission.manage", { nursingHomeId: home.id }),
+  );
+  const [homeId, setHomeId] = useState(authorised.length === 1 ? authorised[0].id : "");
+  const homes = homeId ? [homeId] : authorised.map((x) => x.id);
+  const data = useMemo(
+    () => maintenanceTodayProjection(care, homes, new Date()),
+    [care, homes.join("|")],
+  );
+  const showManage = care.canAccess("maintenance.work_orders.create", {
+    nursingHomeId: homeId || care.activeFacilityId,
+  });
+  const urgent = [
+    {
+      title: "Critical Work",
+      count: data.workCounts.critical,
+      detail: "Requires immediate review",
+      href: `/maintenance/work?priority=CRITICAL${homeId ? `&homeId=${homeId}` : ""}`,
+      always: true,
+      icon: AlertTriangle,
+    },
+    {
+      title: "Overdue Work",
+      count: data.workCounts.overdue,
+      detail: "Past the agreed due time",
+      href: `/maintenance/work?tab=overdue${homeId ? `&homeId=${homeId}` : ""}`,
+      always: true,
+      icon: Clock,
+    },
+    {
+      title: "Unassigned Work",
+      count: data.workCounts.unassigned,
+      detail: "Needs an owner",
+      href: `/maintenance/work?tab=unassigned${homeId ? `&homeId=${homeId}` : ""}`,
+      icon: Wrench,
+    },
+    {
+      title: "Failed Inspections",
+      count: data.plannedCompliance.failedInspections,
+      detail: "Safety checks requiring action",
+      href: "/maintenance/planned-maintenance",
+      icon: ShieldAlert,
+    },
+    {
+      title: "Failed Cleaning",
+      count: data.housekeeping.failed,
+      detail: "Cleaning requires follow-up",
+      href: "/maintenance/housekeeping",
+      icon: Sparkles,
+    },
+    {
+      title: "Rooms Blocked",
+      count: data.roomsBlocked,
+      detail: "Cannot accept a new resident",
+      href: "/maintenance/assets-rooms-beds",
+      icon: DoorOpen,
+    },
+    {
+      title: "Certificates Expired",
+      count: data.certificates.expired,
+      detail: "Compliance documents expired",
+      href: "/maintenance/contractors-certificates?tab=certificates&status=expired",
+      icon: FileWarning,
+    },
+    {
+      title: "Corrective Actions Overdue",
+      count: data.corrective.overdue,
+      detail: "Actions need escalation",
+      href: "/maintenance/corrective-actions?tab=overdue",
+      icon: ClipboardCheck,
+    },
+  ].filter((x) => x.always || x.count > 0);
+  const next = data.myWork[0];
+  return (
+    <main className="space-y-8 bg-slate-50/50 p-4 pb-12 md:p-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Maintenance</h1>
+          <p className="mt-1 max-w-3xl text-base text-muted-foreground">
+            See what needs attention today across maintenance, safety, housekeeping and compliance.
+          </p>
+          <p className="mt-3 text-base font-medium">
+            {new Intl.DateTimeFormat("en-IE", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }).format(new Date())}{" "}
+            ·{" "}
+            {homeId
+              ? authorised.find((x) => x.id === homeId)?.name
+              : "All authorised Nursing Homes"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="lg" asChild>
+            <Link to="/maintenance/report-issue">Report an Issue</Link>
+          </Button>
+          {showManage && (
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/maintenance/work-orders/new">
+                <Plus className="mr-2 h-5 w-5" />
+                Create Work Order
+              </Link>
+            </Button>
+          )}
+        </div>
+      </header>
+      {authorised.length > 1 && (
+        <label className="block max-w-md">
+          <span className="mb-2 block text-base font-semibold">Nursing Home</span>
+          <select
+            className="h-12 w-full rounded-md border bg-background px-3 text-base"
+            value={homeId}
+            onChange={(e) => setHomeId(e.target.value)}
+          >
+            <option value="">All Authorised Nursing Homes</option>
+            {authorised.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <Section title="Immediate Attention">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {urgent.map((x) => (
+            <Attention key={x.title} {...x} />
+          ))}
+        </div>
+        {urgent.every((x) => x.count === 0) && (
+          <Empty
+            title="No urgent maintenance issues"
+            text="There are no critical, overdue or failed items requiring immediate attention."
+            href="/maintenance/work"
+            action="View All Work"
+          />
+        )}
+      </Section>
+      <Section
+        title="Today’s Work"
+        action={
+          <LinkText
+            href={`/maintenance/work?dueState=DUE_TODAY${homeId ? `&homeId=${homeId}` : ""}`}
+          >
+            View All Today’s Work
+          </LinkText>
+        }
+      >
+        {data.todaysWork.length ? (
+          <WorkList rows={data.todaysWork} />
+        ) : (
+          <Empty
+            title="No work is due today."
+            text="You can review work scheduled for the coming days."
+            href="/maintenance/work?dueState=FUTURE"
+            action="View Upcoming Work"
+          />
+        )}
+      </Section>
+      <Section
+        title="My Work"
+        action={<LinkText href="/maintenance/work?tab=my-work">View All My Work</LinkText>}
+      >
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <Mini label="Active" value={data.myWorkCounts.active} />
+          <Mini label="Overdue" value={data.myWorkCounts.overdue} />
+          <Mini label="Due Today" value={data.myWorkCounts.dueToday} />
+        </div>
+        {next ? (
+          <>
+            <Button size="lg" className="mb-4" asChild>
+              <a href={next.sourceRoute}>Start Next</a>
+            </Button>
+            <WorkList rows={data.myWork} />
+          </>
+        ) : (
+          <p className="rounded-lg border bg-white p-5 text-base text-muted-foreground">
+            No work is currently assigned to you.
+          </p>
+        )}
+      </Section>
+      <Section title="Rooms and Beds">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Info
+            title="Bed Occupancy"
+            value={`${data.occupancy.occupied} of ${data.occupancy.registeredCapacity || "Not configured"}`}
+            detail={`${data.occupancy.registeredPercentage}% registered · ${data.occupancy.occupied} of ${data.occupancy.operationalCapacity} operational`}
+            href="/maintenance/assets-rooms-beds"
+            icon={BedDouble}
+          />
+          <Info
+            title="Beds Available"
+            value={data.occupancy.available}
+            detail="Ready for assignment"
+            href="/maintenance/assets-rooms-beds?tab=beds&status=available"
+            icon={BedDouble}
+          />
+          <Info
+            title="Beds Awaiting Cleaning"
+            value={data.housekeeping.bedsAwaitingCleaning}
+            detail="Cleaning or readiness required"
+            href="/maintenance/housekeeping"
+            icon={Sparkles}
+          />
+          <Info
+            title="Rooms Blocked"
+            value={data.roomsBlocked}
+            detail="Cannot accept a new resident"
+            href="/maintenance/assets-rooms-beds"
+            icon={DoorOpen}
+          />
+          <Info
+            title="Rooms Awaiting Readiness"
+            value={data.roomsAwaitingReadiness}
+            detail="Inspection or approval pending"
+            href="/maintenance/housekeeping"
+            icon={ClipboardCheck}
+          />
+        </div>
+      </Section>
+      <Section title="Compliance">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Info
+            title="Planned Maintenance Overdue"
+            value={data.plannedCompliance.plannedOverdue}
+            detail="Planned work past due"
+            href="/maintenance/planned-maintenance"
+            icon={Clock}
+          />
+          <Info
+            title="Safety Verification Outstanding"
+            value={data.plannedCompliance.verificationOutstanding}
+            detail="Checks require authorised review"
+            href="/maintenance/planned-maintenance"
+            icon={ShieldAlert}
+          />
+          <Info
+            title="Certificates Due Soon"
+            value={data.certificates.dueSoon}
+            detail="Approaching configured expiry warning"
+            href="/maintenance/contractors-certificates?tab=certificates&status=due-soon"
+            icon={FileWarning}
+          />
+          <Info
+            title="Certificates Expired"
+            value={data.certificates.expired}
+            detail="Renewal or replacement required"
+            href="/maintenance/contractors-certificates?tab=certificates&status=expired"
+            icon={FileWarning}
+          />
+          {data.contractorBlockers > 0 && (
+            <Info
+              title="Contractor Compliance Blockers"
+              value={data.contractorBlockers}
+              detail="Affecting new work assignment"
+              href="/maintenance/contractors-certificates"
+              icon={AlertTriangle}
+            />
+          )}
+          <Info
+            title="Corrective Actions Awaiting Verification"
+            value={data.corrective.awaitingVerification}
+            detail="Completed work requires review"
+            href="/maintenance/corrective-actions?tab=verification"
+            icon={ClipboardCheck}
+          />
+        </div>
+      </Section>
+      <Section
+        title="Recently Completed"
+        action={<LinkText href="/maintenance/work?tab=completed">View Completed Work</LinkText>}
+      >
+        {data.recentlyCompleted.length ? (
+          <WorkList rows={data.recentlyCompleted} />
+        ) : (
+          <p className="text-base text-muted-foreground">No work has been completed recently.</p>
+        )}
+      </Section>
+    </main>
+  );
 }
-
-function Kpi({ icon: Icon, title, value, detail, to, tone }: { icon: typeof Wrench; title: string; value: number; detail: string; to: string; tone: string }) {
-  return <Link to={to as any} className="rounded-xl bg-white p-4 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"><div className="flex items-center gap-2 text-sm font-semibold"><Icon className={`h-4 w-4 ${toneClass(tone)}`} />{title}</div><div className="mt-4 text-3xl font-bold">{value}</div><div className="mt-1 text-xs text-muted-foreground">{detail}</div></Link>;
+function Section({ title, action, children }: { title: string; action?: any; children: any }) {
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-semibold">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
 }
-function StatusLink({ label, value, to }: { label: string; value: number; to: string }) { return <Link to={to as any} className="flex items-center justify-between border-b py-2 text-sm last:border-0 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"><span>{label}</span><span className="font-semibold">{value}</span></Link>; }
-function toneClass(tone: string) { return ({ red: "text-red-600", amber: "text-amber-600", purple: "text-violet-600", teal: "text-teal-600", green: "text-emerald-600" } as Record<string, string>)[tone] || "text-primary"; }
+function Attention({ title, count, detail, href, icon: Icon }: any) {
+  return (
+    <a
+      href={href}
+      className="min-h-36 rounded-xl border bg-white p-5 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#248A9F]"
+    >
+      <div className="flex items-center gap-2 text-base font-semibold">
+        <Icon className="h-5 w-5 text-red-700" />
+        {title}
+      </div>
+      <strong className="mt-3 block text-4xl">{count}</strong>
+      <span className="mt-1 block text-sm text-muted-foreground">{detail}</span>
+    </a>
+  );
+}
+function Info({ title, value, detail, href, icon: Icon }: any) {
+  return (
+    <a
+      href={href}
+      className="min-h-32 rounded-xl border bg-white p-4 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#248A9F]"
+    >
+      <div className="flex items-center gap-2 text-base font-semibold">
+        <Icon className="h-5 w-5 text-[#248A9F]" />
+        {title}
+      </div>
+      <strong className="mt-3 block text-3xl">{value}</strong>
+      <span className="text-sm text-muted-foreground">{detail}</span>
+    </a>
+  );
+}
+function Mini({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-white p-4">
+      <strong className="text-3xl">{value}</strong>
+      <span className="ml-3 text-base text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+function WorkList({ rows }: { rows: UnifiedWorkItem[] }) {
+  return (
+    <Card>
+      <CardContent className="divide-y p-0">
+        {rows.map((x) => (
+          <a
+            href={x.sourceRoute}
+            key={x.id}
+            className="flex flex-col gap-3 p-4 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#248A9F] md:flex-row md:items-center md:justify-between"
+          >
+            <div>
+              <div className="mb-1 flex flex-wrap gap-2">
+                <Badge variant="outline">{x.workType}</Badge>
+                <Badge variant="outline">{x.priority}</Badge>
+              </div>
+              <h3 className="text-base font-semibold">{x.title}</h3>
+              <p className="text-sm text-muted-foreground">
+                {x.reference} · {x.location || x.nursingHomeName} ·{" "}
+                {x.assignedUserName || x.assignedUserId || x.assignedTeamId || "Unassigned"}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm">
+                {x.dueAt
+                  ? new Date(
+                      x.dueAt.length === 10 ? `${x.dueAt}T12:00:00` : x.dueAt,
+                    ).toLocaleString("en-IE")
+                  : "No due date"}
+              </span>
+              <strong className="text-sm text-[#176979]">{x.primaryAction}</strong>
+            </div>
+          </a>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+function Empty({
+  title,
+  text,
+  href,
+  action,
+}: {
+  title: string;
+  text: string;
+  href: string;
+  action: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="py-8 text-center">
+        <CheckCircle2 className="mx-auto h-8 w-8 text-muted-foreground" />
+        <h3 className="mt-3 text-lg font-semibold">{title}</h3>
+        <p className="mt-1 text-base text-muted-foreground">{text}</p>
+        <Button className="mt-4" variant="outline" asChild>
+          <a href={href}>{action}</a>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+function LinkText({ href, children }: { href: string; children: any }) {
+  return (
+    <a
+      href={href}
+      className="text-sm font-semibold text-[#176979] hover:underline focus:outline-none focus:ring-2 focus:ring-[#248A9F]"
+    >
+      {children}
+    </a>
+  );
+}
