@@ -75,6 +75,8 @@
     "test:corrective-actions": "node --experimental-specifier-resolution=node src/domain/maintenance/correctiveActions.test.ts",
     "test:maintenance-reports": "node --experimental-specifier-resolution=node src/domain/maintenance/maintenanceReports.test.ts",
     "test:maintenance-settings": "node --experimental-specifier-resolution=node src/domain/maintenance/maintenanceSettings.test.ts",
+    "test:unified-work": "node --experimental-specifier-resolution=node src/domain/maintenance/unifiedWork.test.ts",
+    "test:quick-issue": "node --experimental-specifier-resolution=node src/domain/maintenance/quickIssue.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

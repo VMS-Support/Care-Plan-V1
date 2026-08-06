@@ -55,10 +55,12 @@ import { Route as ResidentsPreAdmissionsRouteImport } from './routes/residents.p
 import { Route as ResidentsIdRouteImport } from './routes/residents.$id'
 import { Route as ReportsDailyCareRouteImport } from './routes/reports.daily-care'
 import { Route as MaintenanceWorkOrdersRouteImport } from './routes/maintenance.work-orders'
+import { Route as MaintenanceWorkRouteImport } from './routes/maintenance.work'
 import { Route as MaintenanceSettingsRouteImport } from './routes/maintenance.settings'
 import { Route as MaintenanceSafetyComplianceRouteImport } from './routes/maintenance.safety-compliance'
 import { Route as MaintenanceRoomsLocationsRouteImport } from './routes/maintenance.rooms-locations'
 import { Route as MaintenanceReportsRouteImport } from './routes/maintenance.reports'
+import { Route as MaintenanceReportIssueRouteImport } from './routes/maintenance.report-issue'
 import { Route as MaintenancePlannedMaintenanceRouteImport } from './routes/maintenance.planned-maintenance'
 import { Route as MaintenanceHousekeepingRouteImport } from './routes/maintenance.housekeeping'
 import { Route as MaintenanceCorrectiveActionsRouteImport } from './routes/maintenance.corrective-actions'
@@ -346,6 +348,11 @@ const MaintenanceWorkOrdersRoute = MaintenanceWorkOrdersRouteImport.update({
   path: '/work-orders',
   getParentRoute: () => MaintenanceRoute,
 } as any)
+const MaintenanceWorkRoute = MaintenanceWorkRouteImport.update({
+  id: '/work',
+  path: '/work',
+  getParentRoute: () => MaintenanceRoute,
+} as any)
 const MaintenanceSettingsRoute = MaintenanceSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -366,6 +373,11 @@ const MaintenanceRoomsLocationsRoute =
 const MaintenanceReportsRoute = MaintenanceReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => MaintenanceRoute,
+} as any)
+const MaintenanceReportIssueRoute = MaintenanceReportIssueRouteImport.update({
+  id: '/report-issue',
+  path: '/report-issue',
   getParentRoute: () => MaintenanceRoute,
 } as any)
 const MaintenancePlannedMaintenanceRoute =
@@ -732,10 +744,12 @@ export interface FileRoutesByFullPath {
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
+  '/maintenance/report-issue': typeof MaintenanceReportIssueRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
   '/maintenance/rooms-locations': typeof MaintenanceRoomsLocationsRoute
   '/maintenance/safety-compliance': typeof MaintenanceSafetyComplianceRoute
   '/maintenance/settings': typeof MaintenanceSettingsRoute
+  '/maintenance/work': typeof MaintenanceWorkRoute
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
@@ -838,10 +852,12 @@ export interface FileRoutesByTo {
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
+  '/maintenance/report-issue': typeof MaintenanceReportIssueRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
   '/maintenance/rooms-locations': typeof MaintenanceRoomsLocationsRoute
   '/maintenance/safety-compliance': typeof MaintenanceSafetyComplianceRoute
   '/maintenance/settings': typeof MaintenanceSettingsRoute
+  '/maintenance/work': typeof MaintenanceWorkRoute
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
@@ -947,10 +963,12 @@ export interface FileRoutesById {
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
+  '/maintenance/report-issue': typeof MaintenanceReportIssueRoute
   '/maintenance/reports': typeof MaintenanceReportsRoute
   '/maintenance/rooms-locations': typeof MaintenanceRoomsLocationsRoute
   '/maintenance/safety-compliance': typeof MaintenanceSafetyComplianceRoute
   '/maintenance/settings': typeof MaintenanceSettingsRoute
+  '/maintenance/work': typeof MaintenanceWorkRoute
   '/maintenance/work-orders': typeof MaintenanceWorkOrdersRouteWithChildren
   '/reports/daily-care': typeof ReportsDailyCareRoute
   '/residents/$id': typeof ResidentsIdRouteWithChildren
@@ -1057,10 +1075,12 @@ export interface FileRouteTypes {
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
+    | '/maintenance/report-issue'
     | '/maintenance/reports'
     | '/maintenance/rooms-locations'
     | '/maintenance/safety-compliance'
     | '/maintenance/settings'
+    | '/maintenance/work'
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
@@ -1163,10 +1183,12 @@ export interface FileRouteTypes {
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
+    | '/maintenance/report-issue'
     | '/maintenance/reports'
     | '/maintenance/rooms-locations'
     | '/maintenance/safety-compliance'
     | '/maintenance/settings'
+    | '/maintenance/work'
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
@@ -1271,10 +1293,12 @@ export interface FileRouteTypes {
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
+    | '/maintenance/report-issue'
     | '/maintenance/reports'
     | '/maintenance/rooms-locations'
     | '/maintenance/safety-compliance'
     | '/maintenance/settings'
+    | '/maintenance/work'
     | '/maintenance/work-orders'
     | '/reports/daily-care'
     | '/residents/$id'
@@ -1708,6 +1732,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MaintenanceWorkOrdersRouteImport
       parentRoute: typeof MaintenanceRoute
     }
+    '/maintenance/work': {
+      id: '/maintenance/work'
+      path: '/work'
+      fullPath: '/maintenance/work'
+      preLoaderRoute: typeof MaintenanceWorkRouteImport
+      parentRoute: typeof MaintenanceRoute
+    }
     '/maintenance/settings': {
       id: '/maintenance/settings'
       path: '/settings'
@@ -1734,6 +1765,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/maintenance/reports'
       preLoaderRoute: typeof MaintenanceReportsRouteImport
+      parentRoute: typeof MaintenanceRoute
+    }
+    '/maintenance/report-issue': {
+      id: '/maintenance/report-issue'
+      path: '/report-issue'
+      fullPath: '/maintenance/report-issue'
+      preLoaderRoute: typeof MaintenanceReportIssueRouteImport
       parentRoute: typeof MaintenanceRoute
     }
     '/maintenance/planned-maintenance': {
@@ -2303,10 +2341,12 @@ interface MaintenanceRouteChildren {
   MaintenanceCorrectiveActionsRoute: typeof MaintenanceCorrectiveActionsRouteWithChildren
   MaintenanceHousekeepingRoute: typeof MaintenanceHousekeepingRoute
   MaintenancePlannedMaintenanceRoute: typeof MaintenancePlannedMaintenanceRoute
+  MaintenanceReportIssueRoute: typeof MaintenanceReportIssueRoute
   MaintenanceReportsRoute: typeof MaintenanceReportsRoute
   MaintenanceRoomsLocationsRoute: typeof MaintenanceRoomsLocationsRoute
   MaintenanceSafetyComplianceRoute: typeof MaintenanceSafetyComplianceRoute
   MaintenanceSettingsRoute: typeof MaintenanceSettingsRoute
+  MaintenanceWorkRoute: typeof MaintenanceWorkRoute
   MaintenanceWorkOrdersRoute: typeof MaintenanceWorkOrdersRouteWithChildren
   MaintenanceBedsBedIdRoute: typeof MaintenanceBedsBedIdRoute
 }
@@ -2323,10 +2363,12 @@ const MaintenanceRouteChildren: MaintenanceRouteChildren = {
     MaintenanceCorrectiveActionsRouteWithChildren,
   MaintenanceHousekeepingRoute: MaintenanceHousekeepingRoute,
   MaintenancePlannedMaintenanceRoute: MaintenancePlannedMaintenanceRoute,
+  MaintenanceReportIssueRoute: MaintenanceReportIssueRoute,
   MaintenanceReportsRoute: MaintenanceReportsRoute,
   MaintenanceRoomsLocationsRoute: MaintenanceRoomsLocationsRoute,
   MaintenanceSafetyComplianceRoute: MaintenanceSafetyComplianceRoute,
   MaintenanceSettingsRoute: MaintenanceSettingsRoute,
+  MaintenanceWorkRoute: MaintenanceWorkRoute,
   MaintenanceWorkOrdersRoute: MaintenanceWorkOrdersRouteWithChildren,
   MaintenanceBedsBedIdRoute: MaintenanceBedsBedIdRoute,
 }

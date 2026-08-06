@@ -332,6 +332,12 @@ const nav: NavItem[] = [
 const maintenanceNav: NavItem[] = [
   { to: "/maintenance", label: "Overview", icon: Home, exact: true },
   {
+    to: "/maintenance/work",
+    label: "Work",
+    icon: ClipboardCheck,
+    visible: (canAccess) => canAccess("maintenance.work_orders.view") || canAccess("permission.manage"),
+  },
+  {
     to: "/maintenance/work-orders",
     label: "Work Orders",
     icon: ClipboardList,

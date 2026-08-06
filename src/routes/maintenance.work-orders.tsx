@@ -109,6 +109,7 @@ function WorkOrdersPage() {
           </div>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Work Orders</h1>
           <p className="text-sm text-muted-foreground">Reactive, corrective, emergency and housekeeping maintenance issues.</p>
+          <Link to="/maintenance/work" className="mt-2 inline-block text-sm font-medium text-blue-700 hover:underline">Back to All Work</Link>
         </div>
         <div className="flex flex-wrap gap-2"><Button asChild><Link to="/maintenance/work-orders/new"><Plus className="mr-2 h-4 w-4" />New Work Order</Link></Button><Button variant="outline" onClick={() => exportWorkOrders(result.records)}>Export current list</Button></div>
       </div>

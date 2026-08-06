@@ -78,6 +78,7 @@ function HousekeepingRoute() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [taskDialog, setTaskDialog] = useState(false);
   const [templateDialog, setTemplateDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<HousekeepingTemplate>();
   const [scheduleDialog, setScheduleDialog] = useState(false);
   const [exceptionDialog, setExceptionDialog] = useState<{ open: boolean; taskId?: string }>({
     open: false,
@@ -143,7 +144,24 @@ function HousekeepingRoute() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="lg" onClick={() => {const homeIds=care.facilities.filter((home)=>care.canAccess("permission.manage",{nursingHomeId:home.id})).map((home)=>home.id);const next=nextAssignedHousekeepingTask(care.housekeepingTasks,care.currentUser.id,homeIds,new Date());if(next){setSelectedTaskId(next.id);setTab("tasks");}else setMessage("No housekeeping tasks are currently assigned to you.");}}>
+          <Button
+            size="lg"
+            onClick={() => {
+              const homeIds = care.facilities
+                .filter((home) => care.canAccess("permission.manage", { nursingHomeId: home.id }))
+                .map((home) => home.id);
+              const next = nextAssignedHousekeepingTask(
+                care.housekeepingTasks,
+                care.currentUser.id,
+                homeIds,
+                new Date(),
+              );
+              if (next) {
+                setSelectedTaskId(next.id);
+                setTab("tasks");
+              } else setMessage("No housekeeping tasks are currently assigned to you.");
+            }}
+          >
             Start Next Task
           </Button>
           <Button size="lg" onClick={() => setTaskDialog(true)}>
@@ -166,12 +184,7 @@ function HousekeepingRoute() {
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Metric
-          icon={<ClipboardList />}
-          label="Due Now"
-          value={metrics.dueToday}
-          tone="blue"
-        />
+        <Metric icon={<ClipboardList />} label="Due Now" value={metrics.dueToday} tone="blue" />
         <Metric icon={<AlertTriangle />} label="Overdue" value={metrics.overdue} tone="red" />
         <Metric icon={<Sparkles />} label="In Progress" value={metrics.inProgress} tone="amber" />
         <Metric icon={<AlertTriangle />} label="Failed" value={metrics.failed} tone="red" />
@@ -181,28 +194,48 @@ function HousekeepingRoute() {
           value={metrics.awaitingReinspection}
           tone="purple"
         />
-        <Metric icon={<ClipboardCheck />} label="Awaiting Supervisor Sign-Off" value={metrics.awaitingSupervisorSignOff} tone="purple" />
-        <Metric icon={<CheckCircle2 />} label="Completed Today" value={metrics.completedToday} tone="green" />
+        <Metric
+          icon={<ClipboardCheck />}
+          label="Awaiting Supervisor Sign-Off"
+          value={metrics.awaitingSupervisorSignOff}
+          tone="purple"
+        />
+        <Metric
+          icon={<CheckCircle2 />}
+          label="Completed Today"
+          value={metrics.completedToday}
+          tone="green"
+        />
         <Metric icon={<DoorOpen />} label="Rooms Blocked" value={metrics.roomBlocked} tone="red" />
-        <Metric icon={<DoorOpen />} label="Beds Awaiting Cleaning" value={metrics.bedsAwaitingCleaning} tone="amber" />
-        <Metric icon={<AlertTriangle />} label="High-Risk Tasks" value={metrics.highRiskTasks} tone="red" />
+        <Metric
+          icon={<DoorOpen />}
+          label="Beds Awaiting Cleaning"
+          value={metrics.bedsAwaitingCleaning}
+          tone="amber"
+        />
+        <Metric
+          icon={<AlertTriangle />}
+          label="High-Risk Tasks"
+          value={metrics.highRiskTasks}
+          tone="red"
+        />
       </section>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map((item) => (
-            <button
-              key={item.value}
-              onClick={() => setTab(item.value)}
-              className={cn(
-                "whitespace-nowrap rounded-md border px-3 py-2 text-sm",
-                tab === item.value
-                  ? "border-blue-600 bg-blue-600 text-white"
-                  : "bg-white text-slate-700 hover:bg-slate-50",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
+          <button
+            key={item.value}
+            onClick={() => setTab(item.value)}
+            className={cn(
+              "whitespace-nowrap rounded-md border px-3 py-2 text-sm",
+              tab === item.value
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "bg-white text-slate-700 hover:bg-slate-50",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-col gap-2 md:flex-row">
@@ -224,10 +257,39 @@ function HousekeepingRoute() {
         </select>
       </div>
 
-      {tab === "today" && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Task filters">{([['ALL','All Tasks'],['DUE_NOW','Due Now'],['OVERDUE','Overdue'],['FAILED','Failed'],['REINSPECTION','Reinspection'],['SIGN_OFF','Sign-Off']] as Array<[HousekeepingQuickFilter,string]>).map(([value,label])=><Button key={value} size="lg" variant={quickFilter===value?"default":"outline"} onClick={()=>setQuickFilter(value)}>{label}</Button>)}</div>}
+      {tab === "today" && (
+        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Task filters">
+          {(
+            [
+              ["ALL", "All Tasks"],
+              ["DUE_NOW", "Due Now"],
+              ["OVERDUE", "Overdue"],
+              ["FAILED", "Failed"],
+              ["REINSPECTION", "Reinspection"],
+              ["SIGN_OFF", "Sign-Off"],
+            ] as Array<[HousekeepingQuickFilter, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              size="lg"
+              variant={quickFilter === value ? "default" : "outline"}
+              onClick={() => setQuickFilter(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {tab === "today" && (
-        <Overview metrics={metrics} tasks={housekeepingPriorityQueue(activeTasks,new Date())} onSelect={(id)=>{setSelectedTaskId(id);setTab("tasks");}} />
+        <Overview
+          metrics={metrics}
+          tasks={housekeepingPriorityQueue(activeTasks, new Date())}
+          onSelect={(id) => {
+            setSelectedTaskId(id);
+            setTab("tasks");
+          }}
+        />
       )}
       {tab === "schedules" && <SchedulePanel care={care} action={action} />}
       {tab === "tasks" && (
@@ -241,16 +303,28 @@ function HousekeepingRoute() {
         />
       )}
       {tab === "readiness" && <ReadinessPanel care={care} action={action} />}
-      {tab === "inspections" && <div className="space-y-4"><InspectionsPanel care={care} action={action} /><ReinspectionPanel care={care} action={action} /></div>}
+      {tab === "inspections" && (
+        <div className="space-y-4">
+          <InspectionsPanel care={care} action={action} />
+          <ReinspectionPanel care={care} action={action} />
+        </div>
+      )}
       {tab === "exceptions" && <ExceptionsPanel care={care} action={action} />}
-      {tab === "templates" && <SettingsPanel care={care} action={action} />}
+      {tab === "templates" && (
+        <SettingsPanel care={care} action={action} onEdit={setEditingTemplate} />
+      )}
 
       <TaskDialog open={taskDialog} onOpenChange={setTaskDialog} care={care} action={action} />
       <TemplateDialog
-        open={templateDialog}
-        onOpenChange={setTemplateDialog}
+        key={editingTemplate?.id || "new-template"}
+        open={templateDialog || Boolean(editingTemplate)}
+        onOpenChange={(open) => {
+          setTemplateDialog(open);
+          if (!open) setEditingTemplate(undefined);
+        }}
         care={care}
         action={action}
+        template={editingTemplate}
       />
       <ScheduleDialog
         open={scheduleDialog}
@@ -466,17 +540,28 @@ function TasksPanel({
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={Boolean(selectedTemplate?.highRisk || selectedTemplate?.markAllCompleteDisabled)}
+                  disabled={Boolean(
+                    selectedTemplate?.highRisk || selectedTemplate?.markAllCompleteDisabled,
+                  )}
                   onClick={() => {
                     const confirmation = "I confirm all listed tasks have been completed.";
                     if (!window.confirm(confirmation)) return;
                     try {
-                      const result = care.markAllHousekeepingTaskResponses(selectedTask.id, confirmation);
-                      window.alert(result.restricted.length
-                        ? `${result.completed} items marked complete. ${result.restricted.length} items require individual confirmation.`
-                        : `${result.completed} items marked complete.`);
+                      const result = care.markAllHousekeepingTaskResponses(
+                        selectedTask.id,
+                        confirmation,
+                      );
+                      window.alert(
+                        result.restricted.length
+                          ? `${result.completed} items marked complete. ${result.restricted.length} items require individual confirmation.`
+                          : `${result.completed} items marked complete.`,
+                      );
                     } catch (error) {
-                      window.alert(error instanceof Error ? error.message : "Unable to mark checklist items complete.");
+                      window.alert(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to mark checklist items complete.",
+                      );
                     }
                   }}
                 >
@@ -804,7 +889,9 @@ function ExceptionsPanel({
                     )
                   }
                 >
-                  {exception.correctiveActionId ? "Open Corrective Action" : "Create Corrective Action"}
+                  {exception.correctiveActionId
+                    ? "Open Corrective Action"
+                    : "Create Corrective Action"}
                 </Button>
               </div>
             </Row>
@@ -959,30 +1046,74 @@ function ReportsPanel({
 function SettingsPanel({
   care,
   action,
+  onEdit,
 }: {
   care: ReturnType<typeof useCare>;
   action: (fn: () => void, success: string) => void;
+  onEdit: (template: HousekeepingTemplate) => void;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ACTIVE");
   const [type, setType] = useState("");
   const [risk, setRisk] = useState("all");
   const templates = care.housekeepingTemplates
-    .filter((item) => item.homeId === care.activeFacilityId || item.facilityId === care.activeFacilityId)
+    .filter(
+      (item) => item.homeId === care.activeFacilityId || item.facilityId === care.activeFacilityId,
+    )
     .filter((item) => status === "ALL" || item.status === status)
     .filter((item) => !type || item.cleaningType === type)
     .filter((item) => risk === "all" || Boolean(item.highRisk) === (risk === "high"))
-    .filter((item) => searchable([item.name, item.code, item.description, ...(item.applicableLocationTypes || [])], query))
+    .filter((item) =>
+      searchable(
+        [item.name, item.code, item.description, ...(item.applicableLocationTypes || [])],
+        query,
+      ),
+    )
     .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   return (
     <Card>
       <CardHeader className="gap-3">
         <CardTitle>Cleaning Templates</CardTitle>
         <div className="grid gap-2 md:grid-cols-4">
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search templates" />
-          <Select value={status} onChange={setStatus} options={[["ACTIVE", "Active"], ["DRAFT", "Draft"], ["ARCHIVED", "Archived"], ["ALL", "All statuses"]]} />
-          <Select value={type} onChange={setType} options={[["ROUTINE", "Routine Cleaning"], ["DEEP", "Deep Cleaning"], ["ENHANCED", "Enhanced Cleaning"], ["TERMINAL", "Terminal Cleaning"], ["ROOM_READINESS", "Room Readiness"], ["EQUIPMENT", "Equipment Cleaning"], ["SPILL_RESPONSE", "Spill Response"], ["QUALITY_INSPECTION", "Quality Inspection"]]} placeholder="All cleaning types" />
-          <Select value={risk} onChange={setRisk} options={[["all", "All risk levels"], ["high", "High risk"], ["standard", "Standard risk"]]} />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search templates"
+          />
+          <Select
+            value={status}
+            onChange={setStatus}
+            options={[
+              ["ACTIVE", "Active"],
+              ["DRAFT", "Draft"],
+              ["ARCHIVED", "Archived"],
+              ["ALL", "All statuses"],
+            ]}
+          />
+          <Select
+            value={type}
+            onChange={setType}
+            options={[
+              ["ROUTINE", "Routine Cleaning"],
+              ["DEEP", "Deep Cleaning"],
+              ["ENHANCED", "Enhanced Cleaning"],
+              ["TERMINAL", "Terminal Cleaning"],
+              ["ROOM_READINESS", "Room Readiness"],
+              ["EQUIPMENT", "Equipment Cleaning"],
+              ["SPILL_RESPONSE", "Spill Response"],
+              ["QUALITY_INSPECTION", "Quality Inspection"],
+            ]}
+            placeholder="All cleaning types"
+          />
+          <Select
+            value={risk}
+            onChange={setRisk}
+            options={[
+              ["all", "All risk levels"],
+              ["high", "High risk"],
+              ["standard", "Standard risk"],
+            ]}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -1000,14 +1131,30 @@ function SettingsPanel({
                 checklist items
               </div>
               <div className="mt-1 flex flex-wrap gap-1 text-xs">
-                <Badge variant="outline">{template.applicableLocationTypes?.join(", ") || "Any location"}</Badge>
+                <Badge variant="outline">
+                  {template.applicableLocationTypes?.join(", ") || "Any location"}
+                </Badge>
                 {template.highRisk && <Badge className="bg-red-100 text-red-800">High Risk</Badge>}
-                {template.supervisorSignOffRequired && <Badge variant="outline">Supervisor Sign-Off</Badge>}
-                <Badge variant="outline">Used by {care.housekeepingSchedules.filter((item) => item.templateId === template.id).length} schedule(s)</Badge>
+                {template.supervisorSignOffRequired && (
+                  <Badge variant="outline">Supervisor Sign-Off</Badge>
+                )}
+                <Badge variant="outline">
+                  Used by{" "}
+                  {
+                    care.housekeepingSchedules.filter((item) => item.templateId === template.id)
+                      .length
+                  }{" "}
+                  schedule(s)
+                </Badge>
               </div>
             </div>
             <div className="flex gap-2">
               <Badge>{housekeepingStatusLabel(template.status)}</Badge>
+              {template.status !== "ARCHIVED" && (
+                <Button size="sm" onClick={() => onEdit(template)}>
+                  Edit
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -1021,14 +1168,29 @@ function SettingsPanel({
                 Duplicate
               </Button>
               {template.status === "ARCHIVED" ? (
-                <Button size="sm" variant="outline" onClick={() => action(() => care.activateHousekeepingTemplate(template.id), "Template restored.")}>Restore</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    action(
+                      () => care.activateHousekeepingTemplate(template.id),
+                      "Template restored.",
+                    )
+                  }
+                >
+                  Restore
+                </Button>
               ) : template.active ? (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() =>
                     action(
-                      () => care.archiveHousekeepingTemplate(template.id, "Archived from Cleaning Templates"),
+                      () =>
+                        care.archiveHousekeepingTemplate(
+                          template.id,
+                          "Archived from Cleaning Templates",
+                        ),
                       "Template archived.",
                     )
                   }
@@ -1174,29 +1336,46 @@ function TemplateDialog({
   onOpenChange,
   care,
   action,
+  template,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   care: ReturnType<typeof useCare>;
   action: (fn: () => void, success: string) => void;
+  template?: HousekeepingTemplate;
 }) {
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [type, setType] = useState<HousekeepingCleaningType>("ROUTINE");
-  const [description, setDescription] = useState("");
-  const [locationType, setLocationType] = useState("Resident Bedroom");
-  const [frequency, setFrequency] = useState("daily");
-  const [dueTime, setDueTime] = useState("09:00");
-  const [highRisk, setHighRisk] = useState(false);
-  const [signOff, setSignOff] = useState(false);
-  const [checklist, setChecklist] = useState("Area accessible and safe\nCleaning completed\nArea left ready for use");
+  const existingItems = template
+    ? care.housekeepingTemplateItems
+        .filter((item) => item.templateId === template.id && item.active)
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+    : [];
+  const [name, setName] = useState(template?.name || "");
+  const [code, setCode] = useState(template?.code || "");
+  const [type, setType] = useState<HousekeepingCleaningType>(template?.cleaningType || "ROUTINE");
+  const [description, setDescription] = useState(template?.description || "");
+  const [locationType, setLocationType] = useState(
+    template?.applicableLocationTypes?.[0] || "Resident Bedroom",
+  );
+  const [frequency, setFrequency] = useState(template?.defaultFrequencyType || "daily");
+  const [dueTime, setDueTime] = useState(template?.preferredTime || "09:00");
+  const [highRisk, setHighRisk] = useState(Boolean(template?.highRisk));
+  const [signOff, setSignOff] = useState(Boolean(template?.supervisorSignOffRequired));
+  const [checklist, setChecklist] = useState(
+    existingItems.length
+      ? existingItems.map((item) => item.label).join("\n")
+      : "Area accessible and safe\nCleaning completed\nArea left ready for use",
+  );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Cleaning Template</DialogTitle>
+          <DialogTitle>
+            {template ? "Edit Cleaning Template" : "Create Cleaning Template"}
+          </DialogTitle>
           <DialogDescription>
-            Build a reusable cleaning definition and starter checklist.
+            {template
+              ? "Update this template without changing its identity, schedules or historical task snapshots."
+              : "Build a reusable cleaning definition and starter checklist."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -1205,7 +1384,11 @@ function TemplateDialog({
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          <Textarea placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Textarea
+            placeholder="Description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
           <Input
             placeholder="Template code"
             value={code}
@@ -1226,17 +1409,55 @@ function TemplateDialog({
             ]}
           />
           <div className="grid gap-3 sm:grid-cols-3">
-            <Input placeholder="Applicable location type" value={locationType} onChange={(event) => setLocationType(event.target.value)} />
-            <Select value={frequency} onChange={setFrequency} options={[["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["custom_days", "As required"]]} />
-            <Input type="time" value={dueTime} onChange={(event) => setDueTime(event.target.value)} />
+            <Input
+              placeholder="Applicable location type"
+              value={locationType}
+              onChange={(event) => setLocationType(event.target.value)}
+            />
+            <Select
+              value={frequency}
+              onChange={setFrequency}
+              options={[
+                ["daily", "Daily"],
+                ["weekly", "Weekly"],
+                ["monthly", "Monthly"],
+                ["custom_days", "As required"],
+              ]}
+            />
+            <Input
+              type="time"
+              value={dueTime}
+              onChange={(event) => setDueTime(event.target.value)}
+            />
           </div>
           <div>
             <div className="mb-1 text-sm font-medium">Checklist Items *</div>
-            <Textarea rows={8} value={checklist} onChange={(event) => setChecklist(event.target.value)} placeholder="One checklist item per line" />
-            <p className="mt-1 text-xs text-muted-foreground">Enter one checklist item per line. Items remain editable after creation.</p>
+            <Textarea
+              rows={8}
+              value={checklist}
+              onChange={(event) => setChecklist(event.target.value)}
+              placeholder="One checklist item per line"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter one checklist item per line. Items remain editable after creation.
+            </p>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={highRisk} onChange={(event) => setHighRisk(event.target.checked)} />High-Risk Template — disables Mark All Complete</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={signOff} onChange={(event) => setSignOff(event.target.checked)} />Supervisor Sign-Off Required</label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={highRisk}
+              onChange={(event) => setHighRisk(event.target.checked)}
+            />
+            High-Risk Template — disables Mark All Complete
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={signOff}
+              onChange={(event) => setSignOff(event.target.checked)}
+            />
+            Supervisor Sign-Off Required
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -1244,36 +1465,57 @@ function TemplateDialog({
           </Button>
           <Button
             onClick={() =>
-              action(() => {
-                care.createHousekeepingTemplate({
-                  name,
-                  code,
-                  cleaningType: type,
-                  description,
-                  applicableLocationTypes: [locationType],
-                  estimatedDurationMinutes: 30,
-                  defaultFrequencyType: frequency as any,
-                  defaultFrequencyInterval: 1,
-                  preferredTime: dueTime,
-                  defaultPriority: highRisk ? "HIGH" : "MEDIUM",
-                  photoEvidenceRequired: false,
-                  minimumPhotoCount: 0,
-                  qualityInspectionRequired: type === "QUALITY_INSPECTION",
-                  roomReadinessRequired: type === "ROOM_READINESS" || type === "TERMINAL",
-                  verificationRequired: signOff,
-                  supervisorSignOffRequired: signOff,
-                  highRisk,
-                  markAllCompleteDisabled: highRisk,
-                  status: "ACTIVE",
-                  active: true,
-                  sections: [{ name: "Checklist" }],
-                  items: checklist.split("\n").map((label, index) => ({ label: label.trim(), code: `ITEM_${index + 1}`, mandatory: true, allowNotApplicable: false, failureRequiresObservation: true, failureRequiresPhoto: false, failureRequiresException: false, highRisk, bulkCompletionEligible: !highRisk })).filter((item) => item.label),
-                });
-                onOpenChange(false);
-              }, "Template created.")
+              action(
+                () => {
+                  const values = {
+                    name,
+                    code,
+                    cleaningType: type,
+                    description,
+                    applicableLocationTypes: [locationType],
+                    estimatedDurationMinutes: 30,
+                    defaultFrequencyType: frequency as any,
+                    defaultFrequencyInterval: 1,
+                    preferredTime: dueTime,
+                    defaultPriority: highRisk ? "HIGH" : "MEDIUM",
+                    photoEvidenceRequired: false,
+                    minimumPhotoCount: 0,
+                    qualityInspectionRequired: type === "QUALITY_INSPECTION",
+                    roomReadinessRequired: type === "ROOM_READINESS" || type === "TERMINAL",
+                    verificationRequired: signOff,
+                    supervisorSignOffRequired: signOff,
+                    highRisk,
+                    markAllCompleteDisabled: highRisk,
+                    status: "ACTIVE",
+                    active: true,
+                    sections: [{ name: "Checklist" }],
+                    items: checklist
+                      .split("\n")
+                      .map((label, index) => ({
+                        id: existingItems[index]?.id,
+                        label: label.trim(),
+                        code: existingItems[index]?.code || `ITEM_${index + 1}`,
+                        mandatory: existingItems[index]?.mandatory ?? true,
+                        allowNotApplicable: existingItems[index]?.allowNotApplicable ?? false,
+                        failureRequiresObservation:
+                          existingItems[index]?.failureRequiresObservation ?? true,
+                        failureRequiresPhoto: existingItems[index]?.failureRequiresPhoto ?? false,
+                        failureRequiresException:
+                          existingItems[index]?.failureRequiresException ?? false,
+                        highRisk,
+                        bulkCompletionEligible: !highRisk,
+                      }))
+                      .filter((item) => item.label),
+                  };
+                  if (template) care.updateHousekeepingTemplate(template.id, values);
+                  else care.createHousekeepingTemplate(values);
+                  onOpenChange(false);
+                },
+                template ? "Template updated." : "Template created.",
+              )
             }
           >
-            Create
+            {template ? "Save Changes" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>
