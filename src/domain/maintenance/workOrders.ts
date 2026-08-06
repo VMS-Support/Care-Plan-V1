@@ -147,6 +147,7 @@ export interface WorkOrderQuery {
   homeId?: string;
   wardId?: string;
   roomId?: string;
+  bedId?: string;
   status?: MaintenanceWorkOrderStatus[];
   priority?: MaintenanceWorkOrderPriority[];
   type?: MaintenanceWorkOrderType[];
@@ -182,8 +183,13 @@ export interface CreateWorkOrderInput {
   homeId: string;
   wardId?: string;
   roomId?: string;
+  bedId?: string;
   exactLocation?: string;
   assetId?: string;
+  correctiveActionId?: string;
+  correctiveActionReference?: string;
+  correctiveActionSourceLink?: string;
+  correctiveActionEvidenceReferences?: string[];
   affectedAssetDescription?: string;
   reporterContactDetails?: string;
   assignedUserId?: string;
@@ -500,8 +506,13 @@ export function createWorkOrderRecord(params: {
     facilityId: params.input.homeId,
     wardId: params.input.wardId,
     roomId: params.input.roomId,
+    bedId: params.input.bedId,
     exactLocation: params.input.exactLocation?.trim() || undefined,
     assetId: params.input.assetId?.trim() || undefined,
+    correctiveActionId: params.input.correctiveActionId,
+    correctiveActionReference: params.input.correctiveActionReference,
+    correctiveActionSourceLink: params.input.correctiveActionSourceLink,
+    correctiveActionEvidenceReferences: params.input.correctiveActionEvidenceReferences,
     affectedAssetDescription: params.input.affectedAssetDescription?.trim() || undefined,
     reportedByUserId: params.currentUser.id,
     reportedAt: now,

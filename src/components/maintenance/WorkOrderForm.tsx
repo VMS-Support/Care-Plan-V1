@@ -36,6 +36,7 @@ type Mode = "create" | "edit";
 interface WorkOrderFormProps {
   mode: Mode;
   workOrder?: MaintenanceWorkOrder;
+  initialValues?: Partial<CreateWorkOrderInput>;
   onSubmit: (input: CreateWorkOrderInput | UpdateWorkOrderInput) => void;
   onCancel: () => void;
 }
@@ -51,10 +52,10 @@ const draftKey = "maintenance-work-order-create-draft-v1";
 
 type FormState = CreateWorkOrderInput & { status?: MaintenanceWorkOrder["status"] };
 
-export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrderFormProps) {
+export function WorkOrderForm({ mode, workOrder, initialValues, onSubmit, onCancel }: WorkOrderFormProps) {
   const care = useCare();
   const canAssign = mode === "create" && care.canAccess("maintenance.work_orders.assign", { nursingHomeId: workOrder?.homeId || care.activeFacilityId });
-  const initial = useMemo(() => initialState(mode, care, workOrder, canAssign), [mode, care.activeFacilityId, care.currentRole, workOrder?.id, canAssign]);
+  const initial = useMemo(() => initialState(mode, care, workOrder, canAssign, initialValues), [mode, care.activeFacilityId, care.currentRole, workOrder?.id, canAssign, initialValues]);
   const [form, setForm] = useState<FormState>(() => initial);
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -65,10 +66,10 @@ export function WorkOrderForm({ mode, workOrder, onSubmit, onCancel }: WorkOrder
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   useEffect(() => {
-    if (mode !== "create") return;
+    if (mode !== "create" || initialValues?.correctiveActionId) return;
     const raw = window.localStorage.getItem(draftKey);
     if (raw) setShowDraftPrompt(true);
-  }, [mode]);
+  }, [mode, initialValues?.correctiveActionId]);
 
   useEffect(() => {
     if (mode !== "create" || !dirty) return;
@@ -534,8 +535,8 @@ function Summary({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function initialState(mode: Mode, care: ReturnType<typeof useCare>, workOrder: MaintenanceWorkOrder | undefined, canAssign: boolean): FormState {
-  return {
+function initialState(mode: Mode, care: ReturnType<typeof useCare>, workOrder: MaintenanceWorkOrder | undefined, canAssign: boolean, initialValues?: Partial<CreateWorkOrderInput>): FormState {
+  const base: FormState = {
     title: workOrder?.title || "",
     description: workOrder?.description || "",
     type: workOrder?.type || "REACTIVE",
@@ -577,6 +578,18 @@ function initialState(mode: Mode, care: ReturnType<typeof useCare>, workOrder: M
           manualOverrideReason: workOrder.riskAssessment.manualOverrideReason,
         }
       : { likelihood: 2, consequence: 2, requiresImmediateAction: false, vulnerablePersonAffected: false, essentialServiceAffected: false, areaRestricted: false },
+  };
+  if (mode !== "create" || !initialValues) return base;
+  return {
+    ...base,
+    ...initialValues,
+    homeId: initialValues.homeId || base.homeId,
+    roomId: initialValues.roomId || base.roomId,
+    assetId: initialValues.assetId || base.assetId,
+    contractorId: initialValues.contractorId || base.contractorId,
+    dueAt: initialValues.dueAt ? toDateTimeLocal(initialValues.dueAt) : base.dueAt,
+    requiredResponseAt: initialValues.requiredResponseAt ? toDateTimeLocal(initialValues.requiredResponseAt) : base.requiredResponseAt,
+    riskAssessment: initialValues.riskAssessment ? { ...base.riskAssessment!, ...initialValues.riskAssessment } : base.riskAssessment,
   };
 }
 

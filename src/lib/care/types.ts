@@ -2570,9 +2570,14 @@ export interface MaintenanceWorkOrder {
   unitId?: string;
   wardId?: WardId | string;
   roomId?: RoomId | string;
+  bedId?: BedId | string;
   areaName?: string;
   exactLocation?: string;
   assetId?: string;
+  correctiveActionId?: string;
+  correctiveActionReference?: string;
+  correctiveActionSourceLink?: string;
+  correctiveActionEvidenceReferences?: string[];
   affectedAssetDescription?: string;
   plannedMaintenanceScheduleId?: string;
   plannedMaintenanceTemplateId?: string;

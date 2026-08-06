@@ -72,6 +72,7 @@
     "test:maintenance-certificates": "node --experimental-specifier-resolution=node src/domain/maintenance/certificates.test.ts",
     "test:maintenance-contractors": "node --experimental-specifier-resolution=node src/domain/maintenance/contractors.test.ts",
     "test:phase5a-governance": "node --experimental-specifier-resolution=node src/domain/maintenance/phase5aGovernance.test.ts",
+    "test:corrective-actions": "node --experimental-specifier-resolution=node src/domain/maintenance/correctiveActions.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

@@ -366,7 +366,7 @@ const maintenanceNav: NavItem[] = [
   },
   {
     to: "/maintenance/corrective-actions",
-    label: "Follow-up Actions",
+    label: "Corrective Actions",
     icon: ClipboardCheck,
     capability: "permission.manage",
   },

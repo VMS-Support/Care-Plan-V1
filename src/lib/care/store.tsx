@@ -253,11 +253,17 @@ import {
 } from "@/domain/maintenance/workOrders";
 import {
   allowedCorrectiveActionTransitions,
+  correctiveActionClosureBlockers,
+  findDuplicateCorrectiveAction,
+  mandatoryEvidenceComplete,
   correctiveActionPriorityFor,
   defaultCorrectiveActionCategories,
   type CorrectiveAction,
   type CorrectiveActionCategory,
+  type CorrectiveActionEvidence,
+  type CorrectiveActionReinspectionResult,
   type CorrectiveActionStatus,
+  type CorrectiveActionVerificationResult,
 } from "@/domain/maintenance/correctiveActions";
 import {
   applyWorkOrderWorkflow,
@@ -2730,6 +2736,88 @@ function seedMaintenanceContractorData() {
     version: 1,
   };
   return { contractors: [contractor], contacts: [contact], associations: [association], serviceAreas: [serviceArea] };
+}
+
+function seedCorrectiveActions(): CorrectiveAction[] {
+  return [
+    {
+      id: "corrective-action-demo-call-bell",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      referenceNumber: "CA-2026-000001",
+      title: "Repair faulty resident call bell",
+      description: "The call bell did not respond during a routine safety check.",
+      categoryId: "ca-category-1",
+      severity: "HIGH",
+      riskLevel: "HIGH",
+      priority: "HIGH",
+      status: "IN_PROGRESS",
+      responsiblePersonId: "u-3",
+      createdByUserId: "u-3",
+      updatedByUserId: "u-3",
+      dateIdentified: "2026-08-01",
+      dueDate: "2026-08-04",
+      sourceType: "SAFETY_INSPECTION",
+      sourceReferenceId: "SI-2026-00045",
+      sourceIssueId: "call-bell-check-room-14",
+      assetId: "maintenance-asset-001",
+      requiredAction: "Repair the call bell and confirm it responds from the nurses' station.",
+      immediateRisk: "The resident may be unable to call staff for assistance.",
+      immediateControl: "Staff are completing additional welfare checks until the repair is confirmed.",
+      evidenceRequirements: ["Completion photograph", "Work Order closure"],
+      evidence: [],
+      verificationRequired: true,
+      reinspectionRequired: true,
+      linkedWorkOrderIds: [],
+      verifications: [],
+      reinspections: [],
+      notes: [],
+      closures: [],
+      reopenHistory: [],
+      version: 1,
+      createdAt: "2026-08-01T09:15:00.000Z",
+      updatedAt: "2026-08-03T14:30:00.000Z",
+    },
+    {
+      id: "corrective-action-demo-cleaning",
+      tenantId: "tenant-oritas-demo",
+      homeId: BALLYMORE_FACILITY_ID,
+      referenceNumber: "CA-2026-000002",
+      title: "Complete bedroom cleaning follow-up",
+      description: "A housekeeping quality check found that the bedside area needed to be cleaned again.",
+      categoryId: "ca-category-2",
+      severity: "MODERATE",
+      riskLevel: "MEDIUM",
+      priority: "NORMAL",
+      status: "AWAITING_VERIFICATION",
+      responsiblePersonId: "u-3",
+      createdByUserId: "u-3",
+      updatedByUserId: "u-3",
+      dateIdentified: "2026-08-03",
+      dueDate: "2026-08-10",
+      sourceType: "HOUSEKEEPING_INSPECTION",
+      sourceReferenceId: "HK-2026-0018",
+      sourceIssueId: "bedside-area-cleaning",
+      requiredAction: "Re-clean the bedside area and provide a completion photograph.",
+      immediateControl: "The area was taken out of use until cleaning was completed.",
+      evidenceRequirements: ["Completion photograph"],
+      evidence: [{ id: "ca-evidence-demo-cleaning-photo", type: "PHOTOGRAPH", description: "Completion photograph", documentReference: "bedside-cleaning-complete.jpg", mandatory: true, status: "RECEIVED", addedByUserId: "u-3", addedAt: "2026-08-05T11:20:00.000Z" }],
+      evidenceReferences: ["bedside-cleaning-complete.jpg"],
+      verificationRequired: true,
+      reinspectionRequired: false,
+      linkedWorkOrderIds: [],
+      verifications: [],
+      reinspections: [],
+      notes: [],
+      closures: [],
+      reopenHistory: [],
+      completionSummary: "The bedside area was re-cleaned and checked by housekeeping.",
+      completedDate: "2026-08-05",
+      version: 1,
+      createdAt: "2026-08-03T10:00:00.000Z",
+      updatedAt: "2026-08-05T11:20:00.000Z",
+    },
+  ];
 }
 
 function certificateType(
@@ -5614,7 +5702,7 @@ function seedData() {
     maintenanceAssetLocationHistory: [] as MaintenanceAssetLocationHistory[],
     maintenanceAssetRelationships: [] as MaintenanceAssetRelationship[],
     maintenanceWorkOrders: [] as MaintenanceWorkOrder[],
-    correctiveActions: [] as CorrectiveAction[],
+    correctiveActions: seedCorrectiveActions(),
     correctiveActionCategories: defaultCorrectiveActionCategories(BALLYMORE_FACILITY_ID),
     maintenanceTemplates: [],
     maintenanceTemplateChecklists: [],
@@ -6250,6 +6338,10 @@ function loadInitialStore(readPersistedStore = typeof window !== "undefined"): S
     parsed.maintenanceContractorServiceAreas = mergeDemoRecords(
       base.maintenanceContractorServiceAreas,
       parsed.maintenanceContractorServiceAreas,
+    );
+    parsed.correctiveActions = mergeDemoRecords(
+      base.correctiveActions,
+      parsed.correctiveActions,
     );
 
     const demoRooms = base.rooms;
@@ -7155,7 +7247,7 @@ export interface CareCtx extends Store {
       | "createdAt"
       | "updatedAt"
       | "status"
-    > & { status?: "DRAFT" | "OPEN" },
+    > & { status?: CorrectiveActionStatus },
   ) => CorrectiveAction;
   updateCorrectiveAction: (
     id: string,
@@ -7169,7 +7261,30 @@ export interface CareCtx extends Store {
         | "riskLevel"
         | "priority"
         | "responsiblePersonId"
+        | "responsibleTeamId"
+        | "responsibleContractorId"
         | "dueDate"
+        | "dateIdentified"
+        | "sourceType"
+        | "sourceReferenceId"
+        | "sourceIssueId"
+        | "assetId"
+        | "roomId"
+        | "bedId"
+        | "contractorId"
+        | "certificateId"
+        | "requiredAction"
+        | "immediateRisk"
+        | "immediateControl"
+        | "rootCauseCategory"
+        | "rootCauseDescription"
+        | "contributingFactors"
+        | "preventiveAction"
+        | "recurrenceRisk"
+        | "evidenceRequirements"
+        | "verificationRequired"
+        | "reinspectionRequired"
+        | "completionSummary"
       >
     >,
     expectedVersion?: number,
@@ -7179,6 +7294,13 @@ export interface CareCtx extends Store {
     status: CorrectiveActionStatus,
     reason?: string,
   ) => CorrectiveAction;
+  linkCorrectiveActionWorkOrder: (id: string, workOrderId: string) => void;
+  addCorrectiveActionEvidence: (id: string, input: Pick<CorrectiveActionEvidence, "type" | "description" | "documentReference" | "mandatory">) => void;
+  verifyCorrectiveAction: (id: string, result: CorrectiveActionVerificationResult, comments: string) => void;
+  reinspectCorrectiveAction: (id: string, result: CorrectiveActionReinspectionResult, comments: string) => void;
+  reopenCorrectiveAction: (id: string, reason: string, dueDate: string) => void;
+  archiveCorrectiveAction: (id: string, archived: boolean) => void;
+  addCorrectiveActionNote: (id: string, type: string, text: string) => void;
   createCorrectiveActionCategory: (
     input: Pick<CorrectiveActionCategory, "name"> & Partial<CorrectiveActionCategory>,
   ) => CorrectiveActionCategory;
@@ -19860,11 +19982,27 @@ export function CareProvider({ children }: { children: ReactNode }) {
         );
         if (!category?.isActive) throw new Error("Select an active corrective action category.");
         const status = input.status || "DRAFT";
-        if (status === "OPEN" && (!input.responsiblePersonId || !input.dueDate))
-          throw new Error("Responsible person and due date are required to open an action.");
+        if (status === "OPEN" && ((!input.responsiblePersonId && !input.responsibleTeamId && !input.responsibleContractorId) || !input.dueDate))
+          throw new Error("A responsible person, team or contractor and due date are required to open an action.");
         if (input.dueDate && input.dueDate < now.slice(0, 10))
           throw new Error("Due date cannot be earlier than today.");
         const homeId = input.homeId || activeFacilityId;
+        let contractorComplianceSnapshot = input.contractorComplianceSnapshot;
+        if (input.responsibleContractorId) {
+          const contractor = store.maintenanceContractors.find((item) => item.id === input.responsibleContractorId && item.tenantId === "tenant-oritas-demo");
+          const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === contractor?.id && item.homeId === homeId && item.active);
+          const recordedTrades = store.maintenanceContractorServiceAreas.filter((item) => item.contractorId === contractor?.id && item.active).map((item) => item.name);
+          if (!contractor) throw new Error("Select a contractor in this organisation.");
+          const check = contractorCompliance({ contractor, association, tenantId: "tenant-oritas-demo", homeId, recordedTrades, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+          if (!check.assignable) throw new Error(check.blockers.join(" "));
+          contractorComplianceSnapshot = { state: check.state, checkedAt: now, checkedBy: currentUserName, blockers: check.blockers, warnings: check.warnings };
+        }
+        const duplicate = findDuplicateCorrectiveAction(
+          { ...input, homeId },
+          store.correctiveActions,
+        );
+        if (duplicate)
+          throw new Error(`A corrective action already exists for this source issue (${duplicate.referenceNumber}).`);
         const sequence = store.correctiveActions.length + 1;
         const item: CorrectiveAction = {
           ...input,
@@ -19874,6 +20012,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
           referenceNumber: `CA-${new Date().getFullYear()}-${String(sequence).padStart(6, "0")}`,
           status,
           priority: input.priority || correctiveActionPriorityFor(input.severity),
+          contractorComplianceSnapshot,
+          dateIdentified: input.dateIdentified || now.slice(0, 10),
+          evidence: input.evidence || [],
+          linkedWorkOrderIds: input.linkedWorkOrderIds || [],
+          verifications: input.verifications || [],
+          reinspections: input.reinspections || [],
+          notes: input.notes || [],
+          closures: input.closures || [],
+          reopenHistory: input.reopenHistory || [],
           createdByUserId: currentUser.id,
           updatedByUserId: currentUser.id,
           version: 1,
@@ -19918,9 +20065,20 @@ export function CareProvider({ children }: { children: ReactNode }) {
         )
           throw new Error("Select an active category.");
         const now = new Date().toISOString();
+        let contractorComplianceSnapshot = current.contractorComplianceSnapshot;
+        if (input.responsibleContractorId && input.responsibleContractorId !== current.responsibleContractorId) {
+          const contractor = store.maintenanceContractors.find((item) => item.id === input.responsibleContractorId && item.tenantId === current.tenantId);
+          const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === contractor?.id && item.homeId === current.homeId && item.active);
+          const recordedTrades = store.maintenanceContractorServiceAreas.filter((item) => item.contractorId === contractor?.id && item.active).map((item) => item.name);
+          if (!contractor) throw new Error("Select a contractor in this organisation.");
+          const check = contractorCompliance({ contractor, association, tenantId: current.tenantId, homeId: current.homeId, recordedTrades, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+          if (!check.assignable) throw new Error(check.blockers.join(" "));
+          contractorComplianceSnapshot = { state: check.state, checkedAt: now, checkedBy: currentUserName, blockers: check.blockers, warnings: check.warnings };
+        }
         const next = {
           ...current,
           ...input,
+          contractorComplianceSnapshot,
           title: input.title?.trim() || current.title,
           description: input.description?.trim() || current.description,
           updatedByUserId: currentUser.id,
@@ -19954,11 +20112,26 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (!current) throw new Error("Corrective action not found.");
         if (!allowedCorrectiveActionTransitions[current.status].includes(status))
           throw new Error("This status transition is not allowed.");
-        if (status === "OPEN" && (!current.responsiblePersonId || !current.dueDate))
-          throw new Error("Assign a responsible person and due date before opening.");
+        if (status === "OPEN" && ((!current.responsiblePersonId && !current.responsibleTeamId && !current.responsibleContractorId) || !current.dueDate))
+          throw new Error("Assign a responsible person, team or contractor and due date before opening.");
         if (status === "CANCELLED" && !reason?.trim())
           throw new Error("Enter a cancellation reason.");
+        if (status === "AWAITING_VERIFICATION" && !mandatoryEvidenceComplete(current))
+          throw new Error("Provide all mandatory evidence before requesting verification.");
+        if (status === "CLOSED") {
+          const workOrderStatuses = Object.fromEntries(
+            store.maintenanceWorkOrders.map((item) => [item.id, item.status]),
+          );
+          const blockers = correctiveActionClosureBlockers(current, workOrderStatuses);
+          if (blockers.length) throw new Error(blockers.join(" "));
+        }
         const now = new Date().toISOString();
+        const closure = status === "CLOSED" ? {
+          id: `corrective-action-closure-${uid()}`,
+          summary: current.completionSummary!.trim(),
+          closedByUserId: currentUser.id,
+          closedAt: now,
+        } : undefined;
         const next: CorrectiveAction = {
           ...current,
           status,
@@ -19966,6 +20139,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           completedDate:
             status === "AWAITING_VERIFICATION" ? now.slice(0, 10) : current.completedDate,
           closedDate: status === "CLOSED" ? now.slice(0, 10) : current.closedDate,
+          closures: closure ? [...(current.closures || []), closure] : current.closures,
           updatedByUserId: currentUser.id,
           updatedAt: now,
           version: current.version + 1,
@@ -19991,6 +20165,67 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ].slice(0, 500),
         }));
         return next;
+      },
+      linkCorrectiveActionWorkOrder: (id, workOrderId) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        const workOrder = store.maintenanceWorkOrders.find((item) => item.id === workOrderId && (item.homeId || item.facilityId) === activeFacilityId);
+        if (!action || !workOrder) throw new Error("Corrective action or Work Order not found in this Nursing Home.");
+        if ((action.linkedWorkOrderIds || []).includes(workOrderId)) return;
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, linkedWorkOrderIds: [...(item.linkedWorkOrderIds || []), workOrderId], updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Work Order linked to corrective action", entity: id, entityType: "corrective_action", timestamp: now, after: JSON.stringify({ workOrderId }) }, ...s.auditLogs].slice(0, 500) }));
+      },
+      addCorrectiveActionEvidence: (id, input) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action) throw new Error("Corrective action not found.");
+        if (!input.description.trim()) throw new Error("Describe the evidence.");
+        const duplicate = (action.evidence || []).find((item) => item.documentReference && item.documentReference === input.documentReference);
+        if (duplicate) return;
+        const now = new Date().toISOString();
+        const evidence: CorrectiveActionEvidence = { id: `ca-evidence-${uid()}`, type: input.type, description: input.description.trim(), documentReference: input.documentReference?.trim(), mandatory: input.mandatory, status: "RECEIVED", addedByUserId: currentUser.id, addedAt: now };
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, evidence: [...(item.evidence || []), evidence], evidenceReferences: evidence.documentReference ? [...new Set([...(item.evidenceReferences || []), evidence.documentReference])] : item.evidenceReferences, updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Corrective action evidence added", entity: id, entityType: "corrective_action", timestamp: now, after: JSON.stringify({ evidenceId: evidence.id }) }, ...s.auditLogs].slice(0, 500) }));
+      },
+      verifyCorrectiveAction: (id, result, comments) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action) throw new Error("Corrective action not found.");
+        if (action.responsiblePersonId === currentUser.id) throw new Error("The responsible person cannot verify their own corrective action.");
+        if (action.status !== "AWAITING_VERIFICATION") throw new Error("This action is not awaiting verification.");
+        if (!comments.trim()) throw new Error("Enter verification comments.");
+        const now = new Date().toISOString();
+        const verification = { id: `ca-verification-${uid()}`, cycle: (action.verifications || []).length + 1, result, comments: comments.trim(), verifiedByUserId: currentUser.id, verifiedAt: now, evidenceReviewed: (action.evidence || []).map((item) => item.id) };
+        const status: CorrectiveActionStatus = result === "APPROVED" ? "AWAITING_VERIFICATION" : result === "MORE_EVIDENCE_REQUIRED" ? "AWAITING_EVIDENCE" : result === "REINSPECTION_REQUIRED" ? "REINSPECTION_REQUIRED" : "IN_PROGRESS";
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, status, verifications: [...(item.verifications || []), verification], updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: `Corrective action verification ${result.toLowerCase().replaceAll("_", " ")}`, entity: id, entityType: "corrective_action", timestamp: now, reason: comments }, ...s.auditLogs].slice(0, 500) }));
+      },
+      reinspectCorrectiveAction: (id, result, comments) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action) throw new Error("Corrective action not found.");
+        if (!comments.trim()) throw new Error("Enter reinspection comments.");
+        const now = new Date().toISOString();
+        const reinspection = { id: `ca-reinspection-${uid()}`, result, comments: comments.trim(), reinspectedByUserId: currentUser.id, reinspectedAt: now, sourceInspectionId: action.sourceInspectionId };
+        const status: CorrectiveActionStatus = result === "PASSED" ? (action.verificationRequired ? "AWAITING_VERIFICATION" : "REINSPECTION_REQUIRED") : "IN_PROGRESS";
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, status, reinspections: [...(item.reinspections || []), reinspection], updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: `Corrective action reinspection ${result.toLowerCase().replaceAll("_", " ")}`, entity: id, entityType: "corrective_action", timestamp: now, reason: comments }, ...s.auditLogs].slice(0, 500) }));
+      },
+      reopenCorrectiveAction: (id, reason, dueDate) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action) throw new Error("Corrective action not found.");
+        if (action.status !== "CLOSED") throw new Error("Only a closed corrective action can be reopened.");
+        if (!reason.trim() || !dueDate || dueDate < new Date().toISOString().slice(0, 10)) throw new Error("Enter a reopen reason and a valid new due date.");
+        const now = new Date().toISOString();
+        const reopened = { id: `ca-reopen-${uid()}`, reason: reason.trim(), reopenedByUserId: currentUser.id, reopenedAt: now, newDueDate: dueDate, previousClosureId: action.closures?.at(-1)?.id };
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, status: "REOPENED", dueDate, closedDate: undefined, reopenHistory: [...(item.reopenHistory || []), reopened], updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Corrective action reopened", entity: id, entityType: "corrective_action", timestamp: now, reason }, ...s.auditLogs].slice(0, 500) }));
+      },
+      archiveCorrectiveAction: (id, archived) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action) throw new Error("Corrective action not found.");
+        if (archived && !["CLOSED", "CANCELLED"].includes(action.status)) throw new Error("Only closed or cancelled actions can be archived.");
+        const now = new Date().toISOString();
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, archived, archivedAt: archived ? now : undefined, archivedByUserId: archived ? currentUser.id : undefined, status: archived ? "ARCHIVED" : item.closedDate ? "CLOSED" : "CANCELLED", updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: archived ? "Corrective action archived" : "Corrective action restored", entity: id, entityType: "corrective_action", timestamp: now }, ...s.auditLogs].slice(0, 500) }));
+      },
+      addCorrectiveActionNote: (id, type, text) => {
+        const action = store.correctiveActions.find((item) => item.id === id && item.homeId === activeFacilityId);
+        if (!action || !text.trim()) throw new Error("Enter a note.");
+        const now = new Date().toISOString();
+        const note = { id: `ca-note-${uid()}`, type, text: text.trim(), authorUserId: currentUser.id, createdAt: now };
+        setStore((s) => ({ ...s, correctiveActions: s.correctiveActions.map((item) => item.id === id ? { ...item, notes: [...(item.notes || []), note], updatedAt: now, updatedByUserId: currentUser.id, version: item.version + 1 } : item), auditLogs: [{ id: uid(), facilityId: activeFacilityId, user: currentUserName, role: currentRole, action: "Corrective action note added", entity: id, entityType: "corrective_action", timestamp: now }, ...s.auditLogs].slice(0, 500) }));
       },
       createCorrectiveActionCategory: (input) => {
         const now = new Date().toISOString();
@@ -20031,6 +20266,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
           ),
         })),
       addMaintenanceWorkOrder: (input) => {
+        const originatingAction = input.correctiveActionId
+          ? store.correctiveActions.find((item) => item.id === input.correctiveActionId && item.homeId === input.homeId && !item.deletedAt)
+          : undefined;
+        if (input.correctiveActionId && !originatingAction)
+          throw new Error("The originating Corrective Action was not found in this Care Home.");
+        if (input.correctiveActionId) {
+          const existing = store.maintenanceWorkOrders.find((item) => item.correctiveActionId === input.correctiveActionId && !item.archivedAt);
+          if (existing) throw new Error(`Work Order ${existing.workOrderNumber} has already been created from this Corrective Action.`);
+        }
         if (
           !canAccess(
             scopedStore,
@@ -20089,7 +20333,29 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({
           ...s,
           maintenanceWorkOrders: [item, ...(s.maintenanceWorkOrders || [])],
+          correctiveActions: originatingAction ? s.correctiveActions.map((action) => action.id === originatingAction.id ? { ...action, linkedWorkOrderIds: [...new Set([...(action.linkedWorkOrderIds || []), item.id])], updatedAt: now, updatedByUserId: currentUser.id, version: action.version + 1 } : action) : s.correctiveActions,
           auditLogs: [
+            ...(originatingAction ? [{
+              id: uid(),
+              facilityId: originatingAction.homeId,
+              user: currentUserName,
+              role: currentRole,
+              action: `Work Order ${item.workOrderNumber} created and linked`,
+              entity: originatingAction.id,
+              entityType: "corrective_action",
+              timestamp: now,
+              after: JSON.stringify({ workOrderId: item.id, workOrderNumber: item.workOrderNumber }),
+            }, {
+              id: uid(),
+              facilityId: item.homeId,
+              user: currentUserName,
+              role: currentRole,
+              action: `Created from Corrective Action ${originatingAction.referenceNumber}`,
+              entity: item.id,
+              entityType: "maintenance_work_order",
+              timestamp: now,
+              after: JSON.stringify({ correctiveActionId: originatingAction.id, correctiveActionReference: originatingAction.referenceNumber }),
+            }] : []),
             workOrderAuditLog({
               id: uid(),
               action: "Work Order created",
