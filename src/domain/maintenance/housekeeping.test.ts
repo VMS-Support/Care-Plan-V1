@@ -6,7 +6,9 @@ import {
   evaluateHousekeepingTask,
   housekeepingDashboardMetrics,
   housekeepingDueStatus,
+  markAllHousekeepingResponses,
   nextHousekeepingDueDate,
+  releaseCleaningTemplateName,
   roomReadinessBlockers,
   validateHousekeepingSchedule,
   validateHousekeepingTemplate,
@@ -16,6 +18,17 @@ test("housekeeping labels and recurrence are stable", () => {
   assert.equal(cleaningTypeLabel("TERMINAL"), "Terminal Cleaning");
   assert.equal(nextHousekeepingDueDate("2026-07-22", "daily", 1), "2026-07-23");
   assert.equal(nextHousekeepingDueDate("2026-07-22", "weekly", 2), "2026-08-05");
+});
+
+test("bed release reasons select the configured cleaning workflow", () => {
+  assert.equal(releaseCleaningTemplateName("Resident discharge"), "Discharge / Transfer / Terminal Clean");
+  assert.equal(releaseCleaningTemplateName("Transfer out"), "Discharge / Transfer / Terminal Clean");
+  assert.equal(releaseCleaningTemplateName("Resident death"), "Discharge / Transfer / Terminal Clean");
+  assert.equal(releaseCleaningTemplateName("Internal transfer"), "Daily Resident Bedroom Clean");
+});
+
+test("high-risk housekeeping cannot use Mark All Complete", () => {
+  assert.throws(() => markAllHousekeepingResponses({ template: template({ highRisk: true }), responses: [response({ result: "UNANSWERED" })], user: "Cleaner", now: "2026-07-22T09:00:00Z" }), /high-risk cleaning template/);
 });
 
 test("template and schedule validation blocks incomplete setup", () => {

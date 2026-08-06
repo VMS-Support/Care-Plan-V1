@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompliantContractorSelector } from "@/components/maintenance/CompliantContractorSelector";
 
 type Mode = "create" | "edit";
 
@@ -467,7 +468,7 @@ function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form:
           <Input type="datetime-local" value={form.dueAt || ""} onChange={(event) => update("dueAt", event.target.value)} />
         </Field>
         {canAssign ? (
-          <Field label="Assigned To">
+          <Field label="Assigned Staff Member">
             <select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={form.assignedUserId || ""} onChange={(event) => update("assignedUserId", event.target.value)}>
               <option value="">Unassigned</option>
               {users.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.department}</option>)}
@@ -479,6 +480,7 @@ function ReviewStep({ form, update, canAssign, users, risk, workOrder }: { form:
             <AlertDescription>This Work Order will be created as open and unassigned.</AlertDescription>
           </Alert>
         )}
+        {canAssign && <div className="md:col-span-2"><Field label="Approved Contractor" helper="Only contractors that pass the shared Home, approval and document checks can be selected."><CompliantContractorSelector homeId={form.homeId} requiredService={form.subcategory || undefined} value={form.contractorId} onChange={(id) => update("contractorId", id)} /></Field></div>}
         <Check label="Verification Required" checked={Boolean(form.verificationRequired)} onChange={(checked) => update("verificationRequired", checked)} />
         {workOrder && form.priority !== workOrder.priority && (
           <Field label="Change Reason" required helper="Required when reducing priority. Stored in the Work Order audit history.">
@@ -551,6 +553,7 @@ function initialState(mode: Mode, care: ReturnType<typeof useCare>, workOrder: M
     reporterContactDetails: workOrder?.reporterContactDetails || care.currentUser.phone || care.currentUser.email || "",
     assignedUserId: canAssign ? workOrder?.assignedUserId || "" : "",
     supervisorUserId: workOrder?.supervisorUserId || "",
+    contractorId: workOrder?.contractorId || "",
     requiredResponseAt: workOrder?.requiredResponseAt ? toDateTimeLocal(workOrder.requiredResponseAt) : toDateTimeLocal(suggestedResponseAt(workOrder?.priority || "MEDIUM")),
     dueAt: workOrder?.dueAt ? toDateTimeLocal(workOrder.dueAt) : toDateTimeLocal(suggestedDueAt(workOrder?.priority || "MEDIUM")),
     residentSafetyImpact: Boolean(workOrder?.residentSafetyImpact),
@@ -585,6 +588,7 @@ function toPayload(form: FormState, mode: Mode): CreateWorkOrderInput | UpdateWo
     dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
     assignedUserId: form.assignedUserId || undefined,
     supervisorUserId: form.supervisorUserId || undefined,
+    contractorId: form.contractorId || undefined,
     roomId: form.roomId || undefined,
     wardId: form.wardId || undefined,
     exactLocation: cleanText(form.exactLocation),

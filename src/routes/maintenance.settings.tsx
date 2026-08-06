@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { ServicesTradesSettings } from "@/components/maintenance/ServicesTradesSettings";
 import {
   DEFAULT_BED_REFERENCE_DATA,
   loadBedReferenceData,
@@ -88,6 +89,7 @@ function MaintenanceSettings() {
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="certificates">Certificate Types</TabsTrigger>
+          <TabsTrigger value="services">Services &amp; Trades</TabsTrigger>
           <TabsTrigger value="templates">Task Templates</TabsTrigger>
           <TabsTrigger value="reference">Reference Data</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -210,6 +212,7 @@ function MaintenanceSettings() {
           linkLabel="Manage certificate types"
         />
       )}
+      {tab === "services" && <ServicesTradesSettings />}
       {tab === "templates" && (
         <ConfigList
           icon={ClipboardList}

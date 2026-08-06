@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   canTransitionContractorStatus,
   contractorDashboardMetrics,
+  contractorCompliance,
   contractorProfileCompleteness,
   nextContractorReference,
   potentialContractorDuplicates,
@@ -62,5 +63,11 @@ assert.equal(metrics.total, 2);
 assert.equal(metrics.active, 1);
 assert.equal(metrics.archived, 1);
 assert.equal(metrics.withHomeAssociation, 1);
+
+const approved = { ...base, status: "ACTIVE" as const, active: true, approvalStatus: "APPROVED" as const };
+const activeHome = { id: "assoc-approved", tenantId: "tenant-1", contractorId: approved.id, homeId: "home-1", associationStatus: "ACTIVE" as const, relationshipType: "HOME_PROVIDER" as const, accessLevel: "FULL_ACCESS" as const, active: true, effectiveFrom: "2026-01-01", createdBy: "Tester", createdAt: "2026-01-01" };
+assert.equal(contractorCompliance({ contractor: approved, association: activeHome, tenantId: "tenant-1", homeId: "home-1", today: new Date("2026-08-05") }).assignable, true);
+assert.equal(contractorCompliance({ contractor: approved, association: { ...activeHome, associationStatus: "SUSPENDED" }, tenantId: "tenant-1", homeId: "home-1" }).state, "SUSPENDED");
+assert.equal(contractorCompliance({ contractor: approved, association: undefined, tenantId: "tenant-1", homeId: "home-1" }).blockers.includes("Contractor is not approved for this Nursing Home."), true);
 
 console.log("maintenance contractor domain tests passed");

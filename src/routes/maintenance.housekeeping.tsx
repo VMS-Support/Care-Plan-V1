@@ -48,36 +48,27 @@ export const Route = createFileRoute("/maintenance/housekeeping")({
 });
 
 type Tab =
-  | "overview"
-  | "schedule"
+  | "today"
+  | "schedules"
   | "tasks"
   | "readiness"
-  | "audits"
   | "inspections"
   | "exceptions"
-  | "reinspection"
-  | "completed"
-  | "reports"
   | "templates";
 
 const tabs: Array<{ value: Tab; label: string }> = [
-  { value: "overview", label: "Overview" },
-  { value: "schedule", label: "Cleaning Schedule" },
+  { value: "today", label: "Today" },
   { value: "tasks", label: "Cleaning Tasks" },
-  { value: "readiness", label: "Room Readiness" },
-  { value: "audits", label: "Cleaning Audits" },
-  { value: "inspections", label: "Quality Inspections" },
-  { value: "exceptions", label: "Exceptions" },
-  { value: "reinspection", label: "Reinspection" },
-  { value: "completed", label: "Completed Cleaning" },
-  { value: "reports", label: "Reports" },
+  { value: "schedules", label: "Schedules" },
   { value: "templates", label: "Cleaning Templates" },
+  { value: "inspections", label: "Quality Inspections" },
+  { value: "readiness", label: "Room Readiness" },
+  { value: "exceptions", label: "Exceptions" },
 ];
-const primaryTabs: Tab[] = ["overview", "schedule", "tasks", "readiness", "completed"];
 
 function HousekeepingRoute() {
   const care = useCare();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("today");
   const [cleaningType, setCleaningType] = useState<"" | HousekeepingCleaningType>("");
   const [search, setSearch] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
@@ -88,7 +79,6 @@ function HousekeepingRoute() {
     open: false,
   });
   const [message, setMessage] = useState("");
-  const [showMore, setShowMore] = useState(false);
 
   const metrics = useMemo(
     () =>
@@ -192,9 +182,7 @@ function HousekeepingRoute() {
       </section>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs
-          .filter((item) => primaryTabs.includes(item.value) || showMore || tab === item.value)
-          .map((item) => (
+        {tabs.map((item) => (
             <button
               key={item.value}
               onClick={() => setTab(item.value)}
@@ -208,13 +196,6 @@ function HousekeepingRoute() {
               {item.label}
             </button>
           ))}
-        <button
-          type="button"
-          onClick={() => setShowMore((value) => !value)}
-          className="whitespace-nowrap rounded-md border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          {showMore ? "Show fewer" : "More options"}
-        </button>
       </div>
 
       <div className="flex flex-col gap-2 md:flex-row">
@@ -236,13 +217,13 @@ function HousekeepingRoute() {
         </select>
       </div>
 
-      {tab === "overview" && (
+      {tab === "today" && (
         <Overview metrics={metrics} tasks={activeTasks} onSelect={setSelectedTaskId} />
       )}
-      {tab === "schedule" && <SchedulePanel care={care} action={action} />}
+      {tab === "schedules" && <SchedulePanel care={care} action={action} />}
       {tab === "tasks" && (
         <TasksPanel
-          tasks={activeTasks}
+          tasks={filteredTasks}
           selectedTask={selectedTask}
           care={care}
           onSelect={setSelectedTaskId}
@@ -251,19 +232,8 @@ function HousekeepingRoute() {
         />
       )}
       {tab === "readiness" && <ReadinessPanel care={care} action={action} />}
-      {tab === "audits" && <AuditsPanel care={care} />}
-      {tab === "inspections" && <InspectionsPanel care={care} action={action} />}
+      {tab === "inspections" && <div className="space-y-4"><InspectionsPanel care={care} action={action} /><ReinspectionPanel care={care} action={action} /></div>}
       {tab === "exceptions" && <ExceptionsPanel care={care} action={action} />}
-      {tab === "reinspection" && <ReinspectionPanel care={care} action={action} />}
-      {tab === "completed" && (
-        <TaskList
-          title="Completed Cleaning History"
-          tasks={completedTasks}
-          onSelect={setSelectedTaskId}
-          empty="No completed cleaning matches the selected filters."
-        />
-      )}
-      {tab === "reports" && <ReportsPanel metrics={metrics} care={care} />}
       {tab === "templates" && <SettingsPanel care={care} action={action} />}
 
       <TaskDialog open={taskDialog} onOpenChange={setTaskDialog} care={care} action={action} />
@@ -815,6 +785,18 @@ function ExceptionsPanel({
                     Create Work Order
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    action(
+                      () => care.createHousekeepingExceptionCorrectiveAction(exception.id),
+                      "Corrective Action created or opened.",
+                    )
+                  }
+                >
+                  {exception.correctiveActionId ? "Open Corrective Action" : "Create Corrective Action"}
+                </Button>
               </div>
             </Row>
           ))

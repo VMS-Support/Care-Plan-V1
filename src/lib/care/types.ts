@@ -2604,6 +2604,26 @@ export interface MaintenanceWorkOrder {
   partsSummary?: string;
   expectedAvailabilityAt?: string;
   contractorDetails?: string;
+  contractorId?: string;
+  contractorComplianceSnapshot?: {
+    state: string;
+    checkedAt: string;
+    checkedBy: string;
+    blockers: string[];
+    warnings: string[];
+  };
+  contractorAssignmentHistory?: Array<{
+    id: string;
+    previousContractorId?: string;
+    newContractorId: string;
+    changedBy: string;
+    changedAt: string;
+    reason: string;
+    complianceState: string;
+    blockers: string[];
+    overrideReason?: string;
+    overrideExpiresAt?: string;
+  }>;
   expectedAttendanceAt?: string;
   accessIssue?: string;
   nextAccessAttemptAt?: string;
@@ -3404,6 +3424,8 @@ export type MaintenanceCertificateComplianceStatus =
   | "EXPIRED"
   | "MISSING"
   | "REVOKED"
+  | "AWAITING_VERIFICATION"
+  | "REJECTED"
   | "NOT_APPLICABLE";
 export type MaintenanceCertificateTypeCategory =
   | "SAFETY"
@@ -3464,6 +3486,8 @@ export interface MaintenanceCertificateType {
   applicableAssetCategoryIds?: string[];
   applicableSafetyCategories?: string[];
   complianceCritical: boolean;
+  verificationRequired?: boolean;
+  independentVerificationRequired?: boolean;
   active: boolean;
   systemType: boolean;
   displayOrder: number;
@@ -3501,6 +3525,12 @@ export interface MaintenanceCertificate {
   updatedBy?: string;
   updatedAt?: string;
   version: number;
+  verificationStatus?: "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REJECTED" | "MORE_INFORMATION_REQUIRED";
+  verifiedBy?: string;
+  verifiedAt?: string;
+  verificationComment?: string;
+  verificationEvidence?: string;
+  rejectionReason?: string;
 }
 
 export interface MaintenanceCertificateVersion {
@@ -4149,6 +4179,9 @@ export interface HousekeepingTask {
   locationId?: string;
   locationLabel?: string;
   roomId?: string;
+  bedId?: string;
+  releaseEventId?: string;
+  triggerReason?: string;
   taskNumber: string;
   cleaningType: HousekeepingCleaningType;
   title: string;
@@ -4257,6 +4290,7 @@ export interface HousekeepingException {
   requiresSupervisorReview: boolean;
   requiresMaintenanceWorkOrder: boolean;
   maintenanceWorkOrderId?: string;
+  correctiveActionId?: string;
   requiresReinspection: boolean;
   reportedBy: string;
   reportedAt: string;

@@ -29,7 +29,6 @@ import {
   Shield,
   Wrench,
   Package,
-  BadgeCheck,
   HardHat,
   ClipboardCheck,
   MapPin,
@@ -357,16 +356,13 @@ const maintenanceNav: NavItem[] = [
     capability: "permission.manage",
   },
   {
-    to: "/maintenance/certificates",
-    label: "Certificates & Documents",
-    icon: BadgeCheck,
-    capability: "permission.manage",
-  },
-  {
-    to: "/maintenance/contractors",
-    label: "Contractors",
+    to: "/maintenance/contractors-certificates",
+    label: "Contractors & Certificates",
     icon: HardHat,
-    capability: "maintenance.contractors.register.view",
+    visible: (canAccess) =>
+      canAccess("maintenance.contractors.register.view") ||
+      canAccess("maintenance.contractors.view") ||
+      canAccess("permission.manage"),
   },
   {
     to: "/maintenance/corrective-actions",

@@ -4,6 +4,7 @@ import {
   certificateDashboardMetrics,
   missingCertificateRequirements,
   validateCertificateInput,
+  validateCertificateVerification,
 } from "./certificates.ts";
 import type {
   MaintenanceAsset,
@@ -62,6 +63,16 @@ test("dashboard counts current compliance bands", () => {
   const metrics = certificateDashboardMetrics({ certificates: [cert()], versions: [certVersion({ expiryDate: "2026-08-15" })], types: [type], attachments: [attachment()], requirements: [], assets: [], today: new Date("2026-07-22") });
   assert.equal(metrics.total, 1);
   assert.equal(metrics.dueSoon, 1);
+});
+
+test("mandatory verification prevents an awaiting certificate counting as valid", () => {
+  assert.equal(certificateComplianceStatus({ certificate: cert(), version: certVersion({ verificationStatus: "PENDING" }), type: certType({ verificationRequired: true }), attachments: [attachment()] }), "AWAITING_VERIFICATION");
+  assert.equal(certificateComplianceStatus({ certificate: cert(), version: certVersion({ verificationStatus: "REJECTED" }), type: certType({ verificationRequired: true }), attachments: [attachment()] }), "REJECTED");
+});
+
+test("independent verification prevents uploader self-verification", () => {
+  const result = validateCertificateVerification({ version: certVersion({ recordedBy: "A. User" }), type: certType({ verificationRequired: true, independentVerificationRequired: true }), result: "APPROVED", verifier: "A. User" });
+  assert.equal(result.valid, false);
 });
 
 for (const [name, fn] of tests) {

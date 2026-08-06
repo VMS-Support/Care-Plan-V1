@@ -71,6 +71,8 @@ export function validateContractorAssignment(params: {
   requiredCertificationValid?: boolean;
   today?: string;
 }) {
+  // Compatibility validation for older callers. New assignment surfaces should
+  // use contractorCompliance from contractors.ts with certificate collections.
   const blockers: string[] = [];
   const { contractor, association } = params;
   const today = params.today || new Date().toISOString().slice(0, 10);

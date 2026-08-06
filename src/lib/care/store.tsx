@@ -332,14 +332,16 @@ import {
   reinspectionCanBeCreated,
   validateIndependentActor,
   maintenanceMarkAllEligibility,
-  validateContractorAssignment,
 } from "@/domain/maintenance/phase3Workflow";
+import { contractorCompliance } from "@/domain/maintenance/contractors";
 import { loadPlannedComplianceSettings } from "@/domain/maintenance/plannedCompliance";
 import {
   createHousekeepingResponsesFromTemplate,
   evaluateHousekeepingTask,
   markAllHousekeepingResponses,
   nextHousekeepingDueDate,
+  releaseCleaningTemplateName,
+  roomReadinessBlockers,
   responseResultFromHousekeepingValue,
   validateHousekeepingSchedule,
   validateHousekeepingTemplate,
@@ -349,6 +351,7 @@ import {
   validateCertificateInput,
   validateCertificateType,
   validateRequirement,
+  validateCertificateVerification,
 } from "@/domain/maintenance/certificates";
 import {
   canTransitionContractorStatus,
@@ -2638,6 +2641,95 @@ function seedMaintenanceCertificateData() {
     requirements,
     timelineEvents,
   };
+}
+
+function seedMaintenanceContractorData() {
+  const contractorId = "maintenance-contractor-demo-electrical";
+  const createdAt = "2026-08-01T09:00:00.000Z";
+  const contractor: MaintenanceContractor = {
+    id: contractorId,
+    tenantId: "tenant-oritas-demo",
+    contractorReference: "CON-0001",
+    legalName: "Bright Spark Electrical Ltd",
+    businessType: "LIMITED_COMPANY",
+    description: "Provides routine electrical repairs and emergency call-outs.",
+    generalEmail: "hello@brightspark.example",
+    mainPhone: "01 555 0101",
+    primaryContactName: "Sam Kelly",
+    primaryContactJobTitle: "Service Manager",
+    primaryContactEmail: "sam.kelly@brightspark.example",
+    primaryContactPhone: "01 555 0102",
+    addressLine1: "10 Main Street",
+    townCity: "Dublin",
+    countyRegion: "Dublin",
+    countryCode: "IE",
+    status: "ACTIVE",
+    approvalStatus: "NOT_REVIEWED",
+    restrictionStatus: "NONE",
+    active: true,
+    archived: false,
+    createdBy: "Demo Data",
+    createdAt,
+    updatedAt: createdAt,
+    version: 1,
+  };
+  const contact: MaintenanceContractorContact = {
+    id: "maintenance-contractor-contact-demo-sam",
+    tenantId: contractor.tenantId,
+    contractorId,
+    displayName: "Sam Kelly",
+    jobTitle: "Service Manager",
+    contactRole: "SERVICE_COORDINATOR",
+    email: "sam.kelly@brightspark.example",
+    phone: "01 555 0102",
+    isPrimary: true,
+    isEmergencyContact: false,
+    active: true,
+    createdBy: "Demo Data",
+    createdAt,
+    version: 1,
+  };
+  const association: MaintenanceContractorHomeAssociation = {
+    id: "maintenance-contractor-home-demo-ballymore",
+    tenantId: contractor.tenantId,
+    contractorId,
+    homeId: BALLYMORE_FACILITY_ID,
+    facilityId: BALLYMORE_FACILITY_ID,
+    associationStatus: "ACTIVE",
+    accessLevel: "BY_APPOINTMENT",
+    relationshipType: "HOME_PROVIDER",
+    serviceNotes: "Contact Sam to arrange routine electrical work.",
+    emergencyAccessAllowed: true,
+    escortRequired: true,
+    siteInductionRequired: true,
+    siteInductionCompleted: true,
+    active: true,
+    effectiveFrom: "2026-08-01",
+    createdBy: "Demo Data",
+    createdAt,
+    version: 1,
+  };
+  const serviceArea: MaintenanceContractorServiceArea = {
+    id: "maintenance-contractor-service-demo-electrical",
+    tenantId: contractor.tenantId,
+    contractorId,
+    name: "Electrical Repairs",
+    serviceAreaType: "HOME",
+    countryCode: "IE",
+    homeId: BALLYMORE_FACILITY_ID,
+    facilityId: BALLYMORE_FACILITY_ID,
+    coverageDescription: "Routine electrical repairs at Ballymore Haven.",
+    standardHours: "Mon-Fri 09:00-17:00",
+    emergencyCalloutAvailable: true,
+    outOfHoursAvailable: true,
+    remoteSupportAvailable: false,
+    active: true,
+    effectiveFrom: "2026-08-01",
+    createdBy: "Demo Data",
+    createdAt,
+    version: 1,
+  };
+  return { contractors: [contractor], contacts: [contact], associations: [association], serviceAreas: [serviceArea] };
 }
 
 function certificateType(
@@ -5289,6 +5381,7 @@ function seedData() {
   const safetyComplianceSeed = seedSafetyComplianceData();
   const housekeepingSeed = seedHousekeepingData();
   const certificateSeed = seedMaintenanceCertificateData();
+  const contractorSeed = seedMaintenanceContractorData();
 
   return {
     enterprises: ENTERPRISES_SEED,
@@ -5551,11 +5644,11 @@ function seedData() {
     maintenanceCertificateContractorLinks: [],
     maintenanceCertificateRequirements: [],
     maintenanceCertificateTimelineEvents: [],
-    maintenanceContractors: [] as MaintenanceContractor[],
-    maintenanceContractorHomeAssociations: [] as MaintenanceContractorHomeAssociation[],
+    maintenanceContractors: contractorSeed.contractors,
+    maintenanceContractorHomeAssociations: contractorSeed.associations,
     maintenanceContractorNotes: [] as MaintenanceContractorNote[],
-    maintenanceContractorContacts: [] as MaintenanceContractorContact[],
-    maintenanceContractorServiceAreas: [] as MaintenanceContractorServiceArea[],
+    maintenanceContractorContacts: contractorSeed.contacts,
+    maintenanceContractorServiceAreas: contractorSeed.serviceAreas,
     maintenanceContractorTimelineEvents: [] as MaintenanceContractorTimelineEvent[],
     housekeepingTemplates: [],
     housekeepingTemplateSections: [],
@@ -6137,6 +6230,27 @@ function loadInitialStore(readPersistedStore = typeof window !== "undefined"): S
         (asset) => !demoAssetIds.has(String(asset.id)),
       ),
     ];
+
+    const mergeDemoRecords = <T extends { id: string }>(demo: T[], saved: T[] | undefined) => {
+      const demoIds = new Set(demo.map((item) => item.id));
+      return [...demo, ...(saved || []).filter((item) => !demoIds.has(item.id))];
+    };
+    parsed.maintenanceContractors = mergeDemoRecords(
+      base.maintenanceContractors,
+      parsed.maintenanceContractors,
+    );
+    parsed.maintenanceContractorContacts = mergeDemoRecords(
+      base.maintenanceContractorContacts,
+      parsed.maintenanceContractorContacts,
+    );
+    parsed.maintenanceContractorHomeAssociations = mergeDemoRecords(
+      base.maintenanceContractorHomeAssociations,
+      parsed.maintenanceContractorHomeAssociations,
+    );
+    parsed.maintenanceContractorServiceAreas = mergeDemoRecords(
+      base.maintenanceContractorServiceAreas,
+      parsed.maintenanceContractorServiceAreas,
+    );
 
     const demoRooms = base.rooms;
     parsed.residents = (parsed.residents || []).map((resident, index) => {
@@ -6752,6 +6866,7 @@ export interface CareCtx extends Store {
     versionId: string,
     reason: string,
   ) => void;
+  verifyMaintenanceCertificateVersion: (certificateId: string, versionId: string, result: "APPROVED" | "REJECTED" | "MORE_INFORMATION_REQUIRED", comment?: string, rejectionReason?: string) => void;
   addMaintenanceCertificateAttachment: (
     certificateId: string,
     versionId: string,
@@ -6971,6 +7086,7 @@ export interface CareCtx extends Store {
   resolveHousekeepingException: (id: string, notes: string) => void;
   closeHousekeepingException: (id: string, notes?: string) => void;
   createHousekeepingExceptionWorkOrder: (id: string) => MaintenanceWorkOrder;
+  createHousekeepingExceptionCorrectiveAction: (id: string) => CorrectiveAction;
   createHousekeepingQualityInspection: (
     taskId: string,
     input?: Partial<QualityInspection>,
@@ -7068,6 +7184,7 @@ export interface CareCtx extends Store {
   ) => CorrectiveActionCategory;
   updateCorrectiveActionCategory: (id: string, input: Partial<CorrectiveActionCategory>) => void;
   updateMaintenanceWorkOrder: (id: string, input: UpdateWorkOrderInput) => void;
+  reassignMaintenanceWorkOrderContractor: (id: string, contractorId: string, input: { reason: string; expectedVersion: number; idempotencyKey: string; overrideReason?: string; overrideExpiresAt?: string }) => void;
   workflowMaintenanceWorkOrder: (
     id: string,
     input: WorkOrderWorkflowInput,
@@ -15060,8 +15177,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (input.contractorId) {
           const contractor = store.maintenanceContractors.find((item) => item.id === input.contractorId);
           const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === input.contractorId && item.homeId === (input.homeId || activeFacilityId));
-          const contractorCheck = validateContractorAssignment({ contractor, association, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId });
-          if (!contractorCheck.valid) throw new Error(`This contractor cannot be assigned: ${contractorCheck.blockers.join(" ")}`);
+          const contractorCheck = contractorCompliance({ contractor, association, tenantId: "tenant-oritas-demo", homeId: input.homeId || activeFacilityId, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+          if (!contractorCheck.assignable) throw new Error(`This contractor cannot be assigned: ${contractorCheck.blockers.join(" ")}`);
         }
         const validation = validateSafetySchedule(input, {
           categories: store.safetyCategories,
@@ -15130,8 +15247,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
         if (input.contractorId) {
           const contractor = store.maintenanceContractors.find((item) => item.id === input.contractorId);
           const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === input.contractorId && item.homeId === current.homeId);
-          const contractorCheck = validateContractorAssignment({ contractor, association, tenantId: current.tenantId, homeId: current.homeId });
-          if (!contractorCheck.valid) throw new Error(`This contractor cannot be assigned: ${contractorCheck.blockers.join(" ")}`);
+          const contractorCheck = contractorCompliance({ contractor, association, tenantId: current.tenantId, homeId: current.homeId, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+          if (!contractorCheck.assignable) throw new Error(`This contractor cannot be assigned: ${contractorCheck.blockers.join(" ")}`);
         }
         const validation = validateSafetySchedule(
           { ...current, ...input },
@@ -16022,6 +16139,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           issuingOrganisation: certificate.issuingOrganisation,
           issuingOrganisationContact: certificate.issuingOrganisationContact,
           status: "ACTIVE",
+          verificationStatus: type.verificationRequired ? "PENDING" : "NOT_REQUIRED",
           isCurrent: true,
           recordedBy: currentUserName,
           recordedAt: now,
@@ -16232,6 +16350,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           issuingOrganisationContact:
             input.issuingOrganisationContact || certificate.issuingOrganisationContact,
           status: input.activate === false ? "DRAFT" : "ACTIVE",
+          verificationStatus: type.verificationRequired ? "PENDING" : "NOT_REQUIRED",
           supersedesVersionId: input.activate === false ? undefined : previousCurrent?.id,
           renewalReason: input.renewalReason,
           notes: input.notes,
@@ -16341,6 +16460,21 @@ export function CareProvider({ children }: { children: ReactNode }) {
               : item,
           ),
         }));
+      },
+      verifyMaintenanceCertificateVersion: (certificateId, versionId, result, comment, rejectionReason) => {
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.certificates.verify", { nursingHomeId: activeFacilityId })) throw new Error("You do not have permission to verify Certificates.");
+        const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId && item.currentVersionId === versionId);
+        const version = store.maintenanceCertificateVersions.find((item) => item.id === versionId && item.certificateId === certificateId);
+        if (!certificate || !version) throw new Error("Current certificate version not found.");
+        const type = store.maintenanceCertificateTypes.find((item) => item.id === certificate.certificateTypeId);
+        const validation = validateCertificateVerification({ version, type, result, verifier: currentUserName, comment, rejectionReason });
+        if (!validation.valid) throw new Error(validation.errors[0]);
+        const now = new Date().toISOString();
+        const nextVersion = { ...version, verificationStatus: result, verifiedBy: currentUserName, verifiedAt: now, verificationComment: comment?.trim(), rejectionReason: rejectionReason?.trim(), updatedBy: currentUserName, updatedAt: now, version: version.version + 1 };
+        const attachments = store.maintenanceCertificateAttachments.filter((item) => item.certificateId === certificateId && item.certificateVersionId === versionId);
+        const complianceStatus = certificateComplianceStatus({ certificate, version: nextVersion, type, attachments });
+        const event = maintenanceCertificateTimelineEvent(certificate, nextVersion, result === "APPROVED" ? "CERTIFICATE_VERIFIED" : "CERTIFICATE_VERIFICATION_REJECTED", result === "APPROVED" ? "Certificate verified" : result === "REJECTED" ? "Certificate rejected" : "More information requested", rejectionReason || comment, currentUserName, now);
+        setStore((s) => ({ ...s, maintenanceCertificateVersions: s.maintenanceCertificateVersions.map((item) => item.id === versionId ? nextVersion : item), maintenanceCertificates: s.maintenanceCertificates.map((item) => item.id === certificateId ? { ...item, complianceStatus, updatedBy: currentUserName, updatedAt: now, version: item.version + 1 } : item), maintenanceCertificateTimelineEvents: [event, ...s.maintenanceCertificateTimelineEvents] }));
       },
       addMaintenanceCertificateAttachment: (certificateId, versionId, input) => {
         const certificate = store.maintenanceCertificates.find((item) => item.id === certificateId);
@@ -18837,6 +18971,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
         setStore((s) => ({
           ...s,
           housekeepingTasks: s.housekeepingTasks.map((item) => (item.id === id ? next : item)),
+          housekeepingRoomReadiness: task.roomId && evaluation.overallResult !== "FAIL" ? s.housekeepingRoomReadiness.map((item) => item.roomId === task.roomId ? { ...item, sourceTaskId: task.id, cleaningCompleted: true, cleaningRequired: false, readinessStatus: task.qualityInspectionRequired ? "AWAITING_INSPECTION" : "UNAVAILABLE", lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item) : s.housekeepingRoomReadiness,
+          beds: task.bedId && evaluation.overallResult !== "FAIL" ? s.beds.map((item) => String(item.id) === task.bedId ? { ...item, readinessStatus: task.qualityInspectionRequired ? "awaiting_inspection" : "reinspection_required", occupancyStatus: "temporarily_unavailable", updatedAt: now, version: (item.version || 0) + 1 } : item) : s.beds,
         }));
         return next;
       },
@@ -19008,6 +19144,22 @@ export function CareProvider({ children }: { children: ReactNode }) {
         });
         return workOrder;
       },
+      createHousekeepingExceptionCorrectiveAction: (id) => {
+        const exception = store.housekeepingExceptions.find((item) => item.id === id);
+        if (!exception || exception.homeId !== activeFacilityId) throw new Error("Housekeeping exception not found in this Nursing Home.");
+        if (exception.correctiveActionId) {
+          const existing = store.correctiveActions.find((item) => item.id === exception.correctiveActionId && !item.deletedAt);
+          if (existing) return existing;
+        }
+        const existing = store.correctiveActions.find((item) => item.sourceType === "COMPLIANCE" && item.sourceReferenceId === exception.id && !item.deletedAt);
+        if (existing) return existing;
+        const category = store.correctiveActionCategories.find((item) => item.homeId === exception.homeId && item.isActive);
+        if (!category) throw new Error("Create an active Corrective Action category first.");
+        const dueDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+        const action = api.createCorrectiveAction({ homeId: exception.homeId, title: `Housekeeping follow-up - ${exception.category}`, description: exception.description, categoryId: category.id, severity: exception.severity === "MEDIUM" ? "MODERATE" : exception.severity, riskLevel: exception.severity === "CRITICAL" ? "EXTREME" : exception.severity, priority: exception.severity === "CRITICAL" ? "URGENT" : exception.severity === "HIGH" ? "HIGH" : "NORMAL", responsiblePersonId: currentUser.id, dueDate, sourceType: "COMPLIANCE", sourceReferenceId: exception.id, locationId: exception.roomId || exception.locationId, immediateControl: exception.immediateActionTaken, evidenceReferences: store.housekeepingEvidence.filter((item) => item.exceptionId === exception.id && item.active).map((item) => item.id), verificationRequired: true, reinspectionRequired: exception.requiresReinspection, status: "OPEN" });
+        api.updateHousekeepingException(id, { correctiveActionId: action.id });
+        return action;
+      },
       createHousekeepingQualityInspection: (taskId, input = {}) => {
         const task = store.housekeepingTasks.find((item) => item.id === taskId);
         if (!task) throw new Error("Housekeeping task not found.");
@@ -19073,6 +19225,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
           housekeepingQualityInspections: s.housekeepingQualityInspections.map((item) =>
             item.id === id ? next : item,
           ),
+          housekeepingRoomReadiness: inspection.roomId ? s.housekeepingRoomReadiness.map((item) => item.roomId === inspection.roomId ? { ...item, sourceInspectionId: inspection.id, qualityInspectionPassed: input.result !== "FAIL", readinessStatus: input.result === "FAIL" ? "FAILED_INSPECTION" : "UNAVAILABLE", lastUpdatedBy: currentUserName, lastUpdatedAt: now } : item) : s.housekeepingRoomReadiness,
+          rooms: inspection.roomId && input.result === "FAIL" ? s.rooms.map((item) => String(item.id) === inspection.roomId ? { ...item, operationalStatus: "blocked", notes: `${item.notes ? `${item.notes}\n` : ""}Blocked by failed housekeeping quality inspection ${inspection.id}.`, updatedAt: now } : item) : s.rooms,
+          beds: inspection.roomId && input.result === "FAIL" ? s.beds.map((item) => String(item.roomId) === inspection.roomId && item.occupancyStatus !== "occupied" ? { ...item, operationalStatus: "blocked", occupancyStatus: "temporarily_unavailable", readinessStatus: "reinspection_required", restrictionReason: `Failed housekeeping quality inspection ${inspection.id}`, updatedAt: now, version: (item.version || 0) + 1 } : item) : s.beds,
         }));
         return next;
       },
@@ -19126,6 +19281,9 @@ export function CareProvider({ children }: { children: ReactNode }) {
       createHousekeepingReinspection: (input) => {
         const task = store.housekeepingTasks.find((item) => item.id === input.originalTaskId);
         if (!task) throw new Error("Original housekeeping task not found.");
+        const existing = store.housekeepingReinspections.find((item) => item.originalTaskId === input.originalTaskId && item.originalInspectionId === input.originalInspectionId && !["PASSED", "FAILED", "CANCELLED"].includes(item.status));
+        if (existing) return existing;
+        if ((input.assignedUserId || currentUser.id) === task.startedBy || (input.assignedUserId || currentUser.id) === task.completedBy) throw new Error("Reinspection must be assigned to a different authorised user.");
         const now = new Date().toISOString();
         const reinspection: HousekeepingReinspection = {
           id: `hk-reinspection-${uid()}`,
@@ -19170,16 +19328,17 @@ export function CareProvider({ children }: { children: ReactNode }) {
         })),
       markRoomReady: (roomId, reason) => {
         if (!reason.trim()) throw new Error("Enter a reason.");
-        if (
-          store.housekeepingExceptions.some(
-            (item) =>
-              item.roomId === roomId &&
-              ["OPEN", "IN_REVIEW", "ACTION_REQUIRED"].includes(item.status),
-          )
-        )
-          throw new Error("Room has open blockers and cannot be marked ready.");
-        const now = new Date().toISOString();
         const current = store.housekeepingRoomReadiness.find((item) => item.roomId === roomId);
+        if (!current) throw new Error("Start a Room Readiness review before marking this room ready.");
+        const blockers = roomReadinessBlockers({ readiness: current, tasks: store.housekeepingTasks, inspections: store.housekeepingQualityInspections, exceptions: store.housekeepingExceptions, workOrders: store.maintenanceWorkOrders });
+        const room = store.rooms.find((item) => String(item.id) === roomId);
+        const roomBeds = store.beds.filter((item) => String(item.roomId) === roomId && item.active);
+        if (room?.operationalStatus === "out_of_service") blockers.push("Room is out of service.");
+        if (roomBeds.some((bed) => ["out_of_service", "under_maintenance", "blocked"].includes(bed.operationalStatus || ""))) blockers.push("A bed remains blocked, under maintenance or out of service.");
+        if (roomBeds.some((bed) => bed.condition === "unserviceable")) blockers.push("An unserviceable bed remains in the room.");
+        if (store.safetyInspections.some((item) => item.locationId === roomId && item.overallResult === "FAIL" && item.verificationStatus !== "VERIFIED")) blockers.push("An unresolved failed safety inspection remains.");
+        if (blockers.length) throw new Error(`Room cannot be marked ready: ${blockers.join(" ")}`);
+        const now = new Date().toISOString();
         setStore((s) => ({
           ...s,
           housekeepingRoomReadiness: s.housekeepingRoomReadiness.map((item) =>
@@ -19188,11 +19347,6 @@ export function CareProvider({ children }: { children: ReactNode }) {
                   ...item,
                   readinessStatus: "READY",
                   cleaningRequired: false,
-                  cleaningCompleted: true,
-                  qualityInspectionPassed: true,
-                  linenReady: true,
-                  wasteCleared: true,
-                  suppliesReady: true,
                   markedReadyBy: currentUserName,
                   markedReadyAt: now,
                   readinessNotes: reason,
@@ -19201,6 +19355,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
                 }
               : item,
           ),
+          rooms: s.rooms.map((item) => String(item.id) === roomId ? { ...item, operationalStatus: "ready", updatedAt: now } : item),
+          beds: s.beds.map((item) => {
+            if (String(item.roomId) !== roomId || !item.active) return item;
+            const occupied = s.bedAssignments.some((assignment) => String(assignment.bedId) === String(item.id) && assignment.status === "active");
+            const reserved = item.occupancyStatus === "reserved";
+            return { ...item, readinessStatus: "ready", occupancyStatus: occupied ? "occupied" : reserved ? "reserved" : "available", status: occupied ? "occupied" : reserved ? "reserved" : "available", updatedAt: now, version: (item.version || 0) + 1 };
+          }),
           housekeepingRoomStatusHistory: [
             {
               id: `hk-room-history-${uid()}`,
@@ -19605,6 +19766,35 @@ export function CareProvider({ children }: { children: ReactNode }) {
       releaseMaintenanceBed: (bedId, reason, at) => {
         if (!reason.trim()) throw new Error("Enter a release reason.");
         const now = at || new Date().toISOString();
+        const bed = store.beds.find((item) => String(item.id) === bedId);
+        const room = bed && store.rooms.find((item) => String(item.id) === String(bed.roomId));
+        if (!bed || !room) throw new Error("Managed bed and room were not found.");
+        const releaseEventId = `bed-release:${bedId}:${now}`;
+        if (store.housekeepingTasks.some((item) => item.releaseEventId === releaseEventId)) return;
+        const templateName = releaseCleaningTemplateName(reason);
+        const template = store.housekeepingTemplates.find((item) => item.name === templateName && item.active && item.status === "ACTIVE");
+        const taskId = template ? `hk-task-${uid()}` : undefined;
+        const task: HousekeepingTask | undefined = template ? {
+          id: taskId!, tenantId: "tenant-oritas-demo", homeId: room.facilityId || activeFacilityId, facilityId: room.facilityId || activeFacilityId,
+          templateId: template.id, templateVersion: template.version, roomId: String(room.id), bedId, releaseEventId, triggerReason: reason,
+          locationLabel: `Room ${room.number} - Bed ${bed.label}`, taskNumber: `HK-${new Date().getFullYear()}-${String(store.housekeepingTasks.length + 1).padStart(4, "0")}`,
+          cleaningType: template.cleaningType, title: template.name, description: `Cleaning required following bed release: ${reason}`,
+          plannedDate: now.slice(0, 10), dueDate: now.slice(0, 10), dueTime: now.slice(11, 16), priority: template.defaultPriority,
+          status: "UNASSIGNED", assignedTeamId: template.defaultAssignedTeamId || "housekeeping", qualityInspectionRequired: template.qualityInspectionRequired,
+          roomReadinessRequired: true, photoEvidenceRequired: template.photoEvidenceRequired, minimumPhotoCount: template.minimumPhotoCount,
+          verificationRequired: template.verificationRequired, supervisorSignOffRequired: template.supervisorSignOffRequired, overallResult: "NOT_COMPLETED",
+          cleanerDeclarationAccepted: false, roomStatusBefore: "OCCUPIED", roomStatusAfter: "CLEANING_REQUIRED", version: 1, createdBy: currentUserName, createdAt: now, updatedBy: currentUserName, updatedAt: now,
+        } : undefined;
+        const responses = task && template ? createHousekeepingResponsesFromTemplate(task.id, store.housekeepingTemplateSections.filter((item) => item.templateId === template.id), store.housekeepingTemplateItems.filter((item) => item.templateId === template.id), currentUserName, now) : [];
+        const currentReadiness = store.housekeepingRoomReadiness.find((item) => item.roomId === String(room.id));
+        const readiness: RoomReadinessRecord = {
+          id: currentReadiness?.id || `hk-readiness-${uid()}`, tenantId: "tenant-oritas-demo", homeId: room.facilityId || activeFacilityId, facilityId: room.facilityId || activeFacilityId,
+          roomId: String(room.id), readinessStatus: "CLEANING_REQUIRED", triggerType: reason, sourceTaskId: task?.id,
+          currentOccupancyStatus: "vacant", cleaningRequired: true, cleaningCompleted: false, qualityInspectionRequired: Boolean(template?.qualityInspectionRequired),
+          qualityInspectionPassed: false, maintenanceIssueOpen: false, linenReady: false, wasteCleared: false, suppliesReady: false,
+          readinessNotes: `Bed ${bed.label} released. ${template ? `${template.name} created.` : "Cleaning template requires administrator review."}`,
+          lastUpdatedBy: currentUserName, lastUpdatedAt: now,
+        };
         setStore((s) => ({
           ...s,
           bedAssignments: s.bedAssignments.map((item) =>
@@ -19632,6 +19822,11 @@ export function CareProvider({ children }: { children: ReactNode }) {
                 }
               : item,
           ),
+          rooms: s.rooms.map((item) => String(item.id) === String(room.id) ? { ...item, operationalStatus: "temporarily_unavailable", updatedAt: now } : item),
+          housekeepingTasks: task ? [task, ...s.housekeepingTasks] : s.housekeepingTasks,
+          housekeepingTaskResponses: responses.length ? [...responses, ...s.housekeepingTaskResponses] : s.housekeepingTaskResponses,
+          housekeepingRoomReadiness: currentReadiness ? s.housekeepingRoomReadiness.map((item) => item.id === currentReadiness.id ? readiness : item) : [readiness, ...s.housekeepingRoomReadiness],
+          housekeepingRoomStatusHistory: [{ id: `hk-room-history-${uid()}`, tenantId: "tenant-oritas-demo", homeId: readiness.homeId, facilityId: readiness.homeId, roomId: readiness.roomId, previousStatus: currentReadiness?.readinessStatus, newStatus: "CLEANING_REQUIRED", reason, sourceType: "HOUSEKEEPING_TASK", sourceId: task?.id, changedBy: currentUserName, changedAt: now }, ...s.housekeepingRoomStatusHistory],
         }));
       },
       reserveMaintenanceBed: (bedId, input) => {
@@ -19850,7 +20045,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           throw new Error("You do not have access to the selected Care Home.");
         }
         if (
-          (input.assignedUserId || input.assignedTeamId) &&
+          (input.assignedUserId || input.assignedTeamId || input.contractorId) &&
           !canAccess(
             scopedStore,
             createStaffAccessContext(currentUser, activeFacilityId),
@@ -19860,6 +20055,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
         ) {
           throw new Error("You do not have permission to assign Work Orders during creation.");
         }
+        const contractorCheck = input.contractorId ? (() => {
+          const contractor = store.maintenanceContractors.find((item) => item.id === input.contractorId);
+          const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === input.contractorId && item.homeId === input.homeId && item.active);
+          const recordedTrades = store.maintenanceContractorServiceAreas.filter((item) => item.contractorId === input.contractorId && item.active && !item.archivedAt).map((item) => item.name);
+          return contractorCompliance({ contractor, association, tenantId: contractor?.tenantId || "tenant-oritas-demo", homeId: input.homeId, requiredTrade: input.subcategory || undefined, recordedTrades, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+        })() : undefined;
+        if (contractorCheck && !contractorCheck.assignable) throw new Error(`This contractor cannot be assigned: ${contractorCheck.blockers.join(" ")}`);
         if (input.assetId) {
           const asset = store.maintenanceAssets.find((item) => item.id === input.assetId);
           if (asset && !canReceiveWorkOrder(asset))
@@ -19877,12 +20079,13 @@ export function CareProvider({ children }: { children: ReactNode }) {
           );
         }
         const now = new Date().toISOString();
-        const item = createWorkOrderRecord({
+        const created = createWorkOrderRecord({
           input,
           records: store.maintenanceWorkOrders || [],
           currentUser,
           now,
         });
+        const item = contractorCheck ? { ...created, contractorComplianceSnapshot: { state: contractorCheck.state, checkedAt: now, checkedBy: currentUserName, blockers: contractorCheck.blockers, warnings: contractorCheck.warnings } } : created;
         setStore((s) => ({
           ...s,
           maintenanceWorkOrders: [item, ...(s.maintenanceWorkOrders || [])],
@@ -19969,6 +20172,28 @@ export function CareProvider({ children }: { children: ReactNode }) {
             ...s.auditLogs,
           ].slice(0, 500),
         }));
+      },
+      reassignMaintenanceWorkOrderContractor: (id, contractorId, input) => {
+        const current = store.maintenanceWorkOrders.find((item) => item.id === id);
+        if (!current) throw new Error("Work Order not found.");
+        if (!input.reason.trim()) throw new Error("Enter a reason for changing the contractor.");
+        if (!input.idempotencyKey.trim()) throw new Error("A reassignment request key is required.");
+        if (current.version !== input.expectedVersion) throw new Error("This Work Order changed after it was opened. Refresh and try again.");
+        if (current.contractorAssignmentHistory?.some((item) => item.id === input.idempotencyKey)) return;
+        if (!canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.work_orders.assign", { nursingHomeId: current.homeId })) throw new Error("You do not have permission to reassign this Work Order.");
+        const contractor = store.maintenanceContractors.find((item) => item.id === contractorId);
+        if (!contractor || contractor.tenantId !== "tenant-oritas-demo" || contractor.archived) throw new Error("The selected contractor is not available in this organisation.");
+        const association = store.maintenanceContractorHomeAssociations.find((item) => item.contractorId === contractorId && item.homeId === current.homeId && item.active);
+        const recordedTrades = store.maintenanceContractorServiceAreas.filter((item) => item.contractorId === contractorId && item.active && !item.archivedAt).map((item) => item.name);
+        const compliance = contractorCompliance({ contractor, association, tenantId: "tenant-oritas-demo", homeId: current.homeId, requiredTrade: current.subcategory, recordedTrades, certificates: store.maintenanceCertificates, versions: store.maintenanceCertificateVersions, types: store.maintenanceCertificateTypes, attachments: store.maintenanceCertificateAttachments, contractorLinks: store.maintenanceCertificateContractorLinks, requirements: store.maintenanceCertificateRequirements });
+        const absoluteBlock = !association || compliance.blockers.some((reason) => /not found|not active|archived|not approved for this Nursing Home/i.test(reason));
+        if (!compliance.assignable && !input.overrideReason?.trim()) throw new Error(`Contractor assignment is blocked: ${compliance.blockers.join(" ")}`);
+        if (absoluteBlock && input.overrideReason) throw new Error("An override cannot bypass organisation, archived-contractor or Nursing Home access restrictions.");
+        if (input.overrideReason && !canAccess(scopedStore, createStaffAccessContext(currentUser, activeFacilityId), "maintenance.contractors.assignment.override", { nursingHomeId: current.homeId })) throw new Error("You do not have permission to override contractor compliance.");
+        const now = new Date().toISOString();
+        const history = { id: input.idempotencyKey, previousContractorId: current.contractorId, newContractorId: contractorId, changedBy: currentUserName, changedAt: now, reason: input.reason.trim(), complianceState: compliance.state, blockers: compliance.blockers, overrideReason: input.overrideReason?.trim(), overrideExpiresAt: input.overrideExpiresAt };
+        const next = { ...current, contractorId, contractorComplianceSnapshot: { state: compliance.state, checkedAt: now, checkedBy: currentUserName, blockers: compliance.blockers, warnings: compliance.warnings }, contractorAssignmentHistory: [...(current.contractorAssignmentHistory || []), history], updatedAt: now, updatedByUserId: currentUser.id, version: current.version + 1 };
+        setStore((s) => ({ ...s, maintenanceWorkOrders: s.maintenanceWorkOrders.map((item) => item.id === id ? next : item), auditLogs: [workOrderAuditLog({ id: uid(), action: input.overrideReason ? "Contractor reassigned with authorised override" : "Contractor reassigned", record: next, user: currentUser, before: { contractorId: current.contractorId }, after: { contractorId, compliance: compliance.state }, reason: input.overrideReason || input.reason, timestamp: now }), ...s.auditLogs].slice(0, 500) }));
       },
       workflowMaintenanceWorkOrder: (id, input) => {
         const current = store.maintenanceWorkOrders.find((record) => record.id === id);

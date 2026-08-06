@@ -29,6 +29,14 @@ export const HOUSEKEEPING_CLEANING_TYPES: HousekeepingCleaningType[] = [
   "QUALITY_INSPECTION",
 ];
 
+export function releaseCleaningTemplateName(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (["discharge", "transfer out", "deceased", "death", "resident death"].some((item) => normalized.includes(item)))
+    return "Discharge / Transfer / Terminal Clean";
+  if (normalized.includes("internal transfer")) return "Daily Resident Bedroom Clean";
+  return "Discharge / Transfer / Terminal Clean";
+}
+
 export const HOUSEKEEPING_RESPONSE_TYPES = [
   "PASS_FAIL",
   "PASS_FAIL_NA",

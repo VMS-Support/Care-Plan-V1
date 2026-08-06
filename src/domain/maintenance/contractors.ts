@@ -5,7 +5,91 @@ import type {
   MaintenanceContractorHomeAssociation,
   MaintenanceContractorServiceArea,
   MaintenanceContractorStatus,
+  MaintenanceCertificate,
+  MaintenanceCertificateAttachment,
+  MaintenanceCertificateContractorLink,
+  MaintenanceCertificateRequirement,
+  MaintenanceCertificateType,
+  MaintenanceCertificateVersion,
 } from "@/lib/care/types";
+import { certificateComplianceStatus } from "./certificates.ts";
+import type { ServiceTrade } from "./phase5aGovernance.ts";
+
+export type ContractorComplianceState = "COMPLIANT" | "DUE_SOON" | "EXPIRED" | "MISSING_DOCUMENTS" | "RESTRICTED" | "SUSPENDED" | "NOT_REVIEWED";
+
+export interface ContractorComplianceResult {
+  state: ContractorComplianceState;
+  assignable: boolean;
+  blockers: string[];
+  warnings: string[];
+  nextExpiry?: string;
+}
+
+/**
+ * Single contractor compliance decision used by registers, assignment workflows,
+ * expiry reporting and future Today/report projections. Insurance is represented
+ * by linked certificate types in the INSURANCE category, so it follows the same
+ * attachment, expiry and requirement rules as every other controlled document.
+ */
+export function contractorCompliance(params: {
+  contractor?: MaintenanceContractor;
+  association?: MaintenanceContractorHomeAssociation;
+  tenantId: string;
+  homeId: string;
+  certificates?: MaintenanceCertificate[];
+  versions?: MaintenanceCertificateVersion[];
+  types?: MaintenanceCertificateType[];
+  attachments?: MaintenanceCertificateAttachment[];
+  contractorLinks?: MaintenanceCertificateContractorLink[];
+  requirements?: MaintenanceCertificateRequirement[];
+  requiredTrade?: string;
+  serviceRules?: ServiceTrade[];
+  recordedTrades?: string[];
+  today?: Date;
+}): ContractorComplianceResult {
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const { contractor, association } = params;
+  if (!contractor || contractor.tenantId !== params.tenantId) return { state: "NOT_REVIEWED", assignable: false, blockers: ["Contractor was not found in this organisation."], warnings };
+  if (!contractor.active || contractor.archived || contractor.status === "ARCHIVED") blockers.push("Contractor is not active.");
+  if (contractor.status === "SUSPENDED" || contractor.restrictionStatus === "SUSPENDED") blockers.push("Contractor is suspended.");
+  if (contractor.restrictionStatus === "RESTRICTED" || contractor.restrictionStatus === "COMPLIANCE_BLOCKED") blockers.push("Contractor is restricted from new assignments.");
+  if (contractor.approvalStatus !== "APPROVED") blockers.push("Contractor approval has not been completed.");
+  if (!association || association.homeId !== params.homeId || !association.active) blockers.push("Contractor is not approved for this Nursing Home.");
+  if (association && ["RESTRICTED", "SUSPENDED", "INACTIVE", "ARCHIVED"].includes(association.associationStatus)) blockers.push(`Nursing Home access is ${association.associationStatus.toLowerCase()}.`);
+  if (association?.accessLevel === "NO_ACCESS" || association?.accessLevel === "RESTRICTED") blockers.push("Contractor does not have valid access to this Nursing Home.");
+  if (params.requiredTrade && !params.recordedTrades?.some((item) => item.toLowerCase() === params.requiredTrade!.toLowerCase())) blockers.push(`Required ${params.requiredTrade} service is not recorded for this contractor.`);
+
+  const links = (params.contractorLinks || []).filter((item) => item.contractorId === contractor.id && !item.unlinkedAt);
+  const linkedIds = new Set(links.map((item) => item.certificateId));
+  const linkedCertificates = (params.certificates || []).filter((item) => linkedIds.has(item.id) || (item.subjectType === "CONTRACTOR" && item.primarySubjectId === contractor.id));
+  const statuses = linkedCertificates.map((certificate) => {
+    const version = (params.versions || []).find((item) => item.id === certificate.currentVersionId);
+    const type = (params.types || []).find((item) => item.id === certificate.certificateTypeId);
+    const status = certificateComplianceStatus({ certificate, version, type, attachments: (params.attachments || []).filter((item) => item.certificateId === certificate.id && item.certificateVersionId === certificate.currentVersionId), today: params.today });
+    if (status === "EXPIRED" || status === "REVOKED") blockers.push(`${type?.name || certificate.title} is ${status.toLowerCase()}.`);
+    if (status === "MISSING") blockers.push(`${type?.name || certificate.title} is missing its required current document.`);
+    if (status === "EXPIRING_SOON") warnings.push(`${type?.name || certificate.title} is due to expire soon.`);
+    return { status, expiryDate: version?.expiryDate };
+  });
+  const required = (params.requirements || []).filter((item) => item.active && !item.archivedAt && item.mandatory && item.subjectType === "CONTRACTOR" && (!item.homeId || item.homeId === params.homeId) && (!item.subjectId || item.subjectId === contractor.id));
+  for (const requirement of required) {
+    const valid = linkedCertificates.some((certificate) => certificate.certificateTypeId === requirement.certificateTypeId && statuses[linkedCertificates.indexOf(certificate)]?.status === "VALID");
+    if (!valid) blockers.push(`${requirement.requirementName} is missing or not valid.`);
+  }
+  const serviceRule = params.requiredTrade ? (params.serviceRules || []).find((item) => item.active && !item.archivedAt && item.name.toLowerCase() === params.requiredTrade!.toLowerCase()) : undefined;
+  if (serviceRule) {
+    for (const typeId of serviceRule.requiredCertificateTypeIds) if (!linkedCertificates.some((certificate) => certificate.certificateTypeId === typeId && statuses[linkedCertificates.indexOf(certificate)]?.status === "VALID")) blockers.push(`${(params.types || []).find((item) => item.id === typeId)?.name || "Required service certificate"} is missing or not valid.`);
+    for (const insurance of serviceRule.requiredInsuranceTypes) {
+      const valid = linkedCertificates.some((certificate) => { const type = (params.types || []).find((item) => item.id === certificate.certificateTypeId); return type?.category === "INSURANCE" && (type.code === insurance || type.name.toUpperCase().replaceAll(" ", "_") === insurance) && statuses[linkedCertificates.indexOf(certificate)]?.status === "VALID"; });
+      if (!valid) blockers.push(`${insurance.replaceAll("_", " ")} insurance is missing or not valid.`);
+    }
+  }
+  const uniqueBlockers = [...new Set(blockers)];
+  const nextExpiry = statuses.map((item) => item.expiryDate).filter((item): item is string => Boolean(item)).sort()[0];
+  const state: ContractorComplianceState = contractor.status === "SUSPENDED" || contractor.restrictionStatus === "SUSPENDED" || association?.associationStatus === "SUSPENDED" ? "SUSPENDED" : contractor.restrictionStatus !== "NONE" || association?.associationStatus === "RESTRICTED" ? "RESTRICTED" : statuses.some((item) => item.status === "EXPIRED" || item.status === "REVOKED") ? "EXPIRED" : uniqueBlockers.some((item) => /missing/i.test(item)) ? "MISSING_DOCUMENTS" : uniqueBlockers.length ? "NOT_REVIEWED" : warnings.length ? "DUE_SOON" : "COMPLIANT";
+  return { state, assignable: uniqueBlockers.length === 0, blockers: uniqueBlockers, warnings: [...new Set(warnings)], nextExpiry };
+}
 
 export const CONTRACTOR_BUSINESS_TYPES: MaintenanceContractorBusinessType[] = ["LIMITED_COMPANY", "SOLE_TRADER", "PARTNERSHIP", "PUBLIC_BODY", "CHARITY", "INDEPENDENT_PROFESSIONAL", "OTHER"];
 export const CONTRACTOR_STATUSES: MaintenanceContractorStatus[] = ["DRAFT", "ACTIVE", "INACTIVE", "SUSPENDED", "ARCHIVED"];

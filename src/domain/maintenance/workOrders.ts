@@ -189,6 +189,7 @@ export interface CreateWorkOrderInput {
   assignedUserId?: string;
   assignedTeamId?: string;
   supervisorUserId?: string;
+  contractorId?: string;
   requiredResponseAt?: string;
   dueAt?: string;
   residentSafetyImpact?: boolean;
@@ -233,6 +234,7 @@ export type UpdateWorkOrderInput = Partial<
     | "assignedUserId"
     | "assignedTeamId"
     | "supervisorUserId"
+    | "contractorId"
     | "requiredResponseAt"
     | "dueAt"
     | "residentSafetyImpact"
@@ -508,6 +510,7 @@ export function createWorkOrderRecord(params: {
     assignedUserId: params.input.assignedUserId || undefined,
     assignedTeamId: params.input.assignedTeamId || undefined,
     supervisorUserId: params.input.supervisorUserId || undefined,
+    contractorId: params.input.contractorId || undefined,
     assignedAt: params.input.assignedUserId || params.input.assignedTeamId ? now : undefined,
     assignedByUserId: params.input.assignedUserId || params.input.assignedTeamId ? params.currentUser.id : undefined,
     requiredResponseAt: params.input.requiredResponseAt || suggestedResponseAt(params.input.priority, new Date(now)),
@@ -552,6 +555,9 @@ export function updateWorkOrderRecord(
   }
   if ("supervisorUserId" in input && input.supervisorUserId !== record.supervisorUserId) {
     throw new Error("Use the Work Order workflow actions to change assignment.");
+  }
+  if ("contractorId" in input && input.contractorId !== record.contractorId) {
+    throw new Error("Use the Work Order assignment workflow to change the contractor.");
   }
   if (input.expectedVersion !== undefined && input.expectedVersion !== record.version) {
     throw new Error("This Work Order has changed since you opened it. Refresh the record before saving.");

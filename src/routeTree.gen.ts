@@ -62,6 +62,7 @@ import { Route as MaintenanceReportsRouteImport } from './routes/maintenance.rep
 import { Route as MaintenancePlannedMaintenanceRouteImport } from './routes/maintenance.planned-maintenance'
 import { Route as MaintenanceHousekeepingRouteImport } from './routes/maintenance.housekeeping'
 import { Route as MaintenanceCorrectiveActionsRouteImport } from './routes/maintenance.corrective-actions'
+import { Route as MaintenanceContractorsCertificatesRouteImport } from './routes/maintenance.contractors-certificates'
 import { Route as MaintenanceContractorsRouteImport } from './routes/maintenance.contractors'
 import { Route as MaintenanceCertificatesRouteImport } from './routes/maintenance.certificates'
 import { Route as MaintenanceBedOccupancyRouteImport } from './routes/maintenance.bed-occupancy'
@@ -382,6 +383,12 @@ const MaintenanceCorrectiveActionsRoute =
   MaintenanceCorrectiveActionsRouteImport.update({
     id: '/corrective-actions',
     path: '/corrective-actions',
+    getParentRoute: () => MaintenanceRoute,
+  } as any)
+const MaintenanceContractorsCertificatesRoute =
+  MaintenanceContractorsCertificatesRouteImport.update({
+    id: '/contractors-certificates',
+    path: '/contractors-certificates',
     getParentRoute: () => MaintenanceRoute,
   } as any)
 const MaintenanceContractorsRoute = MaintenanceContractorsRouteImport.update({
@@ -721,6 +728,7 @@ export interface FileRoutesByFullPath {
   '/maintenance/bed-occupancy': typeof MaintenanceBedOccupancyRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
+  '/maintenance/contractors-certificates': typeof MaintenanceContractorsCertificatesRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
@@ -826,6 +834,7 @@ export interface FileRoutesByTo {
   '/maintenance/bed-occupancy': typeof MaintenanceBedOccupancyRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
+  '/maintenance/contractors-certificates': typeof MaintenanceContractorsCertificatesRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
@@ -934,6 +943,7 @@ export interface FileRoutesById {
   '/maintenance/bed-occupancy': typeof MaintenanceBedOccupancyRoute
   '/maintenance/certificates': typeof MaintenanceCertificatesRouteWithChildren
   '/maintenance/contractors': typeof MaintenanceContractorsRouteWithChildren
+  '/maintenance/contractors-certificates': typeof MaintenanceContractorsCertificatesRoute
   '/maintenance/corrective-actions': typeof MaintenanceCorrectiveActionsRouteWithChildren
   '/maintenance/housekeeping': typeof MaintenanceHousekeepingRoute
   '/maintenance/planned-maintenance': typeof MaintenancePlannedMaintenanceRoute
@@ -1043,6 +1053,7 @@ export interface FileRouteTypes {
     | '/maintenance/bed-occupancy'
     | '/maintenance/certificates'
     | '/maintenance/contractors'
+    | '/maintenance/contractors-certificates'
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
@@ -1148,6 +1159,7 @@ export interface FileRouteTypes {
     | '/maintenance/bed-occupancy'
     | '/maintenance/certificates'
     | '/maintenance/contractors'
+    | '/maintenance/contractors-certificates'
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
@@ -1255,6 +1267,7 @@ export interface FileRouteTypes {
     | '/maintenance/bed-occupancy'
     | '/maintenance/certificates'
     | '/maintenance/contractors'
+    | '/maintenance/contractors-certificates'
     | '/maintenance/corrective-actions'
     | '/maintenance/housekeeping'
     | '/maintenance/planned-maintenance'
@@ -1742,6 +1755,13 @@ declare module '@tanstack/react-router' {
       path: '/corrective-actions'
       fullPath: '/maintenance/corrective-actions'
       preLoaderRoute: typeof MaintenanceCorrectiveActionsRouteImport
+      parentRoute: typeof MaintenanceRoute
+    }
+    '/maintenance/contractors-certificates': {
+      id: '/maintenance/contractors-certificates'
+      path: '/contractors-certificates'
+      fullPath: '/maintenance/contractors-certificates'
+      preLoaderRoute: typeof MaintenanceContractorsCertificatesRouteImport
       parentRoute: typeof MaintenanceRoute
     }
     '/maintenance/contractors': {
@@ -2279,6 +2299,7 @@ interface MaintenanceRouteChildren {
   MaintenanceBedOccupancyRoute: typeof MaintenanceBedOccupancyRoute
   MaintenanceCertificatesRoute: typeof MaintenanceCertificatesRouteWithChildren
   MaintenanceContractorsRoute: typeof MaintenanceContractorsRouteWithChildren
+  MaintenanceContractorsCertificatesRoute: typeof MaintenanceContractorsCertificatesRoute
   MaintenanceCorrectiveActionsRoute: typeof MaintenanceCorrectiveActionsRouteWithChildren
   MaintenanceHousekeepingRoute: typeof MaintenanceHousekeepingRoute
   MaintenancePlannedMaintenanceRoute: typeof MaintenancePlannedMaintenanceRoute
@@ -2296,6 +2317,8 @@ const MaintenanceRouteChildren: MaintenanceRouteChildren = {
   MaintenanceBedOccupancyRoute: MaintenanceBedOccupancyRoute,
   MaintenanceCertificatesRoute: MaintenanceCertificatesRouteWithChildren,
   MaintenanceContractorsRoute: MaintenanceContractorsRouteWithChildren,
+  MaintenanceContractorsCertificatesRoute:
+    MaintenanceContractorsCertificatesRoute,
   MaintenanceCorrectiveActionsRoute:
     MaintenanceCorrectiveActionsRouteWithChildren,
   MaintenanceHousekeepingRoute: MaintenanceHousekeepingRoute,

@@ -18,6 +18,8 @@ export function certificateComplianceStatus(params: { certificate: MaintenanceCe
   if (params.certificate.archived || params.certificate.lifecycleStatus === "ARCHIVED") return "NOT_APPLICABLE";
   const version = params.version;
   if (!version || version.status === "DRAFT") return "MISSING";
+  if (params.type?.verificationRequired && (!version.verificationStatus || version.verificationStatus === "PENDING" || version.verificationStatus === "MORE_INFORMATION_REQUIRED")) return "AWAITING_VERIFICATION";
+  if (version.verificationStatus === "REJECTED") return "REJECTED";
   if (version.status === "REVOKED") return "REVOKED";
   if (version.status === "SUPERSEDED" || version.status === "ARCHIVED") return "NOT_APPLICABLE";
   const activeAttachments = (params.attachments || []).filter((item) => item.active && !item.removedAt);
@@ -25,8 +27,17 @@ export function certificateComplianceStatus(params: { certificate: MaintenanceCe
   if (!version.expiryDate) return "VALID";
   const days = daysBetween(dateOnly(params.today || new Date()), version.expiryDate);
   if (days < 0) return "EXPIRED";
-  if (days <= (params.type?.warningDays ?? 90)) return "EXPIRING_SOON";
+  if (days <= (params.type?.warningDays ?? 30)) return "EXPIRING_SOON";
   return "VALID";
+}
+
+export function validateCertificateVerification(params: { version: MaintenanceCertificateVersion; type?: MaintenanceCertificateType; result: "APPROVED" | "REJECTED" | "MORE_INFORMATION_REQUIRED"; verifier: string; comment?: string; rejectionReason?: string }) {
+  const errors: string[] = [];
+  if (!params.verifier.trim()) errors.push("An authorised verifier is required.");
+  if (params.type?.independentVerificationRequired && params.version.recordedBy === params.verifier) errors.push("The uploader cannot verify this certificate because independent verification is required.");
+  if (params.result === "REJECTED" && !params.rejectionReason?.trim()) errors.push("Enter a rejection reason.");
+  if (params.result === "MORE_INFORMATION_REQUIRED" && !params.comment?.trim()) errors.push("Describe the additional information required.");
+  return { valid: errors.length === 0, errors };
 }
 
 export function versionPresentationStatus(version: MaintenanceCertificateVersion, type?: MaintenanceCertificateType, today = new Date()): MaintenanceCertificateVersion["status"] {
@@ -34,7 +45,7 @@ export function versionPresentationStatus(version: MaintenanceCertificateVersion
   if (!version.expiryDate) return "ACTIVE";
   const days = daysBetween(dateOnly(today), version.expiryDate);
   if (days < 0) return "EXPIRED";
-  if (days <= (type?.warningDays ?? 90)) return "EXPIRING_SOON";
+  if (days <= (type?.warningDays ?? 30)) return "EXPIRING_SOON";
   return "ACTIVE";
 }
 
