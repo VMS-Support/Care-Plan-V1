@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Archive, ClipboardList, Edit, Plus, Settings2, Tags } from "lucide-react";
+import { Archive, ChevronLeft, ClipboardList, Edit, Plus, Search, Settings2, Tags } from "lucide-react";
 import { useCare } from "@/lib/care/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,13 +30,25 @@ import {
 } from "@/domain/maintenance/plannedCompliance";
 
 export const Route = createFileRoute("/maintenance/settings")({
-  head: () => ({ meta: [{ title: "Maintenance Settings - NuCare" }] }),
+  head: () => ({ meta: [{ title: "Maintenance Settings - ORITAS" }] }),
   component: MaintenanceSettings,
 });
 
+const SETTINGS_GROUPS = [
+  { name: "Work Configuration", description: "Work categories, priorities, statuses, SLAs and completion rules.", tab: "reference", items: ["Work Order Categories","Priorities","Statuses","SLAs","Waiting Reasons","Verification Rules"] },
+  { name: "Planned & Compliance", description: "Templates, recurrence, evidence and safety rules.", tab: "planned-compliance", items: ["Maintenance Templates","Safety Templates","Recurrence","Due Soon Period","Evidence Defaults","Reinspection Rules"] },
+  { name: "Housekeeping", description: "Cleaning templates, quality checks and readiness rules.", tab: "templates", items: ["Cleaning Templates","Cleaning Types","Quality Rules","Room Readiness","Exceptions"] },
+  { name: "Assets, Rooms & Beds", description: "Asset categories, capacity, bed and mattress reference data.", tab: "categories", items: ["Asset Categories","Room Types","Bed Types","Mattress Types","Capacity Rules","Return to Service"] },
+  { name: "Contractors & Certificates", description: "Services, contractor requirements and certificate types.", tab: "services", items: ["Services & Trades","Contractor Types","Certificate Types","Insurance Types","Expiry Rules"] },
+  { name: "Corrective Actions", description: "Categories, risk, evidence, verification and closure rules.", tab: "corrective-actions", items: ["Categories","Root Causes","Severity","Risk","SLA","Evidence","Verification","Reinspection","Closure"] },
+  { name: "Notifications & Escalations", description: "Reminder intervals, triggers and recipient rules.", tab: "notifications", items: ["Notification Types","Due Soon Rules","Overdue Rules","Recipients","Critical Failure Rules"] },
+  { name: "Permissions", description: "Plain-language access controls grouped by Maintenance area.", tab: "permissions", items: ["Work Orders","Planned & Compliance","Housekeeping","Assets","Contractors","Corrective Actions","Reports"] },
+  { name: "Reference Data", description: "Search, maintain, archive and restore reusable values.", tab: "reference", items: ["Categories","Statuses","Risk Levels","Document Types","Room Types","Bed Types","Evidence Types"] },
+];
+
 function MaintenanceSettings() {
   const care = useCare();
-  const [tab, setTab] = useState("categories");
+  const [tab, setTab] = useState("home");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any>();
   const [plannedComplianceSettings, setPlannedComplianceSettings] = useState(() => loadPlannedComplianceSettings());
@@ -63,10 +75,7 @@ function MaintenanceSettings() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Maintenance Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure reusable maintenance master data. Changes do not alter historical operational
-            records.
-          </p>
+          <p className="text-base text-muted-foreground">Configure templates, categories, statuses, service rules, notifications and permissions.</p>
         </div>
         {tab === "categories" && (
           <Button
@@ -85,7 +94,9 @@ function MaintenanceSettings() {
           </Button>
         )}
       </div>
-      <Tabs value={tab} onValueChange={setTab}>
+      {tab === "home" && <><div className="relative"><Search className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground"/><Input className="h-12 pl-12 text-base" value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Search maintenance settings"/></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{SETTINGS_GROUPS.filter((item)=>`${item.name} ${item.description} ${item.items.join(" ")}`.toLowerCase().includes(search.toLowerCase())).map((item)=><button key={item.name} className="rounded-xl border bg-card p-5 text-left shadow-sm hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={()=>setTab(item.tab)}><div className="text-xl font-semibold">{item.name}</div><p className="mt-2 min-h-12 text-base text-muted-foreground">{item.description}</p><div className="mt-3 text-sm text-muted-foreground">{item.items.length} settings</div><div className="mt-2 font-medium text-primary">Open Settings</div></button>)}</div></>}
+      {tab !== "home" && <Button variant="ghost" onClick={()=>setTab("home")}><ChevronLeft className="mr-2 h-4 w-4"/>Back to Maintenance Settings</Button>}
+      {tab !== "home" && <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="certificates">Certificate Types</TabsTrigger>
@@ -95,7 +106,7 @@ function MaintenanceSettings() {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="planned-compliance">Planned & Compliance</TabsTrigger>
         </TabsList>
-      </Tabs>
+      </Tabs>}
       {tab === "capacity" && (
         <Card>
           <CardHeader>
@@ -240,6 +251,24 @@ function MaintenanceSettings() {
             "Work-order and certificate events use existing notifications",
             "No separate notification data has been duplicated",
           ]}
+        />
+      )}
+      {tab === "corrective-actions" && (
+        <ConfigList
+          icon={ClipboardList}
+          title="Corrective Action Settings"
+          description="Corrective Action categories use the existing shared reference data. SLA, evidence, verification, reinspection and closure rules use the Phase 5B domain service."
+          rows={care.correctiveActionCategories.map((item) => `${item.name} · ${item.isActive ? "Active" : "Archived"}`)}
+          link="/maintenance/corrective-actions"
+          linkLabel="Open Corrective Actions"
+        />
+      )}
+      {tab === "permissions" && (
+        <ConfigList
+          icon={Settings2}
+          title="Maintenance Permissions"
+          description="Permissions remain enforced by the shared ORITAS role and Nursing Home access model."
+          rows={["View and manage Work Orders", "Manage Planned & Compliance", "Manage Housekeeping", "Manage Assets, Rooms & Beds", "Manage Contractors & Certificates", "Manage Corrective Actions", "Run and export Maintenance Reports"]}
         />
       )}
       <CategoryDialog
