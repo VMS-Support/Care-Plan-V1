@@ -7,6 +7,8 @@ import {
   housekeepingDashboardMetrics,
   housekeepingDueStatus,
   markAllHousekeepingResponses,
+  housekeepingPriorityQueue,
+  nextAssignedHousekeepingTask,
   nextHousekeepingDueDate,
   releaseCleaningTemplateName,
   roomReadinessBlockers,
@@ -96,6 +98,15 @@ test("dashboard metrics count active, failed and completed housekeeping work", (
   assert.equal(metrics.completedToday, 1);
   assert.equal(metrics.openExceptions, 1);
   assert.equal(metrics.roomBlocked, 1);
+});
+
+test("Today priority queue puts overdue high-risk work first and respects user Home scope", () => {
+  const routine=housekeepingTask({id:"routine",assignedUserId:"u-1",homeId:"home-1",status:"ASSIGNED",priority:"LOW",dueDate:"2026-07-22"});
+  const urgent=housekeepingTask({id:"urgent",assignedUserId:"u-1",homeId:"home-1",status:"ASSIGNED",priority:"CRITICAL",dueDate:"2026-07-21"});
+  const otherHome=housekeepingTask({id:"other",assignedUserId:"u-1",homeId:"home-2",status:"ASSIGNED",priority:"CRITICAL",dueDate:"2026-07-20"});
+  const now=new Date("2026-07-22T09:00:00.000Z");
+  assert.equal(housekeepingPriorityQueue([routine,urgent],now)[0].id,"urgent");
+  assert.equal(nextAssignedHousekeepingTask([otherHome,routine,urgent],"u-1",["home-1"],now)?.id,"urgent");
 });
 
 function template(overrides: Partial<HousekeepingTemplate> = {}): HousekeepingTemplate {

@@ -139,6 +139,41 @@ export function housekeepingDueStatus(
   return dueAt.getTime() < now.getTime() ? "OVERDUE" : task.status;
 }
 
+export type HousekeepingQuickFilter = "ALL" | "DUE_NOW" | "OVERDUE" | "FAILED" | "REINSPECTION" | "SIGN_OFF";
+
+export function matchesHousekeepingQuickFilter(task: HousekeepingTask, filter: HousekeepingQuickFilter, now = new Date()) {
+  if (filter === "ALL") return true;
+  if (filter === "OVERDUE") return housekeepingDueStatus(task, now) === "OVERDUE";
+  if (filter === "FAILED") return task.status === "FAILED";
+  if (filter === "REINSPECTION") return task.status === "AWAITING_REINSPECTION";
+  if (filter === "SIGN_OFF") return Boolean(task.supervisorSignOffRequired && task.supervisorSignOffResult !== "APPROVED" && ["COMPLETED", "FAILED", "AWAITING_INSPECTION"].includes(task.status));
+  const today = now.toISOString().slice(0, 10);
+  return task.dueDate === today && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(task.status);
+}
+
+export function housekeepingPriorityScore(task: HousekeepingTask, now = new Date()) {
+  const overdue = housekeepingDueStatus(task, now) === "OVERDUE";
+  const highRisk = ["HIGH", "CRITICAL"].includes(task.priority);
+  if (overdue && highRisk) return 0;
+  if (highRisk && task.dueDate === now.toISOString().slice(0, 10)) return 1;
+  if (overdue) return 2;
+  if (task.releaseEventId || task.roomReadinessRequired) return 3;
+  if (task.dueDate === now.toISOString().slice(0, 10)) return 4;
+  if (task.supervisorSignOffRequired && task.supervisorSignOffResult !== "APPROVED") return 5;
+  if (task.status === "AWAITING_REINSPECTION") return 6;
+  return 7;
+}
+
+export function housekeepingPriorityQueue(tasks: HousekeepingTask[], now = new Date()) {
+  return tasks
+    .filter((task) => !["COMPLETED", "CANCELLED", "SKIPPED"].includes(task.status))
+    .sort((a, b) => housekeepingPriorityScore(a, now) - housekeepingPriorityScore(b, now) || `${a.dueDate} ${a.dueTime || ""}`.localeCompare(`${b.dueDate} ${b.dueTime || ""}`));
+}
+
+export function nextAssignedHousekeepingTask(tasks: HousekeepingTask[], userId: string, homeIds: string[], now = new Date()) {
+  return housekeepingPriorityQueue(tasks.filter((task) => task.assignedUserId === userId && homeIds.includes(task.homeId)), now)[0];
+}
+
 export function responseResultFromHousekeepingValue(value?: string): HousekeepingResponseResult {
   const normal = String(value || "").toLowerCase();
   if (["pass", "yes", "complete", "completed", "signed", "photo attached"].includes(normal))
@@ -371,6 +406,10 @@ export function housekeepingDashboardMetrics(params: {
     inProgress: params.tasks.filter((item) => item.status === "IN_PROGRESS").length,
     failed: params.tasks.filter((item) => item.status === "FAILED").length,
     awaitingInspection: params.tasks.filter((item) => item.status === "AWAITING_INSPECTION").length,
+    awaitingReinspection: params.tasks.filter((item) => item.status === "AWAITING_REINSPECTION").length,
+    awaitingSupervisorSignOff: params.tasks.filter((item) => item.supervisorSignOffRequired && item.supervisorSignOffResult !== "APPROVED" && !["CANCELLED", "SKIPPED"].includes(item.status)).length,
+    highRiskTasks: activeTasks.filter((item) => ["HIGH", "CRITICAL"].includes(item.priority)).length,
+    bedsAwaitingCleaning: new Set(params.tasks.filter((item) => item.bedId && item.roomReadinessRequired).map((item) => item.bedId)).size,
     completedToday: completedToday.length,
     openExceptions: params.exceptions.filter((item) =>
       ["OPEN", "IN_REVIEW", "ACTION_REQUIRED"].includes(item.status),

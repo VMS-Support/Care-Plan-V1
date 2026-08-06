@@ -22,7 +22,11 @@ import {
   cleaningTypeLabel,
   housekeepingDashboardMetrics,
   housekeepingDueStatus,
+  housekeepingPriorityQueue,
   housekeepingStatusLabel,
+  matchesHousekeepingQuickFilter,
+  nextAssignedHousekeepingTask,
+  type HousekeepingQuickFilter,
   roomReadinessBlockers,
 } from "@/domain/maintenance/housekeeping";
 import { frequencyLabel } from "@/domain/maintenance/plannedMaintenance";
@@ -79,6 +83,7 @@ function HousekeepingRoute() {
     open: false,
   });
   const [message, setMessage] = useState("");
+  const [quickFilter, setQuickFilter] = useState<HousekeepingQuickFilter>("ALL");
 
   const metrics = useMemo(
     () =>
@@ -108,6 +113,7 @@ function HousekeepingRoute() {
     .filter((task) =>
       searchable([task.title, task.taskNumber, task.locationLabel, task.status], search),
     )
+    .filter((task) => matchesHousekeepingQuickFilter(task, quickFilter, new Date()))
     .sort((a, b) =>
       `${a.dueDate} ${a.dueTime || ""}`.localeCompare(`${b.dueDate} ${b.dueTime || ""}`),
     );
@@ -132,15 +138,17 @@ function HousekeepingRoute() {
         <div>
           <div className="text-sm text-muted-foreground">Maintenance &gt; Housekeeping</div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Housekeeping</h1>
-          <p className="text-sm text-muted-foreground">
-            Cleaning schedules, task execution, evidence, exceptions, quality inspections and room
-            readiness.
+          <p className="text-base text-muted-foreground">
+            See today’s cleaning, inspections and room-readiness work.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setTaskDialog(true)}>
+          <Button size="lg" onClick={() => {const homeIds=care.facilities.filter((home)=>care.canAccess("permission.manage",{nursingHomeId:home.id})).map((home)=>home.id);const next=nextAssignedHousekeepingTask(care.housekeepingTasks,care.currentUser.id,homeIds,new Date());if(next){setSelectedTaskId(next.id);setTab("tasks");}else setMessage("No housekeeping tasks are currently assigned to you.");}}>
+            Start Next Task
+          </Button>
+          <Button size="lg" onClick={() => setTaskDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Ad Hoc Task
+            Create Cleaning Task
           </Button>
           <Button size="sm" variant="outline" onClick={() => setScheduleDialog(true)}>
             Create Schedule
@@ -157,28 +165,27 @@ function HousekeepingRoute() {
         </div>
       )}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Metric
           icon={<ClipboardList />}
-          label="Tasks Due Today"
+          label="Due Now"
           value={metrics.dueToday}
           tone="blue"
         />
         <Metric icon={<AlertTriangle />} label="Overdue" value={metrics.overdue} tone="red" />
         <Metric icon={<Sparkles />} label="In Progress" value={metrics.inProgress} tone="amber" />
+        <Metric icon={<AlertTriangle />} label="Failed" value={metrics.failed} tone="red" />
         <Metric
           icon={<ClipboardCheck />}
-          label="Awaiting Inspection"
-          value={metrics.awaitingInspection}
+          label="Awaiting Reinspection"
+          value={metrics.awaitingReinspection}
           tone="purple"
         />
+        <Metric icon={<ClipboardCheck />} label="Awaiting Supervisor Sign-Off" value={metrics.awaitingSupervisorSignOff} tone="purple" />
+        <Metric icon={<CheckCircle2 />} label="Completed Today" value={metrics.completedToday} tone="green" />
         <Metric icon={<DoorOpen />} label="Rooms Blocked" value={metrics.roomBlocked} tone="red" />
-        <Metric
-          icon={<CheckCircle2 />}
-          label="Completion Rate"
-          value={`${metrics.completionRate}%`}
-          tone="green"
-        />
+        <Metric icon={<DoorOpen />} label="Beds Awaiting Cleaning" value={metrics.bedsAwaitingCleaning} tone="amber" />
+        <Metric icon={<AlertTriangle />} label="High-Risk Tasks" value={metrics.highRiskTasks} tone="red" />
       </section>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -217,8 +224,10 @@ function HousekeepingRoute() {
         </select>
       </div>
 
+      {tab === "today" && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Task filters">{([['ALL','All Tasks'],['DUE_NOW','Due Now'],['OVERDUE','Overdue'],['FAILED','Failed'],['REINSPECTION','Reinspection'],['SIGN_OFF','Sign-Off']] as Array<[HousekeepingQuickFilter,string]>).map(([value,label])=><Button key={value} size="lg" variant={quickFilter===value?"default":"outline"} onClick={()=>setQuickFilter(value)}>{label}</Button>)}</div>}
+
       {tab === "today" && (
-        <Overview metrics={metrics} tasks={activeTasks} onSelect={setSelectedTaskId} />
+        <Overview metrics={metrics} tasks={housekeepingPriorityQueue(activeTasks,new Date())} onSelect={(id)=>{setSelectedTaskId(id);setTab("tasks");}} />
       )}
       {tab === "schedules" && <SchedulePanel care={care} action={action} />}
       {tab === "tasks" && (
@@ -272,7 +281,7 @@ function Overview({
     <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Cleaning Workload</CardTitle>
+          <CardTitle>Today’s Priorities</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
           {metrics.byCleaningType.map((item) => (
